@@ -3,7 +3,7 @@
 <img src="https://img.shields.io/badge/Rayzen_AI-v0.1.0-6366f1?style=for-the-badge&logoColor=white" />
 <img src="https://img.shields.io/badge/TypeScript-100%25-3178c6?style=for-the-badge&logo=typescript&logoColor=white" />
 <img src="https://img.shields.io/badge/NestJS-10-e0234e?style=for-the-badge&logo=nestjs&logoColor=white" />
-<img src="https://img.shields.io/badge/Next.js-16-000000?style=for-the-badge&logo=next.js&logoColor=white" />
+<img src="https://img.shields.io/badge/Next.js-15-000000?style=for-the-badge&logo=next.js&logoColor=white" />
 <img src="https://img.shields.io/github/actions/workflow/status/marcelorayzen/rayzen-ai/ci.yml?branch=main&style=for-the-badge&label=CI" />
 
 <br /><br />
@@ -86,7 +86,7 @@
     <td><img src="docs/assets/agent-acao.png" alt="PC Agent em ação" width="360" /></td>
   </tr>
   <tr>
-    <td align="center"><sub>Brain aceita GitHub, arquivo (PDF/TXT) e URL — memória semântica com pgvector</sub></td>
+    <td align="center"><sub>Brain aceita GitHub, Notion, arquivo (PDF/MD/TXT e mais) e URL — múltiplos arquivos de uma vez</sub></td>
     <td align="center"><sub>PC Agent em ação — lista pastas, tira screenshot e navega no sistema de arquivos via chat</sub></td>
   </tr>
   <tr>
@@ -193,14 +193,16 @@ Veja [docs/architecture.md](docs/architecture.md) para o catálogo completo de m
 
 ## Confiabilidade
 
-**48 testes em 6 módulos**, aplicados no CI:
+**103 testes em 11 suites**, aplicados no CI:
 
 | Módulo | O que é testado |
 |---|---|
 | `ValidationService` | Padrões de prompt injection, vazamento de schema, guard de classificação, níveis de severidade |
 | `SessionService` | Stats agregadas de tokens, groupBy de sessão, truncamento de título em 50 chars, título fallback |
 | `VoiceService` | Remoção de markdown antes do TTS, limite de 800 chars, limpeza de arquivo temp no finally |
-| `MemoryService` | Deduplicação por checksum, parâmetros da chamada Jina, mapeamento de score pgvector, erros de URL |
+| `MemoryService` | Deduplicação por checksum, Jina embed, search pgvector, indexGithub (404/403/sucesso), indexNotion (401/sucesso), indexFile (txt/md), listDocuments com filtro, deleteDocument |
+| `BrainService` | Embed Jina 1024-dim, chunkText, indexDocument (created/updated), search com score numérico |
+| `WikiService` | Controller CRUD, compilação LLM, merge/diff, versionamento, proteção human_edited/locked |
 | `ExecutionService` | Parâmetros do `queue.add`: jobId, attempts=3, backoff=5000 |
 | `OrchestratorService` | Roteamento de classificação para módulo correto, `assertValidPrompt` chamado, estrutura de resposta |
 
@@ -219,7 +221,9 @@ Veja [docs/validation.md](docs/validation.md) para a filosofia de validação e 
 ```
 apps/api/src/modules/
 ├── orchestrator/        # Classificação de intent (gpt-4o-mini, temp=0) + roteamento + SSE + work modes
-├── memory/              # Busca semântica pgvector · embeddings Jina · indexação de URL + PDF
+├── brain/               # Embeddings Jina 1024-dim · indexDocument/indexUrl/indexText · busca pgvector
+├── wiki/                # WikiPage com merge/diff · editStatus · versionamento · proteção human_edited
+├── memory/              # Indexação de GitHub, Notion, URL, arquivo (PDF/MD/TXT) · searchAndSynthesize
 ├── execution/           # Despacho de tasks BullMQ + jarvis payload builder
 ├── document-processing/ # PDF Puppeteer · DOCX docxtemplater · endpoint de download
 ├── content-engine/      # Conteúdo longo · calendário editorial · diagramas Mermaid
@@ -354,7 +358,7 @@ Abra **http://localhost:3000** e faça login com a senha que você definiu em `A
 pnpm typecheck       # TypeScript zero erros (todos os workspaces)
 pnpm lint            # ESLint em todos os apps
 pnpm test            # Jest
-pnpm test:cov        # Jest + relatório de coverage (functions ≥ 80%)
+pnpm test:cov        # Jest + relatório de coverage (functions ≥ 70%)
 pnpm db:migrate      # Aplicar migrations Prisma
 pnpm db:studio       # Prisma Studio em http://localhost:5555
 pnpm build           # Build de todos os apps
