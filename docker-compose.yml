@@ -1,7 +1,6 @@
 services:
   postgres:
-    image: pgvector/pgvector:pg16
-    platform: linux/amd64
+    image: ankane/pgvector:latest
     restart: unless-stopped
     environment:
       POSTGRES_USER: rayzen
