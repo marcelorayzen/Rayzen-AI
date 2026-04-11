@@ -160,9 +160,58 @@ model Document {
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
-  project Project? @relation(fields: [projectId], references: [id])
+  project     Project?              @relation(fields: [projectId], references: [id])
+  wikiSources WikiSourceReference[]
 
   @@map("documents")
+}
+
+model WikiPage {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  title       String
+  tags        String[] @default([])
+  contentMd   String   @map("content_md")
+  related     String[] @default([])        // slugs de outras WikiPages
+  editStatus  String   @default("generated") @map("edit_status")
+                                            // generated | human_reviewed | human_edited | locked
+  compiledAt  DateTime @default(now()) @map("compiled_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  versions WikiPageVersion[]
+  sources  WikiSourceReference[]
+
+  @@map("wiki_pages")
+}
+
+model WikiPageVersion {
+  id         String   @id @default(uuid())
+  pageId     String   @map("page_id")
+  contentMd  String   @map("content_md")
+  reason     String   @default("compiled") // compiled | recompiled | manual | merged
+  diff       String?                        // resumo das mudanças
+  authorType String   @default("llm") @map("author_type") // llm | human
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  page WikiPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([pageId, createdAt(sort: Desc)])
+  @@map("wiki_page_versions")
+}
+
+model WikiSourceReference {
+  id             String   @id @default(uuid())
+  pageId         String   @map("page_id")
+  documentId     String   @map("document_id")
+  relevanceScore Float    @default(0) @map("relevance_score")
+  usedAt         DateTime @default(now()) @map("used_at")
+
+  page     WikiPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  document Document @relation(fields: [documentId], references: [id])
+
+  @@unique([pageId, documentId])
+  @@map("wiki_source_references")
 }
 
 model TaskLog {

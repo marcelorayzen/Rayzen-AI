@@ -25,6 +25,8 @@ import { GitModule } from './modules/git/git.module'
 import { ProactiveModule } from './modules/proactive/proactive.module'
 import { HealthModule } from './modules/health/health.module'
 import { NotionModule } from './modules/notion/notion.module'
+import { BrainModule } from './modules/brain/brain.module'
+import { WikiModule } from './modules/wiki/wiki.module'
 
 @Module({
   imports: [
@@ -53,6 +55,8 @@ import { NotionModule } from './modules/notion/notion.module'
     ProactiveModule,
     HealthModule,
     NotionModule,
+    BrainModule,
+    WikiModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

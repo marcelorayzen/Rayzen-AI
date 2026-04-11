@@ -342,7 +342,7 @@ pnpm dev:web           # Web  → http://localhost:3000
 pnpm dev:agent         # PC Agent (necessário para o módulo Execution)
 ```
 
-Abra **http://localhost:3000** e faça login com `ADMIN_PASSWORD`.
+Abra **http://localhost:3000** e faça login com a senha que você definiu em `ADMIN_PASSWORD` no arquivo `.env`.
 
 > **Persistência de dados:** PostgreSQL e Redis usam volumes Docker nomeados (`pg_data`, `redis_data`). Reiniciar containers (inclusive após reboot) preserva todos os dados. Os dados só são perdidos com `docker compose down -v`.
 

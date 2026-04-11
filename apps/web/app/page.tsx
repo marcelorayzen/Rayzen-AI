@@ -143,7 +143,7 @@ interface DocVersion {
   createdAt: string
 }
 
-type ImportTab = 'github' | 'file' | 'url'
+type ImportTab = 'github' | 'file' | 'url' | 'notion'
 
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([])
@@ -209,6 +209,14 @@ export default function Home() {
   const [githubUser, setGithubUser] = useState('')
   const [githubToken, setGithubToken] = useState('')
   const [importUrl, setImportUrl] = useState('')
+  const [notionToken, setNotionToken] = useState('')
+  const [notionPageId, setNotionPageId] = useState('')
+  const [memoryOpen, setMemoryOpen] = useState(false)
+  const [memoryDocs, setMemoryDocs] = useState<Array<{ id: string; sourcePath: string | null; createdAt: string }>>([])
+  const [memoryDocsLoading, setMemoryDocsLoading] = useState(false)
+  const [memorySearch, setMemorySearch] = useState('')
+  const [memorySearchResults, setMemorySearchResults] = useState<Array<{ id: string; content: string; sourcePath: string | null; score: number }> | null>(null)
+  const [memorySearching, setMemorySearching] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
@@ -345,6 +353,10 @@ export default function Home() {
   }, [activeProjectId])
 
   const synthesizeCurrent = useCallback(async () => {
+    if (messages.length === 0) {
+      alert('Converse primeiro — a sessão ainda não tem mensagens para sintetizar.')
+      return
+    }
     setSynthesizing(true)
     try {
       const res = await fetch(`${API_URL}/synthesis/session`, {
@@ -352,11 +364,16 @@ export default function Home() {
         headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ sessionId, ...(activeProjectId ? { projectId: activeProjectId } : {}), ...(workMode ? { workMode } : {}) }),
       })
+      if (!res.ok) {
+        const err = await res.json() as { message?: string }
+        throw new Error(err.message ?? `HTTP ${res.status}`)
+      }
       const artifact = await res.json() as SynthesisArtifact
       setSynthesisArtifacts(prev => [artifact, ...prev])
-    } catch { /* silencioso */ }
-    finally { setSynthesizing(false) }
-  }, [sessionId, activeProjectId])
+    } catch (err) {
+      alert(`Erro ao sintetizar: ${err instanceof Error ? err.message : 'falhou'}`)
+    } finally { setSynthesizing(false) }
+  }, [sessionId, activeProjectId, messages])
 
   const openDocs = useCallback(async () => {
     if (!activeProjectId) return
@@ -410,6 +427,25 @@ export default function Home() {
     } catch { /* silencioso */ }
     finally { setVersionsLoading(false) }
   }, [activeProjectId])
+
+  const deleteProject = useCallback(async (id: string) => {
+    if (!confirm('Deletar este projeto? Esta ação não pode ser desfeita.')) return
+    await fetch(`${API_URL}/projects/${id}`, { method: 'DELETE', headers: authHeaders() })
+    setProjects((prev) => prev.filter((p) => p.id !== id))
+    if (activeProjectId === id) setActiveProjectId(null)
+  }, [activeProjectId])
+
+  const renameProject = useCallback(async (id: string, currentName: string) => {
+    const name = prompt('Novo nome do projeto:', currentName)
+    if (!name?.trim() || name.trim() === currentName) return
+    const res = await fetch(`${API_URL}/projects/${id}`, {
+      method: 'PATCH',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ name: name.trim() }),
+    })
+    const updated = await res.json() as { id: string; name: string; status: string }
+    setProjects((prev) => prev.map((p) => p.id === id ? { ...p, name: updated.name } : p))
+  }, [])
 
   const loadProjectState = useCallback(async (projectId: string) => {
     try {
@@ -566,7 +602,7 @@ export default function Home() {
       const res = await fetch(`${API_URL}/memory/index/github`, {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ username, token: githubToken.trim() || undefined }),
+        body: JSON.stringify({ username, token: githubToken.trim() || undefined, projectId: activeProjectId ?? undefined }),
       })
       if (!res.ok) {
         const err = await res.text()
@@ -579,7 +615,7 @@ export default function Home() {
     } finally {
       setImportLoading(false)
     }
-  }, [githubUser, githubToken])
+  }, [githubUser, githubToken, activeProjectId])
 
   const handleImportUrl = useCallback(async () => {
     if (!importUrl.trim()) return
@@ -589,7 +625,7 @@ export default function Home() {
       const res = await fetch(`${API_URL}/memory/index/url`, {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ url: importUrl.trim() }),
+        body: JSON.stringify({ url: importUrl.trim(), projectId: activeProjectId ?? undefined }),
       })
       if (!res.ok) throw new Error(await res.text() || `HTTP ${res.status}`)
       const data = await res.json() as { indexed: number }
@@ -599,24 +635,38 @@ export default function Home() {
     } finally {
       setImportLoading(false)
     }
-  }, [importUrl])
+  }, [importUrl, activeProjectId])
 
   const handleImportFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const files = Array.from(e.target.files ?? [])
+    if (files.length === 0) return
     setImportLoading(true)
     setImportResult(null)
     try {
-      const formData = new FormData()
-      formData.append('file', file)
-      const res = await fetch(`${API_URL}/memory/index/file`, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: formData,
-      })
-      if (!res.ok) throw new Error(await res.text() || `HTTP ${res.status}`)
-      const data = await res.json() as { indexed: number }
-      setImportResult(`${data.indexed} chunks indexados de "${file.name}"`)
+      let totalChunks = 0
+      let errors = 0
+      for (const file of files) {
+        try {
+          const formData = new FormData()
+          formData.append('file', file)
+          if (activeProjectId) formData.append('projectId', activeProjectId)
+          const res = await fetch(`${API_URL}/memory/index/file`, {
+            method: 'POST',
+            headers: authHeaders(),
+            body: formData,
+          })
+          if (!res.ok) throw new Error(await res.text() || `HTTP ${res.status}`)
+          const data = await res.json() as { indexed: number }
+          totalChunks += data.indexed
+        } catch {
+          errors++
+        }
+        setImportResult(`Indexando… ${files.indexOf(file) + 1}/${files.length}`)
+      }
+      const msg = errors > 0
+        ? `${files.length - errors}/${files.length} arquivos indexados (${totalChunks} chunks) — ${errors} erro(s)`
+        : `${files.length} arquivo${files.length > 1 ? 's' : ''} indexado${files.length > 1 ? 's' : ''} (${totalChunks} chunks)`
+      setImportResult(msg)
     } catch (err) {
       setImportResult(`Erro: ${err instanceof Error ? err.message : 'falhou'}`)
     } finally {
@@ -624,6 +674,58 @@ export default function Home() {
       e.target.value = ''
     }
   }, [])
+
+  const handleImportNotion = useCallback(async () => {
+    if (!notionToken.trim()) return
+    setImportLoading(true)
+    setImportResult(null)
+    try {
+      const res = await fetch(`${API_URL}/memory/index/notion`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ integrationToken: notionToken.trim(), rootPageId: notionPageId.trim() || undefined, projectId: activeProjectId ?? undefined }),
+      })
+      if (!res.ok) {
+        const err = await res.json() as { message?: string }
+        throw new Error(err.message ?? `HTTP ${res.status}`)
+      }
+      const data = await res.json() as { indexed: number; pages: number }
+      setImportResult(`${data.pages} páginas indexadas (${data.indexed} chunks)`)
+    } catch (err) {
+      setImportResult(`Erro: ${err instanceof Error ? err.message : 'falhou'}`)
+    } finally {
+      setImportLoading(false)
+    }
+  }, [notionToken, notionPageId, activeProjectId])
+
+  const openMemoryPanel = useCallback(async () => {
+    setMemoryOpen(true)
+    setMemorySearch('')
+    setMemorySearchResults(null)
+    setMemoryDocsLoading(true)
+    try {
+      const qs = activeProjectId ? `?projectId=${activeProjectId}` : ''
+      const res = await fetch(`${API_URL}/memory/documents${qs}`, { headers: authHeaders() })
+      const data = await res.json() as Array<{ id: string; sourcePath: string | null; createdAt: string }>
+      setMemoryDocs(data)
+    } catch { /* silencioso */ }
+    finally { setMemoryDocsLoading(false) }
+  }, [])
+
+  const handleMemorySearch = useCallback(async () => {
+    if (!memorySearch.trim()) { setMemorySearchResults(null); return }
+    setMemorySearching(true)
+    try {
+      const res = await fetch(`${API_URL}/memory/search`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ query: memorySearch.trim(), sessionId: 'memory-panel' }),
+      })
+      const data = await res.json() as { sources?: Array<{ id: string; content: string; sourcePath: string | null; score: number }> }
+      setMemorySearchResults(data.sources ?? [])
+    } catch { setMemorySearchResults([]) }
+    finally { setMemorySearching(false) }
+  }, [memorySearch])
 
   const drainQueue = useCallback(() => {
     if (drainActiveRef.current) return
@@ -1577,6 +1679,106 @@ export default function Home() {
         </div>
       )}
 
+      {/* Memory panel */}
+      {memoryOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="fixed inset-0 bg-black/70" onClick={() => setMemoryOpen(false)} />
+          <div className="relative z-50 w-full max-w-lg bg-zinc-900 border border-zinc-800 rounded-2xl p-6 mx-4 flex flex-col max-h-[80vh]">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-zinc-200">Memória indexada</h2>
+                {!memoryDocsLoading && <p className="text-xs text-zinc-500 mt-0.5">{memoryDocs.length} documentos</p>}
+              </div>
+              <button onClick={() => setMemoryOpen(false)} className="text-zinc-500 hover:text-zinc-300 text-xl leading-none">×</button>
+            </div>
+
+            {/* Search */}
+            <div className="flex gap-2 mb-4">
+              <input
+                value={memorySearch}
+                onChange={(e) => setMemorySearch(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleMemorySearch() }}
+                placeholder="Buscar na memória…"
+                className="flex-1 bg-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none focus:ring-1 focus:ring-zinc-600"
+              />
+              <button
+                onClick={handleMemorySearch}
+                disabled={memorySearching || !memorySearch.trim()}
+                className="bg-zinc-700 hover:bg-zinc-600 text-zinc-200 rounded-lg px-3 py-2 text-xs font-medium disabled:opacity-40 transition-colors"
+              >
+                {memorySearching ? '…' : 'Buscar'}
+              </button>
+              {memorySearchResults !== null && (
+                <button
+                  onClick={() => { setMemorySearch(''); setMemorySearchResults(null) }}
+                  className="text-zinc-500 hover:text-zinc-300 text-xs px-2"
+                >limpar</button>
+              )}
+            </div>
+
+            {/* Results */}
+            <div className="overflow-y-auto flex-1 space-y-2 pr-1">
+              {memoryDocsLoading && <p className="text-xs text-zinc-500 text-center py-8">Carregando…</p>}
+
+              {/* Search results */}
+              {memorySearchResults !== null && !memorySearching && (
+                <>
+                  {memorySearchResults.length === 0 && (
+                    <p className="text-xs text-zinc-500 text-center py-8">Nenhum resultado encontrado</p>
+                  )}
+                  {memorySearchResults.map((r) => (
+                    <div key={r.id} className="bg-zinc-800 rounded-xl p-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[11px] text-zinc-500 truncate">{r.sourcePath ?? 'sem origem'}</span>
+                        <span className="text-[11px] text-zinc-600 ml-2 shrink-0">{(r.score * 100).toFixed(0)}%</span>
+                      </div>
+                      <p className="text-xs text-zinc-300 line-clamp-3">{r.content}</p>
+                    </div>
+                  ))}
+                </>
+              )}
+
+              {/* Document list */}
+              {memorySearchResults === null && !memoryDocsLoading && (() => {
+                const groups = memoryDocs.reduce<Record<string, { ids: string[]; count: number }>>((acc, d) => {
+                  const key = d.sourcePath?.split('/').slice(0, 2).join('/') ?? 'sem origem'
+                  if (!acc[key]) acc[key] = { ids: [], count: 0 }
+                  acc[key].ids.push(d.id)
+                  acc[key].count++
+                  return acc
+                }, {})
+                return Object.entries(groups).sort((a, b) => b[1].count - a[1].count).map(([source, { ids, count }]) => (
+                  <div key={source} className="flex items-center justify-between bg-zinc-800 rounded-xl px-3 py-2 group">
+                    <span className="text-xs text-zinc-300 truncate">{source}</span>
+                    <div className="flex items-center gap-2 ml-2 shrink-0">
+                      <span className="text-[11px] text-zinc-500">{count} chunk{count !== 1 ? 's' : ''}</span>
+                      <button
+                        onClick={async () => {
+                          if (!confirm(`Deletar todos os ${count} chunks de "${source}"?`)) return
+                          await Promise.all(ids.map(id =>
+                            fetch(`${API_URL}/memory/documents/${id}`, { method: 'DELETE', headers: authHeaders() })
+                          ))
+                          setMemoryDocs(prev => prev.filter(d => !ids.includes(d.id)))
+                        }}
+                        className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-red-400 transition-all"
+                        title="Deletar todos os chunks desta origem"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="3 6 5 6 21 6"/>
+                          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                          <path d="M10 11v6M14 11v6"/>
+                          <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                ))
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Import modal */}
       {importOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -1589,7 +1791,7 @@ export default function Home() {
 
             {/* Tabs */}
             <div className="flex gap-1 mb-4 bg-zinc-800 rounded-lg p-1">
-              {(['github', 'file', 'url'] as ImportTab[]).map((tab) => (
+              {(['github', 'notion', 'file', 'url'] as ImportTab[]).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => { setImportTab(tab); setImportResult(null) }}
@@ -1597,7 +1799,7 @@ export default function Home() {
                     importTab === tab ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'
                   }`}
                 >
-                  {tab === 'github' ? 'GitHub' : tab === 'file' ? 'Arquivo' : 'URL'}
+                  {tab === 'github' ? 'GitHub' : tab === 'notion' ? 'Notion' : tab === 'file' ? 'Arquivo' : 'URL'}
                 </button>
               ))}
             </div>
@@ -1634,14 +1836,47 @@ export default function Home() {
               </div>
             )}
 
+            {/* Notion tab */}
+            {importTab === 'notion' && (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-zinc-500 mb-1 block">Integration Token</label>
+                  <input
+                    value={notionToken}
+                    onChange={(e) => setNotionToken(e.target.value)}
+                    type="password"
+                    placeholder="secret_..."
+                    className="w-full bg-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none focus:ring-1 focus:ring-zinc-600"
+                  />
+                  <p className="text-[11px] text-zinc-600 mt-1">Crie em notion.so/my-integrations e compartilhe as páginas com ela</p>
+                </div>
+                <div>
+                  <label className="text-xs text-zinc-500 mb-1 block">ID ou URL da página (opcional — indexa tudo se vazio)</label>
+                  <input
+                    value={notionPageId}
+                    onChange={(e) => setNotionPageId(e.target.value)}
+                    placeholder="https://notion.so/... ou UUID"
+                    className="w-full bg-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none focus:ring-1 focus:ring-zinc-600"
+                  />
+                </div>
+                <button
+                  onClick={handleImportNotion}
+                  disabled={importLoading || !notionToken.trim()}
+                  className="w-full bg-zinc-100 text-zinc-900 rounded-lg py-2 text-sm font-medium disabled:opacity-40 hover:bg-white transition-colors"
+                >
+                  {importLoading ? 'Indexando…' : 'Indexar páginas Notion'}
+                </button>
+              </div>
+            )}
+
             {/* File tab */}
             {importTab === 'file' && (
               <div className="space-y-3">
-                <p className="text-xs text-zinc-500">Suporta PDF e TXT. Ideal para currículo, projetos, anotações.</p>
+                <p className="text-xs text-zinc-500">Suporta PDF, TXT, MD e outros arquivos de texto.</p>
                 <label className={`flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-zinc-700 rounded-xl cursor-pointer hover:border-zinc-500 transition-colors ${importLoading ? 'opacity-40 pointer-events-none' : ''}`}>
                   <span className="text-zinc-500 text-sm">{importLoading ? 'Indexando…' : 'Clique ou arraste o arquivo aqui'}</span>
-                  <span className="text-zinc-700 text-xs mt-1">.pdf, .txt</span>
-                  <input type="file" accept=".pdf,.txt" className="hidden" onChange={handleImportFile} />
+                  <span className="text-zinc-700 text-xs mt-1">.pdf, .txt, .md, .ts, .json, .yaml…</span>
+                  <input type="file" multiple accept=".pdf,.txt,.md,.ts,.tsx,.js,.jsx,.json,.yaml,.yml,.toml,.env.example,.sh,.sql,.csv" className="hidden" onChange={handleImportFile} />
                 </label>
               </div>
             )}
@@ -1772,6 +2007,17 @@ export default function Home() {
             </svg>
           </button>
           <button
+            onClick={openMemoryPanel}
+            className="text-zinc-400 hover:text-zinc-200 transition-colors"
+            title="Memória indexada"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <ellipse cx="12" cy="5" rx="9" ry="3"/>
+              <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+              <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+            </svg>
+          </button>
+          <button
             onClick={() => { setImportOpen(true); setImportResult(null) }}
             className="text-zinc-400 hover:text-zinc-200 transition-colors"
             title="Indexar no Brain"
@@ -1804,6 +2050,35 @@ export default function Home() {
               className="text-zinc-500 hover:text-zinc-200 transition-colors w-6 h-6 flex items-center justify-center rounded-md hover:bg-zinc-700 text-base leading-none"
               title="Novo projeto"
             >+</button>
+            {activeProjectId && (() => {
+              const proj = projects.find((p) => p.id === activeProjectId)
+              return proj ? (
+                <>
+                  <button
+                    onClick={() => renameProject(proj.id, proj.name)}
+                    className="text-zinc-600 hover:text-zinc-300 transition-colors w-6 h-6 flex items-center justify-center rounded-md hover:bg-zinc-700"
+                    title="Renomear projeto"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => deleteProject(proj.id)}
+                    className="text-zinc-600 hover:text-red-400 transition-colors w-6 h-6 flex items-center justify-center rounded-md hover:bg-zinc-700"
+                    title="Deletar projeto"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="3 6 5 6 21 6"/>
+                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                      <path d="M10 11v6M14 11v6"/>
+                      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                    </svg>
+                  </button>
+                </>
+              ) : null
+            })()}
           </div>
           {activeProjectId && (
             <select

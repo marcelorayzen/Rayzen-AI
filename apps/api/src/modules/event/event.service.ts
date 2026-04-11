@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 
-export type EventSource = 'chat' | 'memory' | 'cli' | 'voice' | 'execution' | 'manual'
+export type EventSource = 'chat' | 'memory' | 'cli' | 'voice' | 'execution' | 'manual' | 'brain'
 export type EventType = 'message' | 'index' | 'execution' | 'decision' | 'note' | 'error'
 export type EventIntent = 'decision' | 'idea' | 'problem' | 'reference' | 'checkpoint'
 export type MemoryClass = 'inbox' | 'working' | 'consolidated' | 'archive'

@@ -22,4 +22,9 @@ export class ProjectService {
   async update(id: string, data: { name?: string; description?: string; goals?: string; status?: string }) {
     return this.prisma.project.update({ where: { id }, data })
   }
+
+  async delete(id: string) {
+    await this.prisma.project.delete({ where: { id } })
+    return { deleted: true }
+  }
 }

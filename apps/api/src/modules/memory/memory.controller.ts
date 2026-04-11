@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Delete, Body, Param, Req } from '@nestjs/common'
+import { Controller, Post, Get, Delete, Body, Param, Req, Query } from '@nestjs/common'
 import { ApiTags } from '@nestjs/swagger'
 import { SkipThrottle } from '@nestjs/throttler'
 import { MemoryService } from './memory.service'
@@ -15,6 +15,10 @@ class IndexDto {
 
   @IsOptional()
   metadata?: Record<string, unknown>
+
+  @IsOptional()
+  @IsString()
+  projectId?: string
 }
 
 class SearchDto {
@@ -33,11 +37,32 @@ class GithubDto {
   @IsOptional()
   @IsString()
   token?: string
+
+  @IsOptional()
+  @IsString()
+  projectId?: string
 }
 
 class UrlDto {
   @IsString()
   url!: string
+
+  @IsOptional()
+  @IsString()
+  projectId?: string
+}
+
+class NotionDto {
+  @IsString()
+  integrationToken!: string
+
+  @IsOptional()
+  @IsString()
+  rootPageId?: string
+
+  @IsOptional()
+  @IsString()
+  projectId?: string
 }
 
 @ApiTags('memory')
@@ -47,7 +72,7 @@ export class MemoryController {
 
   @Post('index')
   index(@Body() dto: IndexDto) {
-    return this.svc.indexDocument(dto.content, dto.sourcePath, dto.metadata)
+    return this.svc.indexDocument(dto.content, dto.sourcePath, dto.metadata, dto.projectId)
   }
 
   @Post('search')
@@ -57,8 +82,8 @@ export class MemoryController {
   }
 
   @Get('documents')
-  list() {
-    return this.svc.listDocuments()
+  list(@Query('projectId') projectId?: string) {
+    return this.svc.listDocuments(projectId)
   }
 
   @Delete('documents/:id')
@@ -69,13 +94,19 @@ export class MemoryController {
   @SkipThrottle()
   @Post('index/github')
   indexGithub(@Body() dto: GithubDto) {
-    return this.svc.indexGithub(dto.username, dto.token)
+    return this.svc.indexGithub(dto.username, dto.token, dto.projectId)
   }
 
   @SkipThrottle()
   @Post('index/url')
   indexUrl(@Body() dto: UrlDto) {
-    return this.svc.indexUrl(dto.url)
+    return this.svc.indexUrl(dto.url, dto.projectId)
+  }
+
+  @SkipThrottle()
+  @Post('index/notion')
+  indexNotion(@Body() dto: NotionDto) {
+    return this.svc.indexNotion(dto.integrationToken, dto.rootPageId, dto.projectId)
   }
 
   @SkipThrottle()
@@ -87,7 +118,8 @@ export class MemoryController {
     const buffer = await data.toBuffer()
     const filename = data.filename
     const sourcePath = (data.fields['sourcePath'] as { value: string } | undefined)?.value
+    const projectId = (data.fields['projectId'] as { value: string } | undefined)?.value
 
-    return this.svc.indexFile(buffer, filename, sourcePath)
+    return this.svc.indexFile(buffer, filename, sourcePath, projectId)
   }
 }
