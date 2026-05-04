@@ -62,6 +62,15 @@ export class OrchestratorController {
         return
       }
 
+      if (await this.svc.isPendingActionResponse(dto.prompt, sessionId)) {
+        const result = await this.svc.handleMessage(dto.prompt, sessionId, dto.projectId, dto.workMode)
+        send('classify', { module: 'jarvis', action: result.action, sessionId })
+        send('token', { text: result.reply })
+        send('done', { tokensUsed: result.tokensUsed, sessionId })
+        raw.end()
+        return
+      }
+
       // Classificar primeiro (rápido)
       const classify = await this.svc.classify(dto.prompt)
       send('classify', { module: classify.module, action: classify.action, sessionId })

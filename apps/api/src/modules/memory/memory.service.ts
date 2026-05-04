@@ -175,7 +175,7 @@ Língua: português brasileiro.`,
   async listDocuments(projectId?: string) {
     return this.prisma.document.findMany({
       where: projectId ? { projectId } : undefined,
-      select: { id: true, sourcePath: true, checksum: true, createdAt: true, updatedAt: true },
+      select: { id: true, sourcePath: true, metadata: true, checksum: true, createdAt: true, updatedAt: true },
       orderBy: { createdAt: 'desc' },
     })
   }
@@ -201,19 +201,34 @@ Língua: português brasileiro.`,
     return chunks.filter((c) => c.length > 50)
   }
 
-  async indexGithub(username: string, token?: string, projectId?: string): Promise<{ indexed: number; repos: number }> {
+  async indexGithub(username: string, token?: string, projectId?: string, repository?: string): Promise<{ indexed: number; repos: number }> {
     const headers: Record<string, string> = { 'User-Agent': 'rayzen-ai' }
     if (token) headers['Authorization'] = `Bearer ${token}`
 
-    const reposRes = await fetch(
-      `https://api.github.com/users/${username}/repos?per_page=100&sort=updated`,
-      { headers },
-    )
-    const reposData = await reposRes.json()
+    const repoFilter = repository?.trim()
+      .replace(/^https?:\/\/github\.com\//, '')
+      .replace(/\.git$/, '')
+      .replace(/\/$/, '')
+
+    let reposRes: Response
+    let reposData: unknown
+    if (repoFilter) {
+      const fullName = repoFilter.includes('/') ? repoFilter : `${username}/${repoFilter}`
+      reposRes = await fetch(`https://api.github.com/repos/${fullName}`, { headers })
+      reposData = reposRes.ok ? [await reposRes.json()] : await reposRes.json()
+    } else {
+      reposRes = await fetch(
+        `https://api.github.com/users/${username}/repos?per_page=100&sort=updated`,
+        { headers },
+      )
+      reposData = await reposRes.json()
+    }
 
     if (!reposRes.ok || !Array.isArray(reposData)) {
       if (reposRes.status === 404) {
-        throw new NotFoundException(`Usuário "@${username}" não encontrado no GitHub`)
+        throw new NotFoundException(repoFilter
+          ? `Repositório "${repoFilter}" não encontrado no GitHub`
+          : `Usuário "@${username}" não encontrado no GitHub`)
       }
       if (reposRes.status === 403) {
         throw new BadGatewayException('Rate limit do GitHub atingido — tente novamente em alguns minutos ou forneça um token')
@@ -226,8 +241,9 @@ Língua: português brasileiro.`,
 
     let indexed = 0
     for (const repo of repos) {
+      const groupKey = `github/${repo.full_name}`
       const desc = `Repositório GitHub: ${repo.name}${repo.description ? ` — ${repo.description}` : ''}`
-      await this.indexDocument(desc, `github/${repo.full_name}`, { type: 'repo' }, projectId)
+      await this.indexDocument(desc, `github/${repo.full_name}`, { type: 'repo', groupKey, groupLabel: repo.full_name }, projectId)
 
       try {
         const readmeRes = await fetch(
@@ -239,7 +255,7 @@ Língua: português brasileiro.`,
           const text = Buffer.from(readmeData.content, 'base64').toString('utf-8')
           const chunks = this.chunkText(text)
           for (const chunk of chunks) {
-            await this.indexDocument(chunk, `github/${repo.full_name}/README`, { type: 'readme', repo: repo.full_name }, projectId)
+            await this.indexDocument(chunk, `github/${repo.full_name}/README`, { type: 'readme', repo: repo.full_name, groupKey, groupLabel: repo.full_name }, projectId)
             indexed++
           }
         }
@@ -248,7 +264,13 @@ Língua: português brasileiro.`,
       indexed++
     }
 
-    this.eventService.create({ source: 'memory', type: 'index', content: `GitHub @${username}`, metadata: { indexed, repos: repos.length } }).catch(() => null)
+    this.eventService.create({
+      source: 'memory',
+      type: 'index',
+      content: repoFilter ? `GitHub ${repoFilter}` : `GitHub @${username}`,
+      metadata: { indexed, repos: repos.length, repository: repoFilter },
+      projectId,
+    }).catch(() => null)
     return { indexed, repos: repos.length }
   }
 
@@ -264,9 +286,10 @@ Língua: português brasileiro.`,
 
     const chunks = this.chunkText(text)
     const path = sourcePath ?? `file/${filename}`
+    const groupKey = path
 
     for (const chunk of chunks) {
-      await this.indexDocument(chunk, path, { type: 'file', filename }, projectId)
+      await this.indexDocument(chunk, path, { type: 'file', filename, groupKey, groupLabel: filename }, projectId)
     }
 
     this.eventService.create({ source: 'memory', type: 'index', content: `Arquivo: ${filename}`, metadata: { indexed: chunks.length, filename } }).catch(() => null)
@@ -334,8 +357,9 @@ Língua: português brasileiro.`,
       if (!fullText || fullText.length < 50) continue
 
       const chunks = this.chunkText(fullText)
+      const groupKey = `notion/${page.id}`
       for (const chunk of chunks) {
-        await this.indexDocument(chunk, `notion/${page.id}`, { type: 'notion', title }, projectId)
+        await this.indexDocument(chunk, `notion/${page.id}`, { type: 'notion', title, groupKey, groupLabel: title }, projectId)
         indexed++
       }
     }
@@ -406,9 +430,10 @@ Língua: português brasileiro.`,
 
     const chunks = this.chunkText(text)
     const domain = new URL(url).hostname
+    const groupKey = `url/${domain}`
 
     for (const chunk of chunks) {
-      await this.indexDocument(chunk, `url/${domain}`, { type: 'url', url }, projectId)
+      await this.indexDocument(chunk, `url/${domain}`, { type: 'url', url, groupKey, groupLabel: url }, projectId)
     }
 
     return { indexed: chunks.length }

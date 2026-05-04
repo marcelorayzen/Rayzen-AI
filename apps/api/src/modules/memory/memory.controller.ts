@@ -36,6 +36,10 @@ class GithubDto {
 
   @IsOptional()
   @IsString()
+  repository?: string
+
+  @IsOptional()
+  @IsString()
   token?: string
 
   @IsOptional()
@@ -94,7 +98,7 @@ export class MemoryController {
   @SkipThrottle()
   @Post('index/github')
   indexGithub(@Body() dto: GithubDto) {
-    return this.svc.indexGithub(dto.username, dto.token, dto.projectId)
+    return this.svc.indexGithub(dto.username, dto.token, dto.projectId, dto.repository)
   }
 
   @SkipThrottle()

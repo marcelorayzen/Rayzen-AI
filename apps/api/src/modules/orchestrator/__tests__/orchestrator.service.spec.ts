@@ -25,6 +25,7 @@ jest.mock('openai', () => ({
 
 const mockPrisma = {
   conversationMessage: {
+    findFirst: jest.fn().mockResolvedValue(null),
     findMany: jest.fn().mockResolvedValue([]),
     createMany: jest.fn().mockResolvedValue({}),
   },
@@ -121,6 +122,26 @@ describe('OrchestratorService', () => {
         }),
       )
     })
+
+    it('mantém perguntas de orientação fora do Jarvis sem chamar o LLM', async () => {
+      const result = await service.classify('como devo adicionar um projeto novo?')
+
+      expect(result.module).toBe('system')
+      expect(result.action).toBe('answer')
+      expect(mockLLM.chat.completions.create).not.toHaveBeenCalled()
+    })
+
+    it('rebaixa classificação jarvis sem comando explícito para system', async () => {
+      mockLLM.chat.completions.create.mockResolvedValue({
+        choices: [{ message: { content: '{"module":"jarvis","action":"create_project_folder","confidence":0.91}' } }],
+        usage: { total_tokens: 30 },
+      })
+
+      const result = await service.classify('preciso adicionar um projeto novo no fluxo')
+
+      expect(result.module).toBe('system')
+      expect(result.action).toBe('answer')
+    })
   })
 
   describe('handleMessage — routing', () => {
@@ -149,17 +170,37 @@ describe('OrchestratorService', () => {
           choices: [{ message: { content: '{"module":"jarvis","action":"open_app","confidence":0.95}' } }],
           usage: { total_tokens: 40 },
         })
-        .mockResolvedValueOnce({
-          choices: [{ message: { content: 'Chrome aberto com sucesso.' } }],
-          usage: { total_tokens: 60 },
-        })
 
       ;(executionService.dispatch as jest.Mock).mockResolvedValue({ ok: true })
 
       const result = await service.handleMessage('abre o chrome', 'sess-2')
 
-      expect(executionService.dispatch).toHaveBeenCalledWith('open_app', expect.any(Object))
+      expect(executionService.dispatch).not.toHaveBeenCalled()
       expect(result.module).toBe('jarvis')
+      expect(result.reply).toContain('[ACTION_PENDING:')
+      expect(result.reply).toContain('open_app')
+    })
+
+    it('executa acao jarvis pendente apos confirmacao', async () => {
+      const pending = Buffer.from(JSON.stringify({
+        action: 'open_app',
+        payload: { app: 'chrome' },
+        prompt: 'abre o chrome',
+        risk: 'medium',
+      })).toString('base64')
+      mockPrisma.conversationMessage.findFirst
+        .mockResolvedValueOnce({ content: `[ACTION_PENDING:${pending}]` })
+        .mockResolvedValueOnce({ content: `[ACTION_PENDING:${pending}]` })
+      mockLLM.chat.completions.create.mockResolvedValueOnce({
+        choices: [{ message: { content: 'Chrome aberto com sucesso.' } }],
+        usage: { total_tokens: 60 },
+      })
+      ;(executionService.dispatch as jest.Mock).mockResolvedValue({ ok: true })
+
+      const result = await service.handleMessage('confirmar', 'sess-2')
+
+      expect(executionService.dispatch).toHaveBeenCalledWith('open_app', { app: 'chrome' })
+      expect(result.reply).toBe('Chrome aberto com sucesso.')
     })
 
     it('valida o prompt antes de processar', async () => {

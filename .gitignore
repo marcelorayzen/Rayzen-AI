@@ -33,6 +33,7 @@ desktop.ini
 # IDE
 .vscode/settings.json
 .idea/
+.claude/
 
 # Temp / cache
 tmp/

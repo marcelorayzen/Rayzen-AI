@@ -29,11 +29,48 @@ export interface OrchestrateResult {
   sessionId: string
 }
 
+interface PendingAction {
+  action: string
+  payload: Record<string, unknown>
+  prompt: string
+  risk: 'medium' | 'high'
+}
+
 const MODULE_ROLE_SUFFIXES: Record<string, string> = {
   jarvis:  '\n\nContexto desta resposta: executei uma tarefa local no PC. Confirme o resultado de forma objetiva e técnica.',
   brain:   '\n\nContexto desta resposta: baseie-se nos documentos e informações da memória semântica. Apresente com confiança — sem ressalvas desnecessárias.',
   doc:     '\n\nContexto desta resposta: geração de documentos técnicos. Use markdown estruturado, listas e seções bem definidas.',
   content: '\n\nContexto desta resposta: criação de conteúdo. Entregue imediatamente, sem introdução.',
+}
+
+const CONFIRM_WORDS = /^(confirmar|confirma|sim|ok|pode|executar|executa|yes|run)$/i
+const CANCEL_WORDS = /^(cancelar|cancela|n[aã]o|nao|no|cancel)$/i
+const ACTION_RISK: Record<string, 'low' | 'medium' | 'high'> = {
+  list_dir: 'low',
+  file_search: 'low',
+  get_system_info: 'low',
+  git_status: 'low',
+  git_log: 'low',
+  docker_ps: 'low',
+  inspect_schema: 'low',
+  open_app: 'medium',
+  open_url: 'medium',
+  open_vscode: 'medium',
+  create_project_folder: 'medium',
+  run_tests: 'medium',
+  screenshot: 'medium',
+  notify: 'medium',
+  clipboard_read: 'medium',
+  organize_downloads: 'high',
+  clipboard_write: 'high',
+  git_branch: 'high',
+  git_commit: 'high',
+  run_command: 'high',
+  docker_start: 'high',
+  docker_stop: 'high',
+  read_emails: 'medium',
+  send_email: 'high',
+  get_calendar: 'medium',
 }
 
 @Injectable()
@@ -68,14 +105,40 @@ export class OrchestratorService {
     return base + suffix
   }
 
-  async isPendingDocConfirmation(prompt: string, sessionId: string): Promise<boolean> {
-    const CONFIRM_WORDS = /^(confirmar|confirma|sim|ok|pode|pode gerar|gera|gerar|yes|generate)$/i
-    if (!CONFIRM_WORDS.test(prompt.trim())) return false
-    const lastMsg = await this.prisma.conversationMessage.findFirst({
+  private actionRisk(action: string): 'low' | 'medium' | 'high' {
+    return ACTION_RISK[action] ?? 'high'
+  }
+
+  private requiresConfirmation(action: string): boolean {
+    return this.actionRisk(action) !== 'low'
+  }
+
+  private encodePendingAction(pending: PendingAction): string {
+    return Buffer.from(JSON.stringify(pending)).toString('base64')
+  }
+
+  private decodePendingAction(encoded: string): PendingAction {
+    return JSON.parse(Buffer.from(encoded, 'base64').toString('utf-8')) as PendingAction
+  }
+
+  private async lastAssistantMessage(sessionId: string) {
+    return this.prisma.conversationMessage.findFirst({
       where: { sessionId, role: 'assistant' },
       orderBy: { createdAt: 'desc' },
     })
+  }
+
+  async isPendingDocConfirmation(prompt: string, sessionId: string): Promise<boolean> {
+    const CONFIRM_WORDS = /^(confirmar|confirma|sim|ok|pode|pode gerar|gera|gerar|yes|generate)$/i
+    if (!CONFIRM_WORDS.test(prompt.trim())) return false
+    const lastMsg = await this.lastAssistantMessage(sessionId)
     return !!lastMsg?.content?.includes('[DOC_PENDING:')
+  }
+
+  async isPendingActionResponse(prompt: string, sessionId: string): Promise<boolean> {
+    if (!CONFIRM_WORDS.test(prompt.trim()) && !CANCEL_WORDS.test(prompt.trim())) return false
+    const lastMsg = await this.lastAssistantMessage(sessionId)
+    return !!lastMsg?.content?.includes('[ACTION_PENDING:')
   }
 
   async handleMessage(prompt: string, sessionId: string, projectId?: string, workMode?: string): Promise<OrchestrateResult> {
@@ -107,6 +170,27 @@ export class OrchestratorService {
       }
     }
 
+    const actionResponse = CONFIRM_WORDS.test(prompt.trim()) || CANCEL_WORDS.test(prompt.trim())
+    if (actionResponse) {
+      const lastMsg = await this.lastAssistantMessage(sessionId)
+      const actionMatch = lastMsg?.content?.match(/\[ACTION_PENDING:([A-Za-z0-9+/=]+)\]/)
+      if (actionMatch) {
+        if (CANCEL_WORDS.test(prompt.trim())) {
+          const reply = 'Ação cancelada. Nada foi executado.'
+          await this.prisma.conversationMessage.createMany({
+            data: [
+              { sessionId, module: 'jarvis', role: 'user', content: prompt, projectId, workMode: workMode ?? null },
+              { sessionId, module: 'jarvis', role: 'assistant', content: reply, tokensUsed: 0, projectId, workMode: workMode ?? null },
+            ],
+          })
+          return { reply, module: 'jarvis', action: 'cancel', confidence: 1, tokensUsed: 0, sessionId }
+        }
+
+        const pending = this.decodePendingAction(actionMatch[1])
+        return this.executeJarvisAction(pending.action, pending.payload, pending.prompt, sessionId)
+      }
+    }
+
     // 1. Validar prompt antes de qualquer processamento
     this.validation.assertValidPrompt(prompt)
 
@@ -135,6 +219,27 @@ export class OrchestratorService {
     if (classify.module === 'jarvis') {
       try {
         const jarvisPayload = buildJarvisPayload(classify.action, prompt)
+        if (this.requiresConfirmation(classify.action)) {
+          const risk = this.actionRisk(classify.action) as 'medium' | 'high'
+          const encoded = this.encodePendingAction({ action: classify.action, payload: jarvisPayload, prompt, risk })
+          const reply = [
+            `Vou executar uma ação local (${risk === 'high' ? 'alto risco' : 'risco médio'}).`,
+            '',
+            `**Ação:** \`${classify.action}\``,
+            `**Parâmetros:** \`${JSON.stringify(jarvisPayload)}\``,
+            '',
+            'Confirme para executar ou cancele para abortar.',
+            '',
+            `[ACTION_PENDING:${encoded}]`,
+          ].join('\n')
+          await this.prisma.conversationMessage.createMany({
+            data: [
+              { sessionId, module: 'jarvis', role: 'user', content: prompt, projectId, workMode: workMode ?? null },
+              { sessionId, module: 'jarvis', role: 'assistant', content: reply, tokensUsed: 0, projectId, workMode: workMode ?? null },
+            ],
+          })
+          return { reply, module: classify.module, action: classify.action, confidence: classify.confidence, tokensUsed: 0, sessionId }
+        }
         const result = await this.execution.dispatch(classify.action, jarvisPayload)
         // Sintetiza resposta natural a partir do resultado
         const synthesis = await this.llm.chat.completions.create({
@@ -300,6 +405,10 @@ Seja direto, claro e amigável. Português brasileiro. Sem JSON bruto.`,
   }
 
   async classify(prompt: string): Promise<ClassifyResult> {
+    if (this.isHowToQuestion(prompt)) {
+      return { module: 'system', action: 'answer', confidence: 0.95 }
+    }
+
     const messages: ChatMessage[] = [
       {
         role: 'system',
@@ -328,7 +437,62 @@ Formato da resposta: { "module": "...", "action": "...", "confidence": 0.0-1.0 }
       response_format: { type: 'json_object' },
       temperature: 0,
     })
-    return JSON.parse(res.choices[0].message.content ?? '{}') as ClassifyResult
+    const parsed = JSON.parse(res.choices[0].message.content ?? '{}') as ClassifyResult
+    if (parsed.module === 'jarvis' && !this.isExplicitExecutionRequest(prompt)) {
+      return { module: 'system', action: 'answer', confidence: 0.9 }
+    }
+    return parsed
+  }
+
+  private async executeJarvisAction(
+    action: string,
+    payload: Record<string, unknown>,
+    prompt: string,
+    sessionId: string,
+  ): Promise<OrchestrateResult> {
+    const result = await this.execution.dispatch(action, payload)
+    const synthesis = await this.llm.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: `VocÃª Ã© Rayzen, assistente pessoal. O PC Agent executou uma tarefa e retornou dados.
+VÃ¡ direto ao ponto â€” apresente os dados imediatamente, sem frases introdutÃ³rias como "OlÃ¡", "Claro", "Com prazer" ou "Estou aqui para ajudar".
+Seja direto, claro e amigÃ¡vel. PortuguÃªs brasileiro. Sem JSON bruto.`,
+        },
+        {
+          role: 'user',
+          content: `Pedido original: "${prompt}"\nDados retornados: ${JSON.stringify(result, null, 2)}`,
+        },
+      ],
+      temperature: 0.4,
+    })
+
+    return {
+      reply: synthesis.choices[0].message.content ?? JSON.stringify(result),
+      module: 'jarvis',
+      action,
+      confidence: 1,
+      tokensUsed: synthesis.usage?.total_tokens ?? 0,
+      sessionId,
+    }
+  }
+
+  private isHowToQuestion(prompt: string): boolean {
+    const normalized = prompt.trim().toLowerCase()
+    if (!normalized.includes('?')) return false
+
+    return /^(como|qual|quais|quando|onde|por que|porque|me explica|explique)\b/.test(normalized)
+      || /\b(como devo|como eu devo|como fa[cç]o|qual seria|qual [ée] a ordem|me orienta|me ensina)\b/.test(normalized)
+  }
+
+  private isExplicitExecutionRequest(prompt: string): boolean {
+    const normalized = prompt.trim().toLowerCase()
+    if (this.isHowToQuestion(prompt)) return false
+
+    return /\b(abra|abre|abrir|liste|lista|listar|crie|cria|criar|rode|roda|rodar|execute|executa|tira|capture|captura|notifica|copie|copia|cole|cola|leia|lÃª|manda|envia|pare|para|inicia|start|stop|procura|busca|encontra|organiza|inspeciona)\b/.test(normalized)
+      || /\b(git status|git log|git commit|branch|docker|screenshot|clipboard)\b/.test(normalized)
+      || /\b(qual|quais|mostra|minha|meus|minhas)\b.*\b(status do pc|status do computador|info do sistema|commits recentes|agenda|emails|schema)\b/.test(normalized)
   }
 
   private async extractAndIndex(prompt: string, reply: string): Promise<void> {
