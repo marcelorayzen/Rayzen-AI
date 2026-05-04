@@ -230,12 +230,12 @@ GROQ_API_KEY=gsk_...              # groq.com — free tier available
 JINA_API_KEY=jina_...             # jina.ai  — free tier available
 
 # LiteLLM proxy (Docker sidecar)
-LITELLM_BASE_URL=http://localhost:4000/v1
+LITELLM_BASE_URL=http://localhost:4100/v1
 LITELLM_MASTER_KEY=sk-rayzen-anything
 
 # Infrastructure
-DATABASE_URL=postgresql://rayzen:password@localhost:5432/rayzen_ai
-REDIS_URL=redis://localhost:6379
+DATABASE_URL=postgresql://rayzen:password@localhost:55432/rayzen_app
+REDIS_URL=redis://localhost:56379
 
 # Auth
 JWT_SECRET=$(openssl rand -hex 32)
@@ -261,12 +261,12 @@ docker compose up -d postgres redis litellm
 
 pnpm db:migrate        # apply schema (pgvector extension required)
 
-pnpm dev:api           # API  → http://localhost:3001
-pnpm dev:web           # Web  → http://localhost:3000
+pnpm dev:api           # API  → http://localhost:3101
+pnpm dev:web           # Web  → http://localhost:3100
 pnpm dev:agent         # PC Agent (required for Execution module)
 ```
 
-Open **http://localhost:3000** and log in with `ADMIN_PASSWORD`.
+Open **http://localhost:3100** and log in with `ADMIN_PASSWORD`.
 
 > **Data persistence:** PostgreSQL and Redis use named Docker volumes (`pg_data`, `redis_data`). Restarting containers (even after system reboot) preserves all data. Data is only lost if you run `docker compose down -v`.
 
@@ -329,9 +329,9 @@ git push origin main # Triggers CI → automatic SSH deploy to Oracle VPS
 
 | Service | URL |
 |---|---|
-| Web | http://localhost:3000 |
-| API / Swagger | http://localhost:3001/docs |
-| LiteLLM UI | http://localhost:4000/ui |
+| Web | http://localhost:3100 |
+| API / Swagger | http://localhost:3101/docs |
+| LiteLLM UI | http://localhost:4100/ui |
 | Prisma Studio | http://localhost:5555 |
 
 ---

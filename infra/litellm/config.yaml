@@ -1,13 +1,13 @@
 model_list:
   - model_name: gpt-4o
     litellm_params:
-      model: groq/meta-llama/llama-4-scout-17b-16e-instruct
-      api_key: os.environ/GROQ_API_KEY
+      model: anthropic/claude-sonnet-4-20250514
+      api_key: os.environ/ANTHROPIC_API_KEY
 
   - model_name: gpt-4o-mini
     litellm_params:
-      model: groq/meta-llama/llama-4-scout-17b-16e-instruct
-      api_key: os.environ/GROQ_API_KEY
+      model: anthropic/claude-sonnet-4-20250514
+      api_key: os.environ/ANTHROPIC_API_KEY
 
   # Speech to Text
   - model_name: whisper-1

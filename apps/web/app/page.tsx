@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3101'
 
 function authHeaders(extra?: Record<string, string>): Record<string, string> {
   const token = typeof window !== 'undefined' ? localStorage.getItem('rayzen_token') : null
@@ -41,6 +41,23 @@ interface Project {
   status: string
 }
 
+function isProject(value: unknown): value is Project {
+  if (!value || typeof value !== 'object') return false
+  const project = value as Partial<Project>
+  return typeof project.id === 'string' && typeof project.name === 'string' && typeof project.status === 'string'
+}
+
+function projectListFromResponse(data: unknown): Project[] {
+  if (Array.isArray(data)) return data.filter(isProject)
+  if (!data || typeof data !== 'object') return []
+
+  const payload = data as { projects?: unknown; items?: unknown; data?: unknown }
+  if (Array.isArray(payload.projects)) return payload.projects.filter(isProject)
+  if (Array.isArray(payload.items)) return payload.items.filter(isProject)
+  if (Array.isArray(payload.data)) return payload.data.filter(isProject)
+  return []
+}
+
 interface ActivityEvent {
   id: string
   source: string
@@ -57,6 +74,31 @@ interface ProjectDoc {
   content: string
   generatedAt: string
   reviewedAt: string | null
+}
+
+interface MemoryDoc {
+  id: string
+  sourcePath: string | null
+  metadata?: Record<string, unknown> | null
+  createdAt: string
+}
+
+function memoryGroupFor(doc: MemoryDoc): { key: string; label: string } {
+  const meta = doc.metadata ?? {}
+  const metaKey = typeof meta.groupKey === 'string' ? meta.groupKey : null
+  const metaLabel = typeof meta.groupLabel === 'string' ? meta.groupLabel : null
+  if (metaKey) return { key: metaKey, label: metaLabel ?? metaKey }
+
+  const source = doc.sourcePath ?? 'sem origem'
+  const parts = source.split('/')
+  if (parts[0] === 'github' && parts.length >= 3) {
+    const repo = `${parts[1]}/${parts[2]}`
+    return { key: `github/${repo}`, label: repo }
+  }
+  if (parts[0] === 'notion' && parts[1]) return { key: `notion/${parts[1]}`, label: `Notion ${parts[1].slice(0, 8)}` }
+  if (parts[0] === 'url' && parts[1]) return { key: `url/${parts[1]}`, label: parts[1] }
+  if (parts[0] === 'file') return { key: source, label: parts.slice(1).join('/') || source }
+  return { key: source, label: source }
 }
 
 interface SynthesisArtifact {
@@ -151,6 +193,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [sessionId, setSessionId] = useState('')
   const [playingIndex, setPlayingIndex] = useState<number | null>(null)
+  const [autoVoice, setAutoVoice] = useState(false)
   const [sessionTokens, setSessionTokens] = useState(0)
   const [dailyTokens, setDailyTokens] = useState<number | null>(null)
   const [recording, setRecording] = useState(false)
@@ -207,24 +250,30 @@ export default function Home() {
   const [importLoading, setImportLoading] = useState(false)
   const [importResult, setImportResult] = useState<string | null>(null)
   const [githubUser, setGithubUser] = useState('')
+  const [githubRepo, setGithubRepo] = useState('')
   const [githubToken, setGithubToken] = useState('')
   const [importUrl, setImportUrl] = useState('')
   const [notionToken, setNotionToken] = useState('')
   const [notionPageId, setNotionPageId] = useState('')
   const [memoryOpen, setMemoryOpen] = useState(false)
-  const [memoryDocs, setMemoryDocs] = useState<Array<{ id: string; sourcePath: string | null; createdAt: string }>>([])
+  const [memoryDocs, setMemoryDocs] = useState<MemoryDoc[]>([])
   const [memoryDocsLoading, setMemoryDocsLoading] = useState(false)
   const [memorySearch, setMemorySearch] = useState('')
+  const [memoryListFilter, setMemoryListFilter] = useState('')
   const [memorySearchResults, setMemorySearchResults] = useState<Array<{ id: string; content: string; sourcePath: string | null; score: number }> | null>(null)
   const [memorySearching, setMemorySearching] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const autoVoiceRef = useRef(false)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const tokenQueueRef = useRef<string[]>([])
   const drainActiveRef = useRef(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
+  const shouldAutoScrollRef = useRef(true)
   const submitMessageRef = useRef<(text: string) => void>(() => {})
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const projectSelectionInitializedRef = useRef(false)
 
   useEffect(() => {
     const token = localStorage.getItem('rayzen_token')
@@ -242,18 +291,50 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
+    const saved = localStorage.getItem('rayzen_auto_voice')
+    if (saved === 'true') {
+      setAutoVoice(true)
+      autoVoiceRef.current = true
+    }
+  }, [])
+
+  useEffect(() => {
+    autoVoiceRef.current = autoVoice
+    localStorage.setItem('rayzen_auto_voice', autoVoice ? 'true' : 'false')
+  }, [autoVoice])
+
+  useEffect(() => {
     fetch(`${API_URL}/projects`, { headers: authHeaders() })
       .then((r) => r.json())
-      .then((d) => setProjects(d as Project[]))
-      .catch(() => null)
+      .then((d) => setProjects(projectListFromResponse(d)))
+      .catch(() => setProjects([]))
   }, [])
+
+  useEffect(() => {
+    if (projects.length === 0 || projectSelectionInitializedRef.current) return
+    projectSelectionInitializedRef.current = true
+
+    const savedProjectId = localStorage.getItem('rayzen_active_project_id')
+    const savedProject = savedProjectId ? projects.find((project) => project.id === savedProjectId) : null
+    const firstActiveProject = projects.find((project) => project.status === 'active') ?? projects[0]
+    setActiveProjectId(savedProject?.id ?? firstActiveProject.id)
+  }, [projects])
+
+  useEffect(() => {
+    if (activeProjectId) {
+      localStorage.setItem('rayzen_active_project_id', activeProjectId)
+    } else {
+      localStorage.removeItem('rayzen_active_project_id')
+    }
+  }, [activeProjectId])
 
   useEffect(() => {
     setSessionId(crypto.randomUUID())
   }, [])
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (!shouldAutoScrollRef.current) return
+    bottomRef.current?.scrollIntoView({ behavior: 'auto' })
   }, [messages])
 
   const loadSessions = useCallback(async () => {
@@ -488,12 +569,14 @@ export default function Home() {
         body: JSON.stringify({ name: newProjectName.trim(), description: newProjectDesc.trim() || undefined }),
       })
       if (res.ok) {
-        const project = await res.json() as Project
-        setProjects(prev => [...prev, project])
-        setActiveProjectId(project.id)
-        setNewProjectOpen(false)
-        setNewProjectName('')
-        setNewProjectDesc('')
+        const data = await res.json()
+        if (isProject(data)) {
+          setProjects(prev => [...prev, data])
+          setActiveProjectId(data.id)
+          setNewProjectOpen(false)
+          setNewProjectName('')
+          setNewProjectDesc('')
+        }
       }
     } catch { /* silencioso */ }
     finally { setCreatingProject(false) }
@@ -602,20 +685,25 @@ export default function Home() {
       const res = await fetch(`${API_URL}/memory/index/github`, {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ username, token: githubToken.trim() || undefined, projectId: activeProjectId ?? undefined }),
+        body: JSON.stringify({
+          username,
+          repository: githubRepo.trim() || undefined,
+          token: githubToken.trim() || undefined,
+          projectId: activeProjectId ?? undefined,
+        }),
       })
       if (!res.ok) {
         const err = await res.text()
         throw new Error(err || `HTTP ${res.status}`)
       }
       const data = await res.json() as { indexed: number; repos: number }
-      setImportResult(`${data.repos} repositórios indexados (${data.indexed} chunks)`)
+      setImportResult(`${data.repos} repositório${data.repos > 1 ? 's' : ''} indexado${data.repos > 1 ? 's' : ''} (${data.indexed} chunks)`)
     } catch (err) {
       setImportResult(`Erro: ${err instanceof Error ? err.message : 'falhou'}`)
     } finally {
       setImportLoading(false)
     }
-  }, [githubUser, githubToken, activeProjectId])
+  }, [githubUser, githubRepo, githubToken, activeProjectId])
 
   const handleImportUrl = useCallback(async () => {
     if (!importUrl.trim()) return
@@ -706,7 +794,7 @@ export default function Home() {
     try {
       const qs = activeProjectId ? `?projectId=${activeProjectId}` : ''
       const res = await fetch(`${API_URL}/memory/documents${qs}`, { headers: authHeaders() })
-      const data = await res.json() as Array<{ id: string; sourcePath: string | null; createdAt: string }>
+      const data = await res.json() as MemoryDoc[]
       setMemoryDocs(data)
     } catch { /* silencioso */ }
     finally { setMemoryDocsLoading(false) }
@@ -797,19 +885,25 @@ export default function Home() {
     }
   }, [recording])
 
-  const playAudio = useCallback(async (text: string, index: number) => {
-    if (playingIndex === index) {
+  const playAudio = useCallback(async (text: string, index: number, force = false) => {
+    if (!force && playingIndex === index) {
       audioRef.current?.pause()
       setPlayingIndex(null)
       return
     }
+
+    const spokenText = text
+      .replace(/\n?\[DOC_PENDING:[A-Za-z0-9+/=]*\]/g, '')
+      .replace(/\n?\[ACTION_PENDING:[A-Za-z0-9+/=]*\]/g, '')
+      .trim()
+    if (!spokenText) return
 
     setPlayingIndex(index)
     try {
       const res = await fetch(`${API_URL}/voice/synthesize`, {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text: spokenText }),
       })
       if (!res.ok) throw new Error('TTS falhou')
 
@@ -833,6 +927,7 @@ export default function Home() {
 
   const sendMessage = useCallback(async (userMessage: string) => {
     if (!userMessage.trim() || loading) return
+    shouldAutoScrollRef.current = true
     setInput('')
     setMessages((prev) => [...prev, { role: 'user', content: userMessage }])
     setLoading(true)
@@ -849,6 +944,7 @@ export default function Home() {
       const decoder = new TextDecoder()
       let currentModule = ''
       let buffer = ''
+      let assistantText = ''
 
       setMessages((prev) => [...prev, { role: 'assistant', content: '', module: '' }])
 
@@ -874,6 +970,7 @@ export default function Home() {
           if (typeof data.module === 'string') currentModule = data.module
 
           if (data.text !== undefined) {
+            assistantText += data.text as string
             if (currentModule) {
               setMessages((prev) => {
                 const updated = [...prev]
@@ -891,6 +988,16 @@ export default function Home() {
           }
         }
       }
+      if (autoVoiceRef.current && assistantText.trim()) {
+        setTimeout(() => {
+          setMessages((prev) => {
+            const index = prev.length - 1
+            const last = prev[index]
+            if (last?.role === 'assistant') void playAudio(last.content || assistantText, index, true)
+            return prev
+          })
+        }, 250)
+      }
     } catch (err) {
       setMessages((prev) => [
         ...prev,
@@ -905,10 +1012,20 @@ export default function Home() {
     submitMessageRef.current = sendMessage
   }, [sendMessage])
 
+  useEffect(() => {
+    if (!loading) inputRef.current?.focus()
+  }, [loading])
+
+  function submitCurrentInput() {
+    const message = input.trim()
+    if (!message || loading) return
+    sendMessage(message)
+    requestAnimationFrame(() => inputRef.current?.focus())
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    sendMessage(input.trim())
-    setTimeout(() => inputRef.current?.focus(), 0)
+    submitCurrentInput()
   }
 
   function formatRelativeTime(dateStr: string) {
@@ -941,7 +1058,7 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
+    <main className="h-screen overflow-hidden bg-zinc-950 text-zinc-100 flex flex-col">
 
       {/* Document versions modal */}
       {versionsOpen && (
@@ -1687,7 +1804,7 @@ export default function Home() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-sm font-semibold text-zinc-200">Memória indexada</h2>
-                {!memoryDocsLoading && <p className="text-xs text-zinc-500 mt-0.5">{memoryDocs.length} documentos</p>}
+                {!memoryDocsLoading && <p className="text-xs text-zinc-500 mt-0.5">{memoryDocs.length} chunks indexados</p>}
               </div>
               <button onClick={() => setMemoryOpen(false)} className="text-zinc-500 hover:text-zinc-300 text-xl leading-none">×</button>
             </div>
@@ -1716,6 +1833,18 @@ export default function Home() {
               )}
             </div>
 
+            {/* List filter */}
+            {memorySearchResults === null && (
+              <div className="mb-4">
+                <input
+                  value={memoryListFilter}
+                  onChange={(e) => setMemoryListFilter(e.target.value)}
+                  placeholder="Filtrar origens indexadas..."
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-zinc-100 placeholder:text-zinc-600 outline-none focus:ring-1 focus:ring-zinc-600"
+                />
+              </div>
+            )}
+
             {/* Results */}
             <div className="overflow-y-auto flex-1 space-y-2 pr-1">
               {memoryDocsLoading && <p className="text-xs text-zinc-500 text-center py-8">Carregando…</p>}
@@ -1740,16 +1869,32 @@ export default function Home() {
 
               {/* Document list */}
               {memorySearchResults === null && !memoryDocsLoading && (() => {
-                const groups = memoryDocs.reduce<Record<string, { ids: string[]; count: number }>>((acc, d) => {
-                  const key = d.sourcePath?.split('/').slice(0, 2).join('/') ?? 'sem origem'
-                  if (!acc[key]) acc[key] = { ids: [], count: 0 }
+                const groups = memoryDocs.reduce<Record<string, { ids: string[]; count: number; label: string; lastIndexedAt: string }>>((acc, d) => {
+                  const group = memoryGroupFor(d)
+                  const key = group.key
+                  const indexedAt = d.createdAt
+                  if (!acc[key]) acc[key] = { ids: [], count: 0, label: group.label, lastIndexedAt: indexedAt }
                   acc[key].ids.push(d.id)
                   acc[key].count++
+                  if (new Date(indexedAt).getTime() > new Date(acc[key].lastIndexedAt).getTime()) {
+                    acc[key].lastIndexedAt = indexedAt
+                  }
                   return acc
                 }, {})
-                return Object.entries(groups).sort((a, b) => b[1].count - a[1].count).map(([source, { ids, count }]) => (
+                const filter = memoryListFilter.trim().toLowerCase()
+                const entries = Object.entries(groups)
+                  .filter(([source, group]) => !filter || source.toLowerCase().includes(filter) || group.label.toLowerCase().includes(filter))
+                  .sort((a, b) => new Date(b[1].lastIndexedAt).getTime() - new Date(a[1].lastIndexedAt).getTime())
+                if (entries.length === 0) {
+                  return <p className="text-xs text-zinc-500 text-center py-8">Nenhuma origem encontrada</p>
+                }
+                return entries.map(([source, { ids, count, label, lastIndexedAt }]) => (
                   <div key={source} className="flex items-center justify-between bg-zinc-800 rounded-xl px-3 py-2 group">
-                    <span className="text-xs text-zinc-300 truncate">{source}</span>
+                    <div className="min-w-0">
+                      <span className="block text-xs text-zinc-300 truncate">{label}</span>
+                      <span className="block text-[10px] text-zinc-600 truncate">{source}</span>
+                      <span className="block text-[10px] text-zinc-500 mt-0.5">última indexação: {new Date(lastIndexedAt).toLocaleString('pt-BR')}</span>
+                    </div>
                     <div className="flex items-center gap-2 ml-2 shrink-0">
                       <span className="text-[11px] text-zinc-500">{count} chunk{count !== 1 ? 's' : ''}</span>
                       <button
@@ -1815,6 +1960,16 @@ export default function Home() {
                     placeholder="ex: marcelorayzen"
                     className="w-full bg-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none focus:ring-1 focus:ring-zinc-600"
                   />
+                </div>
+                <div>
+                  <label className="text-xs text-zinc-500 mb-1 block">Repositório (opcional)</label>
+                  <input
+                    value={githubRepo}
+                    onChange={(e) => setGithubRepo(e.target.value)}
+                    placeholder="ex: rayzen-ai"
+                    className="w-full bg-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none focus:ring-1 focus:ring-zinc-600"
+                  />
+                  <p className="text-[11px] text-zinc-600 mt-1">Preencha para indexar só este repo; vazio indexa todos.</p>
                 </div>
                 <div>
                   <label className="text-xs text-zinc-500 mb-1 block">Token (opcional — para repos privados)</label>
@@ -1983,8 +2138,8 @@ export default function Home() {
       )}
 
       {/* Header */}
-      <div className="border-b border-zinc-800 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="shrink-0 sticky top-0 z-30 bg-zinc-950/95 backdrop-blur border-b border-zinc-800 px-6 py-4 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={openSidebar}
             className="text-zinc-400 hover:text-zinc-200 transition-colors"
@@ -2033,7 +2188,7 @@ export default function Home() {
             <p className="text-xs text-zinc-500 mt-0.5">Sessão: {sessionId.slice(0, 8)}…</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap justify-end min-w-0">
           <div className="flex items-center gap-1">
             <select
               value={activeProjectId ?? ''}
@@ -2169,6 +2324,15 @@ export default function Home() {
             atividade
           </button>
           <button
+            onClick={() => setAutoVoice((v) => !v)}
+            className={`text-xs transition-colors ${
+              autoVoice ? 'text-emerald-400 hover:text-emerald-300' : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+            title="Ler respostas do assistente em voz alta automaticamente"
+          >
+            voz auto {autoVoice ? 'on' : 'off'}
+          </button>
+          <button
             onClick={openSynthesis}
             className="text-zinc-500 hover:text-zinc-300 transition-colors text-xs"
           >
@@ -2209,7 +2373,15 @@ export default function Home() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-6 flex flex-col gap-4 max-w-3xl w-full mx-auto">
+      <div
+        ref={messagesContainerRef}
+        onScroll={() => {
+          const el = messagesContainerRef.current
+          if (!el) return
+          shouldAutoScrollRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 160
+        }}
+        className="flex-1 min-h-0 overflow-y-auto px-4 py-6 flex flex-col gap-4 max-w-3xl w-full mx-auto"
+      >
         {messages.length === 0 && (
           <div className="text-center text-zinc-600 text-sm mt-20">Diga algo para começar…</div>
         )}
@@ -2235,7 +2407,10 @@ export default function Home() {
                       },
                     }}
                   >
-                    {msg.content.replace(/\n?\[DOC_PENDING:[A-Za-z0-9+/=]*\]/g, '').trim()}
+                    {msg.content
+                      .replace(/\n?\[DOC_PENDING:[A-Za-z0-9+/=]*\]/g, '')
+                      .replace(/\n?\[ACTION_PENDING:[A-Za-z0-9+/=]*\]/g, '')
+                      .trim()}
                   </ReactMarkdown>
                 </div>
               ) : (
@@ -2244,6 +2419,24 @@ export default function Home() {
 
               {msg.role === 'assistant' && (
                 <div className="mt-2 flex items-center gap-3">
+                  {msg.content.includes('[ACTION_PENDING:') && (
+                    <>
+                      <button
+                        onClick={() => sendMessage('confirmar')}
+                        disabled={loading}
+                        className="text-xs bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white px-2 py-1 rounded-md transition-colors"
+                      >
+                        Confirmar
+                      </button>
+                      <button
+                        onClick={() => sendMessage('cancelar')}
+                        disabled={loading}
+                        className="text-xs bg-zinc-700 hover:bg-zinc-600 disabled:opacity-40 text-zinc-200 px-2 py-1 rounded-md transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                    </>
+                  )}
                   {msg.module && (
                     <span className="text-xs text-zinc-500">módulo: {MODULE_LABELS[msg.module] ?? msg.module}</span>
                   )}
@@ -2275,7 +2468,7 @@ export default function Home() {
       </div>
 
       {/* Input */}
-      <div className="border-t border-zinc-800 px-4 py-4">
+      <div className="shrink-0 border-t border-zinc-800 bg-zinc-950 px-4 py-4">
         <form onSubmit={handleSubmit} className="flex gap-2 max-w-3xl mx-auto">
           <textarea
             ref={inputRef}
@@ -2284,7 +2477,7 @@ export default function Home() {
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
-                if (input.trim() && !loading) handleSubmit(e as unknown as React.FormEvent)
+                submitCurrentInput()
               }
             }}
             placeholder="Digite uma mensagem ou use o microfone…"

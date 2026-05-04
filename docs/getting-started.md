@@ -43,17 +43,19 @@ cp .env.example .env
 Edite o arquivo `.env` na raiz e em `apps/api/.env`:
 
 ```bash
-# LLM (escolha um)
-GROQ_API_KEY=gsk_...          # Groq — gratuito, recomendado para começar
-OPENAI_API_KEY=sk-...         # OpenAI — opcional
+# LLM
+ANTHROPIC_API_KEY=sk-ant-...  # Claude - recomendado para chat principal
+GROQ_API_KEY=gsk_...          # Groq - voz/STT/TTS
+OPENAI_API_KEY=sk-...         # OpenAI - embeddings/fallback
 
 # Embeddings
 JINA_API_KEY=jina_...         # Jina AI — gratuito em jina.ai
 
 # Sistema
 LITELLM_MASTER_KEY=sk-rayzen-qualquercoisa
-DATABASE_URL=postgresql://rayzen:senha@localhost:5432/rayzen_ai
-REDIS_URL=redis://localhost:6379
+LITELLM_BASE_URL=http://localhost:4100/v1
+DATABASE_URL=postgresql://rayzen:senha@localhost:55432/rayzen_app
+REDIS_URL=redis://localhost:56379
 JWT_SECRET=<rode: openssl rand -hex 32>
 
 # Senha de acesso ao painel
@@ -64,6 +66,7 @@ ADMIN_PASSWORD=suasenha
 
 | Chave | Onde obter | Custo |
 |---|---|---|
+| `ANTHROPIC_API_KEY` | console.anthropic.com -> API Keys | Pago por uso |
 | `GROQ_API_KEY` | console.groq.com → API Keys | Gratuito |
 | `JINA_API_KEY` | jina.ai → API | Gratuito (1M tokens/mês) |
 | `LITELLM_MASTER_KEY` | Você mesmo define — qualquer string | — |
@@ -104,7 +107,7 @@ pnpm dev:web
 pnpm dev:agent
 ```
 
-Acesse **http://localhost:3000** e faça login com sua `ADMIN_PASSWORD`.
+Acesse **http://localhost:3100** e faça login com sua `ADMIN_PASSWORD`.
 
 ---
 

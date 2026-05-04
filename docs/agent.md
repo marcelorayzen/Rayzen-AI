@@ -249,7 +249,7 @@ O handler em `organize-downloads.ts` pode ficar — sem a whitelist, nunca é ch
 ```bash
 # apps/agent/.env
 AGENT_POLL_INTERVAL_MS=3000    # intervalo entre polls (padrão: 3s)
-AGENT_API_URL=http://localhost:3001
+AGENT_API_URL=http://localhost:3101
 AGENT_TOKEN=<token>
 ```
 
