@@ -106,7 +106,10 @@
     "voice": "daniel"
   },
   "obsidian": {
-    "vaultPath": "",
-    "vaultName": ""
+    "vaultPath": "C:\\Users\\marce\\Documents\\Rayzen-Vault",
+    "vaultName": "Rayzen-Vault"
+  },
+  "notion": {
+    "rootPageId": "359c784498d680e68a15e71c90ff9f22"
   }
 }
