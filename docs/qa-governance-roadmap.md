@@ -307,7 +307,7 @@ para Collibra ou Alation mas têm os mesmos problemas de rastreabilidade e LGPD.
 
 ---
 
-### 3.1 — Catálogo de dados conversacional
+### 3.1 — Catálogo de dados conversacional ✅
 
 **O que é:**
 Base de conhecimento sobre datasets: o que são, quem é responsável, de onde vêm,
@@ -359,7 +359,7 @@ automaticamente — busca semântica pelo chat.
 
 ---
 
-### 3.2 — Linhagem de dados simples
+### 3.2 — Linhagem de dados simples ✅
 
 **O que é:**
 Mapa de onde cada dado vem e para onde vai. Não precisa ser um grafo sofisticado —
@@ -397,7 +397,7 @@ alerta: "4 pipelines dependem desta tabela."
 
 ---
 
-### 3.3 — Artefatos de compliance (LGPD)
+### 3.3 — Artefatos de compliance (LGPD) ✅
 
 **O que é:**
 Geração automática de documentos de compliance a partir do catálogo e das regras
@@ -443,9 +443,9 @@ apps/api/src/modules/documentation/documentation.controller.ts
 | **2.1** | Regras de qualidade e contratos | ✅ Concluído |
 | **2.2** | Alertas em mudanças de schema | ✅ Concluído |
 | **2.3** | Score de qualidade por dataset | ✅ Concluído |
-| **3.1** | Catálogo de dados conversacional | Em andamento |
-| **3.2** | Linhagem de dados simples | Planejado |
-| **3.3** | Artefatos de compliance (LGPD) | Planejado |
+| **3.1** | Catálogo de dados conversacional | ✅ Concluído |
+| **3.2** | Linhagem de dados simples | ✅ Concluído |
+| **3.3** | Artefatos de compliance (LGPD) | ✅ Concluído |
 
 ---
 
