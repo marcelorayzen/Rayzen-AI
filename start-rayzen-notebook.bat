@@ -82,18 +82,19 @@ call %PNPM% --filter agent build
 if errorlevel 1 goto :fail
 
 echo  Iniciando API em background...
-start "" /B powershell.exe -WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -Command "Set-Location -LiteralPath '%CD%'; $env:API_PORT='3101'; $env:REDIS_URL='redis://localhost:56379'; pnpm.cmd --filter api start"
+start "Rayzen API" powershell.exe -NoProfile -NoExit -ExecutionPolicy Bypass -Command "Set-Location -LiteralPath '%CD%'; $env:API_PORT='3101'; $env:REDIS_URL='redis://localhost:56379'; pnpm.cmd --filter api start"
 timeout /t 5 /nobreak >nul
 
-echo  Iniciando ngrok em background...
-start "" /B powershell.exe -WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -Command "ngrok http 3101"
+echo  Iniciando ngrok...
+start "Rayzen Tunnel" powershell.exe -NoProfile -NoExit -ExecutionPolicy Bypass -Command "ngrok http 3101"
 
 echo  Iniciando agente com auto-restart em background...
 start "" /B powershell.exe -WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -File "%~dp0apps\agent\watchdog.ps1"
 
 echo.
-echo  Tudo rodando em background.
-echo  Log do agente: apps\agent\agent.log
+echo  API e ngrok: janelas visiveis
+echo  Agente: background (log em apps\agent\agent.log)
+echo  Copie a URL HTTPS do ngrok e atualize o hook.config.mjs e o Vercel.
 echo.
 exit /b 0
 
