@@ -59,8 +59,9 @@ goto wait_postgres
 :postgres_ready
 
 echo  Prisma generate + migrate...
-echo  Encerrando processos Node anteriores...
+echo  Encerrando processos anteriores...
 taskkill /F /IM node.exe >nul 2>nul
+taskkill /F /IM ngrok.exe >nul 2>nul
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Get-NetTCPConnection -LocalPort 3101 -State Listen -EA SilentlyContinue | %% { Stop-Process -Id $_.OwningProcess -Force -EA SilentlyContinue }"
 timeout /t 5 /nobreak >nul
 
