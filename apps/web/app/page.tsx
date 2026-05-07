@@ -66,6 +66,7 @@ interface ActivityEvent {
   metadata: Record<string, unknown>
   ts: string
   memoryClass?: string
+  project?: { id: string; name: string } | null
 }
 
 interface ProjectDoc {
@@ -164,7 +165,7 @@ interface GitContext {
 }
 
 type QuickCaptureIntent = 'decision' | 'idea' | 'problem' | 'reference'
-type MemoryClassFilter = 'all' | 'inbox' | 'working' | 'consolidated' | 'archive'
+type MemoryClassFilter = 'all' | 'global' | 'inbox' | 'working' | 'consolidated' | 'archive'
 type WorkMode = 'implementation' | 'debugging' | 'architecture' | 'study' | 'review'
 
 interface Recommendation {
@@ -405,8 +406,12 @@ export default function Home() {
     setActivityLoading(true)
     try {
       const params = new URLSearchParams({ limit: '40' })
-      if (activeProjectId) params.set('project_id', activeProjectId)
-      if (memClass !== 'all') params.set('memory_class', memClass)
+      if (memClass === 'global') {
+        params.set('project_id', 'global')
+      } else if (activeProjectId) {
+        params.set('project_id', activeProjectId)
+      }
+      if (memClass !== 'all' && memClass !== 'global') params.set('memory_class', memClass)
       const res = await fetch(`${API_URL}/events?${params}`, { headers: authHeaders() })
       const data = await res.json() as ActivityEvent[]
       setActivityEvents(data)
@@ -1546,27 +1551,26 @@ export default function Home() {
               </h2>
               <button onClick={() => setActivityOpen(false)} className="text-zinc-500 hover:text-zinc-300 text-xs">fechar</button>
             </div>
-            {activeProjectId && (
-              <div className="flex gap-1 mb-3 flex-wrap">
-                {(['all', 'consolidated', 'working', 'inbox', 'archive'] as MemoryClassFilter[]).map((cls) => (
-                  <button
-                    key={cls}
-                    onClick={() => { setMemoryClassFilter(cls); loadActivityEvents(cls) }}
-                    className={`text-[10px] px-2 py-1 rounded-lg font-medium transition-colors ${
-                      memoryClassFilter === cls
-                        ? cls === 'consolidated' ? 'bg-emerald-700 text-white'
-                          : cls === 'working'      ? 'bg-amber-700 text-white'
-                          : cls === 'archive'      ? 'bg-zinc-600 text-zinc-300'
-                          : cls === 'inbox'        ? 'bg-indigo-700 text-white'
-                          : 'bg-zinc-700 text-zinc-200'
-                        : 'bg-zinc-800 text-zinc-500 hover:text-zinc-300'
-                    }`}
-                  >
-                    {cls}
-                  </button>
-                ))}
-              </div>
-            )}
+            <div className="flex gap-1 mb-3 flex-wrap">
+              {(['all', 'global', 'consolidated', 'working', 'inbox', 'archive'] as MemoryClassFilter[]).map((cls) => (
+                <button
+                  key={cls}
+                  onClick={() => { setMemoryClassFilter(cls); loadActivityEvents(cls) }}
+                  className={`text-[10px] px-2 py-1 rounded-lg font-medium transition-colors ${
+                    memoryClassFilter === cls
+                      ? cls === 'consolidated' ? 'bg-emerald-700 text-white'
+                        : cls === 'working'    ? 'bg-amber-700 text-white'
+                        : cls === 'archive'    ? 'bg-zinc-600 text-zinc-300'
+                        : cls === 'inbox'      ? 'bg-indigo-700 text-white'
+                        : cls === 'global'     ? 'bg-sky-700 text-white'
+                        : 'bg-zinc-700 text-zinc-200'
+                      : 'bg-zinc-800 text-zinc-500 hover:text-zinc-300'
+                  }`}
+                >
+                  {cls}
+                </button>
+              ))}
+            </div>
             <div className="overflow-y-auto flex-1 space-y-2">
               {activityLoading && <p className="text-zinc-500 text-xs text-center py-4">Carregando…</p>}
               {!activityLoading && activityEvents.length === 0 && (
@@ -1590,6 +1594,10 @@ export default function Home() {
                       <p className="text-xs text-zinc-300 truncate">{ev.content}</p>
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         <span className="text-[10px] text-zinc-600">{new Date(ev.ts).toLocaleString('pt-BR')}</span>
+                        {ev.project
+                          ? <span className="text-[9px] px-1.5 py-0.5 rounded bg-sky-900 text-sky-300 font-medium">{ev.project.name}</span>
+                          : <span className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-500 font-medium">global</span>
+                        }
                         {ev.memoryClass && ev.memoryClass !== 'inbox' && (
                           <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${
                             ev.memoryClass === 'consolidated' ? 'bg-emerald-900 text-emerald-300' :

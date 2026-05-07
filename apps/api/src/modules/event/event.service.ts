@@ -57,12 +57,22 @@ export class EventService {
     memoryClass?: string
     limit?: number
   }) {
+    const projectFilter =
+      filters.projectId === 'global'
+        ? { projectId: null }
+        : filters.projectId
+          ? { projectId: filters.projectId }
+          : {}
+
     return this.prisma.event.findMany({
       where: {
-        ...(filters.projectId ? { projectId: filters.projectId } : {}),
+        ...projectFilter,
         ...(filters.source ? { source: filters.source } : {}),
         ...(filters.type ? { type: filters.type } : {}),
         ...(filters.memoryClass ? { memoryClass: filters.memoryClass } : {}),
+      },
+      include: {
+        project: { select: { id: true, name: true } },
       },
       orderBy: { ts: 'desc' },
       take: filters.limit ?? 50,
