@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Delete, Body, Param, Query } from '@nestjs/common'
 import { ApiTags, ApiOperation } from '@nestjs/swagger'
-import { DataQualityService, CreateRuleDto, RunResultDto } from './data-quality.service'
+import { DataQualityService, CreateRuleDto, RunResultDto, ModelInfo } from './data-quality.service'
 
 @ApiTags('data-quality')
 @Controller('data-quality')
@@ -66,5 +66,11 @@ export class DataQualityController {
   @ApiOperation({ summary: 'Resumo geral de qualidade de dados do projeto' })
   getSummary(@Query('project_id') projectId?: string) {
     return this.dq.getSummary(projectId)
+  }
+
+  @Post('schema-diff')
+  @ApiOperation({ summary: 'Recebe snapshot de schema, compara com anterior e retorna mudanças + regras impactadas' })
+  schemaDiff(@Body() body: { models: ModelInfo[]; projectId?: string }) {
+    return this.dq.diffSchema(body.models, body.projectId ?? undefined)
   }
 }

@@ -1,5 +1,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
+import * as https from 'https'
+import * as http from 'http'
 import { resolve } from 'path'
 
 const HOME = process.env.USERPROFILE ?? process.env.HOME ?? ''
@@ -16,6 +18,7 @@ export interface InspectSchemaResult {
   models: ModelInfo[]
   rawSchema: string
   summary: string
+  changes?: SchemaChangeSummary
 }
 
 export interface ModelInfo {
@@ -28,6 +31,14 @@ export interface FieldInfo {
   name: string
   type: string
   modifiers: string
+}
+
+export interface SchemaChangeSummary {
+  modelsAdded: string[]
+  modelsRemoved: string[]
+  fieldsAdded: Array<{ model: string; field: string }>
+  fieldsRemoved: Array<{ model: string; field: string }>
+  impactedRules: number
 }
 
 function parseModels(schema: string): ModelInfo[] {
@@ -54,7 +65,6 @@ function parseModels(schema: string): ModelInfo[] {
 
       fields.push({ name: fieldName, type: fieldType, modifiers })
 
-      // Detectar relações
       if (/^[A-Z]/.test(fieldType) && !['String', 'Int', 'Float', 'Boolean', 'DateTime', 'Json', 'Bytes', 'BigInt', 'Decimal'].includes(fieldType)) {
         relations.push(`${fieldName}: ${fieldType}`)
       }
@@ -66,7 +76,57 @@ function parseModels(schema: string): ModelInfo[] {
   return models
 }
 
-export async function inspectSchema(payload: { projectPath?: string }): Promise<InspectSchemaResult> {
+function diffModels(prev: ModelInfo[], curr: ModelInfo[]): Omit<SchemaChangeSummary, 'impactedRules'> {
+  const prevMap = new Map(prev.map(m => [m.name, m]))
+  const currMap = new Map(curr.map(m => [m.name, m]))
+
+  const modelsAdded = curr.filter(m => !prevMap.has(m.name)).map(m => m.name)
+  const modelsRemoved = prev.filter(m => !currMap.has(m.name)).map(m => m.name)
+
+  const fieldsAdded: Array<{ model: string; field: string }> = []
+  const fieldsRemoved: Array<{ model: string; field: string }> = []
+
+  for (const [name, currModel] of currMap) {
+    const prevModel = prevMap.get(name)
+    if (!prevModel) continue
+    const prevFields = new Set(prevModel.fields.map(f => f.name))
+    const currFields = new Set(currModel.fields.map(f => f.name))
+    for (const f of currFields) if (!prevFields.has(f)) fieldsAdded.push({ model: name, field: f })
+    for (const f of prevFields) if (!currFields.has(f)) fieldsRemoved.push({ model: name, field: f })
+  }
+
+  return { modelsAdded, modelsRemoved, fieldsAdded, fieldsRemoved }
+}
+
+async function apiPost(url: string, token: string, body: object): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url)
+    const isHttps = parsed.protocol === 'https:'
+    const lib = isHttps ? https : http
+    const data = JSON.stringify(body)
+    const req = lib.request({
+      hostname: parsed.hostname,
+      port: parsed.port || (isHttps ? 443 : 80),
+      path: parsed.pathname + parsed.search,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(data),
+        Authorization: `Bearer ${token}`,
+      },
+    }, res => {
+      let out = ''
+      res.on('data', d => { out += d })
+      res.on('end', () => { try { resolve(JSON.parse(out)) } catch { resolve(out) } })
+    })
+    req.on('error', reject)
+    req.setTimeout(6000, () => { req.destroy(); reject(new Error('timeout')) })
+    req.write(data)
+    req.end()
+  })
+}
+
+export async function inspectSchema(payload: { projectPath?: string; projectId?: string }): Promise<InspectSchemaResult> {
   let schemaPath: string | null = null
 
   if (payload.projectPath) {
@@ -99,10 +159,30 @@ export async function inspectSchema(payload: { projectPath?: string }): Promise<
   const totalFields = models.reduce((acc, m) => acc + m.fields.length, 0)
   const summary = `${models.length} models: ${modelNames.join(', ')}. Total de ${totalFields} campos.`
 
-  return {
+  const result: InspectSchemaResult = {
     schemaPath,
     models,
     rawSchema: rawSchema.slice(0, 4000),
     summary,
   }
+
+  // Detect schema changes and notify API
+  const apiUrl = process.env.AGENT_API_URL ?? 'http://localhost:3101'
+  const token = process.env.AGENT_TOKEN ?? ''
+
+  try {
+    const changeResult = await apiPost(
+      `${apiUrl}/data-quality/schema-diff`,
+      token,
+      { models, projectId: payload.projectId ?? null },
+    ) as { changes?: SchemaChangeSummary }
+
+    if (changeResult?.changes) {
+      result.changes = changeResult.changes
+    }
+  } catch {
+    // Non-fatal — schema diff is best-effort
+  }
+
+  return result
 }

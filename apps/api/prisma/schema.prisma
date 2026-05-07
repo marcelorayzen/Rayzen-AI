@@ -284,6 +284,16 @@ model DataQualityResult {
   @@map("data_quality_results")
 }
 
+model SchemaSnapshot {
+  id        String   @id @default(uuid())
+  projectId String?  @map("project_id")
+  models    Json     // ModelInfo[]
+  capturedAt DateTime @default(now()) @map("captured_at")
+
+  @@index([projectId, capturedAt(sort: Desc)])
+  @@map("schema_snapshots")
+}
+
 model ConversationMessage {
   id             String   @id @default(uuid())
   sessionId      String   @map("session_id")
