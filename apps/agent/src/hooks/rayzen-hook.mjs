@@ -14,10 +14,27 @@
 
 import { request } from 'node:http'
 import { request as httpsRequest } from 'node:https'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { join, dirname } from 'node:path'
+import { join, dirname, extname } from 'node:path'
 import { execSync } from 'node:child_process'
+
+const INDEXABLE_EXTENSIONS = new Set([
+  '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',
+  '.md', '.mdx', '.txt', '.json', '.yaml', '.yml',
+  '.sql', '.prisma', '.css', '.html', '.py', '.sh', '.bat', '.ps1',
+])
+
+function readFileContent(filePath) {
+  try {
+    if (!filePath) return null
+    const ext = extname(filePath).toLowerCase()
+    if (!INDEXABLE_EXTENSIONS.has(ext)) return null
+    if (!existsSync(filePath)) return null
+    const content = readFileSync(filePath, 'utf8')
+    return content.slice(0, 8000)
+  } catch { return null }
+}
 
 const __dir = dirname(fileURLToPath(import.meta.url))
 const CONFIG_PATH = join(__dir, 'hook.config.mjs')
@@ -127,6 +144,14 @@ async function main() {
   // Enriquecer com contexto git (não bloqueia se falhar)
   const git = getGitContext()
   if (git) payload.git = git
+
+  // Anexar conteúdo do arquivo para indexação semântica (Edit/Write)
+  const tool = payload.tool_name
+  if (tool === 'Edit' || tool === 'Write') {
+    const filePath = payload.tool_input?.file_path ?? payload.tool_input?.path
+    const content = readFileContent(filePath)
+    if (content) payload.fileContent = content
+  }
 
   await post(`${cfg.apiUrl}/events/cli`, payload, cfg.apiToken)
   process.exit(0)

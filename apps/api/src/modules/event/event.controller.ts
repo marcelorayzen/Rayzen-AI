@@ -1,8 +1,9 @@
-import { Controller, Get, Post, Patch, Body, Query, Param } from '@nestjs/common'
+import { Controller, Get, Post, Patch, Body, Query, Param, Inject, forwardRef } from '@nestjs/common'
 import { ApiTags, ApiOperation } from '@nestjs/swagger'
 import { EventService, CreateEventDto, MemoryClass } from './event.service'
 import { SynthesisService } from '../synthesis/synthesis.service'
 import { PrismaService } from '../../prisma/prisma.service'
+import { MemoryService } from '../memory/memory.service'
 
 interface GitContext {
   branch?: string
@@ -22,6 +23,7 @@ interface CliHookPayload {
   transcript?: Array<{ role: string; content: string }>
   projectId?: string         // injetado pelo script do hook
   git?: GitContext           // enriquecido pelo hook (Fase 9)
+  fileContent?: string       // conteúdo do arquivo para indexação semântica (Edit/Write)
 }
 
 @ApiTags('events')
@@ -32,6 +34,7 @@ export class EventController {
     private readonly prisma: PrismaService,
     private readonly events: EventService,
     private readonly synthesis: SynthesisService,
+    @Inject(forwardRef(() => MemoryService)) private readonly memory: MemoryService,
   ) {}
 
   @Post()
@@ -84,6 +87,17 @@ export class EventController {
       const filePath = (input['file_path'] as string) ?? (input['path'] as string) ?? 'arquivo'
       content = `${tool}: ${filePath}${gitSuffix}`
       type = 'note'
+
+      // Auto-index file content into pgvector when hook sends fileContent
+      const fileContent = payload.fileContent
+      if (fileContent) {
+        this.memory.indexDocument(
+          fileContent,
+          filePath,
+          { tool, source: 'cli', sessionId: payload.session_id },
+          projectId,
+        ).catch(() => null)
+      }
     } else if (tool === 'Bash') {
       const cmd = String(input['command'] ?? '').slice(0, 200)
       content = `Bash: ${cmd}${gitSuffix}`
