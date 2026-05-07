@@ -428,6 +428,12 @@ export default function Home() {
     loadActivityEvents('all')
   }, [loadActivityEvents])
 
+  useEffect(() => {
+    if (!activityOpen) return
+    const id = setInterval(() => loadActivityEvents(memoryClassFilter), 5000)
+    return () => clearInterval(id)
+  }, [activityOpen, memoryClassFilter, loadActivityEvents])
+
   const openSynthesis = useCallback(async () => {
     setSynthesisOpen(true)
     setSynthesisLoading(true)
