@@ -284,6 +284,44 @@ model DataQualityResult {
   @@map("data_quality_results")
 }
 
+model DataAsset {
+  id           String   @id @default(uuid())
+  projectId    String?  @map("project_id")
+  name         String
+  type         String   // table | api | file | stream | external
+  description  String?
+  owner        String?
+  sensitivity  String   @default("internal") // public | internal | confidential | restricted
+  containsPII  Boolean  @default(false) @map("contains_pii")
+  piiFields    Json?    @map("pii_fields")   // string[] of field names with PII
+  source       String?
+  consumers    Json?                          // string[] of systems/teams
+  updateFreq   String?  @map("update_freq")  // real-time | daily | weekly | manual
+  notes        String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  lineageFrom DataLineageEdge[] @relation("LineageTarget")
+  lineageTo   DataLineageEdge[] @relation("LineageSource")
+
+  @@index([projectId])
+  @@map("data_assets")
+}
+
+model DataLineageEdge {
+  id             String   @id @default(uuid())
+  sourceId       String   @map("source_id")
+  targetId       String   @map("target_id")
+  transformation String?  // descrição da transformação ex: "ETL aggregation"
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  source DataAsset @relation("LineageSource", fields: [sourceId], references: [id], onDelete: Cascade)
+  target DataAsset @relation("LineageTarget", fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceId, targetId])
+  @@map("data_lineage_edges")
+}
+
 model SchemaSnapshot {
   id        String   @id @default(uuid())
   projectId String?  @map("project_id")

@@ -172,7 +172,7 @@ degradar antes de virar bug silencioso na produção.
 
 ---
 
-### 2.1 — Regras de qualidade e contrato de dados
+### 2.1 — Regras de qualidade e contrato de dados ✅
 
 **O que é:**
 O usuário define regras de qualidade para datasets/tabelas. O sistema valida e
@@ -229,7 +229,7 @@ GET  /data-quality/results        — histórico de resultados
 
 ---
 
-### 2.2 — Alertas em mudanças de schema
+### 2.2 — Alertas em mudanças de schema ✅
 
 **O que é:**
 Toda vez que uma migration Prisma é aplicada, o sistema verifica quais regras de
@@ -270,7 +270,7 @@ Emite alerta: "3 regras de qualidade impactadas por essa migration"
 
 ---
 
-### 2.3 — Score de qualidade por dataset
+### 2.3 — Score de qualidade por dataset ✅
 
 **O que é:**
 Agrega os resultados das regras em um score 0–100 por dataset, com histórico.
@@ -437,13 +437,13 @@ apps/api/src/modules/documentation/documentation.controller.ts
 
 | Fase | Descrição | Status |
 |---|---|---|
-| **1.1** | Parser de relatórios JUnit/Allure | Concluído |
-| **1.2** | Histórico e padrões de falha | Concluído |
-| **1.3** | Integração CI/CD (webhook) | Planejado |
-| **2.1** | Regras de qualidade e contratos | Planejado |
-| **2.2** | Alertas em mudanças de schema | Planejado |
-| **2.3** | Score de qualidade por dataset | Planejado |
-| **3.1** | Catálogo de dados conversacional | Planejado |
+| **1.1** | Parser de relatórios JUnit/Allure | ✅ Concluído |
+| **1.2** | Histórico e padrões de falha | ✅ Concluído |
+| **1.3** | Integração CI/CD (webhook) | ✅ Concluído |
+| **2.1** | Regras de qualidade e contratos | ✅ Concluído |
+| **2.2** | Alertas em mudanças de schema | ✅ Concluído |
+| **2.3** | Score de qualidade por dataset | ✅ Concluído |
+| **3.1** | Catálogo de dados conversacional | Em andamento |
 | **3.2** | Linhagem de dados simples | Planejado |
 | **3.3** | Artefatos de compliance (LGPD) | Planejado |
 

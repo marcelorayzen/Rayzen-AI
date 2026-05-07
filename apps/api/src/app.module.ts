@@ -29,6 +29,7 @@ import { BrainModule } from './modules/brain/brain.module'
 import { WikiModule } from './modules/wiki/wiki.module'
 import { QaModule } from './modules/qa/qa.module'
 import { DataQualityModule } from './modules/data-quality/data-quality.module'
+import { DataCatalogModule } from './modules/data-catalog/data-catalog.module'
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { DataQualityModule } from './modules/data-quality/data-quality.module'
     WikiModule,
     QaModule,
     DataQualityModule,
+    DataCatalogModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
