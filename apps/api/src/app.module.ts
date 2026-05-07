@@ -28,6 +28,7 @@ import { NotionModule } from './modules/notion/notion.module'
 import { BrainModule } from './modules/brain/brain.module'
 import { WikiModule } from './modules/wiki/wiki.module'
 import { QaModule } from './modules/qa/qa.module'
+import { DataQualityModule } from './modules/data-quality/data-quality.module'
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { QaModule } from './modules/qa/qa.module'
     BrainModule,
     WikiModule,
     QaModule,
+    DataQualityModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

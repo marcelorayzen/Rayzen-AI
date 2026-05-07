@@ -28,6 +28,7 @@ model Project {
   recommendations      ProjectRecommendation[]
   healthScores         ProjectHealthScore[]
   testRuns             TestRun[]
+  dataQualityRules     DataQualityRule[]
 
   @@map("projects")
 }
@@ -249,6 +250,38 @@ model TestRun {
 
   @@index([projectId, executedAt(sort: Desc)])
   @@map("test_runs")
+}
+
+model DataQualityRule {
+  id         String   @id @default(uuid())
+  projectId  String?  @map("project_id")
+  dataset    String
+  field      String?
+  ruleType   String   @map("rule_type") // not_null | unique | range | regex | custom | freshness
+  definition Json     @default("{}")    // params: { min, max, pattern, maxAgeHours, sql }
+  severity   String   @default("warning") // critical | warning | info
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  project Project?            @relation(fields: [projectId], references: [id])
+  results DataQualityResult[]
+
+  @@index([projectId, dataset])
+  @@map("data_quality_rules")
+}
+
+model DataQualityResult {
+  id        String   @id @default(uuid())
+  ruleId    String   @map("rule_id")
+  passed    Boolean
+  score     Float    // 0.0 a 1.0
+  detail    Json?    // exemplos de registros que falharam
+  checkedAt DateTime @default(now()) @map("checked_at")
+
+  rule DataQualityRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId, checkedAt(sort: Desc)])
+  @@map("data_quality_results")
 }
 
 model ConversationMessage {

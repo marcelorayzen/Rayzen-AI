@@ -37,7 +37,7 @@ torna o histórico de execuções consultável em linguagem natural.
 
 ---
 
-### 1.1 — Parser de relatórios de teste
+### 1.1 — Parser de relatórios de teste ✅
 
 **O que é:**
 Lê relatórios JUnit XML e Allure JSON gerados por Selenium, TestNG, Playwright, Jest
@@ -93,7 +93,7 @@ model TestRun {
 
 ---
 
-### 1.2 — Histórico e padrões de falha
+### 1.2 — Histórico e padrões de falha ✅
 
 **O que é:**
 Com runs acumulados, o sistema detecta testes flaky, módulos com regressão frequente
@@ -125,7 +125,7 @@ Adicionar exemplos no classify prompt:
 
 ---
 
-### 1.3 — Integração com CI/CD externo
+### 1.3 — Integração com CI/CD externo ✅
 
 **O que é:**
 Recebe relatórios de pipelines GitHub Actions, GitLab CI ou Jenkins via webhook,
