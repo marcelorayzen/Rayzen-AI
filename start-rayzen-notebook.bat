@@ -71,9 +71,10 @@ timeout /t 5 /nobreak >nul
 goto migrate_retry
 :migrate_ok
 
-echo  Liberando porta 3101...
+echo  Encerrando processos Node anteriores...
+taskkill /F /IM node.exe >nul 2>nul
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Get-NetTCPConnection -LocalPort 3101 -State Listen -EA SilentlyContinue | %% { Stop-Process -Id $_.OwningProcess -Force -EA SilentlyContinue }"
-timeout /t 2 /nobreak >nul
+timeout /t 3 /nobreak >nul
 
 echo  Compilando API e agente...
 call %PNPM% --filter api build
