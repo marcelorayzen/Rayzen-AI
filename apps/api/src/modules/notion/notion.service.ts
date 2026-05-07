@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { ConfigService } from '@nestjs/config'
 import { Client } from '@notionhq/client'
 import { PrismaService } from '../../prisma/prisma.service'
+import { RayzenConfigService } from '../configuration/configuration.service'
 import type {
   PageObjectResponse,
   PartialPageObjectResponse,
@@ -92,13 +93,15 @@ const DOC_TYPE_LABELS: Record<string, string> = {
 @Injectable()
 export class NotionService {
   private client: Client
-  private defaultDatabaseId: string
 
-  constructor(private config: ConfigService, private prisma: PrismaService) {
+  constructor(
+    private config: ConfigService,
+    private prisma: PrismaService,
+    private rayzenConfig: RayzenConfigService,
+  ) {
     this.client = new Client({
       auth: this.config.get<string>('NOTION_API_KEY', ''),
     })
-    this.defaultDatabaseId = this.config.get<string>('NOTION_DATABASE_ID', '')
   }
 
   async search(query: string, limit = 10): Promise<NotionSearchResult> {
@@ -135,19 +138,20 @@ export class NotionService {
     parentDatabaseId?: string
     tags?: string[]
   }): Promise<CreatePageResult> {
-    const parentId = opts.parentPageId ?? opts.parentDatabaseId ?? this.defaultDatabaseId
+    const rootPageId = this.rayzenConfig.getConfig().notion?.rootPageId
+    const parentId = opts.parentPageId ?? opts.parentDatabaseId ?? rootPageId
 
     if (!parentId) {
-      throw new NotFoundException('parentPageId ou NOTION_DATABASE_ID necessário para criar página')
+      throw new NotFoundException('parentPageId necessário ou configure notion.rootPageId via PATCH /configuration')
     }
 
-    const parent = opts.parentDatabaseId || (!opts.parentPageId && this.defaultDatabaseId)
-      ? { database_id: opts.parentDatabaseId ?? this.defaultDatabaseId }
-      : { page_id: opts.parentPageId as string }
+    const parent = opts.parentDatabaseId
+      ? { database_id: opts.parentDatabaseId }
+      : { page_id: parentId }
 
     const properties = {
       title: { title: [{ type: 'text' as const, text: { content: opts.title } }] },
-      ...(opts.tags?.length && (opts.parentDatabaseId ?? this.defaultDatabaseId)
+      ...(opts.tags?.length && opts.parentDatabaseId
         ? { Tags: { multi_select: opts.tags.map((name) => ({ name })) } }
         : {}),
     }
@@ -182,21 +186,49 @@ export class NotionService {
     return { id: pageId, title }
   }
 
-  // Publica documentos gerados do projeto no banco Notion vinculado
+  // Cria a página do projeto no Notion sob a página raiz configurada
+  async createProjectPage(projectName: string): Promise<{ id: string; url: string }> {
+    const rootPageId = this.rayzenConfig.getConfig().notion?.rootPageId
+    if (!rootPageId) {
+      throw new BadRequestException(
+        'notion.rootPageId não configurado. Use PATCH /configuration com { "notion": { "rootPageId": "id-da-pagina-raiz" } }.',
+      )
+    }
+
+    const created = await this.client.pages.create({
+      parent: { page_id: rootPageId },
+      properties: {
+        title: { title: [{ type: 'text', text: { content: projectName } }] },
+      },
+      children: [
+        {
+          object: 'block',
+          type: 'paragraph',
+          paragraph: {
+            rich_text: [{ type: 'text', text: { content: `Documentação do projeto ${projectName} gerenciada pelo Rayzen AI.` } }],
+          },
+        },
+      ],
+    }) as PageObjectResponse
+
+    return { id: created.id, url: created.url }
+  }
+
+  // Publica documentos do projeto como subpáginas da página do projeto
   async syncProject(projectId: string, docTypes?: string[]): Promise<{
     synced: Array<{ type: string; notionPageId: string; url: string; status: 'created' | 'updated' }>
     skipped: string[]
-    databaseId: string
+    projectPageId: string
   }> {
     const project = await this.prisma.project.findUnique({ where: { id: projectId } })
     if (!project) throw new NotFoundException('Projeto não encontrado')
 
-    const dbId = project.notionDatabaseId ?? this.defaultDatabaseId
-    if (!dbId) {
-      throw new BadRequestException(
-        'Nenhum notionDatabaseId configurado para este projeto. ' +
-        'Use PATCH /projects/:id com { "notionDatabaseId": "seu-database-id" }.',
-      )
+    // Auto-cria a página do projeto se ainda não existir
+    let pageId = project.notionPageId
+    if (!pageId) {
+      const created = await this.createProjectPage(project.name)
+      pageId = created.id
+      await this.prisma.project.update({ where: { id: projectId }, data: { notionPageId: pageId } })
     }
 
     const docs = await this.prisma.projectDocument.findMany({
@@ -213,42 +245,43 @@ export class NotionService {
     const synced: Array<{ type: string; notionPageId: string; url: string; status: 'created' | 'updated' }> = []
     const skipped: string[] = []
 
+    // Lista subpáginas existentes da página do projeto
+    const children = await this.client.blocks.children.list({ block_id: pageId, page_size: 100 })
+    const existingSubPages = new Map<string, string>() // título → page_id
+
+    for (const block of children.results) {
+      const b = block as BlockObjectResponse
+      if (b.type === 'child_page') {
+        const cp = b as unknown as { type: 'child_page'; child_page: { title: string }; id: string }
+        existingSubPages.set(cp.child_page.title, cp.id)
+      }
+    }
+
     for (const doc of docs) {
-      const title = `${project.name} — ${DOC_TYPE_LABELS[doc.type] ?? doc.type}`
+      const title = DOC_TYPE_LABELS[doc.type] ?? doc.type
+      const blocks = markdownToNotionBlocks(doc.content)
 
       try {
-        // Busca página existente no banco com o mesmo título
-        const search = await this.client.search({
-          query: title,
-          filter: { property: 'object', value: 'page' },
-          page_size: 5,
-        })
+        const existingId = existingSubPages.get(title)
 
-        const existing = search.results.find(r => {
-          const p = r as PageObjectResponse
-          return 'parent' in p &&
-            p.parent &&
-            'database_id' in p.parent &&
-            p.parent.database_id.replace(/-/g, '') === dbId.replace(/-/g, '') &&
-            extractTitle(p) === title
-        }) as PageObjectResponse | undefined
-
-        const blocks = markdownToNotionBlocks(doc.content)
-
-        if (existing) {
-          // Limpa blocos existentes e reescreve
-          const existingBlocks = await this.client.blocks.children.list({ block_id: existing.id, page_size: 100 })
-          await Promise.all(
-            existingBlocks.results.map(b => this.client.blocks.delete({ block_id: b.id }))
-          )
+        if (existingId) {
+          // Reescreve o conteúdo da subpágina existente
+          const existingBlocks = await this.client.blocks.children.list({ block_id: existingId, page_size: 100 })
+          await Promise.all(existingBlocks.results.map(b => this.client.blocks.delete({ block_id: b.id })))
           await this.client.blocks.children.append({
-            block_id: existing.id,
+            block_id: existingId,
             children: blocks as Parameters<typeof this.client.blocks.children.append>[0]['children'],
           })
-          synced.push({ type: doc.type, notionPageId: existing.id, url: existing.url, status: 'updated' })
+          await this.client.pages.update({
+            page_id: existingId,
+            properties: { title: { title: [{ text: { content: title } }] } },
+          })
+          const page = await this.client.pages.retrieve({ page_id: existingId }) as PageObjectResponse
+          synced.push({ type: doc.type, notionPageId: existingId, url: page.url, status: 'updated' })
         } else {
+          // Cria nova subpágina dentro da página do projeto
           const created = await this.client.pages.create({
-            parent: { database_id: dbId },
+            parent: { page_id: pageId! },
             properties: {
               title: { title: [{ type: 'text', text: { content: title } }] },
             },
@@ -261,6 +294,6 @@ export class NotionService {
       }
     }
 
-    return { synced, skipped, databaseId: dbId }
+    return { synced, skipped, projectPageId: pageId! }
   }
 }

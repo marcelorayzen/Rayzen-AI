@@ -1,9 +1,13 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Inject, forwardRef } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
+import { NotionService } from '../notion/notion.service'
 
 @Injectable()
 export class ProjectService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(forwardRef(() => NotionService)) private readonly notion: NotionService,
+  ) {}
 
   async findAll() {
     return this.prisma.project.findMany({
@@ -16,10 +20,17 @@ export class ProjectService {
   }
 
   async create(data: { name: string; description?: string; goals?: string }) {
-    return this.prisma.project.create({ data })
+    const project = await this.prisma.project.create({ data })
+
+    // Auto-cria página no Notion se rootPageId estiver configurado
+    this.notion.createProjectPage(project.name)
+      .then(({ id }) => this.prisma.project.update({ where: { id: project.id }, data: { notionPageId: id } }))
+      .catch(() => null) // não bloqueia criação do projeto
+
+    return project
   }
 
-  async update(id: string, data: { name?: string; description?: string; goals?: string; status?: string; notionDatabaseId?: string }) {
+  async update(id: string, data: { name?: string; description?: string; goals?: string; status?: string; notionPageId?: string }) {
     return this.prisma.project.update({ where: { id }, data })
   }
 

@@ -29,6 +29,9 @@ export interface RayzenConfig {
     vaultPath: string
     vaultName: string
   }
+  notion: {
+    rootPageId: string  // ID da página raiz "Rayzen AI" no Notion
+  }
 }
 
 const CONFIG_PATHS = [
