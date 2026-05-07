@@ -3,9 +3,11 @@ import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../../prisma/prisma.service'
 import OpenAI from 'openai'
 
-export type DocType = 'project_state' | 'decisions_log' | 'next_actions' | 'work_journal'
+export type DocType = 'project_state' | 'decisions_log' | 'next_actions' | 'work_journal' | 'data_map' | 'ropa' | 'quality_report'
 
-const DOC_PROMPTS: Record<DocType, (ctx: string) => string> = {
+type LlmDocType = 'project_state' | 'decisions_log' | 'next_actions' | 'work_journal'
+
+const DOC_PROMPTS: Record<LlmDocType, (ctx: string) => string> = {
   project_state: (ctx) => `Com base no histórico abaixo, escreva um documento markdown "Estado do Projeto" com:
 - Status atual (o que está acontecendo agora)
 - O que foi concluído recentemente
@@ -137,7 +139,7 @@ export class DocumentationService {
       eventLines && `## Eventos recentes\n${eventLines}`,
     ].filter(Boolean).join('\n\n')
 
-    const promptFn = DOC_PROMPTS[type]
+    const promptFn = DOC_PROMPTS[type as LlmDocType]
     if (!promptFn) throw new BadRequestException(`Tipo inválido: ${type}`)
 
     const res = await this.llm.chat.completions.create({
@@ -217,5 +219,179 @@ export class DocumentationService {
       where: { projectId_type: { projectId, type } },
       data: { reviewedAt: new Date() },
     })
+  }
+
+  // ── LGPD / Compliance Documents ───────────────────────────────────────────
+
+  async generateDataMap(projectId: string): Promise<{ id: string; type: string; content: string; generatedAt: string }> {
+    const project = await this.prisma.project.findUnique({ where: { id: projectId } })
+    if (!project) throw new NotFoundException('Projeto não encontrado')
+
+    const assets = await this.prisma.dataAsset.findMany({
+      where: { projectId },
+      orderBy: { name: 'asc' },
+    })
+
+    const piiAssets = assets.filter(a => a.containsPII)
+
+    const lines = piiAssets.map(a => {
+      const fields = (a.piiFields as string[] | null)?.join(', ') ?? 'não especificado'
+      return `| ${a.name} | ${a.type} | ${fields} | ${a.owner ?? '—'} | ${a.sensitivity} | ${a.source ?? '—'} |`
+    })
+
+    const content = [
+      `# Mapeamento de Dados Pessoais — ${project.name}`,
+      `**Gerado em:** ${new Date().toLocaleDateString('pt-BR')}`,
+      `**Total de assets:** ${assets.length} | **Com dados pessoais (PII):** ${piiAssets.length}`,
+      '',
+      '## Ativos com dados pessoais',
+      '',
+      '| Dataset | Tipo | Campos PII | Responsável | Sensibilidade | Origem |',
+      '|---|---|---|---|---|---|',
+      ...lines,
+      '',
+      `## Ativos sem dados pessoais (${assets.length - piiAssets.length})`,
+      assets.filter(a => !a.containsPII).map(a => `- **${a.name}** (${a.type}) — ${a.sensitivity}`).join('\n'),
+    ].join('\n')
+
+    const doc = await this.prisma.projectDocument.upsert({
+      where: { projectId_type: { projectId, type: 'data_map' } },
+      create: { projectId, type: 'data_map', content },
+      update: { content, generatedAt: new Date(), reviewedAt: null },
+    })
+
+    return { id: doc.id, type: doc.type, content: doc.content, generatedAt: doc.generatedAt.toISOString() }
+  }
+
+  async generateROPA(projectId: string): Promise<{ id: string; type: string; content: string; generatedAt: string }> {
+    const project = await this.prisma.project.findUnique({ where: { id: projectId } })
+    if (!project) throw new NotFoundException('Projeto não encontrado')
+
+    const assets = await this.prisma.dataAsset.findMany({
+      where: { projectId, containsPII: true },
+      orderBy: { name: 'asc' },
+    })
+
+    const sections = assets.map(a => {
+      const fields = (a.piiFields as string[] | null)?.join(', ') ?? 'não especificado'
+      const consumers = (a.consumers as string[] | null)?.join(', ') ?? 'não especificado'
+      return [
+        `### ${a.name}`,
+        `- **Tipo:** ${a.type}`,
+        `- **Responsável:** ${a.owner ?? 'não definido'}`,
+        `- **Finalidade:** ${a.description ?? 'não declarada'}`,
+        `- **Campos pessoais:** ${fields}`,
+        `- **Compartilhado com:** ${consumers}`,
+        `- **Origem:** ${a.source ?? 'não declarada'}`,
+        `- **Frequência de atualização:** ${a.updateFreq ?? 'não declarada'}`,
+        `- **Sensibilidade:** ${a.sensitivity}`,
+        `- **Base legal LGPD:** _a preencher_`,
+        `- **Prazo de retenção:** _a preencher_`,
+      ].join('\n')
+    })
+
+    const content = [
+      `# ROPA — Registro de Atividades de Tratamento`,
+      `**Projeto:** ${project.name}`,
+      `**Gerado em:** ${new Date().toLocaleDateString('pt-BR')}`,
+      `**Referência:** Art. 37 LGPD / Art. 30 GDPR`,
+      '',
+      '> Este documento lista os tratamentos de dados pessoais identificados no catálogo de dados.',
+      '> Campos marcados com "_a preencher_" requerem revisão manual do responsável pelo tratamento (DPO ou gestor).',
+      '',
+      '## Atividades de Tratamento',
+      '',
+      sections.join('\n\n---\n\n'),
+      '',
+      `## Resumo`,
+      `- **Total de atividades:** ${assets.length}`,
+      `- **Dados confidenciais:** ${assets.filter(a => a.sensitivity === 'confidential' || a.sensitivity === 'restricted').length}`,
+    ].join('\n')
+
+    const doc = await this.prisma.projectDocument.upsert({
+      where: { projectId_type: { projectId, type: 'ropa' } },
+      create: { projectId, type: 'ropa', content },
+      update: { content, generatedAt: new Date(), reviewedAt: null },
+    })
+
+    return { id: doc.id, type: doc.type, content: doc.content, generatedAt: doc.generatedAt.toISOString() }
+  }
+
+  async generateQualityReport(projectId: string): Promise<{ id: string; type: string; content: string; generatedAt: string }> {
+    const project = await this.prisma.project.findUnique({ where: { id: projectId } })
+    if (!project) throw new NotFoundException('Projeto não encontrado')
+
+    const rules = await this.prisma.dataQualityRule.findMany({
+      where: { projectId, active: true },
+      include: {
+        results: {
+          orderBy: { checkedAt: 'desc' },
+          take: 1,
+        },
+      },
+    })
+
+    const byDataset: Record<string, typeof rules> = {}
+    for (const r of rules) {
+      if (!byDataset[r.dataset]) byDataset[r.dataset] = []
+      byDataset[r.dataset].push(r)
+    }
+
+    const WEIGHTS: Record<string, number> = { critical: 3, warning: 2, info: 1 }
+
+    const datasetSections = Object.entries(byDataset).map(([ds, dsRules]) => {
+      let weightedSum = 0, weightTotal = 0, failing = 0
+
+      const ruleLines = dsRules.map(rule => {
+        const latest = rule.results[0]
+        const score = latest?.score ?? 1.0
+        const passed = latest?.passed ?? true
+        const w = WEIGHTS[rule.severity] ?? 1
+        weightedSum += score * w
+        weightTotal += w
+        if (!passed) failing++
+
+        const status = !latest ? '⚠️ nunca executada'
+          : passed ? `✅ OK (score: ${Math.round(score * 100)}%)`
+          : `❌ FALHOU (score: ${Math.round(score * 100)}%)`
+        const field = rule.field ? ` › ${rule.field}` : ''
+        return `  - [${rule.severity.toUpperCase()}] \`${rule.ruleType}\`${field} — ${status}`
+      })
+
+      const dsScore = weightTotal > 0 ? Math.round((weightedSum / weightTotal) * 100) : 100
+      const emoji = dsScore >= 90 ? '🟢' : dsScore >= 70 ? '🟡' : '🔴'
+
+      return [
+        `### ${emoji} ${ds} — Score: ${dsScore}/100`,
+        `${failing} de ${dsRules.length} regras falhando`,
+        ...ruleLines,
+      ].join('\n')
+    })
+
+    const totalFailing = rules.filter(r => r.results[0] && !r.results[0].passed).length
+    const avgScore = rules.length > 0
+      ? Math.round(rules.reduce((s, r) => {
+          const score = r.results[0]?.score ?? 1.0
+          return s + score
+        }, 0) / rules.length * 100)
+      : 100
+
+    const content = [
+      `# Relatório de Qualidade de Dados — ${project.name}`,
+      `**Gerado em:** ${new Date().toLocaleDateString('pt-BR')}`,
+      `**Score médio:** ${avgScore}/100 | **Regras ativas:** ${rules.length} | **Falhando:** ${totalFailing}`,
+      '',
+      '## Por Dataset',
+      '',
+      datasetSections.join('\n\n'),
+    ].join('\n')
+
+    const doc = await this.prisma.projectDocument.upsert({
+      where: { projectId_type: { projectId, type: 'quality_report' } },
+      create: { projectId, type: 'quality_report', content },
+      update: { content, generatedAt: new Date(), reviewedAt: null },
+    })
+
+    return { id: doc.id, type: doc.type, content: doc.content, generatedAt: doc.generatedAt.toISOString() }
   }
 }

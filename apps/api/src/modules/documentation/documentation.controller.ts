@@ -40,4 +40,22 @@ export class DocumentationController {
   markReviewed(@Param('projectId') projectId: string, @Param('type') type: DocType) {
     return this.svc.markReviewed(projectId, type as DocType)
   }
+
+  @Post('generate/:projectId/data_map')
+  @ApiOperation({ summary: 'Gera mapeamento de dados pessoais (PII) a partir do catálogo de dados' })
+  generateDataMap(@Param('projectId') projectId: string) {
+    return this.svc.generateDataMap(projectId)
+  }
+
+  @Post('generate/:projectId/ropa')
+  @ApiOperation({ summary: 'Gera ROPA — Registro de Atividades de Tratamento (LGPD Art. 37 / GDPR Art. 30)' })
+  generateROPA(@Param('projectId') projectId: string) {
+    return this.svc.generateROPA(projectId)
+  }
+
+  @Post('generate/:projectId/quality_report')
+  @ApiOperation({ summary: 'Gera relatório consolidado de qualidade de dados com scores e regras falhando' })
+  generateQualityReport(@Param('projectId') projectId: string) {
+    return this.svc.generateQualityReport(projectId)
+  }
 }
