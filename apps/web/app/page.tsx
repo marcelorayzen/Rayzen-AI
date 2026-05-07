@@ -103,6 +103,56 @@ function memoryGroupFor(doc: MemoryDoc): { key: string; label: string } {
   return { key: source, label: source }
 }
 
+type MemoryDocType = 'code' | 'config' | 'doc' | 'qa' | 'catalog' | 'notion' | 'github' | 'url' | 'memory' | 'other'
+
+function memoryDocType(sourcePath: string | null, metadata?: Record<string, unknown> | null): MemoryDocType {
+  const metaType = typeof metadata?.type === 'string' ? metadata.type : null
+  if (metaType === 'test_failures') return 'qa'
+  if (metaType === 'data_asset') return 'catalog'
+
+  const s = sourcePath ?? ''
+  if (s.startsWith('qa/')) return 'qa'
+  if (s.startsWith('data-catalog/')) return 'catalog'
+  if (s.startsWith('notion/') || s.startsWith('Notion')) return 'notion'
+  if (s.startsWith('github/')) return 'github'
+  if (s.startsWith('url/')) return 'url'
+  if (s.includes('.claude') || s.includes('memory')) return 'memory'
+  if (/\.(ts|tsx|js|jsx|py|java|go|rs)$/.test(s)) return 'code'
+  if (/\.(json|yaml|yml|env|toml)$/.test(s)) return 'config'
+  if (/\.(md|txt|pdf|docx)$/.test(s)) return 'doc'
+  if (s.startsWith('apps/') || s.startsWith('src/') || s.startsWith('packages/')) return 'code'
+  return 'other'
+}
+
+const DOC_TYPE_LABELS: Record<MemoryDocType, string> = {
+  code: 'Código', config: 'Config', doc: 'Doc', qa: 'QA',
+  catalog: 'Catálogo', notion: 'Notion', github: 'GitHub',
+  url: 'URL', memory: 'Memória', other: 'Outro',
+}
+
+const DOC_TYPE_COLORS: Record<MemoryDocType, string> = {
+  code:    'bg-blue-500/15 text-blue-400',
+  config:  'bg-zinc-500/20 text-zinc-400',
+  doc:     'bg-purple-500/15 text-purple-400',
+  qa:      'bg-green-500/15 text-green-400',
+  catalog: 'bg-cyan-500/15 text-cyan-400',
+  notion:  'bg-orange-500/15 text-orange-400',
+  github:  'bg-zinc-400/15 text-zinc-300',
+  url:     'bg-yellow-500/15 text-yellow-400',
+  memory:  'bg-pink-500/15 text-pink-400',
+  other:   'bg-zinc-700/30 text-zinc-500',
+}
+
+// Cores por projeto — rotaciona entre paletas
+const PROJECT_COLORS = [
+  'bg-indigo-500/20 text-indigo-300',
+  'bg-emerald-500/20 text-emerald-300',
+  'bg-rose-500/20 text-rose-300',
+  'bg-amber-500/20 text-amber-300',
+  'bg-sky-500/20 text-sky-300',
+  'bg-violet-500/20 text-violet-300',
+]
+
 interface SynthesisArtifact {
   id: string
   sessionId: string
@@ -1869,25 +1919,45 @@ export default function Home() {
                   {memorySearchResults.length === 0 && (
                     <p className="text-xs text-zinc-500 text-center py-8">Nenhum resultado encontrado</p>
                   )}
-                  {memorySearchResults.map((r) => (
-                    <div key={r.id} className="bg-zinc-800 rounded-xl p-3">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-[11px] text-zinc-500 truncate">{r.sourcePath ?? 'sem origem'}</span>
-                        <span className="text-[11px] text-zinc-600 ml-2 shrink-0">{(r.score * 100).toFixed(0)}%</span>
+                  {memorySearchResults.map((r) => {
+                    const dtype = memoryDocType(r.sourcePath, null)
+                    const fileName = r.sourcePath ? r.sourcePath.split('/').pop() ?? r.sourcePath : 'sem origem'
+                    return (
+                      <div key={r.id} className="bg-zinc-800 rounded-xl p-3">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className={`shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-md ${DOC_TYPE_COLORS[dtype]}`}>
+                              {DOC_TYPE_LABELS[dtype]}
+                            </span>
+                            <span className="text-[11px] text-zinc-500 truncate" title={r.sourcePath ?? ''}>{fileName}</span>
+                          </div>
+                          <span className="text-[11px] text-zinc-600 ml-2 shrink-0">{(r.score * 100).toFixed(0)}%</span>
+                        </div>
+                        <p className="text-xs text-zinc-300 line-clamp-3">{r.content}</p>
                       </div>
-                      <p className="text-xs text-zinc-300 line-clamp-3">{r.content}</p>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </>
               )}
 
               {/* Document list */}
               {memorySearchResults === null && !memoryDocsLoading && (() => {
-                const groups = memoryDocs.reduce<Record<string, { ids: string[]; count: number; label: string; lastIndexedAt: string }>>((acc, d) => {
+                const projectColorMap = new Map<string, string>()
+                projects.forEach((p, i) => projectColorMap.set(p.id, PROJECT_COLORS[i % PROJECT_COLORS.length]))
+
+                const groups = memoryDocs.reduce<Record<string, {
+                  ids: string[]; count: number; label: string; lastIndexedAt: string
+                  docType: MemoryDocType; projectId: string | null; sourcePath: string | null
+                }>>((acc, d) => {
                   const group = memoryGroupFor(d)
                   const key = group.key
                   const indexedAt = d.createdAt
-                  if (!acc[key]) acc[key] = { ids: [], count: 0, label: group.label, lastIndexedAt: indexedAt }
+                  if (!acc[key]) acc[key] = {
+                    ids: [], count: 0, label: group.label, lastIndexedAt: indexedAt,
+                    docType: memoryDocType(d.sourcePath, d.metadata),
+                    projectId: d.projectId ?? null,
+                    sourcePath: d.sourcePath,
+                  }
                   acc[key].ids.push(d.id)
                   acc[key].count++
                   if (new Date(indexedAt).getTime() > new Date(acc[key].lastIndexedAt).getTime()) {
@@ -1895,43 +1965,71 @@ export default function Home() {
                   }
                   return acc
                 }, {})
+
                 const filter = memoryListFilter.trim().toLowerCase()
                 const entries = Object.entries(groups)
                   .filter(([source, group]) => !filter || source.toLowerCase().includes(filter) || group.label.toLowerCase().includes(filter))
                   .sort((a, b) => new Date(b[1].lastIndexedAt).getTime() - new Date(a[1].lastIndexedAt).getTime())
+
                 if (entries.length === 0) {
                   return <p className="text-xs text-zinc-500 text-center py-8">Nenhuma origem encontrada</p>
                 }
-                return entries.map(([source, { ids, count, label, lastIndexedAt }]) => (
-                  <div key={source} className="flex items-center justify-between bg-zinc-800 rounded-xl px-3 py-2 group">
-                    <div className="min-w-0">
-                      <span className="block text-xs text-zinc-300 truncate">{label}</span>
-                      <span className="block text-[10px] text-zinc-600 truncate">{source}</span>
-                      <span className="block text-[10px] text-zinc-500 mt-0.5">última indexação: {new Date(lastIndexedAt).toLocaleString('pt-BR')}</span>
+
+                return entries.map(([source, { ids, count, label, lastIndexedAt, docType, projectId, sourcePath }]) => {
+                  const project = projectId ? projects.find(p => p.id === projectId) : null
+                  const projectColor = projectId ? (projectColorMap.get(projectId) ?? PROJECT_COLORS[0]) : null
+                  const fileName = sourcePath ? sourcePath.split(/[/\\]/).pop() ?? label : label
+
+                  return (
+                    <div key={source} className="bg-zinc-800 rounded-xl px-3 py-2.5 group">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          {/* Badges: tipo + projeto */}
+                          <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-md ${DOC_TYPE_COLORS[docType]}`}>
+                              {DOC_TYPE_LABELS[docType]}
+                            </span>
+                            {project && (
+                              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-md ${projectColor}`}>
+                                {project.name}
+                              </span>
+                            )}
+                          </div>
+                          {/* Nome do arquivo */}
+                          <span className="block text-xs text-zinc-200 truncate font-medium" title={sourcePath ?? label}>
+                            {fileName}
+                          </span>
+                          {/* Caminho completo menor */}
+                          <span className="block text-[10px] text-zinc-600 truncate mt-0.5" title={source}>{source}</span>
+                          <span className="block text-[10px] text-zinc-500 mt-0.5">
+                            {new Date(lastIndexedAt).toLocaleString('pt-BR')}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 mt-0.5">
+                          <span className="text-[11px] text-zinc-500">{count} chunk{count !== 1 ? 's' : ''}</span>
+                          <button
+                            onClick={async () => {
+                              if (!confirm(`Deletar todos os ${count} chunks de "${source}"?`)) return
+                              await Promise.all(ids.map(id =>
+                                fetch(`${API_URL}/memory/documents/${id}`, { method: 'DELETE', headers: authHeaders() })
+                              ))
+                              setMemoryDocs(prev => prev.filter(d => !ids.includes(d.id)))
+                            }}
+                            className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-red-400 transition-all"
+                            title="Deletar todos os chunks desta origem"
+                          >
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <polyline points="3 6 5 6 21 6"/>
+                              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                              <path d="M10 11v6M14 11v6"/>
+                              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 ml-2 shrink-0">
-                      <span className="text-[11px] text-zinc-500">{count} chunk{count !== 1 ? 's' : ''}</span>
-                      <button
-                        onClick={async () => {
-                          if (!confirm(`Deletar todos os ${count} chunks de "${source}"?`)) return
-                          await Promise.all(ids.map(id =>
-                            fetch(`${API_URL}/memory/documents/${id}`, { method: 'DELETE', headers: authHeaders() })
-                          ))
-                          setMemoryDocs(prev => prev.filter(d => !ids.includes(d.id)))
-                        }}
-                        className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-red-400 transition-all"
-                        title="Deletar todos os chunks desta origem"
-                      >
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <polyline points="3 6 5 6 21 6"/>
-                          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                          <path d="M10 11v6M14 11v6"/>
-                          <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                ))
+                  )
+                })
               })()}
             </div>
           </div>
