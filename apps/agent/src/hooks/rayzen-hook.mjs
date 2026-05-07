@@ -70,7 +70,7 @@ function getGitContext() {
     const commitMessage = parts[1]?.trim() ?? ''
     const commitAuthor = parts[2]?.trim() ?? ''
 
-    // Arquivos modificados (staged + unstaged, sem deletados) — top 10
+    // Arquivos modificados — top 10
     let changedFiles = []
     try {
       const filesRaw = execSync('git diff --name-only HEAD 2>/dev/null || git status --short --porcelain', {
@@ -87,6 +87,24 @@ function getGitContext() {
   } catch {
     return null
   }
+}
+
+function getProjectName() {
+  try {
+    // Preferência: nome do repositório no git remote
+    const remote = execSync('git remote get-url origin', {
+      encoding: 'utf8', timeout: 2000, stdio: ['pipe', 'pipe', 'ignore'],
+    }).trim()
+    const match = remote.match(/\/([^/]+?)(?:\.git)?$/)
+    if (match?.[1]) return match[1]
+  } catch { /* sem remote */ }
+  try {
+    // Fallback: nome do diretório raiz do repositório
+    const root = execSync('git rev-parse --show-toplevel', {
+      encoding: 'utf8', timeout: 2000, stdio: ['pipe', 'pipe', 'ignore'],
+    }).trim()
+    return root.split(/[\\/]/).pop() ?? null
+  } catch { return null }
 }
 
 async function readStdin() {
@@ -139,7 +157,13 @@ async function main() {
     process.exit(0)
   }
 
-  if (cfg.projectId) payload.projectId = cfg.projectId
+  // projectId explícito tem prioridade; fallback: nome auto-detectado pelo git remote
+  if (cfg.projectId) {
+    payload.projectId = cfg.projectId
+  } else {
+    const name = getProjectName()
+    if (name) payload.projectName = name
+  }
 
   // Enriquecer com contexto git (não bloqueia se falhar)
   const git = getGitContext()

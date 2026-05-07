@@ -21,8 +21,9 @@ interface CliHookPayload {
   tool_response?: unknown
   session_id?: string
   transcript?: Array<{ role: string; content: string }>
-  projectId?: string         // injetado pelo script do hook
-  git?: GitContext           // enriquecido pelo hook (Fase 9)
+  projectId?: string         // UUID explícito (opcional — tem prioridade)
+  projectName?: string       // nome do projeto para auto-resolução (fallback)
+  git?: GitContext           // enriquecido pelo hook
   fileContent?: string       // conteúdo do arquivo para indexação semântica (Edit/Write)
 }
 
@@ -46,7 +47,16 @@ export class EventController {
   @Post('cli')
   @ApiOperation({ summary: 'Recebe payload do hook do Claude Code e salva como evento' })
   async fromCli(@Body() payload: CliHookPayload) {
-    const projectId = payload.projectId ?? undefined
+    // Resolve projectId: UUID explícito > busca por nome > undefined
+    let projectId = payload.projectId ?? undefined
+    if (!projectId && payload.projectName) {
+      const found = await this.prisma.project.findFirst({
+        where: { name: { equals: payload.projectName, mode: 'insensitive' } },
+        select: { id: true },
+      })
+      if (found) projectId = found.id
+    }
+
     const hookEvent = payload.hook_event_name ?? 'PostToolUse'
 
     // Hook Stop — registra encerramento e dispara síntese em background
