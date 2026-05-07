@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { Client } from '@notionhq/client'
+import { PrismaService } from '../../prisma/prisma.service'
 import type {
   PageObjectResponse,
   PartialPageObjectResponse,
@@ -78,12 +79,22 @@ function markdownToNotionBlocks(markdown: string): unknown[] {
   return blocks
 }
 
+const DOC_TYPE_LABELS: Record<string, string> = {
+  project_state:  'Estado do Projeto',
+  decisions_log:  'Log de Decisões',
+  next_actions:   'Próximas Ações',
+  work_journal:   'Diário de Trabalho',
+  data_map:       'Mapeamento de Dados Pessoais',
+  ropa:           'ROPA — Registro de Atividades de Tratamento',
+  quality_report: 'Relatório de Qualidade de Dados',
+}
+
 @Injectable()
 export class NotionService {
   private client: Client
   private defaultDatabaseId: string
 
-  constructor(private config: ConfigService) {
+  constructor(private config: ConfigService, private prisma: PrismaService) {
     this.client = new Client({
       auth: this.config.get<string>('NOTION_API_KEY', ''),
     })
@@ -169,5 +180,87 @@ export class NotionService {
       },
     })
     return { id: pageId, title }
+  }
+
+  // Publica documentos gerados do projeto no banco Notion vinculado
+  async syncProject(projectId: string, docTypes?: string[]): Promise<{
+    synced: Array<{ type: string; notionPageId: string; url: string; status: 'created' | 'updated' }>
+    skipped: string[]
+    databaseId: string
+  }> {
+    const project = await this.prisma.project.findUnique({ where: { id: projectId } })
+    if (!project) throw new NotFoundException('Projeto não encontrado')
+
+    const dbId = project.notionDatabaseId ?? this.defaultDatabaseId
+    if (!dbId) {
+      throw new BadRequestException(
+        'Nenhum notionDatabaseId configurado para este projeto. ' +
+        'Use PATCH /projects/:id com { "notionDatabaseId": "seu-database-id" }.',
+      )
+    }
+
+    const docs = await this.prisma.projectDocument.findMany({
+      where: {
+        projectId,
+        ...(docTypes?.length ? { type: { in: docTypes } } : {}),
+      },
+    })
+
+    if (docs.length === 0) {
+      throw new BadRequestException('Nenhum documento gerado. Use POST /documentation/generate/:projectId primeiro.')
+    }
+
+    const synced: Array<{ type: string; notionPageId: string; url: string; status: 'created' | 'updated' }> = []
+    const skipped: string[] = []
+
+    for (const doc of docs) {
+      const title = `${project.name} — ${DOC_TYPE_LABELS[doc.type] ?? doc.type}`
+
+      try {
+        // Busca página existente no banco com o mesmo título
+        const search = await this.client.search({
+          query: title,
+          filter: { property: 'object', value: 'page' },
+          page_size: 5,
+        })
+
+        const existing = search.results.find(r => {
+          const p = r as PageObjectResponse
+          return 'parent' in p &&
+            p.parent &&
+            'database_id' in p.parent &&
+            p.parent.database_id.replace(/-/g, '') === dbId.replace(/-/g, '') &&
+            extractTitle(p) === title
+        }) as PageObjectResponse | undefined
+
+        const blocks = markdownToNotionBlocks(doc.content)
+
+        if (existing) {
+          // Limpa blocos existentes e reescreve
+          const existingBlocks = await this.client.blocks.children.list({ block_id: existing.id, page_size: 100 })
+          await Promise.all(
+            existingBlocks.results.map(b => this.client.blocks.delete({ block_id: b.id }))
+          )
+          await this.client.blocks.children.append({
+            block_id: existing.id,
+            children: blocks as Parameters<typeof this.client.blocks.children.append>[0]['children'],
+          })
+          synced.push({ type: doc.type, notionPageId: existing.id, url: existing.url, status: 'updated' })
+        } else {
+          const created = await this.client.pages.create({
+            parent: { database_id: dbId },
+            properties: {
+              title: { title: [{ type: 'text', text: { content: title } }] },
+            },
+            children: blocks as Parameters<typeof this.client.pages.create>[0]['children'],
+          }) as PageObjectResponse
+          synced.push({ type: doc.type, notionPageId: created.id, url: created.url, status: 'created' })
+        }
+      } catch (err) {
+        skipped.push(`${doc.type}: ${(err as Error).message}`)
+      }
+    }
+
+    return { synced, skipped, databaseId: dbId }
   }
 }

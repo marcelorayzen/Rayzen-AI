@@ -11,13 +11,14 @@ datasource db {
 }
 
 model Project {
-  id          String   @id @default(uuid())
-  name        String
-  description String?
-  status      String   @default("active")
-  goals       String?
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id                String   @id @default(uuid())
+  name              String
+  description       String?
+  status            String   @default("active")
+  goals             String?
+  notionDatabaseId  String?  @map("notion_database_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
   documents            Document[]
   conversationMessages ConversationMessage[]

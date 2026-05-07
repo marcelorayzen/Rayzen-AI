@@ -78,4 +78,14 @@ export class NotionController {
   updateTitle(@Param('id') id: string, @Body() dto: UpdateTitleDto) {
     return this.svc.updatePageTitle(id, dto.title)
   }
+
+  @Post('sync/:projectId')
+  @ApiOperation({ summary: 'Publica documentos do projeto no banco Notion vinculado (notionDatabaseId)' })
+  syncProject(
+    @Param('projectId') projectId: string,
+    @Query('types') types?: string,
+  ) {
+    const docTypes = types ? types.split(',').map(t => t.trim()) : undefined
+    return this.svc.syncProject(projectId, docTypes)
+  }
 }

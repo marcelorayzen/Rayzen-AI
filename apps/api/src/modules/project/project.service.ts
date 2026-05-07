@@ -19,7 +19,7 @@ export class ProjectService {
     return this.prisma.project.create({ data })
   }
 
-  async update(id: string, data: { name?: string; description?: string; goals?: string; status?: string }) {
+  async update(id: string, data: { name?: string; description?: string; goals?: string; status?: string; notionDatabaseId?: string }) {
     return this.prisma.project.update({ where: { id }, data })
   }
 
