@@ -33,6 +33,9 @@ export const ALLOWED_ACTIONS = new Set([
   'jarvis:docker_start',
   'jarvis:docker_stop',
 
+  // Infraestrutura do notebook
+  'jarvis:restart_api',
+
   // Outlook
   'jarvis:read_emails',
   'jarvis:send_email',

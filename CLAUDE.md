@@ -1,17 +1,34 @@
 # Rayzen AI — Instruções para Claude Code
 
-Este é o arquivo de contexto do projeto para o Claude Code (VSCode / terminal).
-Leia este arquivo antes de qualquer tarefa neste repositório.
+Leia este arquivo antes de qualquer tarefa. É o ponto de entrada; detalhes estão nos módulos.
 
 ---
 
 ## O que é este projeto
 
-Plataforma pessoal de IA com automação, memória semântica, geração de documentos e execução assistida entre VPS e máquina local. Monorepo TypeScript com pnpm workspaces.
+Plataforma pessoal de IA com automação, memória semântica, geração de documentos e execução
+assistida entre notebook e máquina de trabalho. Monorepo TypeScript com pnpm workspaces.
 
-**Repositório:** `github.com/marcelorayzen/rayzen-ai`
 **Dono:** Marcelo Rayzen — QA Automation Engineer / Full-stack Developer
+**Repositório:** `github.com/marcelorayzen/rayzen-ai`
+**Branch de trabalho:** `local/marcelo` (adaptação notebook — não misturar com `main` VPS)
 **Notion:** https://www.notion.so/334c784498d6818e83a2f0439f5da8cd
+
+---
+
+## Setup atual (local/marcelo)
+
+| Componente | Onde roda | Como sobe |
+|---|---|---|
+| PostgreSQL + Redis + LiteLLM | Notebook (Docker) | `start-rayzen-notebook.bat` |
+| API NestJS | Notebook (`:3101`) | `start-rayzen-notebook.bat` |
+| Agente PC | Notebook (watchdog) | `start-rayzen-notebook.bat` |
+| Túnel ngrok | Notebook | `start-rayzen-notebook.bat` |
+| Web Next.js | Esta máquina (`:3100`) | `pnpm dev:web` |
+| Hook Claude Code | Esta máquina | `.claude/settings.json` (automático) |
+
+**Ponto de entrada único no notebook:** `start-rayzen-notebook.bat`
+— sobe tudo em background sem janelas visíveis. Log do agente em `apps/agent/agent.log`.
 
 ---
 
@@ -21,16 +38,17 @@ Plataforma pessoal de IA com automação, memória semântica, geração de docu
 |---|---|
 | Frontend | Next.js 15 App Router |
 | Backend | NestJS 10 + Fastify adapter |
-| LLM proxy | LiteLLM (multi-provider, sidecar Docker :4000) |
-| Banco | PostgreSQL 16 + pgvector 0.7 |
-| Cache / Fila | Redis 7 + BullMQ 5 |
-| ORM | Prisma 5 |
+| LLM proxy | LiteLLM `:4100` (multi-provider) |
+| Banco | PostgreSQL 16 + pgvector (`:55432`) |
+| Cache / Fila | Redis 7 (`:56379`) + BullMQ 5 |
+| ORM | Prisma 5 (13 models) |
 | PDF | Puppeteer 22 |
 | DOCX | docxtemplater 3 |
-| Agent local | Node.js 20 LTS (TypeScript) |
-| Infra | Docker Compose v2, NGINX, Let's Encrypt |
-| CI/CD | GitHub Actions — deploy SSH no push para `main` |
-| VPS | Oracle Ampere A1 free tier — Ubuntu 24.04 |
+| Embeddings | Jina AI (vector 1024) |
+| Agente local | Node.js 20 LTS + TypeScript |
+| Infra | Docker Compose v2 |
+| CI/CD | GitHub Actions → SSH deploy (branch `main` → VPS) |
+| VPS | Oracle Ampere A1 — Ubuntu 24.04 (branch `main`) |
 
 ---
 
@@ -39,29 +57,26 @@ Plataforma pessoal de IA com automação, memória semântica, geração de docu
 ```
 rayzen-ai/
 ├── apps/
-│   ├── api/          # NestJS + Fastify — backend principal
-│   │   ├── src/modules/
-│   │   │   ├── orchestrator/    # classifica intent, roteia para módulo
-│   │   │   ├── agent-bridge/    # fila BullMQ, polling PC Agent
-│   │   │   ├── jarvis/          # FASE 4 — tarefas locais
-│   │   │   ├── brain/           # FASE 2 — second brain + pgvector
-│   │   │   ├── doc/             # FASE 3 — Puppeteer + docxtemplater
-│   │   │   ├── content/         # FASE 5 — content studio
-│   │   │   └── auth/            # autenticação (ADR-007 em aberto)
+│   ├── api/                    # NestJS + Fastify
+│   │   ├── src/modules/        # 23 módulos (ver tabela abaixo)
 │   │   └── prisma/schema.prisma
-│   ├── web/          # Next.js App Router — painel
-│   └── agent/        # PC Agent local
-│       ├── src/security/whitelist.ts   # CRÍTICO — nunca bypassar
-│       └── src/actions/               # ações implementadas
-├── packages/
-│   └── types/src/index.ts   # Task, Document, ChatMessage — tipos compartilhados
-├── infra/
-│   ├── nginx/
-│   └── litellm/config.yaml
-├── .github/workflows/ci.yml
-├── docker-compose.yml
-├── pnpm-workspace.yaml
-└── CLAUDE.md  ← este arquivo
+│   ├── web/                    # Next.js App Router
+│   └── agent/
+│       ├── src/
+│       │   ├── index.ts        # entry point — poll loop
+│       │   ├── poller.ts       # setInterval 3s → GET /tasks/pending
+│       │   ├── executor.ts     # dispatcher de actions
+│       │   ├── security/whitelist.ts   # CRÍTICO — nunca bypassar
+│       │   └── actions/        # 26 actions implementadas
+│       └── watchdog.ps1        # auto-restart do agente (usado pelo bat)
+├── packages/types/src/index.ts # Task, Document, ChatMessage
+├── scripts/
+│   └── restart-api.ps1         # git pull → build → restart API
+├── infra/nginx/ + litellm/config.yaml
+├── start-rayzen-notebook.bat   # master bat do notebook (tudo em background)
+├── notebook-api-tunnel.bat     # bat manual/debug (sem agente)
+├── agent-start.bat             # agent no desktop (uso remoto)
+└── CLAUDE.md
 ```
 
 ---
@@ -69,181 +84,204 @@ rayzen-ai/
 ## Comandos essenciais
 
 ```bash
-# Setup inicial
+# Setup
 pnpm install
-cp .env.example .env          # preencher chaves
+cp .env.example .env
 
-# Infra local
-docker compose up -d postgres redis litellm
-docker compose ps             # verificar saúde
+# Notebook — subir tudo (bat, não pnpm)
+start-rayzen-notebook.bat
 
-# Desenvolvimento
-pnpm dev:api                  # API → http://localhost:3001
-pnpm dev:web                  # Web → http://localhost:3000
-pnpm dev:agent                # PC Agent (poll local)
+# Desenvolvimento individual
+pnpm dev:api                    # API → :3101
+pnpm dev:web                    # Web → :3100
+pnpm --filter agent dev         # Agent dev mode (ts-node-dev)
 
 # Banco
-pnpm db:migrate               # aplicar migrations
-pnpm db:studio                # Prisma Studio UI
+pnpm db:migrate                 # aplicar migrations
+pnpm --filter api db:generate   # gerar Prisma Client
+pnpm db:studio                  # Prisma Studio → :5555
 
 # Qualidade
-pnpm typecheck                # TypeScript em todo o monorepo
-pnpm lint                     # ESLint em todos os apps
-pnpm test                     # Jest
+pnpm typecheck                  # tsc em todo o monorepo
+pnpm lint
+pnpm test
 
-# Build e deploy
-pnpm build                    # build todos os apps
-git push origin main          # dispara CI → deploy SSH automático
+# Build
+pnpm build
+pnpm --filter api build
+pnpm --filter agent build
+
+# Deploy (VPS — branch main)
+git push origin main            # CI/CD automático
 ```
 
 ---
 
-## ADR — Decisões aprovadas (não alterar sem justificativa)
+## Módulos da API — rotas completas
+
+| Módulo | Rotas |
+|---|---|
+| **auth** | `POST /auth/login` |
+| **orchestrator** | `POST /orchestrate`, `POST /orchestrate/stream` |
+| **event** | `POST /events`, `POST /events/cli`, `PATCH /events/:id/class`, `GET /events/:id/why`, `GET /events` |
+| **memory** | `POST /memory/index`, `POST /memory/search`, `GET /memory/documents`, `DELETE /memory/documents/:id`, `POST /memory/index/github`, `POST /memory/index/url`, `POST /memory/index/notion`, `POST /memory/index/file` |
+| **brain** | `POST /brain/index`, `POST /brain/search` |
+| **project** | `GET /projects`, `GET /projects/:id`, `POST /projects`, `PATCH /projects/:id`, `DELETE /projects/:id` |
+| **project-state** | `GET /projects/:id/state`, `POST /projects/:id/state/refresh`, `POST /projects/:id/resume`, `PATCH /projects/:id/state/planning` |
+| **synthesis** | `POST /synthesis/session`, `POST /synthesis/checkpoint`, `GET /synthesis/artifacts` |
+| **documentation** | `POST /documentation/generate/:projectId`, `POST /documentation/generate/:projectId/:type`, `GET /documentation/:projectId`, `GET /documentation/:projectId/:type/versions`, `PATCH /documentation/:projectId/:type/reviewed` |
+| **wiki** | `POST /wiki/index`, `GET /wiki`, `GET /wiki/:slug`, `PUT /wiki/:slug`, `DELETE /wiki/:slug`, `GET /wiki/:slug/versions`, `GET /wiki/:slug/sources` |
+| **agent-bridge** | `GET /tasks/pending`, `PATCH /tasks/:id` |
+| **session** | `GET /sessions/tokens`, `GET /sessions`, `GET /sessions/:sessionId/messages`, `DELETE /sessions/:sessionId` |
+| **execution** | `POST /execution/dispatch` |
+| **git** | `POST /events/git` (webhook), `GET /projects/:id/git` |
+| **health** | `GET /projects/:id/health`, `POST /projects/:id/health/compute` |
+| **proactive** | `GET /projects/:id/recommendations`, `POST /projects/:id/recommendations/:recId/dismiss` |
+| **content-engine** | `POST /content-engine/generate`, `POST /content-engine/calendar`, `POST /content-engine/diagram` |
+| **document-processing** | `POST /documents/pdf`, `GET /documents/download/:fileName`, `POST /documents/docx` |
+| **notion** | `GET /notion/search`, `GET /notion/pages/:id`, `POST /notion/pages`, `POST /notion/pages/:id/append`, `PATCH /notion/pages/:id/title` |
+| **obsidian** | `POST /obsidian/sync/:projectId` |
+| **voice** | `POST /voice/synthesize`, `POST /voice/transcribe` |
+| **validation** | `POST /validation/prompt`, `POST /validation/output` |
+| **configuration** | `GET /configuration`, `PATCH /configuration` |
+
+---
+
+## Banco de dados — modelos Prisma
+
+| Model | Descrição |
+|---|---|
+| `Project` | Entidade raiz — projetos do usuário |
+| `ProjectDocument` | Docs gerados: `project_state`, `decisions_log`, `next_actions`, `work_journal` |
+| `ProjectDocumentVersion` | Histórico com diff e `sourceIds` para rastreabilidade |
+| `SessionArtifact` | Sínteses e checkpoints com `workMode` |
+| `Event` | Atividades capturadas — source: chat/memory/cli/voice/execution/manual; memoryClass: inbox/working/consolidated/archive |
+| `ProjectRecommendation` | Sugestões proativas: inatividade, doc_stale, blocker_stuck |
+| `ProjectState` | Estado estruturado: objective, stage, blockers, decisions, risks, milestones, backlog |
+| `ProjectHealthScore` | Score 0–100: activity, documentation, consistency |
+| `Document` | Conteúdo indexado com embedding pgvector(1024) e checksum |
+| `WikiPage` | Base de conhecimento — edit_status: generated/human_reviewed/human_edited/locked |
+| `WikiPageVersion` | Histórico do wiki com author_type: llm/human |
+| `WikiSourceReference` | Rastreabilidade wiki ↔ documentos |
+| `TaskLog` | Fila do agente: module, action, status, result, error |
+| `ConversationMessage` | Transcrição com tokens_used, projectId, workMode |
+
+---
+
+## Agente PC — ações disponíveis (whitelist)
+
+Toda nova ação **deve** ser adicionada a `apps/agent/src/security/whitelist.ts`.
+
+| Action key | Arquivo | Observação |
+|---|---|---|
+| `jarvis:open_app` | `open-app.ts` | apps permitidos |
+| `jarvis:open_url` | `open-url.ts` | domínios na whitelist |
+| `jarvis:open_vscode` | `open-vscode.ts` | path validado |
+| `jarvis:list_dir` | `list-dir.ts` | sandbox obrigatório |
+| `jarvis:file_search` | `file-search.ts` | max depth 4 |
+| `jarvis:organize_downloads` | `organize-downloads.ts` | dryRun disponível |
+| `jarvis:create_project_folder` | `create-project-folder.ts` | templates: blank/node/nextjs/python |
+| `jarvis:get_system_info` | `get-system-info.ts` | CPU, RAM, disco, uptime |
+| `jarvis:screenshot` | `screenshot.ts` | salva em Pictures |
+| `jarvis:notify` | `notify.ts` | toast Windows |
+| `jarvis:clipboard_read` | `clipboard.ts` | |
+| `jarvis:clipboard_write` | `clipboard.ts` | |
+| `jarvis:git_status` | `git.ts` | |
+| `jarvis:git_log` | `git.ts` | |
+| `jarvis:git_branch` | `git.ts` | dryRun disponível |
+| `jarvis:git_commit` | `git.ts` | dryRun disponível |
+| `jarvis:run_command` | `terminal.ts` | comandos whitelistados |
+| `jarvis:run_tests` | `run-tests.ts` | jest/vitest/playwright |
+| `jarvis:inspect_schema` | `inspect-schema.ts` | parse Prisma |
+| `jarvis:docker_ps` | `docker.ts` | |
+| `jarvis:docker_start` | `docker.ts` | dryRun disponível |
+| `jarvis:docker_stop` | `docker.ts` | dryRun disponível |
+| `jarvis:read_emails` | `outlook.ts` | COM Windows |
+| `jarvis:send_email` | `outlook.ts` | dryRun disponível |
+| `jarvis:get_calendar` | `outlook-calendar.ts` | |
+| `jarvis:restart_api` | `restart-api.ts` | git pull + build + restart; aciona `scripts/restart-api.ps1` |
+
+### Adicionar nova ação
+
+```typescript
+// 1. apps/agent/src/security/whitelist.ts — adicionar 'jarvis:nova_acao'
+// 2. apps/agent/src/actions/nova-acao.ts — implementar função exportada
+// 3. apps/agent/src/executor.ts — import + case no switch
+// 4. __tests__/nova-acao.spec.ts — testes de segurança (path, sandbox, dryRun)
+```
+
+---
+
+## Hook Claude Code → Rayzen AI
+
+Cada ação do Claude (Edit, Write, Bash, Read) dispara `apps/agent/src/hooks/rayzen-hook.mjs`
+que envia o evento para `POST /events/cli` com contexto git enriquecido e projectId.
+
+Config em `apps/agent/src/hooks/hook.config.mjs` (gitignored):
+```js
+export default {
+  apiUrl: 'https://<ngrok-url>',
+  apiToken: '<jwt-token>',
+  projectId: '7690370b-aa1e-4b13-8335-a8a14ad0d859',  // Rayzen AI no banco
+}
+```
+
+**Token atual expira: 4 de junho de 2026.** Para renovar: `POST /auth/login` no notebook e atualizar `hook.config.mjs`.
+
+---
+
+## Variáveis de ambiente
+
+```bash
+# LLM
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+GROQ_API_KEY=gsk_...
+JINA_API_KEY=jina_...
+
+# LiteLLM
+LITELLM_MASTER_KEY=sk-rayzen-...
+LITELLM_PORT=4100
+LITELLM_BASE_URL=http://localhost:4100/v1
+LITELLM_DATABASE_URL=postgresql://rayzen:senha@postgres:5432/rayzen_ai
+
+# Banco
+POSTGRES_PASSWORD=senha
+DATABASE_URL=postgresql://rayzen:senha@localhost:55432/rayzen_app
+REDIS_URL=redis://localhost:56379
+
+# Auth
+JWT_SECRET=<openssl rand -hex 32>
+JWT_AGENT_EXPIRY=30d
+ADMIN_PASSWORD=suasenha
+
+# Agente
+AGENT_POLL_INTERVAL_MS=3000
+AGENT_API_URL=http://localhost:3101   # no notebook: localhost; no desktop: URL ngrok
+AGENT_TOKEN=<token gerado via /auth/login>
+
+# Apps
+NODE_ENV=development
+API_PORT=3101
+WEB_PORT=3100
+NEXT_PUBLIC_API_URL=http://localhost:3101
+```
+
+---
+
+## ADR — Decisões aprovadas
 
 | # | Decisão | Escolha |
 |---|---|---|
 | 001 | Backend | NestJS 10 + Fastify adapter |
-| 002 | LLM | LiteLLM proxy multi-provider (OpenAI por padrão) |
+| 002 | LLM | LiteLLM proxy multi-provider (OpenAI padrão) |
 | 003 | Banco | PostgreSQL + pgvector (sem Qdrant) |
-| 004 | VPS ↔ Agent | Polling 3s + BullMQ Redis (sem WebSocket permanente) |
+| 004 | VPS ↔ Agente | Polling 3s + BullMQ Redis |
 | 005 | Documentos | Puppeteer (PDF) + docxtemplater (DOCX) |
 | 006 | Estrutura | Monorepo pnpm workspaces |
-
-### ADR em aberto — decidir na Fase 1
-
-| # | Decisão | Opções |
-|---|---|---|
-| 007 | Autenticação | Auth.js (Google OAuth) vs Clerk vs JWT custom |
-| 008 | Frontend state | Zustand vs TanStack Query vs ambos |
-| 009 | Deploy trigger | push-to-main automático vs manual |
-| 010 | Scheduler | BullMQ repeat vs node-cron (decidir Fase 3) |
-| 011 | PC Agent OS | Windows DPAPI vs cross-platform (decidir Fase 4) |
-
----
-
-## Roadmap — status atual
-
-| Fase | Nome | Status |
-|---|---|---|
-| 0 | Infra base VPS + Docker | 🔲 Não iniciado |
-| 1 | Command Center + Orquestrador | 🔲 Não iniciado |
-| 2 | Second Brain (pgvector) | 🔲 Não iniciado |
-| 3 | Doc Engine (Puppeteer + docxtemplater) | 🔲 Não iniciado |
-| 4 | Jarvis + PC Agent completo | 🔲 Não iniciado |
-| 5 | Content Studio | 🔲 Não iniciado |
-| 6 | Scheduler, Integrations Hub, Observability | 🔲 Não iniciado |
-
----
-
-## Regras de desenvolvimento
-
-### Geral
-- Manter TypeScript em 100% da stack — sem JavaScript puro
-- Sem `any` explícito — usar tipos de `packages/types`
-- Cada módulo NestJS tem seu próprio system prompt — não usar prompt genérico
-- Logar `tokens_used` e `duration_ms` em toda chamada ao LiteLLM
-
-### PC Agent — regras de segurança (inegociáveis)
-- Toda nova ação deve ser adicionada manualmente a `whitelist.ts`
-- Ações fora da whitelist são rejeitadas silenciosamente — nunca executar
-- Path traversal (`../`) sempre bloqueado em `list-dir.ts` e similares
-- Diretórios fora do sandbox proibidos: `/etc`, `/var`, `/root`, `/sys`
-- Ações de risco médio/alto: sempre implementar `dryRun: true` antes da execução real
-- Nenhum `exec()` ou `spawn()` de shell livre — apenas ações tipadas
-
-### Testes obrigatórios a cada PR
-- Testes de segurança do PC Agent (path traversal, sandbox, whitelist)
-- Coverage mínimo: branches 70%, functions 80%, lines 80%
-- Arquivos críticos: `executor.ts`, `whitelist.ts`, `brain.service.ts`, `orchestrator.service.ts`
-
----
-
-## Gaps críticos — resolver na Fase 1
-
-1. **Contexto de sessão** — `OrchestratorService.classify()` precisa receber `sessionId` e carregar histórico via `ConversationMessage` do Prisma
-2. **Custo de tokens** — logar `usage.total_tokens` por chamada, endpoint `/stats/tokens`
-3. **Budget LiteLLM** — configurar `default_budget: 10.0 USD/mês` por `virtual_key`
-4. **System prompts isolados** — cada módulo precisa de prompt próprio, não genérico
-5. **Rate limiting** — throttling na API antes de expor na internet
-
----
-
-## Padrões de código
-
-### NestJS — estrutura de módulo
-```typescript
-// Cada módulo segue este padrão:
-apps/api/src/modules/<nome>/
-  <nome>.module.ts      // imports, providers, exports
-  <nome>.controller.ts  // rotas HTTP, DTOs com class-validator
-  <nome>.service.ts     // lógica de negócio, chama LiteLLM
-  <nome>.repository.ts  // queries Prisma (se necessário)
-  __tests__/
-    <nome>.service.spec.ts
-```
-
-### LiteLLM — sempre via proxy
-```typescript
-// CORRETO — aponta para proxy
-this.llm = new OpenAI({
-  baseURL: this.config.get('LITELLM_BASE_URL', 'http://localhost:4000/v1'),
-  apiKey: this.config.get('LITELLM_MASTER_KEY'),
-})
-
-// ERRADO — nunca apontar direto para OpenAI
-this.llm = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-```
-
-### BullMQ — config padrão de jobs
-```typescript
-await this.queue.add('execute', task, {
-  jobId: task.id,
-  attempts: 3,
-  backoff: 5000,
-  removeOnComplete: false,  // manter para histórico/debug
-  removeOnFail: false,
-})
-```
-
-### PC Agent — adicionar nova ação
-```typescript
-// 1. Adicionar em whitelist.ts
-export const ALLOWED_ACTIONS = new Set([
-  // ...existentes...
-  'jarvis:nova_acao',  // ← adicionar aqui
-])
-
-// 2. Criar em apps/agent/src/actions/nova-acao.ts
-export async function novaAcao(payload: { ... }) {
-  // validar paths, verificar sandbox
-  // implementar dry-run se risco médio/alto
-}
-
-// 3. Adicionar case em executor.ts
-case 'jarvis:nova_acao': return novaAcao(task.payload as { ... })
-
-// 4. Escrever testes em __tests__/nova-acao.spec.ts
-```
-
----
-
-## Variáveis de ambiente necessárias
-
-```bash
-OPENAI_API_KEY=sk-...
-LITELLM_MASTER_KEY=sk-rayzen-...
-LITELLM_BASE_URL=http://localhost:4000/v1
-DATABASE_URL=postgresql://rayzen:senha@localhost:5432/rayzen_ai
-REDIS_URL=redis://localhost:6379
-JWT_SECRET=<openssl rand -hex 32>
-JWT_AGENT_EXPIRY=30d
-AGENT_API_URL=https://api.seudominio.com
-AGENT_TOKEN=<token do agente>
-AGENT_POLL_INTERVAL_MS=3000
-NODE_ENV=development
-API_PORT=3001
-WEB_PORT=3000
-```
+| 007 | Branch local | `local/marcelo` separado do `main` VPS |
+| 008 | Agente no notebook | watchdog.ps1 + start-rayzen-notebook.bat sem janelas |
+| 009 | Reinício remoto | `jarvis:restart_api` → scripts/restart-api.ps1 |
 
 ---
 
@@ -256,15 +294,27 @@ WEB_PORT=3000
 | Jarvis | gpt-4o | 0.3 | tarefas práticas |
 | Content Studio | gpt-4o | 0.8 | criatividade maior |
 | Doc Engine | gpt-4o-mini | 0.2 | estruturado |
-| Brain (search synthesis) | gpt-4o-mini | 0.3 | resumir resultados |
-| Embeddings | text-embedding-3-small | — | vector(1536) |
+| Brain (síntese) | gpt-4o-mini | 0.3 | resumir resultados |
+| Embeddings | Jina AI | — | vector(1024) |
 
 ---
 
-## Links úteis durante desenvolvimento
+## Regras de desenvolvimento
 
-- Swagger local: http://localhost:3001/docs
-- LiteLLM UI: http://localhost:4000/ui
+- TypeScript 100% — sem `any` explícito, sem `.js` puro
+- Cada módulo NestJS tem system prompt próprio — nunca usar prompt genérico
+- Logar `tokens_used` e `duration_ms` em toda chamada ao LiteLLM
+- LiteLLM sempre via proxy — nunca apontar direto para OpenAI
+- Agente: whitelist é inegociável — ações fora são rejeitadas silenciosamente
+- Path traversal (`../`) sempre bloqueado em list-dir e similares
+- Ações de risco médio/alto: `dryRun: true` antes de executar
+
+---
+
+## Links úteis
+
+- Swagger local: http://localhost:3101/docs
+- LiteLLM UI: http://localhost:4100/ui
 - Prisma Studio: http://localhost:5555 (após `pnpm db:studio`)
-- Bull Board (a implementar Fase 1): http://localhost:3001/admin/queues
-- Notion do projeto: https://www.notion.so/334c784498d6818e83a2f0439f5da8cd
+- Rayzen Web: http://localhost:3100
+- Notion: https://www.notion.so/334c784498d6818e83a2f0439f5da8cd
