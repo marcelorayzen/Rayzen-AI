@@ -137,6 +137,12 @@ export function buildJarvisPayload(action: string, prompt: string): Record<strin
     return { projectPath, runner, coverage, filter: filterMatch ? filterMatch[1] : undefined }
   }
 
+  if (action === 'restart_api') {
+    const branchMatch = prompt.match(/(?:branch|rama|local\/|origin\/)\s*([a-zA-Z0-9_\-/]+)/i)
+    const dryRun = /dry.?run|simula|teste|testar/i.test(prompt)
+    return { branch: branchMatch ? branchMatch[1] : 'local/marcelo', dryRun }
+  }
+
   if (action === 'inspect_schema') {
     const projectMatch = prompt.match(/(?:no projeto|in|projeto)\s+([a-zA-Z0-9_\-]+)/i)
     const projectPath = projectMatch ? `C:\\Projects\\${projectMatch[1]}` : undefined
