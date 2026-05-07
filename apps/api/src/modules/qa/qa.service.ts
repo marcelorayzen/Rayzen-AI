@@ -280,6 +280,40 @@ export class QaService {
     }
   }
 
+  async ingestFromCi(dto: {
+    content: string
+    format: 'junit' | 'allure' | 'auto'
+    tool?: string
+    projectName?: string
+    projectId?: string
+    branch?: string
+    commitHash?: string
+  }): Promise<{ id: string; parsed: ParsedTestRun }> {
+    const parsed = this.parseReport(dto.content, dto.format)
+
+    // Resolve projectId pelo nome se não vier explícito
+    let projectId = dto.projectId
+    if (!projectId && dto.projectName) {
+      const found = await this.prisma.project.findFirst({
+        where: { name: { equals: dto.projectName, mode: 'insensitive' } },
+        select: { id: true },
+      })
+      if (found) projectId = found.id
+    }
+
+    if (dto.tool) parsed.tool = dto.tool
+
+    const { id } = await this.saveRun({
+      ...parsed,
+      projectId,
+      branch: dto.branch,
+      commitHash: dto.commitHash,
+      source: 'ci',
+    })
+
+    return { id, parsed }
+  }
+
   parseReport(content: string, format: 'junit' | 'allure' | 'auto'): ParsedTestRun {
     if (format === 'allure' || (format === 'auto' && content.trimStart().startsWith('['))) {
       return parseAllureJSON(content)

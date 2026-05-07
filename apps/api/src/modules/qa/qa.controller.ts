@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Body, Query } from '@nestjs/common'
+import { Controller, Get, Post, Body, Query, UseGuards, Headers, UnauthorizedException } from '@nestjs/common'
 import { ApiTags, ApiOperation } from '@nestjs/swagger'
 import { QaService, SaveTestRunDto } from './qa.service'
+import { AgentTokenGuard } from '../agent-bridge/agent-token.guard'
 
 @ApiTags('qa')
 @Controller('qa')
@@ -54,5 +55,39 @@ export class QaController {
   @ApiOperation({ summary: 'Resumo de qualidade — último run, top falhas, flaky tests' })
   getSummary(@Query('project_id') projectId?: string) {
     return this.qa.getSummary(projectId)
+  }
+
+  @Post('reports/ingest')
+  @UseGuards(AgentTokenGuard)
+  @ApiOperation({ summary: 'Ingest de relatório via CI/CD (GitHub Actions, GitLab, Jenkins)' })
+  async ingest(
+    @Body() body: {
+      projectName?: string
+      projectId?: string
+      tool?: string
+      branch?: string
+      commitHash?: string
+      format?: 'junit' | 'allure' | 'auto'
+      reportBase64?: string
+      reportContent?: string
+    },
+  ) {
+    if (!body.reportBase64 && !body.reportContent) {
+      throw new UnauthorizedException('Forneça reportBase64 ou reportContent')
+    }
+
+    const content = body.reportBase64
+      ? Buffer.from(body.reportBase64, 'base64').toString('utf-8')
+      : body.reportContent!
+
+    return this.qa.ingestFromCi({
+      content,
+      format: body.format ?? 'auto',
+      tool: body.tool,
+      projectName: body.projectName,
+      projectId: body.projectId,
+      branch: body.branch,
+      commitHash: body.commitHash,
+    })
   }
 }
