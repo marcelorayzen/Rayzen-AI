@@ -1,29 +1,43 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { getApiUrlInputDefault, setApiUrl } from '../../lib/api-url'
 
 export default function LoginPage() {
   const [password, setPassword] = useState('')
+  const [apiUrl, setApiUrlInput] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
 
+  useEffect(() => {
+    setApiUrlInput(getApiUrlInputDefault())
+  }, [])
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!password.trim()) return
+    if (!password.trim() || !apiUrl.trim()) return
     setLoading(true)
     setError('')
+    const resolvedApiUrl = setApiUrl(apiUrl)
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3101'}/auth/login`, {
+      const res = await fetch(`${resolvedApiUrl}/auth/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
+        },
         body: JSON.stringify({ password }),
       })
 
-      if (!res.ok) {
+      if (res.status === 401) {
         setError('Senha incorreta')
+        return
+      }
+      if (!res.ok) {
+        setError('Erro ao conectar com a API')
         return
       }
 
@@ -48,6 +62,14 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <input
+            type="url"
+            value={apiUrl}
+            onChange={(e) => setApiUrlInput(e.target.value)}
+            placeholder="https://api-seu-rayzen.ngrok-free.app"
+            className="w-full bg-zinc-800 rounded-xl px-4 py-3 text-sm text-zinc-100 placeholder:text-zinc-500 outline-none focus:ring-2 focus:ring-zinc-600"
+          />
+
+          <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -62,7 +84,7 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            disabled={loading || !password.trim()}
+            disabled={loading || !password.trim() || !apiUrl.trim()}
             className="w-full bg-zinc-100 text-zinc-900 rounded-xl py-3 text-sm font-medium disabled:opacity-40 hover:bg-white transition-colors"
           >
             {loading ? 'Entrando…' : 'Entrar'}

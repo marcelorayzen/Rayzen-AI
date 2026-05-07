@@ -121,6 +121,25 @@ export class OrchestratorService {
     return JSON.parse(Buffer.from(encoded, 'base64').toString('utf-8')) as PendingAction
   }
 
+  private parseLlmJson<T>(content: string | null | undefined, fallback: T, context: string): T {
+    if (!content) return fallback
+
+    const normalized = content.trim()
+    const fenced = normalized.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i)
+    const candidate = (fenced?.[1] ?? normalized).trim()
+
+    try {
+      return JSON.parse(candidate) as T
+    } catch {
+      const start = candidate.search(/[\[{]/)
+      const end = Math.max(candidate.lastIndexOf('}'), candidate.lastIndexOf(']'))
+      if (start >= 0 && end > start) {
+        return JSON.parse(candidate.slice(start, end + 1)) as T
+      }
+      throw new Error(`${context}: invalid JSON returned by model`)
+    }
+  }
+
   private async lastAssistantMessage(sessionId: string) {
     return this.prisma.conversationMessage.findFirst({
       where: { sessionId, role: 'assistant' },
@@ -437,7 +456,11 @@ Formato da resposta: { "module": "...", "action": "...", "confidence": 0.0-1.0 }
       response_format: { type: 'json_object' },
       temperature: 0,
     })
-    const parsed = JSON.parse(res.choices[0].message.content ?? '{}') as ClassifyResult
+    const parsed = this.parseLlmJson<ClassifyResult>(
+      res.choices[0].message.content,
+      { module: 'system', action: 'answer', confidence: 0.1 },
+      'classify',
+    )
     if (parsed.module === 'jarvis' && !this.isExplicitExecutionRequest(prompt)) {
       return { module: 'system', action: 'answer', confidence: 0.9 }
     }
@@ -515,7 +538,11 @@ Seja criterioso — não memorize perguntas, comandos ou respostas genéricas.`,
         temperature: 0,
       })
 
-      const extracted = JSON.parse(res.choices[0].message.content ?? '{"hasMemory":false}')
+      const extracted = this.parseLlmJson<{ hasMemory: boolean; content?: string; sourcePath?: string }>(
+        res.choices[0].message.content,
+        { hasMemory: false },
+        'extractAndIndex',
+      )
       if (extracted.hasMemory && extracted.content) {
         console.log('[extractAndIndex] indexando:', extracted.content)
         await this.memory.indexDocument(extracted.content, extracted.sourcePath ?? 'memoria/auto', {

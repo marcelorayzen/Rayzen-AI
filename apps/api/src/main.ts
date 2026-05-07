@@ -14,7 +14,16 @@ async function bootstrap() {
 
   await app.register(multipart, { limits: { fileSize: 25 * 1024 * 1024 } })
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }))
-  app.enableCors()
+  app.enableCors({
+    origin: true,
+    credentials: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'ngrok-skip-browser-warning',
+    ],
+  })
 
   const config = new DocumentBuilder()
     .setTitle('Rayzen AI API')

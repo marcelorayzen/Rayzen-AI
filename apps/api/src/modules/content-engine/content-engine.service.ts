@@ -59,6 +59,32 @@ export class ContentEngineService {
     })
   }
 
+  private parseLlmJson<T>(content: string | null | undefined, fallback: T, context: string): T {
+    if (!content) return fallback
+
+    const normalized = content.trim()
+    const fenced = normalized.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i)
+    const candidate = (fenced?.[1] ?? normalized).trim()
+
+    try {
+      return JSON.parse(candidate) as T
+    } catch {
+      const start = candidate.search(/[\[{]/)
+      const end = Math.max(candidate.lastIndexOf('}'), candidate.lastIndexOf(']'))
+      if (start >= 0 && end > start) {
+        return JSON.parse(candidate.slice(start, end + 1)) as T
+      }
+      throw new Error(`${context}: invalid JSON returned by model`)
+    }
+  }
+
+  private stripCodeFence(content: string | null | undefined): string {
+    if (!content) return ''
+    const normalized = content.trim()
+    const fenced = normalized.match(/^```(?:mermaid|text|plaintext)?\s*([\s\S]*?)\s*```$/i)
+    return (fenced?.[1] ?? normalized).trim()
+  }
+
   async generate(
     type: ContentType,
     topic: string,
@@ -131,7 +157,11 @@ Sem markdown, sem explicações. Apenas o JSON.`,
       temperature: 0.7,
     })
 
-    const parsed = JSON.parse(res.choices[0].message.content ?? '{"entries":[]}')
+    const parsed = this.parseLlmJson<{ entries: CalendarEntry[] }>(
+      res.choices[0].message.content,
+      { entries: [] },
+      'generateCalendar',
+    )
     const tokensUsed = res.usage?.total_tokens ?? 0
 
     await this.prisma.conversationMessage.createMany({
@@ -166,7 +196,7 @@ Use o tipo mais adequado para a descrição. Prefira flowchart LR para arquitetu
       temperature: 0.2,
     })
 
-    const diagram = res.choices[0].message.content?.trim() ?? ''
+    const diagram = this.stripCodeFence(res.choices[0].message.content)
     const tokensUsed = res.usage?.total_tokens ?? 0
 
     await this.prisma.conversationMessage.createMany({

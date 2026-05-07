@@ -1,7 +1,8 @@
-import { Controller, Get, Patch, Param, Body } from '@nestjs/common'
+import { Controller, Get, Patch, Param, Body, UseGuards } from '@nestjs/common'
 import { ApiTags } from '@nestjs/swagger'
 import { SkipThrottle } from '@nestjs/throttler'
 import { AgentBridgeService } from './agent-bridge.service'
+import { AgentTokenGuard } from './agent-token.guard'
 import { TaskStatus } from '@rayzen/types'
 import { IsString, IsOptional } from 'class-validator'
 
@@ -13,6 +14,7 @@ class UpdateTaskDto {
 
 @SkipThrottle()
 @ApiTags('agent')
+@UseGuards(AgentTokenGuard)
 @Controller('tasks')
 export class AgentBridgeController {
   constructor(private readonly svc: AgentBridgeService) {}

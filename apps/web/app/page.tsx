@@ -1,13 +1,13 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3101'
+import { API_URL } from '../lib/api-url'
 
 function authHeaders(extra?: Record<string, string>): Record<string, string> {
   const token = typeof window !== 'undefined' ? localStorage.getItem('rayzen_token') : null
   return {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    'ngrok-skip-browser-warning': 'true',
     ...(extra ?? {}),
   }
 }
@@ -80,6 +80,7 @@ interface MemoryDoc {
   id: string
   sourcePath: string | null
   metadata?: Record<string, unknown> | null
+  projectId?: string | null
   createdAt: string
 }
 
@@ -761,7 +762,7 @@ export default function Home() {
       setImportLoading(false)
       e.target.value = ''
     }
-  }, [])
+  }, [activeProjectId])
 
   const handleImportNotion = useCallback(async () => {
     if (!notionToken.trim()) return
@@ -792,13 +793,12 @@ export default function Home() {
     setMemorySearchResults(null)
     setMemoryDocsLoading(true)
     try {
-      const qs = activeProjectId ? `?projectId=${activeProjectId}` : ''
-      const res = await fetch(`${API_URL}/memory/documents${qs}`, { headers: authHeaders() })
+      const res = await fetch(`${API_URL}/memory/documents`, { headers: authHeaders() })
       const data = await res.json() as MemoryDoc[]
       setMemoryDocs(data)
     } catch { /* silencioso */ }
     finally { setMemoryDocsLoading(false) }
-  }, [])
+  }, [activeProjectId])
 
   const handleMemorySearch = useCallback(async () => {
     if (!memorySearch.trim()) { setMemorySearchResults(null); return }
@@ -1750,7 +1750,7 @@ export default function Home() {
             <div className="overflow-y-auto flex-1 space-y-4">
               {synthesisLoading && <p className="text-zinc-500 text-xs text-center py-4">Carregando…</p>}
               {!synthesisLoading && synthesisArtifacts.length === 0 && (
-                <p className="text-zinc-500 text-xs text-center py-4">Nenhuma síntese ainda. Clique em "Sintetizar sessão atual" para começar.</p>
+                <p className="text-zinc-500 text-xs text-center py-4">Nenhuma síntese ainda. Clique em &quot;Sintetizar sessão atual&quot; para começar.</p>
               )}
               {synthesisArtifacts.map((a) => (
                 <div key={a.id} className="border border-zinc-800 rounded-xl p-4 space-y-3">

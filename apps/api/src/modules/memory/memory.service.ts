@@ -175,7 +175,7 @@ Língua: português brasileiro.`,
   async listDocuments(projectId?: string) {
     return this.prisma.document.findMany({
       where: projectId ? { projectId } : undefined,
-      select: { id: true, sourcePath: true, metadata: true, checksum: true, createdAt: true, updatedAt: true },
+      select: { id: true, sourcePath: true, metadata: true, checksum: true, projectId: true, createdAt: true, updatedAt: true },
       orderBy: { createdAt: 'desc' },
     })
   }
