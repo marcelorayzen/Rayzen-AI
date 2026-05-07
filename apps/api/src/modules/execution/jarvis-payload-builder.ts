@@ -137,6 +137,17 @@ export function buildJarvisPayload(action: string, prompt: string): Record<strin
     return { projectPath, runner, coverage, filter: filterMatch ? filterMatch[1] : undefined }
   }
 
+  if (action === 'get_qa_summary') {
+    const isFlaky = /flaky|intermitente/i.test(prompt)
+    const isTrend = /tendência|tendencia|trend|histórico|historico|evolução/i.test(prompt)
+    const isPatterns = /padrão|padrao|pattern|falha.*(mais|frequent)|frequent/i.test(prompt)
+    const daysMatch = prompt.match(/(\d+)\s*dia/i)
+    return {
+      type: isFlaky ? 'flaky' : isTrend ? 'trend' : isPatterns ? 'patterns' : 'summary',
+      days: daysMatch ? parseInt(daysMatch[1]) : undefined,
+    }
+  }
+
   if (action === 'parse_test_report') {
     const pathMatch = prompt.match(/(?:relatório|relatorio|report|arquivo|xml|json|caminho|path)\s+[""']?([^\s""']+(?:\.xml|\.json))[""']?/i)
       ?? prompt.match(/([A-Za-z]:[\\\/][^\s]+(?:\.xml|\.json))/i)

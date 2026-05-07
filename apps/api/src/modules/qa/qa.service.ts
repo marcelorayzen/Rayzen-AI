@@ -235,6 +235,51 @@ export class QaService {
     }))
   }
 
+  async getFlakyTests(projectId?: string, lastNRuns = 20) {
+    const runs = await this.prisma.testRun.findMany({
+      where: projectId ? { projectId } : {},
+      orderBy: { executedAt: 'desc' },
+      take: lastNRuns,
+      select: { failedCases: true, totalTests: true, passed: true, executedAt: true },
+    })
+
+    // Conta em quantos runs cada teste apareceu como falha
+    const failCount: Record<string, number> = {}
+    const totalRuns = runs.length
+
+    for (const run of runs) {
+      const seen = new Set<string>()
+      for (const c of run.failedCases as unknown as FailedCase[]) {
+        const key = `${c.suite} > ${c.name}`
+        if (!seen.has(key)) { seen.add(key); failCount[key] = (failCount[key] ?? 0) + 1 }
+      }
+    }
+
+    // Flaky = falhou em pelo menos 20% mas menos de 80% dos runs (não é falha consistente)
+    return Object.entries(failCount)
+      .map(([test, count]) => ({ test, failRate: Math.round((count / totalRuns) * 100), failedIn: count, totalRuns }))
+      .filter(t => t.failRate >= 20 && t.failRate < 80)
+      .sort((a, b) => b.failRate - a.failRate)
+  }
+
+  async getSummary(projectId?: string) {
+    const [lastRuns, patterns, flaky] = await Promise.all([
+      this.getRuns(projectId, 5),
+      this.getFailurePatterns(projectId, 10),
+      this.getFlakyTests(projectId, 20),
+    ])
+
+    const last = lastRuns[0]
+    return {
+      lastRun: last
+        ? { date: last.executedAt, tool: last.tool, total: last.totalTests, passed: last.passed, failed: last.failed, passRate: last.totalTests > 0 ? Math.round((last.passed / last.totalTests) * 100) : 0 }
+        : null,
+      totalRuns: lastRuns.length,
+      topFailures: patterns.slice(0, 5),
+      flakyTests: flaky.slice(0, 5),
+    }
+  }
+
   parseReport(content: string, format: 'junit' | 'allure' | 'auto'): ParsedTestRun {
     if (format === 'allure' || (format === 'auto' && content.trimStart().startsWith('['))) {
       return parseAllureJSON(content)

@@ -73,6 +73,7 @@ const ACTION_RISK: Record<string, 'low' | 'medium' | 'high'> = {
   get_calendar: 'medium',
   restart_api: 'high',
   parse_test_report: 'low',
+  get_qa_summary: 'low',
 }
 
 @Injectable()
@@ -441,9 +442,9 @@ Módulos disponíveis:
 - brain: memória e busca — indexar, pesquisar, resumir notas e documentos
 - system: perguntas sobre o assistente, saudações, o que você pode fazer
 
-Ações do jarvis disponíveis: open_app, open_url, open_vscode, create_project_folder, list_dir, file_search, organize_downloads, get_system_info, screenshot, notify, clipboard_read, clipboard_write, git_status, git_log, git_branch, git_commit, run_command, run_tests, inspect_schema, docker_ps, docker_start, docker_stop, read_emails, send_email, get_calendar, restart_api, parse_test_report
+Ações do jarvis disponíveis: open_app, open_url, open_vscode, create_project_folder, list_dir, file_search, organize_downloads, get_system_info, screenshot, notify, clipboard_read, clipboard_write, git_status, git_log, git_branch, git_commit, run_command, run_tests, inspect_schema, docker_ps, docker_start, docker_stop, read_emails, send_email, get_calendar, restart_api, parse_test_report, get_qa_summary
 Ações do content disponíveis: post, thread, article, calendar, diagram
-Exemplos jarvis: "qual o status do PC", "abra o chrome", "liste os downloads", "coloca música no youtube", "leia meus emails", "manda email para X", "abre o vscode", "crie projeto meu-app nextjs", "tira um screenshot", "me notifica daqui 10 min", "lê minha área de transferência", "git status do projeto X", "quais commits recentes", "cria branch feature/Y", "roda os testes do projeto X", "lista containers docker", "para o container redis", "minha agenda de hoje", "procura arquivo relatorio.pdf", "mostra o schema do banco", "inspeciona o schema prisma", "reinicia a API no notebook", "restart api", "atualiza e reinicia o servidor", "analisa o relatório de testes em C:/projetos/report.xml", "parseia o resultado dos testes junit", "lê o relatório allure e mostra as falhas"
+Exemplos jarvis: "qual o status do PC", "abra o chrome", "liste os downloads", "coloca música no youtube", "leia meus emails", "manda email para X", "abre o vscode", "crie projeto meu-app nextjs", "tira um screenshot", "me notifica daqui 10 min", "lê minha área de transferência", "git status do projeto X", "quais commits recentes", "cria branch feature/Y", "roda os testes do projeto X", "lista containers docker", "para o container redis", "minha agenda de hoje", "procura arquivo relatorio.pdf", "mostra o schema do banco", "inspeciona o schema prisma", "reinicia a API no notebook", "restart api", "atualiza e reinicia o servidor", "analisa o relatório de testes em C:/projetos/report.xml", "parseia o resultado dos testes junit", "lê o relatório allure e mostra as falhas", "como estão os testes?", "quais testes estão falhando mais?", "tem algum teste flaky?", "mostra a tendência de qualidade dos testes", "qual o status da suíte de testes?"
 Exemplos content: "crie um post sobre X", "escreva uma thread sobre Y", "faça um artigo sobre Z", "crie um calendário editorial", "gere um diagrama da arquitetura", "desenhe o fluxo entre API e Agent", "crie um sequence diagram do chat"
 Exemplos brain: "qual minha profissão?", "o que você sabe sobre mim?", "qual meu nome?", "o que eu te disse sobre X?", "me fale sobre meus projetos"
 Exemplos system: "quem é você", "o que você pode fazer", "olá", "como você funciona", "meu nome é X", "trabalho como Y", "sou Z", "me chamo X", afirmações e apresentações pessoais do usuário

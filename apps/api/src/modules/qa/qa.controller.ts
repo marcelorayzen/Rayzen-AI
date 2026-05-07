@@ -40,4 +40,19 @@ export class QaController {
   ) {
     return this.qa.getQualityTrend(projectId, days ? parseInt(days) : 30)
   }
+
+  @Get('flaky')
+  @ApiOperation({ summary: 'Testes flaky — falham em parte dos runs, não em todos' })
+  getFlaky(
+    @Query('project_id') projectId?: string,
+    @Query('runs') runs?: string,
+  ) {
+    return this.qa.getFlakyTests(projectId, runs ? parseInt(runs) : 20)
+  }
+
+  @Get('summary')
+  @ApiOperation({ summary: 'Resumo de qualidade — último run, top falhas, flaky tests' })
+  getSummary(@Query('project_id') projectId?: string) {
+    return this.qa.getSummary(projectId)
+  }
 }

@@ -28,6 +28,7 @@ export const ALLOWED_ACTIONS = new Set([
   'jarvis:run_tests',
   'jarvis:inspect_schema',
   'jarvis:parse_test_report',
+  'jarvis:get_qa_summary',
 
   // Docker
   'jarvis:docker_ps',

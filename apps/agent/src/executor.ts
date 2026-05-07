@@ -20,6 +20,7 @@ import { readEmails, sendEmail } from './actions/outlook'
 import { getCalendar } from './actions/outlook-calendar'
 import { restartApi } from './actions/restart-api'
 import { parseTestReport } from './actions/parse-test-report'
+import { getQaSummary } from './actions/get-qa-summary'
 
 export async function executeTask(task: Task): Promise<unknown> {
   const key = `${task.module}:${task.action}`
@@ -72,6 +73,7 @@ export async function executeTask(task: Task): Promise<unknown> {
 
     // QA
     case 'jarvis:parse_test_report': return parseTestReport(p as { reportPath: string; format?: 'junit' | 'allure' | 'auto'; projectId?: string; branch?: string; commitHash?: string })
+    case 'jarvis:get_qa_summary':    return getQaSummary(p as { projectId?: string; type?: 'summary' | 'patterns' | 'flaky' | 'trend'; days?: number; runs?: number })
 
     // Infraestrutura do notebook
     case 'jarvis:restart_api':  return restartApi(p as { branch?: string; dryRun?: boolean })
