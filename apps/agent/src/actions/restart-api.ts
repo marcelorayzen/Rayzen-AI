@@ -5,6 +5,10 @@ const ROOT   = join(__dirname, '..', '..', '..', '..', '..')
 const SCRIPT = join(ROOT, 'scripts', 'restart-api.ps1')
 
 export async function restartApi(payload: { branch?: string; dryRun?: boolean }) {
+  if (process.env.AGENT_ROLE !== 'notebook') {
+    return { ok: false, skipped: true, reason: 'jarvis:restart_api só executa no agente do notebook (AGENT_ROLE=notebook)' }
+  }
+
   const branch  = payload.branch  ?? 'local/marcelo'
   const dryRun  = payload.dryRun  ?? false
 
