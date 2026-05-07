@@ -327,17 +327,30 @@ Língua: português brasileiro.`,
 
     let pages = searchData.results
     if (rootPageId) {
-      const normalizedId = rootPageId.replace(/-/g, '').replace(/.*\//, '').replace(/\?.*/, '')
-      const formatted = `${normalizedId.slice(0,8)}-${normalizedId.slice(8,12)}-${normalizedId.slice(12,16)}-${normalizedId.slice(16,20)}-${normalizedId.slice(20)}`
-      pages = pages.filter((p) => p.id === formatted || p.id === normalizedId)
+      // Normaliza: remove hífens, slug e query string, depois reformata como UUID
+      const raw = rootPageId.replace(/\?.*/, '').split('/').pop() ?? rootPageId
+      const normalizedId = raw.replace(/-/g, '')
+      const formatted = normalizedId.length === 32
+        ? `${normalizedId.slice(0,8)}-${normalizedId.slice(8,12)}-${normalizedId.slice(12,16)}-${normalizedId.slice(16,20)}-${normalizedId.slice(20)}`
+        : rootPageId
+
+      pages = pages.filter((p) => p.id === formatted || p.id === normalizedId || p.id.replace(/-/g, '') === normalizedId)
       if (pages.length === 0) {
-        // tenta buscar a página diretamente
+        // A página pode não estar nos resultados de search mas estar acessível diretamente
         const pageRes = await fetch(`https://api.notion.com/v1/pages/${formatted}`, { headers })
         if (pageRes.ok) {
           const page = await pageRes.json() as typeof pages[0]
           pages = [page]
+        } else {
+          const errBody = await pageRes.json().catch(() => ({})) as { message?: string; code?: string }
+          const hint = pageRes.status === 404
+            ? 'Página não encontrada — verifique se a integração foi compartilhada com esta página no Notion (Share → Connect to integration)'
+            : errBody.message ?? `HTTP ${pageRes.status}`
+          throw new Error(`Notion: ${hint}`)
         }
       }
+    } else if (pages.length === 0) {
+      throw new Error('Notion: nenhuma página encontrada. Compartilhe pelo menos uma página com a integração (Share → Connect to integration)')
     }
 
     let indexed = 0
@@ -354,7 +367,7 @@ Língua: português brasileiro.`,
 
       const pageText = await this.fetchNotionBlocks(page.id, headers)
       const fullText = `${title}\n\n${pageText}`.trim()
-      if (!fullText || fullText.length < 50) continue
+      if (!fullText || fullText.length < 20) continue
 
       const chunks = this.chunkText(fullText)
       const groupKey = `notion/${page.id}`

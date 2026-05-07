@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common'
+import { Injectable, BadRequestException, Logger } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../../prisma/prisma.service'
 import OpenAI from 'openai'
@@ -14,6 +14,7 @@ export interface SynthesisResult {
 
 @Injectable()
 export class SynthesisService {
+  private readonly logger = new Logger(SynthesisService.name)
   private llm: OpenAI
 
   constructor(private readonly prisma: PrismaService, private config: ConfigService) {
@@ -213,14 +214,19 @@ Regras:
       messages: [{ role: 'user', content: prompt }],
     })
 
+    const rawContent = res.choices[0].message.content ?? ''
+    this.logger.debug(`LLM raw response (${rawContent.length} chars): ${rawContent.slice(0, 500)}`)
+
     try {
-      const parsed = JSON.parse(res.choices[0].message.content ?? '{}') as SynthesisResult
-      // Garantir confidence com fallback baseado em volume
+      // Strip markdown code fences if model wraps the JSON
+      const stripped = rawContent.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
+      const parsed = JSON.parse(stripped || '{}') as SynthesisResult
       if (!parsed.confidence) {
         parsed.confidence = totalItems > 10 ? 'high' : totalItems > 4 ? 'medium' : 'low'
       }
       return parsed
-    } catch {
+    } catch (err) {
+      this.logger.error(`Síntese JSON.parse falhou. Raw: "${rawContent.slice(0, 300)}"`, err)
       return {
         summary: 'Síntese não disponível',
         decisions: [],
