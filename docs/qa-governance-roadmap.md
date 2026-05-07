@@ -437,8 +437,8 @@ apps/api/src/modules/documentation/documentation.controller.ts
 
 | Fase | Descrição | Status |
 |---|---|---|
-| **1.1** | Parser de relatórios JUnit/Allure | Planejado |
-| **1.2** | Histórico e padrões de falha | Planejado |
+| **1.1** | Parser de relatórios JUnit/Allure | Concluído |
+| **1.2** | Histórico e padrões de falha | Concluído |
 | **1.3** | Integração CI/CD (webhook) | Planejado |
 | **2.1** | Regras de qualidade e contratos | Planejado |
 | **2.2** | Alertas em mudanças de schema | Planejado |
