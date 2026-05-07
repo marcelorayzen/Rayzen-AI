@@ -19,6 +19,7 @@ import { dockerPs, dockerStart, dockerStop } from './actions/docker'
 import { readEmails, sendEmail } from './actions/outlook'
 import { getCalendar } from './actions/outlook-calendar'
 import { restartApi } from './actions/restart-api'
+import { parseTestReport } from './actions/parse-test-report'
 
 export async function executeTask(task: Task): Promise<unknown> {
   const key = `${task.module}:${task.action}`
@@ -68,6 +69,9 @@ export async function executeTask(task: Task): Promise<unknown> {
     case 'jarvis:read_emails':  return readEmails(p as { limit?: number })
     case 'jarvis:send_email':   return sendEmail(p as { to: string; subject: string; body: string; dryRun?: boolean })
     case 'jarvis:get_calendar': return getCalendar(p as { days?: number })
+
+    // QA
+    case 'jarvis:parse_test_report': return parseTestReport(p as { reportPath: string; format?: 'junit' | 'allure' | 'auto'; projectId?: string; branch?: string; commitHash?: string })
 
     // Infraestrutura do notebook
     case 'jarvis:restart_api':  return restartApi(p as { branch?: string; dryRun?: boolean })

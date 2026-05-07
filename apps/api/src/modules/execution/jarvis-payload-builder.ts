@@ -137,6 +137,17 @@ export function buildJarvisPayload(action: string, prompt: string): Record<strin
     return { projectPath, runner, coverage, filter: filterMatch ? filterMatch[1] : undefined }
   }
 
+  if (action === 'parse_test_report') {
+    const pathMatch = prompt.match(/(?:relatório|relatorio|report|arquivo|xml|json|caminho|path)\s+[""']?([^\s""']+(?:\.xml|\.json))[""']?/i)
+      ?? prompt.match(/([A-Za-z]:[\\\/][^\s]+(?:\.xml|\.json))/i)
+    const isAllure = /allure/i.test(prompt)
+    const isJunit = /junit|testng|selenium/i.test(prompt)
+    return {
+      reportPath: pathMatch?.[1] ?? '',
+      format: isAllure ? 'allure' : isJunit ? 'junit' : 'auto',
+    }
+  }
+
   if (action === 'restart_api') {
     const branchMatch = prompt.match(/(?:branch|rama|local\/|origin\/)\s*([a-zA-Z0-9_\-/]+)/i)
     const dryRun = /dry.?run|simula|teste|testar/i.test(prompt)

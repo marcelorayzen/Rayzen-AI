@@ -23,10 +23,11 @@ export const ALLOWED_ACTIONS = new Set([
   'jarvis:git_branch',
   'jarvis:git_commit',
 
-  // Terminal
+  // Terminal e QA
   'jarvis:run_command',
   'jarvis:run_tests',
   'jarvis:inspect_schema',
+  'jarvis:parse_test_report',
 
   // Docker
   'jarvis:docker_ps',

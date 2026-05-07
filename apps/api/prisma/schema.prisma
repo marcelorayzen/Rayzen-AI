@@ -27,6 +27,7 @@ model Project {
   projectState         ProjectState?
   recommendations      ProjectRecommendation[]
   healthScores         ProjectHealthScore[]
+  testRuns             TestRun[]
 
   @@map("projects")
 }
@@ -226,6 +227,28 @@ model TaskLog {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("task_logs")
+}
+
+model TestRun {
+  id          String   @id @default(uuid())
+  projectId   String?  @map("project_id")
+  tool        String   // jest | playwright | vitest | junit | testng | selenium | cucumber
+  branch      String?
+  commitHash  String?  @map("commit_hash")
+  totalTests  Int      @map("total_tests")
+  passed      Int
+  failed      Int
+  skipped     Int
+  durationMs  Int?     @map("duration_ms")
+  suites      Json     @default("[]")  // [{ name, tests, failures, time }]
+  failedCases Json     @default("[]") @map("failed_cases")  // [{ suite, name, message, stacktrace }]
+  source      String   @default("agent")  // agent | ci | manual
+  executedAt  DateTime @default(now()) @map("executed_at")
+
+  project Project? @relation(fields: [projectId], references: [id])
+
+  @@index([projectId, executedAt(sort: Desc)])
+  @@map("test_runs")
 }
 
 model ConversationMessage {

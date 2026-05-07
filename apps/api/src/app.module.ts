@@ -27,6 +27,7 @@ import { HealthModule } from './modules/health/health.module'
 import { NotionModule } from './modules/notion/notion.module'
 import { BrainModule } from './modules/brain/brain.module'
 import { WikiModule } from './modules/wiki/wiki.module'
+import { QaModule } from './modules/qa/qa.module'
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { WikiModule } from './modules/wiki/wiki.module'
     NotionModule,
     BrainModule,
     WikiModule,
+    QaModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
