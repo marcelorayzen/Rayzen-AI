@@ -210,23 +210,21 @@ Regras:
     const res = await this.llm.chat.completions.create({
       model: 'gpt-4o',
       temperature: 0.3,
-      response_format: { type: 'json_object' },
       messages: [{ role: 'user', content: prompt }],
     })
 
     const rawContent = res.choices[0].message.content ?? ''
-    this.logger.debug(`LLM raw response (${rawContent.length} chars): ${rawContent.slice(0, 500)}`)
+    this.logger.log(`Síntese LLM raw (${rawContent.length} chars): ${rawContent.slice(0, 300)}`)
 
     try {
-      // Strip markdown code fences if model wraps the JSON
-      const stripped = rawContent.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
-      const parsed = JSON.parse(stripped || '{}') as SynthesisResult
+      const parsed = this.extractJson(rawContent) as SynthesisResult
+      if (!parsed.summary) throw new Error('JSON sem campo summary')
       if (!parsed.confidence) {
         parsed.confidence = totalItems > 10 ? 'high' : totalItems > 4 ? 'medium' : 'low'
       }
       return parsed
     } catch (err) {
-      this.logger.error(`Síntese JSON.parse falhou. Raw: "${rawContent.slice(0, 300)}"`, err)
+      this.logger.error(`Síntese parse falhou. Raw: "${rawContent.slice(0, 400)}"`, err)
       return {
         summary: 'Síntese não disponível',
         decisions: [],
@@ -235,6 +233,21 @@ Regras:
         confidence: 'low',
       }
     }
+  }
+
+  private extractJson(raw: string): unknown {
+    // 1. tenta parse direto
+    try { return JSON.parse(raw) } catch { /* continua */ }
+
+    // 2. strip de code fences markdown (```json ... ```)
+    const fenceStripped = raw.replace(/^```(?:json)?\s*/im, '').replace(/\s*```\s*$/m, '').trim()
+    try { return JSON.parse(fenceStripped) } catch { /* continua */ }
+
+    // 3. extrai primeiro bloco {...} da resposta (Claude às vezes adiciona texto antes/depois)
+    const match = raw.match(/\{[\s\S]*\}/)
+    if (match) return JSON.parse(match[0])
+
+    throw new Error('Nenhum JSON encontrado na resposta')
   }
 
   async getArtifacts(projectId?: string, sessionId?: string) {
