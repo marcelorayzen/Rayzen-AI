@@ -105,6 +105,24 @@ function memoryGroupFor(doc: MemoryDoc): { key: string; label: string } {
 
 type MemoryDocType = 'code' | 'config' | 'doc' | 'qa' | 'catalog' | 'notion' | 'github' | 'url' | 'memory' | 'other'
 
+// Extrai nome do projeto a partir do caminho no filesystem (ex: .../Projects/rayzen-ai/...)
+function projectLabelFromPath(path: string | null): string | null {
+  if (!path) return null
+  const m = path.replace(/\\/g, '/').match(/\/Projects\/([^/]+)\//i)
+  return m ? m[1] : null
+}
+
+// Extrai caminho relativo dentro do projeto (ex: apps/api/src/modules/memory/)
+function relativePathFromFull(path: string | null): string | null {
+  if (!path) return null
+  const norm = path.replace(/\\/g, '/')
+  const m = norm.match(/\/Projects\/[^/]+\/(.+)/)
+  if (!m) return null
+  const parts = m[1].split('/')
+  parts.pop() // remove filename
+  return parts.join('/') || null
+}
+
 function memoryDocType(sourcePath: string | null, metadata?: Record<string, unknown> | null): MemoryDocType {
   const metaType = typeof metadata?.type === 'string' ? metadata.type : null
   if (metaType === 'test_failures') return 'qa'
@@ -117,9 +135,9 @@ function memoryDocType(sourcePath: string | null, metadata?: Record<string, unkn
   if (s.startsWith('github/')) return 'github'
   if (s.startsWith('url/')) return 'url'
   if (s.includes('.claude') || s.includes('memory')) return 'memory'
-  if (/\.(ts|tsx|js|jsx|py|java|go|rs)$/.test(s)) return 'code'
-  if (/\.(json|yaml|yml|env|toml)$/.test(s)) return 'config'
-  if (/\.(md|txt|pdf|docx)$/.test(s)) return 'doc'
+  if (/\.(ts|tsx|js|jsx|py|java|go|rs)$/i.test(s)) return 'code'
+  if (/\.(json|yaml|yml|env|toml)$/i.test(s)) return 'config'
+  if (/\.(md|txt|pdf|docx)$/i.test(s)) return 'doc'
   if (s.startsWith('apps/') || s.startsWith('src/') || s.startsWith('packages/')) return 'code'
   return 'other'
 }
@@ -1978,7 +1996,9 @@ export default function Home() {
                 return entries.map(([source, { ids, count, label, lastIndexedAt, docType, projectId, sourcePath }]) => {
                   const project = projectId ? projects.find(p => p.id === projectId) : null
                   const projectColor = projectId ? (projectColorMap.get(projectId) ?? PROJECT_COLORS[0]) : null
-                  const fileName = sourcePath ? sourcePath.split(/[/\\]/).pop() ?? label : label
+                  const fileName = sourcePath ? sourcePath.replace(/\\/g, '/').split('/').pop() ?? label : label
+                  const inferredProject = !project ? projectLabelFromPath(sourcePath) : null
+                  const relDir = relativePathFromFull(sourcePath)
 
                   return (
                     <div key={source} className="bg-zinc-800 rounded-xl px-3 py-2.5 group">
@@ -1989,18 +2009,24 @@ export default function Home() {
                             <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-md ${DOC_TYPE_COLORS[docType]}`}>
                               {DOC_TYPE_LABELS[docType]}
                             </span>
-                            {project && (
+                            {project ? (
                               <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-md ${projectColor}`}>
                                 {project.name}
                               </span>
-                            )}
+                            ) : inferredProject ? (
+                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-zinc-600/40 text-zinc-300">
+                                {inferredProject}
+                              </span>
+                            ) : null}
                           </div>
-                          {/* Nome do arquivo */}
-                          <span className="block text-xs text-zinc-200 truncate font-medium" title={sourcePath ?? label}>
+                          {/* Nome do arquivo em destaque */}
+                          <span className="block text-xs text-zinc-100 truncate font-medium" title={sourcePath ?? label}>
                             {fileName}
                           </span>
-                          {/* Caminho completo menor */}
-                          <span className="block text-[10px] text-zinc-600 truncate mt-0.5" title={source}>{source}</span>
+                          {/* Caminho relativo menor */}
+                          <span className="block text-[10px] text-zinc-600 truncate mt-0.5" title={source}>
+                            {relDir ?? source}
+                          </span>
                           <span className="block text-[10px] text-zinc-500 mt-0.5">
                             {new Date(lastIndexedAt).toLocaleString('pt-BR')}
                           </span>
