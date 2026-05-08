@@ -320,8 +320,9 @@ Língua: português brasileiro.`,
       results: Array<{
         id: string
         object: string
-        properties?: Record<string, { title?: Array<{ plain_text: string }> }>
+        properties?: Record<string, { type?: string; title?: Array<{ plain_text: string }> }>
         title?: Array<{ plain_text: string }>
+        child_page?: { title?: string }
       }>
     }
 
@@ -356,13 +357,18 @@ Língua: português brasileiro.`,
     let indexed = 0
 
     for (const page of pages) {
-      // Extrai título
+      // Extrai título — tenta múltiplos formatos da API do Notion
       let title = 'Sem título'
       if (page.properties) {
-        const titleProp = Object.values(page.properties).find((p) => p.title)
+        // Página de database: property com type === 'title'
+        const titleProp = Object.values(page.properties).find((p) => p.type === 'title' || Array.isArray(p.title))
         if (titleProp?.title?.[0]?.plain_text) title = titleProp.title[0].plain_text
-      } else if (page.title?.[0]?.plain_text) {
+      }
+      if (title === 'Sem título' && page.title?.[0]?.plain_text) {
         title = page.title[0].plain_text
+      }
+      if (title === 'Sem título' && page.child_page?.title) {
+        title = page.child_page.title
       }
 
       const pageText = await this.fetchNotionBlocks(page.id, headers)

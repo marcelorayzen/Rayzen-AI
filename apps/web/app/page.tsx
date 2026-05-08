@@ -129,15 +129,18 @@ function memoryDocType(sourcePath: string | null, metadata?: Record<string, unkn
   if (metaType === 'data_asset') return 'catalog'
 
   const s = sourcePath ?? ''
+  // prefixos especiais primeiro
   if (s.startsWith('qa/')) return 'qa'
   if (s.startsWith('data-catalog/')) return 'catalog'
   if (s.startsWith('notion/') || s.startsWith('Notion')) return 'notion'
   if (s.startsWith('github/')) return 'github'
   if (s.startsWith('url/')) return 'url'
-  if (s.includes('.claude') || s.includes('memory')) return 'memory'
-  if (/\.(ts|tsx|js|jsx|py|java|go|rs)$/i.test(s)) return 'code'
-  if (/\.(json|yaml|yml|env|toml)$/i.test(s)) return 'config'
-  if (/\.(md|txt|pdf|docx)$/i.test(s)) return 'doc'
+  // extensão tem prioridade sobre heurísticas de path
+  if (/\.(ts|tsx|js|jsx|py|java|go|rs|cs|php|rb|swift|kt)$/i.test(s)) return 'code'
+  if (/\.(json|yaml|yml|env|toml|ini|cfg)$/i.test(s)) return 'config'
+  if (/\.(md|txt|pdf|docx|rst)$/i.test(s)) return 'doc'
+  // só depois verifica se é path de memória do Claude
+  if (s.includes('.claude') && s.includes('memory')) return 'memory'
   if (s.startsWith('apps/') || s.startsWith('src/') || s.startsWith('packages/')) return 'code'
   return 'other'
 }
