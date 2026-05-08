@@ -875,7 +875,10 @@ export default function Home() {
     setMemorySearchResults(null)
     setMemoryDocsLoading(true)
     try {
-      const res = await fetch(`${API_URL}/memory/documents`, { headers: authHeaders() })
+      const url = activeProjectId
+        ? `${API_URL}/memory/documents?projectId=${activeProjectId}`
+        : `${API_URL}/memory/documents`
+      const res = await fetch(url, { headers: authHeaders() })
       const data = await res.json() as MemoryDoc[]
       setMemoryDocs(data)
     } catch { /* silencioso */ }
@@ -1888,8 +1891,15 @@ export default function Home() {
           <div className="relative z-50 w-full max-w-lg bg-zinc-900 border border-zinc-800 rounded-2xl p-6 mx-4 flex flex-col max-h-[80vh]">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-sm font-semibold text-zinc-200">Memória indexada</h2>
-                {!memoryDocsLoading && <p className="text-xs text-zinc-500 mt-0.5">{memoryDocs.length} chunks indexados</p>}
+                <h2 className="text-sm font-semibold text-zinc-200">
+                  {activeProjectId ? `Memória — ${projects.find(p => p.id === activeProjectId)?.name ?? 'Projeto'}` : 'Memória indexada'}
+                </h2>
+                {!memoryDocsLoading && (
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    {memoryDocs.length} chunks
+                    {!activeProjectId && ' · todos os projetos'}
+                  </p>
+                )}
               </div>
               <button onClick={() => setMemoryOpen(false)} className="text-zinc-500 hover:text-zinc-300 text-xl leading-none">×</button>
             </div>
@@ -1999,38 +2009,41 @@ export default function Home() {
                 return entries.map(([source, { ids, count, label, lastIndexedAt, docType, projectId, sourcePath }]) => {
                   const project = projectId ? projects.find(p => p.id === projectId) : null
                   const projectColor = projectId ? (projectColorMap.get(projectId) ?? PROJECT_COLORS[0]) : null
-                  const fileName = sourcePath ? sourcePath.replace(/\\/g, '/').split('/').pop() ?? label : label
+                  const norm = (sourcePath ?? '').replace(/\\/g, '/')
+                  const fileName = norm ? (norm.split('/').pop() ?? label) : label
                   const inferredProject = !project ? projectLabelFromPath(sourcePath) : null
                   const relDir = relativePathFromFull(sourcePath)
+                  const displayPath = relDir ?? (norm.length > 60 ? '…' + norm.slice(-55) : norm)
 
                   return (
                     <div key={source} className="bg-zinc-800 rounded-xl px-3 py-2.5 group">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
-                          {/* Badges: tipo + projeto */}
-                          <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-md ${DOC_TYPE_COLORS[docType]}`}>
+                          {/* Linha 1: badges tipo + projeto */}
+                          <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${DOC_TYPE_COLORS[docType]}`}>
                               {DOC_TYPE_LABELS[docType]}
                             </span>
                             {project ? (
-                              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-md ${projectColor}`}>
+                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${projectColor}`}>
                                 {project.name}
                               </span>
                             ) : inferredProject ? (
-                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-zinc-600/40 text-zinc-300">
+                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-zinc-600/50 text-zinc-300">
                                 {inferredProject}
                               </span>
                             ) : null}
                           </div>
-                          {/* Nome do arquivo em destaque */}
-                          <span className="block text-xs text-zinc-100 truncate font-medium" title={sourcePath ?? label}>
+                          {/* Linha 2: nome do arquivo em destaque */}
+                          <span className="block text-sm text-zinc-100 font-semibold truncate" title={sourcePath ?? label}>
                             {fileName}
                           </span>
-                          {/* Caminho relativo menor */}
-                          <span className="block text-[10px] text-zinc-600 truncate mt-0.5" title={source}>
-                            {relDir ?? source}
+                          {/* Linha 3: caminho relativo */}
+                          <span className="block text-[11px] text-zinc-500 truncate mt-0.5" title={norm || source}>
+                            {displayPath}
                           </span>
-                          <span className="block text-[10px] text-zinc-500 mt-0.5">
+                          {/* Linha 4: timestamp */}
+                          <span className="block text-[10px] text-zinc-600 mt-0.5">
                             {new Date(lastIndexedAt).toLocaleString('pt-BR')}
                           </span>
                         </div>
