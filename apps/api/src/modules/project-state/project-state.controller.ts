@@ -34,6 +34,8 @@ export class ProjectStateController {
       backlog?: BacklogItem[]
       activeFocus?: string
       definitionOfDone?: string
+      blockers?: string[]
+      nextSteps?: string[]
     },
   ) {
     return this.svc.updatePlanning(id, body)

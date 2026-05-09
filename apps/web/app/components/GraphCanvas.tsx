@@ -1,192 +1,374 @@
 'use client'
 
-import { useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import {
-  ReactFlow,
-  Background,
-  Controls,
-  useNodesState,
-  useEdgesState,
-  addEdge,
-  type Node,
-  type Edge,
-  type Connection,
+  ReactFlow, Background, Controls, MiniMap,
+  useNodesState, useEdgesState, addEdge,
+  Handle, Position,
+  type Node, type Edge, type Connection, type NodeProps,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
-interface Milestone { id: string; title: string; status: string }
-interface GapItem { area: string; description: string; severity: 'high' | 'medium' | 'low' }
-interface SuccessCriteria { id: string; text: string; done: boolean }
+/* ── types ─────────────────────────────────────────────── */
+export interface Milestone { id: string; title: string; status: 'pending' | 'active' | 'done' }
+export interface GapItem { area: string; description: string; severity: 'high' | 'medium' | 'low' }
+export interface SuccessCriteria { id: string; text: string; done: boolean }
 
-interface StateGraphProps {
-  mode: 'estado'
+type NodeType = 'milestone' | 'blocker' | 'next' | 'goal' | 'gap' | 'action'
+
+interface NodeData {
+  label: string
+  type: NodeType
+  status?: 'pending' | 'active' | 'done'
+  onDelete?: (id: string) => void
+  onStatusCycle?: (id: string) => void
+  onLabelChange?: (id: string, label: string) => void
+}
+
+const COLORS: Record<NodeType, { border: string; glow: string; bg: string; text: string; tag: string }> = {
+  milestone: { border: '#3b82f6', glow: '#3b82f6', bg: '#03060f',  text: '#93c5fd', tag: 'milestone' },
+  blocker:   { border: '#ef4444', glow: '#ef4444', bg: '#0f0202',  text: '#fca5a5', tag: 'blocker'   },
+  next:      { border: '#8b5cf6', glow: '#8b5cf6', bg: '#07020f',  text: '#c4b5fd', tag: 'próximo'   },
+  goal:      { border: '#f59e0b', glow: '#f59e0b', bg: '#0f0800',  text: '#fcd34d', tag: 'meta'      },
+  gap:       { border: '#f97316', glow: '#f97316', bg: '#0f0400',  text: '#fdba74', tag: 'gap'       },
+  action:    { border: '#06b6d4', glow: '#06b6d4', bg: '#00090f',  text: '#67e8f9', tag: 'ação'      },
+}
+
+const STATUS_COLORS: Record<string, string> = {
+  done:    '#22c55e',
+  active:  '#3b82f6',
+  pending: '#52525b',
+}
+
+/* ── custom node ────────────────────────────────────────── */
+function ProjectNode({ data, id, selected }: NodeProps) {
+  const [hovered, setHovered] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(String(data.label))
+  const d = data as NodeData
+  const c = COLORS[d.type]
+  const borderColor = d.status ? STATUS_COLORS[d.status] : c.border
+
+  const commitEdit = () => {
+    setEditing(false)
+    if (draft.trim() && draft !== d.label) d.onLabelChange?.(id, draft.trim())
+  }
+
+  return (
+    <div
+      style={{
+        background: c.bg,
+        border: `1.5px solid ${selected ? '#fff' : borderColor}`,
+        boxShadow: hovered || selected
+          ? `0 0 14px ${borderColor}80, 0 0 32px ${borderColor}30, inset 0 0 12px ${c.bg}`
+          : `0 0 6px ${borderColor}50`,
+        borderRadius: 10,
+        padding: '8px 12px',
+        minWidth: 140,
+        maxWidth: 200,
+        position: 'relative',
+        transition: 'box-shadow 0.2s, border-color 0.2s',
+        cursor: d.onStatusCycle ? 'pointer' : 'default',
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onClick={() => d.onStatusCycle?.(id)}
+      onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); setDraft(String(d.label)) }}
+    >
+      <Handle type="target" position={Position.Left}
+        style={{ background: borderColor, width: 7, height: 7, border: 'none', boxShadow: `0 0 6px ${borderColor}` }} />
+
+      {/* type tag */}
+      <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: 1.5, color: c.border, marginBottom: 4, textTransform: 'uppercase', opacity: 0.85 }}>
+        {c.tag}
+        {d.status && (
+          <span style={{ marginLeft: 6, color: STATUS_COLORS[d.status], fontWeight: 900 }}>
+            · {d.status}
+          </span>
+        )}
+      </div>
+
+      {/* label / edit */}
+      {editing ? (
+        <input
+          autoFocus
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onBlur={commitEdit}
+          onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') setEditing(false) }}
+          onClick={e => e.stopPropagation()}
+          style={{ width: '100%', background: 'transparent', border: 'none', borderBottom: `1px solid ${c.border}`, color: c.text, fontSize: 12, outline: 'none', fontFamily: 'inherit' }}
+        />
+      ) : (
+        <div style={{ fontSize: 12, color: c.text, lineHeight: 1.45, wordBreak: 'break-word' }}>
+          {String(d.label)}
+        </div>
+      )}
+
+      {/* delete btn */}
+      {hovered && !editing && d.onDelete && (
+        <button
+          onClick={e => { e.stopPropagation(); d.onDelete!(id) }}
+          style={{ position: 'absolute', top: 4, right: 6, background: 'transparent', border: 'none', color: '#71717a', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: 0 }}
+          title="Remover"
+        >×</button>
+      )}
+
+      <Handle type="source" position={Position.Right}
+        style={{ background: borderColor, width: 7, height: 7, border: 'none', boxShadow: `0 0 6px ${borderColor}` }} />
+    </div>
+  )
+}
+
+const nodeTypes = { project: ProjectNode }
+
+/* ── layout helpers ─────────────────────────────────────── */
+const COL = { blocker: 60, milestone: 300, next: 560 }
+const ROW_H = 100
+
+function uid() { return Math.random().toString(36).slice(2, 8) }
+
+/* ── Estado atual ───────────────────────────────────────── */
+interface StateCanvasProps {
   milestones: Milestone[]
   blockers: string[]
   nextSteps: string[]
+  onSave?: (patch: { milestones: Milestone[]; blockers: string[]; nextSteps: string[] }) => void
 }
 
-interface GoalGraphProps {
-  mode: 'goal'
+export function StateCanvas({ milestones: initMilestones, blockers: initBlockers, nextSteps: initNextSteps, onSave }: StateCanvasProps) {
+  const [milestones, setMilestones] = useState<Milestone[]>(initMilestones)
+  const [blockers, setBlockers] = useState<string[]>(initBlockers)
+  const [nextSteps, setNextSteps] = useState<string[]>(initNextSteps)
+  const [dirty, setDirty] = useState(false)
+  const [addType, setAddType] = useState<NodeType | null>(null)
+  const [addText, setAddText] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const buildGraph = useCallback(() => {
+    const nodes: Node[] = []
+    const edges: Edge[] = []
+    const activeIdx = milestones.findIndex(m => m.status === 'active')
+
+    const handleDelete = (id: string) => {
+      const [type, idxStr] = id.split('-')
+      const idx = Number(idxStr)
+      if (type === 'M') setMilestones(p => p.filter((_, i) => i !== idx))
+      else if (type === 'B') setBlockers(p => p.filter((_, i) => i !== idx))
+      else if (type === 'NS') setNextSteps(p => p.filter((_, i) => i !== idx))
+      setDirty(true)
+    }
+
+    const handleStatusCycle = (id: string) => {
+      const [type, idxStr] = id.split('-')
+      if (type !== 'M') return
+      const idx = Number(idxStr)
+      setMilestones(p => p.map((m, i) => i === idx ? { ...m, status: m.status === 'pending' ? 'active' : m.status === 'active' ? 'done' : 'pending' } : m))
+      setDirty(true)
+    }
+
+    const handleLabelChange = (id: string, label: string) => {
+      const [type, idxStr] = id.split('-')
+      const idx = Number(idxStr)
+      if (type === 'M') setMilestones(p => p.map((m, i) => i === idx ? { ...m, title: label } : m))
+      else if (type === 'B') setBlockers(p => p.map((b, i) => i === idx ? label : b))
+      else if (type === 'NS') setNextSteps(p => p.map((s, i) => i === idx ? label : s))
+      setDirty(true)
+    }
+
+    milestones.forEach((m, i) => {
+      nodes.push({
+        id: `M-${i}`, type: 'project',
+        position: { x: COL.milestone, y: i * ROW_H + 40 },
+        data: { label: m.title, type: 'milestone', status: m.status, onDelete: handleDelete, onStatusCycle: handleStatusCycle, onLabelChange: handleLabelChange },
+      })
+    })
+
+    blockers.forEach((b, i) => {
+      nodes.push({
+        id: `B-${i}`, type: 'project',
+        position: { x: COL.blocker, y: i * ROW_H + 40 },
+        data: { label: b, type: 'blocker', onDelete: handleDelete, onLabelChange: handleLabelChange },
+      })
+      if (activeIdx >= 0) edges.push({ id: `eB${i}`, source: `B-${i}`, target: `M-${activeIdx}`, label: 'bloqueia', animated: true, style: { stroke: '#ef4444', strokeDasharray: '4 2' }, labelStyle: { fill: '#ef4444', fontSize: 9 }, labelBgStyle: { fill: '#0f0202' } })
+    })
+
+    nextSteps.forEach((s, i) => {
+      nodes.push({
+        id: `NS-${i}`, type: 'project',
+        position: { x: COL.next, y: i * ROW_H + 40 },
+        data: { label: s, type: 'next', onDelete: handleDelete, onLabelChange: handleLabelChange },
+      })
+      if (activeIdx >= 0) edges.push({ id: `eNS${i}`, source: `M-${activeIdx}`, target: `NS-${i}`, animated: true, style: { stroke: '#8b5cf6' } })
+    })
+
+    if (nodes.length === 0) {
+      nodes.push({ id: 'empty', type: 'project', position: { x: 180, y: 80 }, data: { label: 'Nenhum dado — clique em gerar estado ou adicione itens', type: 'milestone' } })
+    }
+
+    return { nodes, edges }
+  }, [milestones, blockers, nextSteps])
+
+  const { nodes: initN, edges: initE } = buildGraph()
+  const [nodes, setNodes, onNodesChange] = useNodesState(initN)
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initE)
+  const onConnect = useCallback((c: Connection) => setEdges(e => addEdge(c, e)), [setEdges])
+
+  // rebuild nodes when state changes
+  const prevMilestones = useRef(milestones)
+  const prevBlockers = useRef(blockers)
+  const prevNextSteps = useRef(nextSteps)
+  if (prevMilestones.current !== milestones || prevBlockers.current !== blockers || prevNextSteps.current !== nextSteps) {
+    prevMilestones.current = milestones
+    prevBlockers.current = blockers
+    prevNextSteps.current = nextSteps
+    const { nodes: n, edges: e } = buildGraph()
+    setNodes(n)
+    setEdges(e)
+  }
+
+  const addNode = () => {
+    if (!addText.trim() || !addType) return
+    if (addType === 'milestone') setMilestones(p => [...p, { id: uid(), title: addText.trim(), status: 'pending' }])
+    else if (addType === 'blocker') setBlockers(p => [...p, addText.trim()])
+    else if (addType === 'next') setNextSteps(p => [...p, addText.trim()])
+    setAddText('')
+    setAddType(null)
+    setDirty(true)
+  }
+
+  return (
+    <div style={{ width: '100%', height: 380, position: 'relative' }}>
+      {/* toolbar */}
+      <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 10, display: 'flex', gap: 6, alignItems: 'center' }}>
+        {addType ? (
+          <>
+            <input ref={inputRef} autoFocus value={addText} onChange={e => setAddText(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') addNode(); if (e.key === 'Escape') setAddType(null) }}
+              placeholder={`Novo ${COLORS[addType].tag}…`}
+              style={{ background: '#18181b', border: `1px solid ${COLORS[addType].border}`, borderRadius: 6, padding: '4px 8px', fontSize: 11, color: '#e4e4e7', outline: 'none', width: 200 }}
+            />
+            <button onClick={addNode} style={btnStyle(COLORS[addType].border)}>+</button>
+            <button onClick={() => setAddType(null)} style={btnStyle('#52525b')}>×</button>
+          </>
+        ) : (
+          <>
+            <button onClick={() => setAddType('milestone')} style={btnStyle('#3b82f6')}>+ milestone</button>
+            <button onClick={() => setAddType('blocker')}   style={btnStyle('#ef4444')}>+ blocker</button>
+            <button onClick={() => setAddType('next')}      style={btnStyle('#8b5cf6')}>+ próximo</button>
+          </>
+        )}
+        {dirty && onSave && (
+          <button onClick={() => { onSave({ milestones, blockers, nextSteps }); setDirty(false) }} style={btnStyle('#22c55e')}>
+            salvar
+          </button>
+        )}
+      </div>
+
+      <ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
+        onConnect={onConnect} nodeTypes={nodeTypes} fitView fitViewOptions={{ padding: 0.25 }}
+        colorMode="dark" proOptions={{ hideAttribution: true }}
+        style={{ background: '#050508' }}
+      >
+        <Background color="#1c1c24" gap={24} size={1} />
+        <Controls showInteractive={false} style={{ background: '#0f0f14', border: '1px solid #27272a', borderRadius: 8 }} />
+        <MiniMap nodeColor={n => COLORS[(n.data as NodeData).type]?.border ?? '#52525b'} style={{ background: '#0f0f14', border: '1px solid #27272a' }} maskColor="#050508cc" />
+      </ReactFlow>
+
+      <div style={{ position: 'absolute', bottom: 8, left: 8, zIndex: 10, fontSize: 9, color: '#52525b', letterSpacing: 0.5 }}>
+        DUPLO CLIQUE para editar · CLIQUE em milestone para trocar status · ARRASTAR para mover
+      </div>
+    </div>
+  )
+}
+
+/* ── Goal Graph canvas ──────────────────────────────────── */
+interface GoalCanvasProps {
   goalTitle: string
   targetDate?: string
   criteria: SuccessCriteria[]
   gaps: GapItem[]
   nextBestAction?: string
-  goalProgress?: number
 }
 
-type GraphCanvasProps = StateGraphProps | GoalGraphProps
-
-const NODE_STYLE_BASE: React.CSSProperties = {
-  fontSize: 11,
-  borderRadius: 8,
-  padding: '6px 10px',
-  border: '1px solid',
-  maxWidth: 180,
-  wordBreak: 'break-word',
-  textAlign: 'center',
-}
-
-function buildStateGraph(props: StateGraphProps): { nodes: Node[]; edges: Edge[] } {
-  const nodes: Node[] = []
-  const edges: Edge[] = []
-  const { milestones, blockers, nextSteps } = props
-
-  const colX = { blocker: 60, milestone: 280, next: 500 }
-  const rowH = 90
-
-  milestones.forEach((m, i) => {
-    const isDone = m.status === 'done'
-    const isActive = m.status === 'active'
-    nodes.push({
-      id: `M${i}`,
-      position: { x: colX.milestone, y: i * rowH + 40 },
-      data: { label: `${isDone ? '[done]' : isActive ? '[ativo]' : '[pendente]'} ${m.title.slice(0, 40)}` },
-      style: {
-        ...NODE_STYLE_BASE,
-        background: isDone ? '#166534' : isActive ? '#1e40af' : '#27272a',
-        borderColor: isDone ? '#22c55e' : isActive ? '#3b82f6' : '#52525b',
-        color: '#f4f4f5',
-      },
-    })
-  })
-
-  const activeIdx = milestones.findIndex(m => m.status === 'active')
-
-  blockers.slice(0, 4).forEach((b, i) => {
-    const id = `B${i}`
-    nodes.push({
-      id,
-      position: { x: colX.blocker, y: i * rowH + 40 },
-      data: { label: `[blocker] ${b.slice(0, 40)}` },
-      style: { ...NODE_STYLE_BASE, background: '#7f1d1d', borderColor: '#ef4444', color: '#fca5a5' },
-    })
-    if (activeIdx >= 0) {
-      edges.push({ id: `e-B${i}-M${activeIdx}`, source: id, target: `M${activeIdx}`, label: 'bloqueia', style: { stroke: '#ef4444' }, labelStyle: { fill: '#ef4444', fontSize: 10 } })
-    }
-  })
-
-  nextSteps.slice(0, 4).forEach((s, i) => {
-    const id = `NS${i}`
-    nodes.push({
-      id,
-      position: { x: colX.next, y: i * rowH + 40 },
-      data: { label: `[prox] ${s.slice(0, 40)}` },
-      style: { ...NODE_STYLE_BASE, background: '#3b0764', borderColor: '#8b5cf6', color: '#c4b5fd' },
-    })
-    if (activeIdx >= 0) {
-      edges.push({ id: `e-M${activeIdx}-NS${i}`, source: `M${activeIdx}`, target: id, style: { stroke: '#8b5cf6' } })
-    }
-  })
-
-  if (nodes.length === 0) {
-    nodes.push({
-      id: 'empty',
-      position: { x: 160, y: 60 },
-      data: { label: 'Estado vazio — clique em gerar estado' },
-      style: { ...NODE_STYLE_BASE, background: '#27272a', borderColor: '#52525b', color: '#71717a' },
-    })
-  }
-
-  return { nodes, edges }
-}
-
-function buildGoalGraph(props: GoalGraphProps): { nodes: Node[]; edges: Edge[] } {
-  const nodes: Node[] = []
-  const edges: Edge[] = []
-  const { goalTitle, targetDate, criteria, gaps, nextBestAction } = props
-
+export function GoalCanvas({ goalTitle, targetDate, criteria, gaps, nextBestAction }: GoalCanvasProps) {
   const deadline = targetDate ? ` · ${new Date(targetDate).toLocaleDateString('pt-BR')}` : ''
-  nodes.push({
-    id: 'G',
-    position: { x: 220, y: 20 },
-    data: { label: `[meta] ${goalTitle.slice(0, 50)}${deadline}` },
-    style: { ...NODE_STYLE_BASE, background: '#1e3a5f', borderColor: '#3b82f6', color: '#93c5fd', fontWeight: 600 },
-  })
 
-  criteria.slice(0, 6).forEach((c, i) => {
-    const id = `C${i}`
-    nodes.push({
-      id,
-      position: { x: i * 160 + 40, y: 130 },
-      data: { label: `${c.done ? '[ok]' : '[ ]'} ${c.text.slice(0, 35)}` },
-      style: { ...NODE_STYLE_BASE, background: c.done ? '#166534' : '#27272a', borderColor: c.done ? '#22c55e' : '#52525b', color: c.done ? '#86efac' : '#a1a1aa' },
-    })
-    edges.push({ id: `e-G-C${i}`, source: 'G', target: id, style: { stroke: '#3b82f6' } })
-  })
+  const buildGraph = () => {
+    const nodes: Node[] = []
+    const edges: Edge[] = []
 
-  const highGaps = gaps.filter(g => g.severity === 'high').slice(0, 3)
-  highGaps.forEach((g, i) => {
-    const id = `GAP${i}`
-    nodes.push({
-      id,
-      position: { x: i * 200 + 60, y: 260 },
-      data: { label: `[gap] ${g.description.slice(0, 45)}` },
-      style: { ...NODE_STYLE_BASE, background: '#7f1d1d', borderColor: '#ef4444', color: '#fca5a5' },
-    })
-    const undoneIdx = criteria.findIndex(c => !c.done)
-    const src = undoneIdx >= 0 ? `C${undoneIdx}` : 'G'
-    edges.push({ id: `e-${src}-${id}`, source: src, target: id, style: { stroke: '#ef4444' } })
-  })
+    nodes.push({ id: 'G', type: 'project', position: { x: 220, y: 20 },
+      data: { label: `${goalTitle.slice(0, 50)}${deadline}`, type: 'goal' } })
 
-  if (nextBestAction) {
-    nodes.push({
-      id: 'NBA',
-      position: { x: 200, y: 380 },
-      data: { label: `[acao] ${nextBestAction.slice(0, 60)}` },
-      style: { ...NODE_STYLE_BASE, background: '#1e3a5f', borderColor: '#60a5fa', color: '#bfdbfe', fontWeight: 600 },
+    const perRow = Math.min(criteria.length, 4)
+    const rowW = perRow * 200
+    criteria.slice(0, 8).forEach((c, i) => {
+      const col = i % 4, row = Math.floor(i / 4)
+      nodes.push({ id: `C-${i}`, type: 'project',
+        position: { x: col * 200 + (500 - rowW) / 2, y: 140 + row * 100 },
+        data: { label: c.text.slice(0, 50), type: 'milestone', status: c.done ? 'done' : 'pending' } })
+      edges.push({ id: `eGC${i}`, source: 'G', target: `C-${i}`, animated: !c.done, style: { stroke: c.done ? '#22c55e' : '#3b82f650' } })
     })
-    const src = highGaps.length > 0 ? 'GAP0' : 'G'
-    edges.push({ id: 'e-NBA', source: src, target: 'NBA', style: { stroke: '#60a5fa' } })
+
+    const high = gaps.filter(g => g.severity === 'high').slice(0, 3)
+    const yBase = 140 + Math.ceil(criteria.length / 4) * 100 + 20
+    high.forEach((g, i) => {
+      nodes.push({ id: `GAP-${i}`, type: 'project', position: { x: i * 220 + 80, y: yBase },
+        data: { label: g.description.slice(0, 50), type: 'gap' } })
+      const undoneIdx = criteria.findIndex(c => !c.done)
+      const src = undoneIdx >= 0 ? `C-${undoneIdx}` : 'G'
+      edges.push({ id: `eGAP${i}`, source: src, target: `GAP-${i}`, animated: true, style: { stroke: '#ef4444' } })
+    })
+
+    if (nextBestAction) {
+      nodes.push({ id: 'NBA', type: 'project', position: { x: 220, y: yBase + 110 },
+        data: { label: nextBestAction.slice(0, 70), type: 'action' } })
+      const src = high.length > 0 ? 'GAP-0' : (criteria.length > 0 ? `C-0` : 'G')
+      edges.push({ id: 'eNBA', source: src, target: 'NBA', animated: true, style: { stroke: '#06b6d4' } })
+    }
+
+    return { nodes, edges }
   }
 
-  return { nodes, edges }
-}
-
-export default function GraphCanvas(props: GraphCanvasProps) {
-  const { nodes: initNodes, edges: initEdges } =
-    props.mode === 'estado' ? buildStateGraph(props) : buildGoalGraph(props)
-
-  const [nodes, , onNodesChange] = useNodesState(initNodes)
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initEdges)
+  const { nodes: initN, edges: initE } = buildGraph()
+  const [nodes, , onNodesChange] = useNodesState(initN)
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initE)
   const onConnect = useCallback((c: Connection) => setEdges(e => addEdge(c, e)), [setEdges])
 
   return (
-    <div style={{ width: '100%', height: 340 }}>
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        fitView
-        fitViewOptions={{ padding: 0.2 }}
-        colorMode="dark"
-        proOptions={{ hideAttribution: true }}
+    <div style={{ width: '100%', height: 420 }}>
+      <ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
+        onConnect={onConnect} nodeTypes={nodeTypes} fitView fitViewOptions={{ padding: 0.2 }}
+        colorMode="dark" proOptions={{ hideAttribution: true }}
+        style={{ background: '#050508' }}
       >
-        <Background color="#3f3f46" gap={20} />
-        <Controls showInteractive={false} style={{ background: '#27272a', border: '1px solid #3f3f46' }} />
+        <Background color="#1c1c24" gap={24} size={1} />
+        <Controls showInteractive={false} style={{ background: '#0f0f14', border: '1px solid #27272a', borderRadius: 8 }} />
+        <MiniMap nodeColor={n => COLORS[(n.data as NodeData).type]?.border ?? '#52525b'} style={{ background: '#0f0f14', border: '1px solid #27272a' }} maskColor="#050508cc" />
       </ReactFlow>
     </div>
   )
+}
+
+/* ── default export (backwards compat) ─────────────────── */
+export default function GraphCanvas(props: { mode: 'estado'; milestones: Milestone[]; blockers: string[]; nextSteps: string[]; onSave?: StateCanvasProps['onSave'] } | { mode: 'goal'; goalTitle: string; targetDate?: string; criteria: SuccessCriteria[]; gaps: GapItem[]; nextBestAction?: string; goalProgress?: number }) {
+  if (props.mode === 'estado') return <StateCanvas {...props} />
+  return <GoalCanvas {...props} />
+}
+
+/* ── util ───────────────────────────────────────────────── */
+function btnStyle(color: string): React.CSSProperties {
+  return {
+    background: `${color}18`,
+    border: `1px solid ${color}60`,
+    borderRadius: 6,
+    color,
+    fontSize: 10,
+    fontWeight: 700,
+    padding: '3px 8px',
+    cursor: 'pointer',
+    letterSpacing: 0.5,
+    transition: 'background 0.15s',
+  }
 }

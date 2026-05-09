@@ -280,6 +280,8 @@ Regras:
       backlog?: BacklogItem[]
       activeFocus?: string
       definitionOfDone?: string
+      blockers?: string[]
+      nextSteps?: string[]
     },
   ) {
     const state = await this.prisma.projectState.findUnique({ where: { projectId } })
@@ -292,6 +294,8 @@ Regras:
         ...(patch.backlog !== undefined ? { backlog: patch.backlog as object } : {}),
         ...(patch.activeFocus !== undefined ? { activeFocus: patch.activeFocus || null } : {}),
         ...(patch.definitionOfDone !== undefined ? { definitionOfDone: patch.definitionOfDone || null } : {}),
+        ...(patch.blockers !== undefined ? { blockers: patch.blockers } : {}),
+        ...(patch.nextSteps !== undefined ? { nextSteps: patch.nextSteps } : {}),
       },
     })
 

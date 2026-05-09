@@ -2814,12 +2814,19 @@ export default function Home() {
                       {graphStateRefreshing ? 'Analisando…' : '⟳ gerar estado'}
                     </button>
                   </div>
-                  <div className="bg-zinc-900 rounded-xl overflow-hidden border border-zinc-800">
+                  <div className="rounded-xl overflow-hidden border border-zinc-800">
                     <GraphCanvas
                       mode="estado"
                       milestones={graphStateData?.milestones ?? []}
                       blockers={graphStateData?.blockers ?? []}
                       nextSteps={graphStateData?.nextSteps ?? []}
+                      onSave={async (patch) => {
+                        await fetch(`${API_URL}/projects/${activeProjectId}/state/planning`, {
+                          method: 'PATCH',
+                          headers: authHeaders({ 'Content-Type': 'application/json' }),
+                          body: JSON.stringify(patch),
+                        }).catch(() => null)
+                      }}
                     />
                   </div>
                 </>
