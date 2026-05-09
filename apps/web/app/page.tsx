@@ -904,28 +904,20 @@ export default function Home() {
     const mmd = graphSubMode === 'estado' ? graphStateMmd : (graphGoalData?.mermaid ?? null)
     if (!mmd) { setMermaidSvg(null); return }
 
-    type MermaidAPI = { initialize: (cfg: object) => void; render: (id: string, text: string) => Promise<{ svg: string }> }
-    const w = window as unknown as { mermaid?: MermaidAPI }
     let cancelled = false
-    let attempts = 0
 
-    const poll = async () => {
-      while (!cancelled && attempts < 30) {
-        attempts++
-        if (!w.mermaid) { await new Promise(r => setTimeout(r, 300)); continue }
-        try {
-          w.mermaid.initialize({ startOnLoad: false, theme: 'dark' })
-          const { svg } = await w.mermaid.render('mmd-' + graphSubMode + '-' + attempts, mmd)
-          if (!cancelled) setMermaidSvg(svg)
-        } catch {
-          // render falhou — mostra o texto bruto como fallback
-          if (!cancelled) setMermaidSvg(`<pre style="color:#71717a;font-size:11px;white-space:pre-wrap;font-family:monospace">${mmd}</pre>`)
-        }
-        break
+    const render = async () => {
+      try {
+        const mermaid = (await import('mermaid')).default
+        mermaid.initialize({ startOnLoad: false, theme: 'dark' })
+        const { svg } = await mermaid.render('mmd-' + graphSubMode + '-' + Date.now(), mmd)
+        if (!cancelled) setMermaidSvg(svg)
+      } catch {
+        if (!cancelled) setMermaidSvg(`<pre style="color:#71717a;font-size:11px;white-space:pre-wrap;font-family:monospace">${mmd}</pre>`)
       }
     }
 
-    poll()
+    render()
     return () => { cancelled = true }
   }, [graphSubMode, graphStateMmd, graphGoalData])
 
