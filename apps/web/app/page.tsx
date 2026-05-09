@@ -904,20 +904,40 @@ export default function Home() {
     const mmd = graphSubMode === 'estado' ? graphStateMmd : (graphGoalData?.mermaid ?? null)
     if (!mmd) { setMermaidSvg(null); return }
 
-    // mostra o texto imediatamente enquanto tenta renderizar SVG
-    const rawFallback = `<pre style="color:#71717a;font-size:11px;white-space:pre-wrap;font-family:monospace;padding:4px">${mmd}</pre>`
+    const rawFallback = `<pre style="color:#71717a;font-size:11px;white-space:pre-wrap;font-family:monospace;padding:4px;line-height:1.5">${mmd}</pre>`
     setMermaidSvg(rawFallback)
 
     let cancelled = false
-    const render = async () => {
-      try {
-        const mermaid = (await import('mermaid')).default
-        mermaid.initialize({ startOnLoad: false, theme: 'dark' })
-        const { svg } = await mermaid.render('mmd-' + graphSubMode + '-' + Date.now(), mmd)
+    const tryRender = async () => {
+      const id = 'mmd-' + Date.now()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const win = window as any
+
+      const doRender = async () => {
+        win.mermaid.initialize({ startOnLoad: false, theme: 'dark' })
+        const { svg } = await win.mermaid.render(id, mmd)
         if (!cancelled) setMermaidSvg(svg)
-      } catch { /* mantém o rawFallback */ }
+      }
+
+      if (win.mermaid) {
+        await doRender()
+        return
+      }
+
+      // injecta CDN uma única vez
+      await new Promise<void>((resolve, reject) => {
+        if (document.getElementById('mermaid-cdn')) { resolve(); return }
+        const s = document.createElement('script')
+        s.id = 'mermaid-cdn'
+        s.src = 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js'
+        s.onload = () => resolve()
+        s.onerror = reject
+        document.head.appendChild(s)
+      })
+      await doRender()
     }
-    render()
+
+    tryRender().catch(() => { /* mantém rawFallback */ })
     return () => { cancelled = true }
   }, [graphSubMode, graphStateMmd, graphGoalData])
 
