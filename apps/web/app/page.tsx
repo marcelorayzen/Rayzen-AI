@@ -260,6 +260,20 @@ interface DocVersion {
 
 type ImportTab = 'github' | 'file' | 'url' | 'notion'
 
+interface SuccessCriteria { id: string; text: string; done: boolean }
+interface GapItem { area: string; description: string; severity: 'high' | 'medium' | 'low'; relatedCriteria?: string }
+interface GapAnalysis { gaps: GapItem[]; nextBestAction: string; goalProgress: number; confidence: 'low' | 'medium' | 'high' }
+interface ProjectGoal {
+  id: string; title: string; description?: string
+  successCriteria: SuccessCriteria[]
+  kpis: Array<{ metric: string; target: string; current?: string; unit?: string }>
+  status: string; targetDate?: string; createdAt: string
+}
+interface GoalGraphData {
+  goal: ProjectGoal | null; state: ProjectState | null; mermaid: string
+  gapAnalysis: GapAnalysis | null; healthScore: number; updatedAt: string
+}
+
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -336,6 +350,19 @@ export default function Home() {
   const [memoryListFilter, setMemoryListFilter] = useState('')
   const [memorySearchResults, setMemorySearchResults] = useState<Array<{ id: string; content: string; sourcePath: string | null; score: number }> | null>(null)
   const [memorySearching, setMemorySearching] = useState(false)
+  const [graphOpen, setGraphOpen] = useState(false)
+  const [graphSubMode, setGraphSubMode] = useState<'estado' | 'goal'>('goal')
+  const [graphStateMmd, setGraphStateMmd] = useState<string | null>(null)
+  const [graphGoalData, setGraphGoalData] = useState<GoalGraphData | null>(null)
+  const [graphLoading, setGraphLoading] = useState(false)
+  const [goalFormOpen, setGoalFormOpen] = useState(false)
+  const [goalTitle, setGoalTitle] = useState('')
+  const [goalDesc, setGoalDesc] = useState('')
+  const [goalTargetDate, setGoalTargetDate] = useState('')
+  const [goalCriteria, setGoalCriteria] = useState<SuccessCriteria[]>([])
+  const [goalKpis, setGoalKpis] = useState<Array<{ metric: string; target: string; unit: string }>>([])
+  const [savingGoal, setSavingGoal] = useState(false)
+  const mermaidRef = useRef<HTMLDivElement>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const autoVoiceRef = useRef(false)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
@@ -871,6 +898,63 @@ export default function Home() {
       setImportLoading(false)
     }
   }, [notionToken, notionPageId, activeProjectId])
+
+  useEffect(() => {
+    if (!graphOpen || !mermaidRef.current) return
+    const mmd = graphSubMode === 'estado' ? graphStateMmd : (graphGoalData?.mermaid ?? null)
+    if (!mmd) return
+    const el = mermaidRef.current
+    el.removeAttribute('data-processed')
+    el.textContent = mmd
+    el.className = 'mermaid text-sm'
+    const w = window as unknown as { mermaid?: { init: (config: undefined, el: HTMLElement) => void } }
+    try { w.mermaid?.init(undefined, el) } catch { /* ignore */ }
+  }, [graphOpen, graphSubMode, graphStateMmd, graphGoalData])
+
+  const openGraph = useCallback(async (sub: 'estado' | 'goal' = 'goal') => {
+    if (!activeProjectId) return
+    setGraphOpen(true)
+    setGraphSubMode(sub)
+    setGraphLoading(true)
+    try {
+      if (sub === 'estado') {
+        const res = await fetch(`${API_URL}/projects/${activeProjectId}/graph`, { headers: authHeaders() })
+        const data = await res.json()
+        setGraphStateMmd(data.mermaid ?? null)
+      } else {
+        const res = await fetch(`${API_URL}/projects/${activeProjectId}/graph/goal`, { headers: authHeaders() })
+        const data = await res.json() as GoalGraphData
+        setGraphGoalData(data)
+      }
+    } catch { /* ignore */ }
+    setGraphLoading(false)
+  }, [activeProjectId])
+
+  const saveGoal = useCallback(async () => {
+    if (!activeProjectId || !goalTitle.trim()) return
+    setSavingGoal(true)
+    try {
+      const res = await fetch(`${API_URL}/projects/${activeProjectId}/graph/goal`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ title: goalTitle, description: goalDesc || undefined, successCriteria: goalCriteria, kpis: goalKpis, targetDate: goalTargetDate || undefined }),
+      })
+      if (res.ok) {
+        setGoalFormOpen(false); setGoalTitle(''); setGoalDesc(''); setGoalTargetDate(''); setGoalCriteria([]); setGoalKpis([])
+        openGraph('goal')
+      }
+    } catch { /* ignore */ }
+    setSavingGoal(false)
+  }, [activeProjectId, goalTitle, goalDesc, goalTargetDate, goalCriteria, goalKpis, openGraph])
+
+  const toggleCriteria = useCallback(async (goalId: string, criteriaId: string, done: boolean) => {
+    await fetch(`${API_URL}/projects/${activeProjectId}/graph/goal/${goalId}/criteria/${criteriaId}`, {
+      method: 'PATCH',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ done }),
+    }).catch(() => null)
+    openGraph('goal')
+  }, [activeProjectId, openGraph])
 
   const openMemoryPanel = useCallback(async () => {
     setMemoryOpen(true)
@@ -2498,6 +2582,15 @@ export default function Home() {
           >
             atividade
           </button>
+          {activeProjectId && (
+            <button
+              onClick={() => openGraph('goal')}
+              className="text-zinc-500 hover:text-zinc-300 transition-colors text-xs"
+              title="Goal Graph — meta vs estado atual"
+            >
+              grafo
+            </button>
+          )}
           <button
             onClick={() => setAutoVoice((v) => !v)}
             className={`text-xs transition-colors ${
@@ -2684,6 +2777,200 @@ export default function Home() {
           </button>
         </form>
       </div>
+      {/* Goal Graph panel */}
+      {graphOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="fixed inset-0 bg-black/70" onClick={() => setGraphOpen(false)} />
+          <div className="relative bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl mx-4">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
+              <div className="flex items-center gap-4">
+                <span className="text-sm font-semibold text-zinc-200">Goal Graph</span>
+                <div className="flex gap-1">
+                  {(['goal', 'estado'] as const).map(m => (
+                    <button key={m} onClick={() => { setGraphSubMode(m); openGraph(m) }}
+                      className={`px-3 py-1 rounded-full text-xs transition-colors ${graphSubMode === m ? 'bg-zinc-700 text-zinc-200' : 'text-zinc-500 hover:text-zinc-300'}`}>
+                      {m === 'goal' ? 'Goal Graph' : 'Estado atual'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <button onClick={() => setGraphOpen(false)} className="text-zinc-500 hover:text-zinc-300 text-lg leading-none">×</button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+              {graphLoading ? (
+                <div className="text-zinc-500 text-sm text-center py-8">Carregando…</div>
+              ) : graphSubMode === 'estado' ? (
+                <>
+                  <div ref={mermaidRef} className="mermaid text-sm bg-zinc-800 rounded-xl p-4 min-h-[120px]" />
+                </>
+              ) : graphGoalData ? (
+                <>
+                  {graphGoalData.goal ? (
+                    <>
+                      {/* Goal card */}
+                      <div className="bg-zinc-800 rounded-xl p-4 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-semibold text-zinc-200">🎯 {graphGoalData.goal.title}</span>
+                          {graphGoalData.goal.targetDate && (
+                            <span className="text-xs text-zinc-500">{new Date(graphGoalData.goal.targetDate).toLocaleDateString('pt-BR')}</span>
+                          )}
+                        </div>
+                        {graphGoalData.goal.description && (
+                          <p className="text-xs text-zinc-400">{graphGoalData.goal.description}</p>
+                        )}
+                        {/* Progress bar */}
+                        {graphGoalData.gapAnalysis && (
+                          <div>
+                            <div className="flex justify-between text-xs text-zinc-500 mb-1">
+                              <span>Progresso</span>
+                              <span>{graphGoalData.gapAnalysis.goalProgress}%</span>
+                            </div>
+                            <div className="h-1.5 bg-zinc-700 rounded-full overflow-hidden">
+                              <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${graphGoalData.gapAnalysis.goalProgress}%` }} />
+                            </div>
+                          </div>
+                        )}
+                        {/* Criteria */}
+                        {graphGoalData.goal.successCriteria.length > 0 && (
+                          <div className="space-y-1 pt-1">
+                            {graphGoalData.goal.successCriteria.map(c => (
+                              <button key={c.id} onClick={() => toggleCriteria(graphGoalData.goal!.id, c.id, !c.done)}
+                                className="flex items-center gap-2 w-full text-left text-xs text-zinc-400 hover:text-zinc-200 transition-colors">
+                                <span className={c.done ? 'text-emerald-400' : 'text-zinc-600'}>{c.done ? '✅' : '⬜'}</span>
+                                <span className={c.done ? 'line-through text-zinc-600' : ''}>{c.text}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Gap Analysis */}
+                      {graphGoalData.gapAnalysis && (
+                        <>
+                          {/* Next Best Action */}
+                          <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl px-4 py-3">
+                            <p className="text-xs text-blue-300 font-medium mb-0.5">▶ Next Best Action</p>
+                            <p className="text-sm text-blue-100">{graphGoalData.gapAnalysis.nextBestAction}</p>
+                          </div>
+                          {/* Gaps */}
+                          {graphGoalData.gapAnalysis.gaps.length > 0 && (
+                            <div className="space-y-2">
+                              <p className="text-xs text-zinc-500 font-medium uppercase tracking-wide">Gaps identificados</p>
+                              {graphGoalData.gapAnalysis.gaps.map((g, i) => (
+                                <div key={i} className={`rounded-xl px-4 py-3 border ${
+                                  g.severity === 'high' ? 'bg-red-500/10 border-red-500/30' :
+                                  g.severity === 'medium' ? 'bg-amber-500/10 border-amber-500/30' :
+                                  'bg-zinc-800 border-zinc-700'
+                                }`}>
+                                  <div className="flex items-center gap-2 mb-0.5">
+                                    <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${
+                                      g.severity === 'high' ? 'bg-red-500/20 text-red-400' :
+                                      g.severity === 'medium' ? 'bg-amber-500/20 text-amber-400' :
+                                      'bg-zinc-700 text-zinc-400'
+                                    }`}>{g.severity}</span>
+                                    <span className="text-xs text-zinc-500">{g.area}</span>
+                                  </div>
+                                  <p className="text-xs text-zinc-300">{g.description}</p>
+                                  {g.relatedCriteria && <p className="text-[10px] text-zinc-500 mt-0.5">Critério: {g.relatedCriteria}</p>}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      {/* Mermaid diagram */}
+                      <div>
+                        <p className="text-xs text-zinc-500 font-medium uppercase tracking-wide mb-2">Diagrama</p>
+                        <div ref={mermaidRef} className="mermaid text-sm bg-zinc-800 rounded-xl p-4 overflow-x-auto" />
+                      </div>
+                    </>
+                  ) : (
+                    /* No goal yet — show form trigger */
+                    <div className="text-center py-8 space-y-3">
+                      <p className="text-zinc-400 text-sm">Nenhuma meta definida para este projeto.</p>
+                      <button onClick={() => setGoalFormOpen(true)}
+                        className="bg-blue-600 hover:bg-blue-500 text-white text-sm px-4 py-2 rounded-lg transition-colors">
+                        Definir meta
+                      </button>
+                    </div>
+                  )}
+                </>
+              ) : null}
+            </div>
+
+            {/* Footer: refresh + define goal */}
+            <div className="border-t border-zinc-800 px-6 py-3 flex items-center justify-between">
+              <button onClick={() => openGraph(graphSubMode)}
+                className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
+                atualizar
+              </button>
+              {graphSubMode === 'goal' && activeProjectId && (
+                <button onClick={() => setGoalFormOpen(true)}
+                  className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
+                  {graphGoalData?.goal ? 'nova meta' : 'definir meta'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Goal form modal */}
+      {goalFormOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div className="fixed inset-0 bg-black/80" onClick={() => setGoalFormOpen(false)} />
+          <div className="relative bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col shadow-2xl mx-4">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
+              <span className="text-sm font-semibold text-zinc-200">Definir meta do projeto</span>
+              <button onClick={() => setGoalFormOpen(false)} className="text-zinc-500 hover:text-zinc-300 text-lg">×</button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+              <div>
+                <label className="text-xs text-zinc-400 block mb-1">Título *</label>
+                <input value={goalTitle} onChange={e => setGoalTitle(e.target.value)} placeholder="ex: Lançar MVP em produção"
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500" />
+              </div>
+              <div>
+                <label className="text-xs text-zinc-400 block mb-1">Descrição</label>
+                <textarea value={goalDesc} onChange={e => setGoalDesc(e.target.value)} rows={2} placeholder="Contexto da meta…"
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 resize-none" />
+              </div>
+              <div>
+                <label className="text-xs text-zinc-400 block mb-1">Prazo</label>
+                <input type="date" value={goalTargetDate} onChange={e => setGoalTargetDate(e.target.value)}
+                  className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-zinc-500" />
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs text-zinc-400">Critérios de sucesso</label>
+                  <button onClick={() => setGoalCriteria(c => [...c, { id: `c-${Date.now()}`, text: '', done: false }])}
+                    className="text-xs text-zinc-500 hover:text-zinc-300">+ adicionar</button>
+                </div>
+                <div className="space-y-1.5">
+                  {goalCriteria.map((c, i) => (
+                    <div key={c.id} className="flex items-center gap-2">
+                      <input value={c.text} onChange={e => setGoalCriteria(prev => prev.map((x, xi) => xi === i ? { ...x, text: e.target.value } : x))}
+                        placeholder={`Critério ${i + 1}`}
+                        className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500" />
+                      <button onClick={() => setGoalCriteria(prev => prev.filter((_, xi) => xi !== i))} className="text-zinc-600 hover:text-red-400 text-sm">×</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="border-t border-zinc-800 px-6 py-3 flex justify-end gap-2">
+              <button onClick={() => setGoalFormOpen(false)} className="text-xs text-zinc-500 hover:text-zinc-300 px-3 py-2">Cancelar</button>
+              <button onClick={saveGoal} disabled={savingGoal || !goalTitle.trim()}
+                className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-xs px-4 py-2 rounded-lg transition-colors">
+                {savingGoal ? 'Salvando…' : 'Salvar meta'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </main>
   )
 }

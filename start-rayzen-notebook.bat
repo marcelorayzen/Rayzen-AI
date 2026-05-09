@@ -12,6 +12,8 @@ set "MIGRATE_RETRIES=5"
 
 echo.
 echo  Rayzen AI - subindo tudo no notebook...
+echo  (pressione qualquer tecla para continuar ou feche para cancelar)
+pause >nul
 echo.
 
 where %PNPM% >nul 2>nul
@@ -22,7 +24,8 @@ where ngrok >nul 2>nul
 if errorlevel 1 ( echo  ERRO: ngrok nao encontrado. & goto :fail )
 
 for /f "tokens=1 delims=." %%v in ('node -p "process.versions.node" 2^>nul') do set NODE_MAJOR=%%v
-if not "%NODE_MAJOR%"=="20" ( echo  ERRO: Node.js 20 necessario. & goto :fail )
+if "%NODE_MAJOR%"=="" ( echo  ERRO: Node.js nao encontrado no PATH. & goto :fail )
+if not "%NODE_MAJOR%"=="20" if not "%NODE_MAJOR%"=="22" ( echo  ERRO: Node.js 20 ou 22 necessario (encontrado: %NODE_MAJOR%). & goto :fail )
 
 if not exist ".env" ( echo  ERRO: .env nao encontrado. & goto :fail )
 copy /y ".env" "apps\api\.env" >nul
@@ -31,6 +34,10 @@ if not exist "node_modules" (
     call %PNPM% install --frozen-lockfile
     if errorlevel 1 goto :fail
 )
+
+echo  Iniciando Docker Desktop (se nao estiver rodando)...
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "if (-not (Get-Process 'Docker Desktop' -EA SilentlyContinue)) { Start-Process 'C:\Program Files\Docker\Docker\Docker Desktop.exe' }"
+timeout /t 5 /nobreak >nul
 
 echo  Aguardando Docker Engine...
 set /a docker_tries=%DOCKER_WAIT_TRIES%

@@ -30,6 +30,7 @@ import { WikiModule } from './modules/wiki/wiki.module'
 import { QaModule } from './modules/qa/qa.module'
 import { DataQualityModule } from './modules/data-quality/data-quality.module'
 import { DataCatalogModule } from './modules/data-catalog/data-catalog.module'
+import { GraphModule } from './modules/graph/graph.module'
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { DataCatalogModule } from './modules/data-catalog/data-catalog.module'
     QaModule,
     DataQualityModule,
     DataCatalogModule,
+    GraphModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

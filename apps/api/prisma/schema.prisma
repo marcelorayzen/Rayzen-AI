@@ -17,6 +17,7 @@ model Project {
   status            String   @default("active")
   goals             String?
   notionPageId      String?  @map("notion_page_id")
+  repoSlug          String?  @unique @map("repo_slug") // pasta/repo que identifica o projeto (ex: "rayzen-ai")
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
@@ -30,6 +31,7 @@ model Project {
   healthScores         ProjectHealthScore[]
   testRuns             TestRun[]
   dataQualityRules     DataQualityRule[]
+  projectGoals         ProjectGoal[]
 
   @@map("projects")
 }
@@ -331,6 +333,27 @@ model SchemaSnapshot {
 
   @@index([projectId, capturedAt(sort: Desc)])
   @@map("schema_snapshots")
+}
+
+model ProjectGoal {
+  id              String    @id @default(uuid())
+  projectId       String    @map("project_id")
+  title           String
+  description     String?
+  successCriteria Json      @default("[]") @map("success_criteria")
+  kpis            Json      @default("[]")
+  status          String    @default("active")
+  targetDate      DateTime? @map("target_date")
+  parentGoalId    String?   @map("parent_goal_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  project    Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parentGoal ProjectGoal? @relation("GoalHierarchy", fields: [parentGoalId], references: [id])
+  subGoals   ProjectGoal[] @relation("GoalHierarchy")
+
+  @@index([projectId, status])
+  @@map("project_goals")
 }
 
 model ConversationMessage {

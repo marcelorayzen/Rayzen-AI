@@ -6,13 +6,88 @@ Leia este arquivo antes de qualquer tarefa. É o ponto de entrada; detalhes est�
 
 ## O que é este projeto
 
-Plataforma pessoal de IA com automação, memória semântica, geração de documentos e execução
-assistida entre notebook e máquina de trabalho. Monorepo TypeScript com pnpm workspaces.
+Plataforma pessoal de IA com automação, memória semântica, geração de documentos, QA, qualidade de dados e execução assistida entre notebook e máquina de trabalho. Monorepo TypeScript com pnpm workspaces.
 
 **Dono:** Marcelo Rayzen — QA Automation Engineer / Full-stack Developer
 **Repositório:** `github.com/marcelorayzen/rayzen-ai`
-**Branch de trabalho:** `local/marcelo` (adaptação notebook — não misturar com `main` VPS)
+**Branch de trabalho:** `local/marcelo` (notebook — não misturar com `main` VPS)
+**Web produção:** https://rayzen-web.vercel.app (deploy via `cd apps/web && npx vercel deploy --prod`)
 **Notion:** https://www.notion.so/334c784498d6818e83a2f0439f5da8cd
+
+---
+
+## Uso diário — passo a passo
+
+### 1. Ligar o notebook primeiro
+```
+start-rayzen-notebook.bat
+```
+- Abre Docker Desktop automaticamente se não estiver rodando
+- Aguarda PostgreSQL + Redis
+- Roda migrations Prisma
+- Sobe API (:3101) em janela visível
+- Sobe ngrok em janela visível
+- Sobe agente com auto-restart em background (log: `apps/agent/agent.log`)
+
+Aguarde a janela da API mostrar `Application is running on: http://[::1]:3101` antes de usar.
+
+### 2. Abrir a interface
+Acesse **https://rayzen-web.vercel.app** — a web está no Vercel, não precisa subir nada.
+
+### 3. Selecionar ou criar projeto
+- O seletor de projetos fica no topo esquerdo da interface
+- **Criar projeto:** clique no `+` ao lado do seletor → nome do projeto → confirma
+  - Ao criar, uma página é criada automaticamente no Notion (se `notion.rootPageId` estiver configurado)
+- **Selecionar projeto:** clica no nome no dropdown
+
+### 4. Vincular VS Code ao projeto
+O hook do Claude Code envia eventos para um `projectId` fixo configurado em:
+```
+apps/agent/src/hooks/hook.config.mjs   ← gitignored, não sobe para o repositório
+```
+```js
+export default {
+  apiUrl: 'https://<url-ngrok-atual>',
+  apiToken: '<jwt-token>',
+  projectId: '<id-do-projeto-ativo>',  // ← mude aqui ao trocar de projeto
+}
+```
+**Importante:** abrir uma pasta no VS Code não vincula automaticamente ao projeto Rayzen.
+Para mudar o projeto ativo no hook: copie o ID do projeto (visível na URL ou no painel) e atualize `projectId` no `hook.config.mjs`.
+
+**Token atual expira: 4 de junho de 2026.** Para renovar:
+```bash
+# No notebook (API rodando):
+curl -X POST http://localhost:3101/auth/login -H "Content-Type: application/json" \
+  -d '{"password":"<ADMIN_PASSWORD>"}' 
+# Copie o token retornado e atualize hook.config.mjs e AGENT_TOKEN no .env
+```
+
+### 5. Fluxo de trabalho normal
+1. Notebook ligado + bat rodando
+2. Abrir VS Code → Claude Code → eventos capturados automaticamente pelo hook
+3. Web aberta no projeto correto → painel de Atividade mostra ações em tempo real
+4. Usar chat para acionar o agente: `jarvis:screenshot`, `jarvis:get_system_info`, etc.
+5. Usar **checkpoint** periodicamente para sintetizar o que foi feito
+6. Painel **Brain** para indexar fontes de conhecimento do projeto
+
+### 6. Deploy da web após mudanças
+```bash
+# No terminal do VS Code (desktop):
+git add .
+git commit -m "descrição"
+git push origin local/marcelo          # atualiza o repositório
+
+cd apps/web
+npx vercel deploy --prod               # publica no Vercel
+```
+
+### 7. Restart da API (sem reiniciar tudo)
+No PowerShell do notebook:
+```powershell
+$env:API_PORT='3101'; $env:REDIS_URL='redis://localhost:56379'; pnpm --filter api start
+```
+Ou via chat: `jarvis:restart_api` (faz git pull + build + restart automático).
 
 ---
 
@@ -24,11 +99,8 @@ assistida entre notebook e máquina de trabalho. Monorepo TypeScript com pnpm wo
 | API NestJS | Notebook (`:3101`) | `start-rayzen-notebook.bat` |
 | Agente PC | Notebook (watchdog) | `start-rayzen-notebook.bat` |
 | Túnel ngrok | Notebook | `start-rayzen-notebook.bat` |
-| Web Next.js | Esta máquina (`:3100`) | `pnpm dev:web` |
+| Web Next.js | Vercel | `cd apps/web && npx vercel deploy --prod` |
 | Hook Claude Code | Esta máquina | `.claude/settings.json` (automático) |
-
-**Ponto de entrada único no notebook:** `start-rayzen-notebook.bat`
-— sobe tudo em background sem janelas visíveis. Log do agente em `apps/agent/agent.log`.
 
 ---
 
@@ -38,17 +110,20 @@ assistida entre notebook e máquina de trabalho. Monorepo TypeScript com pnpm wo
 |---|---|
 | Frontend | Next.js 15 App Router |
 | Backend | NestJS 10 + Fastify adapter |
-| LLM proxy | LiteLLM `:4100` (multi-provider) |
+| LLM proxy | LiteLLM `:4100` — `gpt-4o` e `gpt-4o-mini` mapeados para Claude Sonnet |
 | Banco | PostgreSQL 16 + pgvector (`:55432`) |
 | Cache / Fila | Redis 7 (`:56379`) + BullMQ 5 |
-| ORM | Prisma 5 (13 models) |
+| ORM | Prisma 5 (19 models) |
 | PDF | Puppeteer 22 |
 | DOCX | docxtemplater 3 |
 | Embeddings | Jina AI (vector 1024) |
-| Agente local | Node.js 20 LTS + TypeScript |
+| Agente local | Node.js 20/22 LTS + TypeScript |
 | Infra | Docker Compose v2 |
 | CI/CD | GitHub Actions → SSH deploy (branch `main` → VPS) |
 | VPS | Oracle Ampere A1 — Ubuntu 24.04 (branch `main`) |
+
+**Nota LiteLLM:** `gpt-4o` e `gpt-4o-mini` são aliases para `anthropic/claude-sonnet-4-20250514`.
+Claude não suporta `response_format: json_object` — usar extração robusta de JSON (strip de code fences + regex).
 
 ---
 
@@ -58,24 +133,24 @@ assistida entre notebook e máquina de trabalho. Monorepo TypeScript com pnpm wo
 rayzen-ai/
 ├── apps/
 │   ├── api/                    # NestJS + Fastify
-│   │   ├── src/modules/        # 23 módulos (ver tabela abaixo)
+│   │   ├── src/modules/        # 28 módulos (ver tabela abaixo)
 │   │   └── prisma/schema.prisma
-│   ├── web/                    # Next.js App Router
+│   ├── web/                    # Next.js App Router (Vercel)
 │   └── agent/
 │       ├── src/
 │       │   ├── index.ts        # entry point — poll loop
 │       │   ├── poller.ts       # setInterval 3s → GET /tasks/pending
 │       │   ├── executor.ts     # dispatcher de actions
 │       │   ├── security/whitelist.ts   # CRÍTICO — nunca bypassar
-│       │   └── actions/        # 26 actions implementadas
-│       └── watchdog.ps1        # auto-restart do agente (usado pelo bat)
+│       │   └── actions/        # 27 actions implementadas
+│       └── watchdog.ps1        # auto-restart do agente
 ├── packages/types/src/index.ts # Task, Document, ChatMessage
 ├── scripts/
 │   └── restart-api.ps1         # git pull → build → restart API
 ├── infra/nginx/ + litellm/config.yaml
-├── start-rayzen-notebook.bat   # master bat do notebook (tudo em background)
-├── notebook-api-tunnel.bat     # bat manual/debug (sem agente)
-├── agent-start.bat             # agent no desktop (uso remoto)
+├── rayzen.config.json          # config runtime: obsidian.vaultPath, notion.rootPageId
+├── start-rayzen-notebook.bat   # master bat (Docker auto-start + tudo em background)
+├── notebook-api-tunnel.bat     # bat manual/debug
 └── CLAUDE.md
 ```
 
@@ -88,31 +163,33 @@ rayzen-ai/
 pnpm install
 cp .env.example .env
 
-# Notebook — subir tudo (bat, não pnpm)
+# Notebook — subir tudo
 start-rayzen-notebook.bat
 
 # Desenvolvimento individual
 pnpm dev:api                    # API → :3101
-pnpm dev:web                    # Web → :3100
-pnpm --filter agent dev         # Agent dev mode (ts-node-dev)
+pnpm dev:web                    # Web → :3100 (local)
+pnpm --filter agent dev         # Agent dev mode
 
 # Banco
-pnpm db:migrate                 # aplicar migrations
-pnpm --filter api db:generate   # gerar Prisma Client
+pnpm db:migrate                 # aplicar migrations (no notebook: cd apps/api && npx prisma migrate dev)
+pnpm --filter api db:generate   # gerar Prisma Client (obrigatório após schema changes)
 pnpm db:studio                  # Prisma Studio → :5555
 
 # Qualidade
-pnpm typecheck                  # tsc em todo o monorepo
+pnpm typecheck
 pnpm lint
 pnpm test
 
 # Build
-pnpm build
 pnpm --filter api build
 pnpm --filter agent build
 
-# Deploy (VPS — branch main)
-git push origin main            # CI/CD automático
+# Deploy web (Vercel)
+cd apps/web && npx vercel deploy --prod
+
+# Deploy API/VPS
+git push origin main            # CI/CD automático via GitHub Actions
 ```
 
 ---
@@ -144,6 +221,9 @@ git push origin main            # CI/CD automático
 | **voice** | `POST /voice/synthesize`, `POST /voice/transcribe` |
 | **validation** | `POST /validation/prompt`, `POST /validation/output` |
 | **configuration** | `GET /configuration`, `PATCH /configuration` |
+| **qa** | `POST /qa/reports/ingest` |
+| **data-quality** | `POST /data-quality/rules`, `GET /data-quality/rules`, `DELETE /data-quality/rules/:id`, `POST /data-quality/results`, `GET /data-quality/results`, `GET /data-quality/score`, `GET /data-quality/score/history`, `GET /data-quality/summary`, `POST /data-quality/schema-diff` |
+| **data-catalog** | `POST /data-catalog/assets`, `GET /data-catalog/assets`, `GET /data-catalog/assets/:id`, `PATCH /data-catalog/assets/:id`, `DELETE /data-catalog/assets/:id`, `POST /data-catalog/lineage/:assetId`, `GET /data-catalog/lineage/:assetId`, `GET /data-catalog/lineage/impact/:assetId` |
 
 ---
 
@@ -151,20 +231,26 @@ git push origin main            # CI/CD automático
 
 | Model | Descrição |
 |---|---|
-| `Project` | Entidade raiz — projetos do usuário |
-| `ProjectDocument` | Docs gerados: `project_state`, `decisions_log`, `next_actions`, `work_journal` |
-| `ProjectDocumentVersion` | Histórico com diff e `sourceIds` para rastreabilidade |
+| `Project` | Entidade raiz — projetos; `notionPageId` para sincronização |
+| `ProjectDocument` | Docs gerados: `project_state`, `decisions_log`, `next_actions`, `work_journal`, `data_map`, `ropa`, `quality_report` |
+| `ProjectDocumentVersion` | Histórico com diff e `sourceIds` |
 | `SessionArtifact` | Sínteses e checkpoints com `workMode` |
-| `Event` | Atividades capturadas — source: chat/memory/cli/voice/execution/manual; memoryClass: inbox/working/consolidated/archive |
+| `Event` | Atividades — source: chat/memory/cli/voice/execution/manual |
 | `ProjectRecommendation` | Sugestões proativas: inatividade, doc_stale, blocker_stuck |
-| `ProjectState` | Estado estruturado: objective, stage, blockers, decisions, risks, milestones, backlog |
+| `ProjectState` | Estado estruturado: objective, stage, blockers, decisions, risks |
 | `ProjectHealthScore` | Score 0–100: activity, documentation, consistency |
-| `Document` | Conteúdo indexado com embedding pgvector(1024) e checksum |
-| `WikiPage` | Base de conhecimento — edit_status: generated/human_reviewed/human_edited/locked |
-| `WikiPageVersion` | Histórico do wiki com author_type: llm/human |
+| `Document` | Conteúdo indexado com embedding pgvector(1024) |
+| `WikiPage` | Base de conhecimento |
+| `WikiPageVersion` | Histórico do wiki |
 | `WikiSourceReference` | Rastreabilidade wiki ↔ documentos |
 | `TaskLog` | Fila do agente: module, action, status, result, error |
 | `ConversationMessage` | Transcrição com tokens_used, projectId, workMode |
+| `TestRun` | Resultados de QA: JUnit XML / Allure JSON |
+| `DataQualityRule` | Regras de qualidade por dataset |
+| `DataQualityResult` | Resultados de execução das regras |
+| `SchemaSnapshot` | Snapshot do schema Prisma para diff |
+| `DataAsset` | Catálogo de ativos de dados com embedding |
+| `DataLineageEdge` | Grafo de linhagem: source → target |
 
 ---
 
@@ -192,14 +278,15 @@ Toda nova ação **deve** ser adicionada a `apps/agent/src/security/whitelist.ts
 | `jarvis:git_commit` | `git.ts` | dryRun disponível |
 | `jarvis:run_command` | `terminal.ts` | comandos whitelistados |
 | `jarvis:run_tests` | `run-tests.ts` | jest/vitest/playwright |
-| `jarvis:inspect_schema` | `inspect-schema.ts` | parse Prisma |
+| `jarvis:inspect_schema` | `inspect-schema.ts` | parse Prisma + schema-diff automático |
 | `jarvis:docker_ps` | `docker.ts` | |
 | `jarvis:docker_start` | `docker.ts` | dryRun disponível |
 | `jarvis:docker_stop` | `docker.ts` | dryRun disponível |
 | `jarvis:read_emails` | `outlook.ts` | COM Windows |
 | `jarvis:send_email` | `outlook.ts` | dryRun disponível |
 | `jarvis:get_calendar` | `outlook-calendar.ts` | |
-| `jarvis:restart_api` | `restart-api.ts` | git pull + build + restart; aciona `scripts/restart-api.ps1` |
+| `jarvis:restart_api` | `restart-api.ts` | git pull + build + restart |
+| `jarvis:get_data_quality` | `get-data-quality.ts` | summary/score/history/rules/results |
 
 ### Adicionar nova ação
 
@@ -207,7 +294,7 @@ Toda nova ação **deve** ser adicionada a `apps/agent/src/security/whitelist.ts
 // 1. apps/agent/src/security/whitelist.ts — adicionar 'jarvis:nova_acao'
 // 2. apps/agent/src/actions/nova-acao.ts — implementar função exportada
 // 3. apps/agent/src/executor.ts — import + case no switch
-// 4. __tests__/nova-acao.spec.ts — testes de segurança (path, sandbox, dryRun)
+// 4. __tests__/nova-acao.spec.ts — testes de segurança
 ```
 
 ---
@@ -220,13 +307,50 @@ que envia o evento para `POST /events/cli` com contexto git enriquecido e projec
 Config em `apps/agent/src/hooks/hook.config.mjs` (gitignored):
 ```js
 export default {
-  apiUrl: 'https://<ngrok-url>',
-  apiToken: '<jwt-token>',
-  projectId: '7690370b-aa1e-4b13-8335-a8a14ad0d859',  // Rayzen AI no banco
+  apiUrl: 'https://<ngrok-url>',    // atualizar quando ngrok reiniciar
+  apiToken: '<jwt-token>',           // expira 4 de junho de 2026
+  projectId: '<id-do-projeto>',      // mudar ao trocar de projeto ativo
 }
 ```
 
-**Token atual expira: 4 de junho de 2026.** Para renovar: `POST /auth/login` no notebook e atualizar `hook.config.mjs`.
+**Limitação atual:** o `projectId` é fixo por máquina. Não há detecção automática de projeto por pasta do VS Code. Para trabalhar em outro projeto, atualize o `projectId` manualmente.
+
+---
+
+## Notion — configuração
+
+```json
+// rayzen.config.json
+{
+  "notion": {
+    "rootPageId": "359c784498d680e68a15e71c90ff9f22"
+  }
+}
+```
+
+- Ao criar um projeto no Rayzen, uma sub-página é criada automaticamente sob a página raiz
+- Para indexar no Brain: aba Notion → Integration Token (`secret_...`) + URL da página
+- **Pré-requisito:** na página do Notion → `...` → Connections → adicionar integração "Rayzen AI"
+- O token da integração fica em Notion Settings → Connections → Rayzen AI → Copy access token
+
+---
+
+## Memória — Brain
+
+- Painel de memória é **filtrado por projeto** quando um projeto está selecionado
+- Sem projeto selecionado: mostra todos os chunks (todos os projetos)
+- Fontes suportadas: arquivos locais (via hook), GitHub, URL, Notion, upload de arquivo
+- Chunks do hook têm `projectId` do `hook.config.mjs` — mude lá para vincular ao projeto certo
+- Para deletar chunks: painel Memória → hover no item → ícone de lixeira
+
+---
+
+## Síntese
+
+- Síntese de sessão: botão "Sintetizar sessão atual" no painel Síntese
+- Checkpoint: botão "checkpoint" no topo da interface
+- O LLM (Claude via LiteLLM) retorna JSON com `summary`, `decisions`, `next_steps`, `learnings`, `confidence`
+- Artefatos antigos com "Síntese não disponível" são de antes do fix — podem ser ignorados ou deletados via banco
 
 ---
 
@@ -257,7 +381,7 @@ ADMIN_PASSWORD=suasenha
 
 # Agente
 AGENT_POLL_INTERVAL_MS=3000
-AGENT_API_URL=http://localhost:3101   # no notebook: localhost; no desktop: URL ngrok
+AGENT_API_URL=http://localhost:3101
 AGENT_TOKEN=<token gerado via /auth/login>
 
 # Apps
@@ -274,7 +398,7 @@ NEXT_PUBLIC_API_URL=http://localhost:3101
 | # | Decisão | Escolha |
 |---|---|---|
 | 001 | Backend | NestJS 10 + Fastify adapter |
-| 002 | LLM | LiteLLM proxy multi-provider (OpenAI padrão) |
+| 002 | LLM | LiteLLM proxy — aliases `gpt-4o`/`gpt-4o-mini` → Claude Sonnet |
 | 003 | Banco | PostgreSQL + pgvector (sem Qdrant) |
 | 004 | VPS ↔ Agente | Polling 3s + BullMQ Redis |
 | 005 | Documentos | Puppeteer (PDF) + docxtemplater (DOCX) |
@@ -282,18 +406,22 @@ NEXT_PUBLIC_API_URL=http://localhost:3101
 | 007 | Branch local | `local/marcelo` separado do `main` VPS |
 | 008 | Agente no notebook | watchdog.ps1 + start-rayzen-notebook.bat sem janelas |
 | 009 | Reinício remoto | `jarvis:restart_api` → scripts/restart-api.ps1 |
+| 010 | Web deploy | Vercel (Hobby) — branch não configurável, deploy via CLI `vercel deploy --prod` |
+| 011 | JSON do LLM | Sem `response_format`, extração robusta: strip code fences + regex `{...}` |
+| 012 | Notion por projeto | Sub-páginas sob rootPageId, fire-and-forget na criação de projeto |
 
 ---
 
 ## Modelos LLM por módulo
 
-| Módulo | Modelo | Temperature | Observação |
+| Módulo | Modelo (alias) | Temperature | Observação |
 |---|---|---|---|
-| Orquestrador (classificar) | gpt-4o-mini | 0 | json_object obrigatório |
+| Orquestrador (classificar) | gpt-4o-mini | 0 | sem response_format — Claude não suporta |
 | Orquestrador (chat) | gpt-4o | 0.7 | com histórico de sessão |
 | Jarvis | gpt-4o | 0.3 | tarefas práticas |
 | Content Studio | gpt-4o | 0.8 | criatividade maior |
 | Doc Engine | gpt-4o-mini | 0.2 | estruturado |
+| Síntese | gpt-4o | 0.3 | extração JSON robusta (3 estratégias) |
 | Brain (síntese) | gpt-4o-mini | 0.3 | resumir resultados |
 | Embeddings | Jina AI | — | vector(1024) |
 
@@ -304,17 +432,20 @@ NEXT_PUBLIC_API_URL=http://localhost:3101
 - TypeScript 100% — sem `any` explícito, sem `.js` puro
 - Cada módulo NestJS tem system prompt próprio — nunca usar prompt genérico
 - Logar `tokens_used` e `duration_ms` em toda chamada ao LiteLLM
-- LiteLLM sempre via proxy — nunca apontar direto para OpenAI
+- LiteLLM sempre via proxy — nunca apontar direto para OpenAI/Anthropic
+- **Claude não suporta `response_format: json_object`** — usar prompt + extração robusta
 - Agente: whitelist é inegociável — ações fora são rejeitadas silenciosamente
 - Path traversal (`../`) sempre bloqueado em list-dir e similares
 - Ações de risco médio/alto: `dryRun: true` antes de executar
+- Após qualquer mudança no schema Prisma: rodar `pnpm --filter api db:generate`
 
 ---
 
 ## Links úteis
 
+- **Web (produção):** https://rayzen-web.vercel.app
 - Swagger local: http://localhost:3101/docs
 - LiteLLM UI: http://localhost:4100/ui
 - Prisma Studio: http://localhost:5555 (após `pnpm db:studio`)
-- Rayzen Web: http://localhost:3100
+- Web local (dev): http://localhost:3100
 - Notion: https://www.notion.so/334c784498d6818e83a2f0439f5da8cd

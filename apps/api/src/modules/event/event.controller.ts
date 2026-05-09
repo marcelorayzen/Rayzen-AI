@@ -62,13 +62,17 @@ export class EventController {
     // Hook Stop — registra encerramento e dispara síntese em background
     if (hookEvent === 'Stop') {
       const messageCount = payload.transcript?.length ?? 0
-      await this.events.create({
-        projectId,
-        source: 'cli',
-        type: 'note',
-        content: `Sessão encerrada (${messageCount} mensagens)${payload.git?.branch ? ` [${payload.git.branch}]` : ''}`,
-        metadata: { sessionId: payload.session_id, messageCount, git: payload.git ?? null },
-      })
+
+      // Só registra se houve mensagens — sessões vazias são ruído
+      if (messageCount > 0) {
+        await this.events.create({
+          projectId,
+          source: 'cli',
+          type: 'note',
+          content: `Sessão encerrada (${messageCount} mensagens)${payload.git?.branch ? ` [${payload.git.branch}]` : ''}`,
+          metadata: { sessionId: payload.session_id, messageCount, git: payload.git ?? null },
+        })
+      }
 
       // Síntese assíncrona — não bloqueia o hook
       if (payload.session_id) {

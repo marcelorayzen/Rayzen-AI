@@ -14,10 +14,11 @@
 
 import { request } from 'node:http'
 import { request as httpsRequest } from 'node:https'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join, dirname, extname } from 'node:path'
 import { execSync } from 'node:child_process'
+import { tmpdir } from 'node:os'
 
 const INDEXABLE_EXTENSIONS = new Set([
   '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',
@@ -146,6 +147,70 @@ function post(url, body, token) {
   })
 }
 
+// Cache de resolução repoSlug → projectId (arquivo temporário, TTL 5 min)
+const SLUG_CACHE_FILE = join(tmpdir(), 'rayzen-slug-cache.json')
+const SLUG_CACHE_TTL = 5 * 60 * 1000
+
+function readSlugCache() {
+  try {
+    const raw = readFileSync(SLUG_CACHE_FILE, 'utf8')
+    const cache = JSON.parse(raw)
+    if (Date.now() - cache.ts < SLUG_CACHE_TTL) return cache
+  } catch { /* ignora */ }
+  return null
+}
+
+function writeSlugCache(slug, projectId) {
+  try {
+    writeFileSync(SLUG_CACHE_FILE, JSON.stringify({ slug, projectId, ts: Date.now() }), 'utf8')
+  } catch { /* ignora */ }
+}
+
+async function resolveProjectId(cfg) {
+  // Prioridade 1: config explícito
+  if (cfg.projectId) return cfg.projectId
+
+  const slug = getProjectName()
+  if (!slug) return null
+
+  // Prioridade 2: cache em arquivo
+  const cached = readSlugCache()
+  if (cached?.slug === slug) return cached.projectId
+
+  // Prioridade 3: busca na API por repoSlug
+  try {
+    const url = `${cfg.apiUrl}/projects?repoSlug=${encodeURIComponent(slug)}`
+    const parsed = new URL(url)
+    const isHttps = parsed.protocol === 'https:'
+    const lib = isHttps ? httpsRequest : request
+
+    const projectId = await new Promise((resolve) => {
+      const req = lib({
+        hostname: parsed.hostname,
+        port: parsed.port || (isHttps ? 443 : 80),
+        path: parsed.pathname + parsed.search,
+        method: 'GET',
+        headers: { Authorization: `Bearer ${cfg.apiToken}` },
+      }, (res) => {
+        let body = ''
+        res.on('data', d => { body += d })
+        res.on('end', () => {
+          try {
+            const projects = JSON.parse(body)
+            resolve(Array.isArray(projects) && projects.length > 0 ? projects[0].id : null)
+          } catch { resolve(null) }
+        })
+      })
+      req.on('error', () => resolve(null))
+      req.setTimeout(3000, () => { req.destroy(); resolve(null) })
+      req.end()
+    })
+
+    if (projectId) writeSlugCache(slug, projectId)
+    return projectId
+  } catch { return null }
+}
+
 async function main() {
   const [raw, cfg] = await Promise.all([readStdin(), loadConfig()])
   if (!raw.trim()) return
@@ -157,9 +222,10 @@ async function main() {
     process.exit(0)
   }
 
-  // projectId explícito tem prioridade; fallback: nome auto-detectado pelo git remote
-  if (cfg.projectId) {
-    payload.projectId = cfg.projectId
+  // Detecta projectId automaticamente por repoSlug, com fallback para config fixo
+  const projectId = await resolveProjectId(cfg)
+  if (projectId) {
+    payload.projectId = projectId
   } else {
     const name = getProjectName()
     if (name) payload.projectName = name
