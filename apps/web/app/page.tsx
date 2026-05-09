@@ -948,12 +948,12 @@ export default function Home() {
         fetch(`${API_URL}/projects/${activeProjectId}/graph`, { headers: authHeaders() }),
         fetch(`${API_URL}/projects/${activeProjectId}/graph/goal`, { headers: authHeaders() }),
       ])
-      const [stateData, goalData] = await Promise.all([stateRes.json(), goalRes.json()])
-      // fallback: se API não retornou mermaid, mostra diagrama mínimo
+      const stateData = stateRes.ok ? await stateRes.json() : null
+      const goalData = goalRes.ok ? await goalRes.json() : null
       setGraphStateMmd(typeof stateData?.mermaid === 'string' && stateData.mermaid
         ? stateData.mermaid
-        : 'flowchart TD\n  A["Execute /state/refresh para gerar o diagrama"]')
-      if (goalData && typeof goalData === 'object' && !goalData.error) {
+        : 'flowchart TD\n  A["Execute gerar estado para iniciar"]')
+      if (goalData && typeof goalData === 'object' && goalData.mermaid) {
         setGraphGoalData(goalData as GoalGraphData)
       }
     } catch {
