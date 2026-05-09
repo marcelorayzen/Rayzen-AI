@@ -224,6 +224,7 @@ git push origin main            # CI/CD automático via GitHub Actions
 | **qa** | `POST /qa/reports/ingest` |
 | **data-quality** | `POST /data-quality/rules`, `GET /data-quality/rules`, `DELETE /data-quality/rules/:id`, `POST /data-quality/results`, `GET /data-quality/results`, `GET /data-quality/score`, `GET /data-quality/score/history`, `GET /data-quality/summary`, `POST /data-quality/schema-diff` |
 | **data-catalog** | `POST /data-catalog/assets`, `GET /data-catalog/assets`, `GET /data-catalog/assets/:id`, `PATCH /data-catalog/assets/:id`, `DELETE /data-catalog/assets/:id`, `POST /data-catalog/lineage/:assetId`, `GET /data-catalog/lineage/:assetId`, `GET /data-catalog/lineage/impact/:assetId` |
+| **graph** | `GET /projects/:id/graph`, `GET /projects/:id/graph/goal`, `GET /projects/:id/graph/goals`, `POST /projects/:id/graph/goal`, `PATCH /projects/:id/graph/goal/:goalId/criteria/:criteriaId` |
 
 ---
 
@@ -251,6 +252,7 @@ git push origin main            # CI/CD automático via GitHub Actions
 | `SchemaSnapshot` | Snapshot do schema Prisma para diff |
 | `DataAsset` | Catálogo de ativos de dados com embedding |
 | `DataLineageEdge` | Grafo de linhagem: source → target |
+| `ProjectGoal` | Meta do projeto: title, successCriteria (JSON), kpis (JSON), targetDate, status, hierarquia pai/filho |
 
 ---
 
@@ -393,6 +395,66 @@ NEXT_PUBLIC_API_URL=http://localhost:3101
 
 ---
 
+## Goal Graph — camada de intenção do projeto
+
+### O que é
+
+A camada de **intenção** que faltava no Rayzen. O sistema já capturava *o que foi feito* (eventos, sínteses) e *onde está* (ProjectState). O Goal Graph conecta isso a *onde quer chegar* (ProjectGoal) e *o que está atrasado* (Gap Analysis).
+
+```
+ProjectGoal (meta)  ←→  ProjectState (estado atual)
+        ↓                        ↓
+   Gap Analysis (LLM)  →  Next Best Action
+        ↓
+   Diagrama Mermaid (visual)
+```
+
+### Fluxo de uso
+
+1. Painel web → botão **grafo** no header (aparece só com projeto ativo)
+2. Sub-modo **Goal Graph**: define a meta do projeto (título, critérios de sucesso, KPIs, prazo)
+3. O LLM (gpt-4o-mini) compara a meta com o `ProjectState` atual e eventos recentes → lista de gaps por severidade
+4. **Next Best Action**: uma frase de ação concreta derivada do gap mais crítico
+5. Marcar critérios como done → barra de progresso atualiza
+6. Sub-modo **Estado atual**: diagrama Mermaid do estado (milestones, blockers, próximos passos)
+
+### Estrutura técnica
+
+| Camada | Arquivo | Responsabilidade |
+|---|---|---|
+| Schema | `apps/api/prisma/schema.prisma` | Model `ProjectGoal` com `successCriteria`, `kpis`, hierarquia pai/filho |
+| Service | `apps/api/src/modules/graph/graph.service.ts` | Mermaid generation, gap analysis LLM, upsert goal, toggle criteria |
+| Controller | `apps/api/src/modules/graph/graph.controller.ts` | 5 rotas sob `/projects/:id/graph` |
+| UI | `apps/web/app/page.tsx` | Painel "grafo", formulário de meta, cards de gap, Mermaid render |
+| CDN | `apps/web/app/layout.tsx` | `<Script>` Mermaid.js afterInteractive, `theme: dark`, `startOnLoad: false` |
+
+### GapAnalysis — estrutura JSON
+
+```typescript
+{
+  gaps: Array<{
+    area: 'blocker' | 'milestone' | 'kpi' | 'risk' | 'focus'
+    description: string
+    severity: 'high' | 'medium' | 'low'
+    relatedCriteria?: string
+  }>
+  nextBestAction: string   // frase curta e acionável
+  goalProgress: number     // 0–100: (critérios done + milestones done) / total
+  confidence: 'low' | 'medium' | 'high'
+}
+```
+
+### Adicionando novas features ao módulo
+
+```typescript
+// graph.service.ts — adicionar método, exportar no controller
+// Padrão: lê ProjectState via stateService.get(), compara com ProjectGoal via LLM
+// JSON parsing: usar extractJson() interno (cópia de synthesis.service.ts)
+// Novos endpoints: registrar em graph.controller.ts com @ApiOperation
+```
+
+---
+
 ## ADR — Decisões aprovadas
 
 | # | Decisão | Escolha |
@@ -409,6 +471,9 @@ NEXT_PUBLIC_API_URL=http://localhost:3101
 | 010 | Web deploy | Vercel (Hobby) — branch não configurável, deploy via CLI `vercel deploy --prod` |
 | 011 | JSON do LLM | Sem `response_format`, extração robusta: strip code fences + regex `{...}` |
 | 012 | Notion por projeto | Sub-páginas sob rootPageId, fire-and-forget na criação de projeto |
+| 013 | Goal Graph MVP | Mermaid.js via CDN (sem npm) — `startOnLoad: false`, `theme: dark`; React Flow fica para Fase 2 |
+| 014 | Gap Analysis | LLM gpt-4o-mini (temp 0.2) compara `ProjectGoal` vs `ProjectState` → `GapAnalysis` JSON; sem tabela própria |
+| 015 | repoSlug auto-detect | Hook detecta projeto pelo slug do git remote/pasta → `GET /projects?repoSlug=` com cache de 5 min em arquivo temp |
 
 ---
 
