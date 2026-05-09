@@ -905,20 +905,27 @@ export default function Home() {
 
     type MermaidAPI = { initialize: (cfg: object) => void; render: (id: string, text: string) => Promise<{ svg: string }> }
     const w = window as unknown as { mermaid?: MermaidAPI }
+    let cancelled = false
+    let attempts = 0
 
-    const tryRender = () => {
-      if (!w.mermaid) return false
-      w.mermaid.initialize({ startOnLoad: false, theme: 'dark' })
-      w.mermaid.render('mmd-graph-' + Date.now(), mmd)
-        .then(({ svg }) => setMermaidSvg(svg))
-        .catch(() => null)
-      return true
+    const poll = async () => {
+      while (!cancelled && attempts < 30) {
+        attempts++
+        if (!w.mermaid) { await new Promise(r => setTimeout(r, 300)); continue }
+        try {
+          w.mermaid.initialize({ startOnLoad: false, theme: 'dark' })
+          const { svg } = await w.mermaid.render('mmd-' + graphSubMode + '-' + attempts, mmd)
+          if (!cancelled) setMermaidSvg(svg)
+        } catch {
+          // render falhou — mostra o texto bruto como fallback
+          if (!cancelled) setMermaidSvg(`<pre style="color:#71717a;font-size:11px;white-space:pre-wrap;font-family:monospace">${mmd}</pre>`)
+        }
+        break
+      }
     }
 
-    if (!tryRender()) {
-      const timer = setInterval(() => { if (tryRender()) clearInterval(timer) }, 300)
-      return () => clearInterval(timer)
-    }
+    poll()
+    return () => { cancelled = true }
   }, [graphSubMode, graphStateMmd, graphGoalData])
 
   const openGraph = useCallback(async (sub: 'estado' | 'goal' = 'estado') => {
@@ -934,9 +941,16 @@ export default function Home() {
         fetch(`${API_URL}/projects/${activeProjectId}/graph/goal`, { headers: authHeaders() }),
       ])
       const [stateData, goalData] = await Promise.all([stateRes.json(), goalRes.json()])
-      setGraphStateMmd(stateData.mermaid ?? null)
-      setGraphGoalData(goalData as GoalGraphData)
-    } catch { /* ignore */ }
+      // fallback: se API não retornou mermaid, mostra diagrama mínimo
+      setGraphStateMmd(typeof stateData?.mermaid === 'string' && stateData.mermaid
+        ? stateData.mermaid
+        : 'flowchart TD\n  A["Execute /state/refresh para gerar o diagrama"]')
+      if (goalData && typeof goalData === 'object' && !goalData.error) {
+        setGraphGoalData(goalData as GoalGraphData)
+      }
+    } catch {
+      setGraphStateMmd('flowchart TD\n  ERR["Erro ao carregar — verifique se a API está rodando"]')
+    }
     setGraphLoading(false)
   }, [activeProjectId])
 
