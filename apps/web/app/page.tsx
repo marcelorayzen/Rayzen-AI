@@ -2840,7 +2840,7 @@ export default function Home() {
                 <span className="text-sm font-semibold text-zinc-200">Goal Graph</span>
                 <div className="flex gap-1">
                   {(['estado', 'goal'] as const).map(m => (
-                    <button key={m} onClick={() => { setGraphSubMode(m); setMermaidSvg(null) }}
+                    <button key={m} onClick={() => setGraphSubMode(m)}
                       className={`px-3 py-1 rounded-full text-xs transition-colors ${graphSubMode === m ? 'bg-zinc-700 text-zinc-200' : 'text-zinc-500 hover:text-zinc-300'}`}>
                       {m === 'goal' ? 'Goal Graph' : 'Estado atual'}
                     </button>
@@ -2865,10 +2865,14 @@ export default function Home() {
                       {graphStateRefreshing ? 'Analisando…' : '⟳ gerar estado'}
                     </button>
                   </div>
-                  {mermaidSvg
-                    ? <div className="bg-zinc-800 rounded-xl p-4 overflow-x-auto" dangerouslySetInnerHTML={{ __html: mermaidSvg }} />
-                    : <div className="bg-zinc-800 rounded-xl p-4 min-h-[120px] flex items-center justify-center text-zinc-600 text-xs">Gerando diagrama…</div>
-                  }
+                  <div className="bg-zinc-800 rounded-xl p-4 overflow-x-auto">
+                    {mermaidSvg && mermaidSvg.startsWith('<svg')
+                      ? <div dangerouslySetInnerHTML={{ __html: mermaidSvg }} />
+                      : graphStateMmd
+                        ? <pre style={{ color: '#a1a1aa', fontSize: '11px', whiteSpace: 'pre-wrap', fontFamily: 'monospace', lineHeight: '1.6', margin: 0 }}>{graphStateMmd}</pre>
+                        : <div className="min-h-[80px] flex items-center justify-center text-zinc-600 text-xs">Nenhum estado — clique em ⟳ gerar estado</div>
+                    }
+                  </div>
                 </>
               ) : graphGoalData ? (
                 <>
@@ -2949,10 +2953,14 @@ export default function Home() {
                       {/* Mermaid diagram */}
                       <div>
                         <p className="text-xs text-zinc-500 font-medium uppercase tracking-wide mb-2">Diagrama</p>
-                        {mermaidSvg
-                          ? <div className="bg-zinc-800 rounded-xl p-4 overflow-x-auto" dangerouslySetInnerHTML={{ __html: mermaidSvg }} />
-                          : <div className="bg-zinc-800 rounded-xl p-4 h-20 flex items-center justify-center text-zinc-600 text-xs">Gerando diagrama…</div>
-                        }
+                        <div className="bg-zinc-800 rounded-xl p-4 overflow-x-auto">
+                          {mermaidSvg && mermaidSvg.startsWith('<svg')
+                            ? <div dangerouslySetInnerHTML={{ __html: mermaidSvg }} />
+                            : graphGoalData?.mermaid
+                              ? <pre style={{ color: '#a1a1aa', fontSize: '11px', whiteSpace: 'pre-wrap', fontFamily: 'monospace', lineHeight: '1.6', margin: 0 }}>{graphGoalData.mermaid}</pre>
+                              : <div className="h-12 flex items-center justify-center text-zinc-600 text-xs">Nenhum diagrama disponível</div>
+                          }
+                        </div>
                       </div>
                     </>
                   ) : (
