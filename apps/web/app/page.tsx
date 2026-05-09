@@ -13,6 +13,8 @@ function authHeaders(extra?: Record<string, string>): Record<string, string> {
 }
 import { useRouter } from 'next/navigation'
 import ReactMarkdown from 'react-markdown'
+import dynamic from 'next/dynamic'
+const GraphCanvas = dynamic(() => import('./components/GraphCanvas'), { ssr: false })
 
 const MODULE_LABELS: Record<string, string> = {
   brain:   'memory',
@@ -352,10 +354,9 @@ export default function Home() {
   const [memorySearching, setMemorySearching] = useState(false)
   const [graphOpen, setGraphOpen] = useState(false)
   const [graphSubMode, setGraphSubMode] = useState<'estado' | 'goal'>('estado')
-  const [graphStateMmd, setGraphStateMmd] = useState<string | null>(null)
+  const [graphStateData, setGraphStateData] = useState<ProjectState | null>(null)
   const [graphGoalData, setGraphGoalData] = useState<GoalGraphData | null>(null)
   const [graphLoading, setGraphLoading] = useState(false)
-  const [mermaidSvg, setMermaidSvg] = useState<string | null>(null)
   const [graphStateRefreshing, setGraphStateRefreshing] = useState(false)
   const [goalFormOpen, setGoalFormOpen] = useState(false)
   const [goalTitle, setGoalTitle] = useState('')
@@ -900,38 +901,15 @@ export default function Home() {
     }
   }, [notionToken, notionPageId, activeProjectId])
 
-  useEffect(() => {
-    const mmd = graphSubMode === 'estado' ? graphStateMmd : (graphGoalData?.mermaid ?? null)
-    if (!mmd) { setMermaidSvg(null); return }
-
-    let cancelled = false
-    const render = async () => {
-      try {
-        const { default: mermaid } = await import('mermaid')
-        mermaid.initialize({ startOnLoad: false, theme: 'dark' })
-        const id = 'mmd-' + Date.now()
-        const { svg } = await mermaid.render(id, mmd)
-        if (!cancelled) setMermaidSvg(svg)
-      } catch {
-        // raw text already shown via graphStateMmd / graphGoalData?.mermaid
-      }
-    }
-    render()
-    return () => { cancelled = true }
-  }, [graphSubMode, graphStateMmd, graphGoalData])
 
   const refreshGraphState = useCallback(async () => {
     if (!activeProjectId) return
     setGraphStateRefreshing(true)
     try {
       await fetch(`${API_URL}/projects/${activeProjectId}/state/refresh`, { method: 'POST', headers: authHeaders() })
-      // recarrega o grafo após refresh
       const res = await fetch(`${API_URL}/projects/${activeProjectId}/graph`, { headers: authHeaders() })
-      const data = await res.json()
-      setMermaidSvg(null)
-      setGraphStateMmd(typeof data?.mermaid === 'string' && data.mermaid
-        ? data.mermaid
-        : 'flowchart TD\n  A["Nenhum estado gerado"]')
+      const data = res.ok ? await res.json() : null
+      if (data?.state) setGraphStateData(data.state as ProjectState)
     } catch { /* ignore */ }
     setGraphStateRefreshing(false)
   }, [activeProjectId])
@@ -940,25 +918,17 @@ export default function Home() {
     if (!activeProjectId) return
     setGraphOpen(true)
     setGraphSubMode(sub)
-    setMermaidSvg(null)
     setGraphLoading(true)
     try {
-      // sempre carrega os dois em paralelo para troca de aba instantânea
       const [stateRes, goalRes] = await Promise.all([
         fetch(`${API_URL}/projects/${activeProjectId}/graph`, { headers: authHeaders() }),
         fetch(`${API_URL}/projects/${activeProjectId}/graph/goal`, { headers: authHeaders() }),
       ])
       const stateData = stateRes.ok ? await stateRes.json() : null
       const goalData = goalRes.ok ? await goalRes.json() : null
-      setGraphStateMmd(typeof stateData?.mermaid === 'string' && stateData.mermaid
-        ? stateData.mermaid
-        : 'flowchart TD\n  A["Execute gerar estado para iniciar"]')
-      if (goalData && typeof goalData === 'object' && goalData.mermaid) {
-        setGraphGoalData(goalData as GoalGraphData)
-      }
-    } catch {
-      setGraphStateMmd('flowchart TD\n  ERR["Erro ao carregar — verifique se a API está rodando"]')
-    }
+      if (stateData?.state) setGraphStateData(stateData.state as ProjectState)
+      if (goalData?.mermaid) setGraphGoalData(goalData as GoalGraphData)
+    } catch { /* ignore */ }
     setGraphLoading(false)
   }, [activeProjectId])
 
@@ -2844,13 +2814,13 @@ export default function Home() {
                       {graphStateRefreshing ? 'Analisando…' : '⟳ gerar estado'}
                     </button>
                   </div>
-                  <div className="bg-zinc-800 rounded-xl p-4 overflow-x-auto">
-                    {mermaidSvg && mermaidSvg.startsWith('<svg')
-                      ? <div dangerouslySetInnerHTML={{ __html: mermaidSvg }} />
-                      : graphStateMmd
-                        ? <pre style={{ color: '#a1a1aa', fontSize: '11px', whiteSpace: 'pre-wrap', fontFamily: 'monospace', lineHeight: '1.6', margin: 0 }}>{graphStateMmd}</pre>
-                        : <div className="min-h-[80px] flex items-center justify-center text-zinc-600 text-xs">Nenhum estado — clique em ⟳ gerar estado</div>
-                    }
+                  <div className="bg-zinc-900 rounded-xl overflow-hidden border border-zinc-800">
+                    <GraphCanvas
+                      mode="estado"
+                      milestones={graphStateData?.milestones ?? []}
+                      blockers={graphStateData?.blockers ?? []}
+                      nextSteps={graphStateData?.nextSteps ?? []}
+                    />
                   </div>
                 </>
               ) : graphGoalData ? (
@@ -2929,16 +2899,19 @@ export default function Home() {
                         </>
                       )}
 
-                      {/* Mermaid diagram */}
+                      {/* React Flow diagram */}
                       <div>
                         <p className="text-xs text-zinc-500 font-medium uppercase tracking-wide mb-2">Diagrama</p>
-                        <div className="bg-zinc-800 rounded-xl p-4 overflow-x-auto">
-                          {mermaidSvg && mermaidSvg.startsWith('<svg')
-                            ? <div dangerouslySetInnerHTML={{ __html: mermaidSvg }} />
-                            : graphGoalData?.mermaid
-                              ? <pre style={{ color: '#a1a1aa', fontSize: '11px', whiteSpace: 'pre-wrap', fontFamily: 'monospace', lineHeight: '1.6', margin: 0 }}>{graphGoalData.mermaid}</pre>
-                              : <div className="h-12 flex items-center justify-center text-zinc-600 text-xs">Nenhum diagrama disponível</div>
-                          }
+                        <div className="bg-zinc-900 rounded-xl overflow-hidden border border-zinc-800">
+                          <GraphCanvas
+                            mode="goal"
+                            goalTitle={graphGoalData.goal.title}
+                            targetDate={graphGoalData.goal.targetDate}
+                            criteria={graphGoalData.goal.successCriteria}
+                            gaps={graphGoalData.gapAnalysis?.gaps ?? []}
+                            nextBestAction={graphGoalData.gapAnalysis?.nextBestAction}
+                            goalProgress={graphGoalData.gapAnalysis?.goalProgress}
+                          />
                         </div>
                       </div>
                     </>
