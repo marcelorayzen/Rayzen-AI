@@ -904,19 +904,19 @@ export default function Home() {
     const mmd = graphSubMode === 'estado' ? graphStateMmd : (graphGoalData?.mermaid ?? null)
     if (!mmd) { setMermaidSvg(null); return }
 
-    let cancelled = false
+    // mostra o texto imediatamente enquanto tenta renderizar SVG
+    const rawFallback = `<pre style="color:#71717a;font-size:11px;white-space:pre-wrap;font-family:monospace;padding:4px">${mmd}</pre>`
+    setMermaidSvg(rawFallback)
 
+    let cancelled = false
     const render = async () => {
       try {
         const mermaid = (await import('mermaid')).default
         mermaid.initialize({ startOnLoad: false, theme: 'dark' })
         const { svg } = await mermaid.render('mmd-' + graphSubMode + '-' + Date.now(), mmd)
         if (!cancelled) setMermaidSvg(svg)
-      } catch {
-        if (!cancelled) setMermaidSvg(`<pre style="color:#71717a;font-size:11px;white-space:pre-wrap;font-family:monospace">${mmd}</pre>`)
-      }
+      } catch { /* mantém o rawFallback */ }
     }
-
     render()
     return () => { cancelled = true }
   }, [graphSubMode, graphStateMmd, graphGoalData])
