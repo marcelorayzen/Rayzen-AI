@@ -904,40 +904,19 @@ export default function Home() {
     const mmd = graphSubMode === 'estado' ? graphStateMmd : (graphGoalData?.mermaid ?? null)
     if (!mmd) { setMermaidSvg(null); return }
 
-    const rawFallback = `<pre style="color:#71717a;font-size:11px;white-space:pre-wrap;font-family:monospace;padding:4px;line-height:1.5">${mmd}</pre>`
-    setMermaidSvg(rawFallback)
-
     let cancelled = false
-    const tryRender = async () => {
-      const id = 'mmd-' + Date.now()
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const win = window as any
-
-      const doRender = async () => {
-        win.mermaid.initialize({ startOnLoad: false, theme: 'dark' })
-        const { svg } = await win.mermaid.render(id, mmd)
+    const render = async () => {
+      try {
+        const { default: mermaid } = await import('mermaid')
+        mermaid.initialize({ startOnLoad: false, theme: 'dark' })
+        const id = 'mmd-' + Date.now()
+        const { svg } = await mermaid.render(id, mmd)
         if (!cancelled) setMermaidSvg(svg)
+      } catch {
+        // raw text already shown via graphStateMmd / graphGoalData?.mermaid
       }
-
-      if (win.mermaid) {
-        await doRender()
-        return
-      }
-
-      // injecta CDN uma única vez
-      await new Promise<void>((resolve, reject) => {
-        if (document.getElementById('mermaid-cdn')) { resolve(); return }
-        const s = document.createElement('script')
-        s.id = 'mermaid-cdn'
-        s.src = 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js'
-        s.onload = () => resolve()
-        s.onerror = reject
-        document.head.appendChild(s)
-      })
-      await doRender()
     }
-
-    tryRender().catch(() => { /* mantém rawFallback */ })
+    render()
     return () => { cancelled = true }
   }, [graphSubMode, graphStateMmd, graphGoalData])
 

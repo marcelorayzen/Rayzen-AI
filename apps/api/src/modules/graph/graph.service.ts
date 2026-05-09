@@ -107,7 +107,7 @@ export class GraphService {
 
     // Mermaid requires at least one node — add fallback if all arrays empty
     if (milestones.length === 0 && blockers.length === 0 && nextSteps.length === 0) {
-      lines.push(`  N["Estado vazio — clique em ⟳ gerar estado"]`)
+      lines.push(`  N["Estado vazio - clique em gerar estado"]`)
     }
 
     return lines.join('\n')
