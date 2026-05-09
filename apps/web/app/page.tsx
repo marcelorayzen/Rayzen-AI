@@ -317,6 +317,7 @@ export default function Home() {
   const [newProjectOpen, setNewProjectOpen] = useState(false)
   const [newProjectName, setNewProjectName] = useState('')
   const [newProjectDesc, setNewProjectDesc] = useState('')
+  const [newProjectSlug, setNewProjectSlug] = useState('')
   const [creatingProject, setCreatingProject] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [importTab, setImportTab] = useState<ImportTab>('github')
@@ -646,10 +647,11 @@ export default function Home() {
     if (!newProjectName.trim()) return
     setCreatingProject(true)
     try {
+      const slug = newProjectSlug.trim() || newProjectName.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
       const res = await fetch(`${API_URL}/projects`, {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ name: newProjectName.trim(), description: newProjectDesc.trim() || undefined }),
+        body: JSON.stringify({ name: newProjectName.trim(), description: newProjectDesc.trim() || undefined, repoSlug: slug }),
       })
       if (res.ok) {
         const data = await res.json()
@@ -659,11 +661,12 @@ export default function Home() {
           setNewProjectOpen(false)
           setNewProjectName('')
           setNewProjectDesc('')
+          setNewProjectSlug('')
         }
       }
     } catch { /* silencioso */ }
     finally { setCreatingProject(false) }
-  }, [newProjectName, newProjectDesc])
+  }, [newProjectName, newProjectDesc, newProjectSlug])
 
   useEffect(() => {
     if (activeProjectId) {
@@ -1215,12 +1218,30 @@ export default function Home() {
                 <label className="text-xs text-zinc-500 mb-1 block">Nome *</label>
                 <input
                   value={newProjectName}
-                  onChange={(e) => setNewProjectName(e.target.value)}
+                  onChange={(e) => {
+                    setNewProjectName(e.target.value)
+                    if (!newProjectSlug) {
+                      setNewProjectSlug(e.target.value.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''))
+                    }
+                  }}
                   onKeyDown={(e) => { if (e.key === 'Enter') createProject() }}
-                  placeholder="ex: rayzen-ai-teste"
+                  placeholder="ex: Rayzen PDV"
                   autoFocus
                   className="w-full bg-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none focus:ring-1 focus:ring-zinc-600"
                 />
+              </div>
+              <div>
+                <label className="text-xs text-zinc-500 mb-1 block">
+                  Pasta / repo slug
+                  <span className="text-zinc-600 ml-1">— deve bater com o nome da pasta no VS Code</span>
+                </label>
+                <input
+                  value={newProjectSlug}
+                  onChange={(e) => setNewProjectSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                  placeholder="ex: rayzen-pdv"
+                  className="w-full bg-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none focus:ring-1 focus:ring-zinc-600 font-mono"
+                />
+                <p className="text-[10px] text-zinc-600 mt-1">O hook do Claude detecta automaticamente o projeto por este nome</p>
               </div>
               <div>
                 <label className="text-xs text-zinc-500 mb-1 block">Descrição (opcional)</label>
