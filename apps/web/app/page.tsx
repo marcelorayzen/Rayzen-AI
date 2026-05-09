@@ -351,10 +351,11 @@ export default function Home() {
   const [memorySearchResults, setMemorySearchResults] = useState<Array<{ id: string; content: string; sourcePath: string | null; score: number }> | null>(null)
   const [memorySearching, setMemorySearching] = useState(false)
   const [graphOpen, setGraphOpen] = useState(false)
-  const [graphSubMode, setGraphSubMode] = useState<'estado' | 'goal'>('goal')
+  const [graphSubMode, setGraphSubMode] = useState<'estado' | 'goal'>('estado')
   const [graphStateMmd, setGraphStateMmd] = useState<string | null>(null)
   const [graphGoalData, setGraphGoalData] = useState<GoalGraphData | null>(null)
   const [graphLoading, setGraphLoading] = useState(false)
+  const [mermaidSvg, setMermaidSvg] = useState<string | null>(null)
   const [goalFormOpen, setGoalFormOpen] = useState(false)
   const [goalTitle, setGoalTitle] = useState('')
   const [goalDesc, setGoalDesc] = useState('')
@@ -362,7 +363,6 @@ export default function Home() {
   const [goalCriteria, setGoalCriteria] = useState<SuccessCriteria[]>([])
   const [goalKpis, setGoalKpis] = useState<Array<{ metric: string; target: string; unit: string }>>([])
   const [savingGoal, setSavingGoal] = useState(false)
-  const mermaidRef = useRef<HTMLDivElement>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const autoVoiceRef = useRef(false)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
@@ -900,36 +900,42 @@ export default function Home() {
   }, [notionToken, notionPageId, activeProjectId])
 
   useEffect(() => {
-    if (!graphOpen || !mermaidRef.current) return
     const mmd = graphSubMode === 'estado' ? graphStateMmd : (graphGoalData?.mermaid ?? null)
-    if (!mmd) return
-    const el = mermaidRef.current
-    el.removeAttribute('data-processed')
-    el.textContent = mmd
-    el.className = 'mermaid text-sm'
-    type MermaidAPI = { initialize: (cfg: object) => void; init: (cfg: undefined, el: HTMLElement) => void }
-    const w = window as unknown as { mermaid?: MermaidAPI }
-    try {
-      w.mermaid?.initialize({ startOnLoad: false, theme: 'dark' })
-      w.mermaid?.init(undefined, el)
-    } catch { /* ignore */ }
-  }, [graphOpen, graphSubMode, graphStateMmd, graphGoalData])
+    if (!mmd) { setMermaidSvg(null); return }
 
-  const openGraph = useCallback(async (sub: 'estado' | 'goal' = 'goal') => {
+    type MermaidAPI = { initialize: (cfg: object) => void; render: (id: string, text: string) => Promise<{ svg: string }> }
+    const w = window as unknown as { mermaid?: MermaidAPI }
+
+    const tryRender = () => {
+      if (!w.mermaid) return false
+      w.mermaid.initialize({ startOnLoad: false, theme: 'dark' })
+      w.mermaid.render('mmd-graph-' + Date.now(), mmd)
+        .then(({ svg }) => setMermaidSvg(svg))
+        .catch(() => null)
+      return true
+    }
+
+    if (!tryRender()) {
+      const timer = setInterval(() => { if (tryRender()) clearInterval(timer) }, 300)
+      return () => clearInterval(timer)
+    }
+  }, [graphSubMode, graphStateMmd, graphGoalData])
+
+  const openGraph = useCallback(async (sub: 'estado' | 'goal' = 'estado') => {
     if (!activeProjectId) return
     setGraphOpen(true)
     setGraphSubMode(sub)
+    setMermaidSvg(null)
     setGraphLoading(true)
     try {
-      if (sub === 'estado') {
-        const res = await fetch(`${API_URL}/projects/${activeProjectId}/graph`, { headers: authHeaders() })
-        const data = await res.json()
-        setGraphStateMmd(data.mermaid ?? null)
-      } else {
-        const res = await fetch(`${API_URL}/projects/${activeProjectId}/graph/goal`, { headers: authHeaders() })
-        const data = await res.json() as GoalGraphData
-        setGraphGoalData(data)
-      }
+      // sempre carrega os dois em paralelo para troca de aba instantânea
+      const [stateRes, goalRes] = await Promise.all([
+        fetch(`${API_URL}/projects/${activeProjectId}/graph`, { headers: authHeaders() }),
+        fetch(`${API_URL}/projects/${activeProjectId}/graph/goal`, { headers: authHeaders() }),
+      ])
+      const [stateData, goalData] = await Promise.all([stateRes.json(), goalRes.json()])
+      setGraphStateMmd(stateData.mermaid ?? null)
+      setGraphGoalData(goalData as GoalGraphData)
     } catch { /* ignore */ }
     setGraphLoading(false)
   }, [activeProjectId])
@@ -2790,8 +2796,8 @@ export default function Home() {
               <div className="flex items-center gap-4">
                 <span className="text-sm font-semibold text-zinc-200">Goal Graph</span>
                 <div className="flex gap-1">
-                  {(['goal', 'estado'] as const).map(m => (
-                    <button key={m} onClick={() => { setGraphSubMode(m); openGraph(m) }}
+                  {(['estado', 'goal'] as const).map(m => (
+                    <button key={m} onClick={() => { setGraphSubMode(m); setMermaidSvg(null) }}
                       className={`px-3 py-1 rounded-full text-xs transition-colors ${graphSubMode === m ? 'bg-zinc-700 text-zinc-200' : 'text-zinc-500 hover:text-zinc-300'}`}>
                       {m === 'goal' ? 'Goal Graph' : 'Estado atual'}
                     </button>
@@ -2806,7 +2812,10 @@ export default function Home() {
                 <div className="text-zinc-500 text-sm text-center py-8">Carregando…</div>
               ) : graphSubMode === 'estado' ? (
                 <>
-                  <div ref={mermaidRef} className="mermaid text-sm bg-zinc-800 rounded-xl p-4 min-h-[120px]" />
+                  {mermaidSvg
+                    ? <div className="bg-zinc-800 rounded-xl p-4 overflow-x-auto" dangerouslySetInnerHTML={{ __html: mermaidSvg }} />
+                    : <div className="bg-zinc-800 rounded-xl p-4 min-h-[120px] flex items-center justify-center text-zinc-600 text-xs">Gerando diagrama…</div>
+                  }
                 </>
               ) : graphGoalData ? (
                 <>
@@ -2887,7 +2896,10 @@ export default function Home() {
                       {/* Mermaid diagram */}
                       <div>
                         <p className="text-xs text-zinc-500 font-medium uppercase tracking-wide mb-2">Diagrama</p>
-                        <div ref={mermaidRef} className="mermaid text-sm bg-zinc-800 rounded-xl p-4 overflow-x-auto" />
+                        {mermaidSvg
+                          ? <div className="bg-zinc-800 rounded-xl p-4 overflow-x-auto" dangerouslySetInnerHTML={{ __html: mermaidSvg }} />
+                          : <div className="bg-zinc-800 rounded-xl p-4 h-20 flex items-center justify-center text-zinc-600 text-xs">Gerando diagrama…</div>
+                        }
                       </div>
                     </>
                   ) : (
