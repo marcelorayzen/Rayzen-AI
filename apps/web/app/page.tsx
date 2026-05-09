@@ -356,6 +356,7 @@ export default function Home() {
   const [graphGoalData, setGraphGoalData] = useState<GoalGraphData | null>(null)
   const [graphLoading, setGraphLoading] = useState(false)
   const [mermaidSvg, setMermaidSvg] = useState<string | null>(null)
+  const [graphStateRefreshing, setGraphStateRefreshing] = useState(false)
   const [goalFormOpen, setGoalFormOpen] = useState(false)
   const [goalTitle, setGoalTitle] = useState('')
   const [goalDesc, setGoalDesc] = useState('')
@@ -927,6 +928,22 @@ export default function Home() {
     poll()
     return () => { cancelled = true }
   }, [graphSubMode, graphStateMmd, graphGoalData])
+
+  const refreshGraphState = useCallback(async () => {
+    if (!activeProjectId) return
+    setGraphStateRefreshing(true)
+    try {
+      await fetch(`${API_URL}/projects/${activeProjectId}/state/refresh`, { method: 'POST', headers: authHeaders() })
+      // recarrega o grafo após refresh
+      const res = await fetch(`${API_URL}/projects/${activeProjectId}/graph`, { headers: authHeaders() })
+      const data = await res.json()
+      setMermaidSvg(null)
+      setGraphStateMmd(typeof data?.mermaid === 'string' && data.mermaid
+        ? data.mermaid
+        : 'flowchart TD\n  A["Nenhum estado gerado"]')
+    } catch { /* ignore */ }
+    setGraphStateRefreshing(false)
+  }, [activeProjectId])
 
   const openGraph = useCallback(async (sub: 'estado' | 'goal' = 'estado') => {
     if (!activeProjectId) return
@@ -2826,6 +2843,16 @@ export default function Home() {
                 <div className="text-zinc-500 text-sm text-center py-8">Carregando…</div>
               ) : graphSubMode === 'estado' ? (
                 <>
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-xs text-zinc-500">Milestones, blockers e próximos passos do projeto.</p>
+                    <button
+                      onClick={refreshGraphState}
+                      disabled={graphStateRefreshing}
+                      className="text-xs text-blue-400 hover:text-blue-300 disabled:opacity-40 transition-colors shrink-0"
+                    >
+                      {graphStateRefreshing ? 'Analisando…' : '⟳ gerar estado'}
+                    </button>
+                  </div>
                   {mermaidSvg
                     ? <div className="bg-zinc-800 rounded-xl p-4 overflow-x-auto" dangerouslySetInnerHTML={{ __html: mermaidSvg }} />
                     : <div className="bg-zinc-800 rounded-xl p-4 min-h-[120px] flex items-center justify-center text-zinc-600 text-xs">Gerando diagrama…</div>
