@@ -72,13 +72,13 @@ export class GraphService {
     if (!state) return 'flowchart TD\n  N["Nenhum estado disponível — execute /state/refresh"]'
 
     const lines: string[] = ['flowchart TD']
-    const sanitize = (s: string) => s.replace(/["\[\]]/g, '').slice(0, 60)
+    const sanitize = (s: string) => s.replace(/["\[\]\u{1F300}-\u{1FFFF}]/gu, '').replace(/[^\x20-\x7EÀ-ɏ]/g, '').slice(0, 55)
 
     // Milestones
     const milestones = (state.milestones ?? []) as Array<{ id: string; title: string; status: string }>
     milestones.forEach((m, i) => {
-      const icon = m.status === 'done' ? '✅' : m.status === 'active' ? '🔄' : '⬜'
-      lines.push(`  M${i}["${icon} ${sanitize(m.title)}"]`)
+      const tag = m.status === 'done' ? '[done]' : m.status === 'active' ? '[ativo]' : '[pendente]'
+      lines.push(`  M${i}["${tag} ${sanitize(m.title)}"]`)
       if (m.status === 'done') lines.push(`  style M${i} fill:#22c55e,color:#fff`)
       else if (m.status === 'active') lines.push(`  style M${i} fill:#3b82f6,color:#fff`)
     })
@@ -86,7 +86,7 @@ export class GraphService {
     // Blockers → connect to active milestones
     const blockers = (state.blockers ?? []) as string[]
     blockers.slice(0, 4).forEach((b, i) => {
-      lines.push(`  B${i}["🚧 ${sanitize(b)}"]`)
+      lines.push(`  B${i}["[blocker] ${sanitize(b)}"]`)
       lines.push(`  style B${i} fill:#ef4444,color:#fff`)
       const activeIdx = milestones.findIndex(m => m.status === 'active')
       if (activeIdx >= 0) lines.push(`  B${i} -->|bloqueia| M${activeIdx}`)
@@ -95,7 +95,7 @@ export class GraphService {
     // Next steps
     const nextSteps = (state.nextSteps ?? []) as string[]
     nextSteps.slice(0, 3).forEach((s, i) => {
-      lines.push(`  NS${i}["▶ ${sanitize(s)}"]`)
+      lines.push(`  NS${i}["[prox] ${sanitize(s)}"]`)
       lines.push(`  style NS${i} fill:#8b5cf6,color:#fff`)
     })
 
@@ -207,18 +207,18 @@ export class GraphService {
     goal: { title: string; successCriteria: unknown; targetDate: Date | null },
     gap: GapAnalysis | null,
   ): string {
-    const sanitize = (s: string) => s.replace(/["\[\]]/g, '').slice(0, 55)
+    const sanitize = (s: string) => s.replace(/["\[\]\u{1F300}-\u{1FFFF}]/gu, '').replace(/[^\x20-\x7EÀ-ɏ]/g, '').slice(0, 55)
     const criteria = (goal.successCriteria as SuccessCriteria[]) ?? []
     const lines: string[] = ['flowchart LR']
 
     const deadline = goal.targetDate
-      ? ` · ${new Date(goal.targetDate).toLocaleDateString('pt-BR')}`
+      ? ` - ${new Date(goal.targetDate).toLocaleDateString('pt-BR')}`
       : ''
-    lines.push(`  G["🎯 ${sanitize(goal.title)}${deadline}"]`)
+    lines.push(`  G["[meta] ${sanitize(goal.title)}${deadline}"]`)
 
     criteria.slice(0, 5).forEach((c, i) => {
-      const icon = c.done ? '✅' : '⬜'
-      lines.push(`  C${i}["${icon} ${sanitize(c.text)}"]`)
+      const tag = c.done ? '[ok]' : '[ ]'
+      lines.push(`  C${i}["${tag} ${sanitize(c.text)}"]`)
       lines.push(`  G --> C${i}`)
       if (c.done) lines.push(`  style C${i} fill:#22c55e,color:#fff`)
     })
@@ -226,16 +226,15 @@ export class GraphService {
     if (gap) {
       const high = gap.gaps.filter(g => g.severity === 'high').slice(0, 2)
       high.forEach((g, i) => {
-        lines.push(`  GAP${i}["⚠️ ${sanitize(g.description)}"]`)
+        lines.push(`  GAP${i}["[gap] ${sanitize(g.description)}"]`)
         lines.push(`  style GAP${i} fill:#ef4444,color:#fff`)
-        // link to first undone criteria if available
         const undoneIdx = criteria.findIndex(c => !c.done)
         if (undoneIdx >= 0) lines.push(`  C${undoneIdx} --> GAP${i}`)
         else lines.push(`  G --> GAP${i}`)
       })
 
       if (gap.nextBestAction) {
-        lines.push(`  NBA["▶ ${sanitize(gap.nextBestAction)}"]`)
+        lines.push(`  NBA["[acao] ${sanitize(gap.nextBestAction)}"]`)
         lines.push(`  style NBA fill:#3b82f6,color:#fff`)
         if (high.length > 0) lines.push(`  GAP0 --> NBA`)
         else lines.push(`  G --> NBA`)
