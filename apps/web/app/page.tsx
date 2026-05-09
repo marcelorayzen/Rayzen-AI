@@ -907,8 +907,12 @@ export default function Home() {
     el.removeAttribute('data-processed')
     el.textContent = mmd
     el.className = 'mermaid text-sm'
-    const w = window as unknown as { mermaid?: { init: (config: undefined, el: HTMLElement) => void } }
-    try { w.mermaid?.init(undefined, el) } catch { /* ignore */ }
+    type MermaidAPI = { initialize: (cfg: object) => void; init: (cfg: undefined, el: HTMLElement) => void }
+    const w = window as unknown as { mermaid?: MermaidAPI }
+    try {
+      w.mermaid?.initialize({ startOnLoad: false, theme: 'dark' })
+      w.mermaid?.init(undefined, el)
+    } catch { /* ignore */ }
   }, [graphOpen, graphSubMode, graphStateMmd, graphGoalData])
 
   const openGraph = useCallback(async (sub: 'estado' | 'goal' = 'goal') => {

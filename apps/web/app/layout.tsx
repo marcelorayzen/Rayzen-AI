@@ -30,12 +30,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         {children}
-        <Script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js" strategy="afterInteractive"
-          onLoad={() => {
-            const w = window as unknown as { mermaid?: { initialize: (cfg: object) => void } }
-            w.mermaid?.initialize({ startOnLoad: false, theme: 'dark' })
-          }}
-        />
+        <Script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js" strategy="afterInteractive" />
       </body>
     </html>
   );
