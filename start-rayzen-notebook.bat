@@ -1,6 +1,5 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
-chcp 65001 >nul
 
 title Rayzen AI - Iniciando...
 cd /d "%~dp0"

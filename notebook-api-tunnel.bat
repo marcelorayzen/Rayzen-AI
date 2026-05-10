@@ -1,6 +1,5 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
-chcp 65001 >nul
 
 title Rayzen AI - Notebook API + Tunnel
 cd /d "%~dp0"
