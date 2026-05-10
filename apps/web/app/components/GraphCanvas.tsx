@@ -16,7 +16,7 @@ export interface SuccessCriteria { id: string; text: string; done: boolean }
 
 type NodeType = 'milestone' | 'blocker' | 'next' | 'goal' | 'gap' | 'action'
 
-interface NodeData {
+interface NodeData extends Record<string, unknown> {
   label: string
   type: NodeType
   status?: 'pending' | 'active' | 'done'
@@ -24,6 +24,8 @@ interface NodeData {
   onStatusCycle?: (id: string) => void
   onLabelChange?: (id: string, label: string) => void
 }
+
+type ProjectNode = Node<NodeData, 'project'>
 
 const COLORS: Record<NodeType, { border: string; glow: string; bg: string; text: string; tag: string }> = {
   milestone: { border: '#3b82f6', glow: '#3b82f6', bg: '#03060f',  text: '#93c5fd', tag: 'milestone' },
@@ -41,11 +43,11 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 /* ── custom node ────────────────────────────────────────── */
-function ProjectNode({ data, id, selected }: NodeProps) {
+function ProjectNode({ data, id, selected }: NodeProps<ProjectNode>) {
   const [hovered, setHovered] = useState(false)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(String(data.label))
-  const d = data as NodeData
+  const d = data
   const c = COLORS[d.type]
   const borderColor = d.status ? STATUS_COLORS[d.status] : c.border
 
@@ -120,6 +122,7 @@ function ProjectNode({ data, id, selected }: NodeProps) {
   )
 }
 
+type AppNode = ProjectNode | Node
 const nodeTypes = { project: ProjectNode }
 
 /* ── layout helpers ─────────────────────────────────────── */
@@ -210,21 +213,18 @@ export function StateCanvas({ milestones: initMilestones, blockers: initBlockers
   }, [milestones, blockers, nextSteps])
 
   const { nodes: initN, edges: initE } = buildGraph()
-  const [nodes, setNodes, onNodesChange] = useNodesState(initN)
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initE)
+  const [nodes, setNodes, onNodesChange] = useNodesState<AppNode>(initN as AppNode[])
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initE)
   const onConnect = useCallback((c: Connection) => setEdges(e => addEdge(c, e)), [setEdges])
 
-  // rebuild nodes when state changes
-  const prevMilestones = useRef(milestones)
-  const prevBlockers = useRef(blockers)
-  const prevNextSteps = useRef(nextSteps)
-  if (prevMilestones.current !== milestones || prevBlockers.current !== blockers || prevNextSteps.current !== nextSteps) {
-    prevMilestones.current = milestones
-    prevBlockers.current = blockers
-    prevNextSteps.current = nextSteps
+  // rebuild when state changes — use ref to avoid render-phase setState
+  const prevKey = useRef('')
+  const nextKey = `${milestones.length}-${blockers.length}-${nextSteps.length}-${milestones.map(m => m.status + m.title).join()}`
+  if (prevKey.current !== nextKey) {
+    prevKey.current = nextKey
     const { nodes: n, edges: e } = buildGraph()
-    setNodes(n)
-    setEdges(e)
+    // schedule outside render cycle
+    setTimeout(() => { setNodes(n as AppNode[]); setEdges(e) }, 0)
   }
 
   const addNode = () => {
@@ -332,8 +332,8 @@ export function GoalCanvas({ goalTitle, targetDate, criteria, gaps, nextBestActi
   }
 
   const { nodes: initN, edges: initE } = buildGraph()
-  const [nodes, , onNodesChange] = useNodesState(initN)
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initE)
+  const [nodes, , onNodesChange] = useNodesState<AppNode>(initN as AppNode[])
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initE)
   const onConnect = useCallback((c: Connection) => setEdges(e => addEdge(c, e)), [setEdges])
 
   return (
