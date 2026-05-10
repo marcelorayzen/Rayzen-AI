@@ -31,6 +31,18 @@ interface RayzenConfig {
 
 type Tab = 'identity' | 'modules' | 'llm' | 'agent' | 'security' | 'tts' | 'obsidian'
 
+interface UsageStats {
+  provider: 'groq' | 'claude'
+  pricing: {
+    groq:   { model: string; costPerMToken: number }
+    claude: { model: string; costPerMToken: number }
+  }
+  today:   { tokens: number; messages: number; costUSD: number }
+  week:    { tokens: number; messages: number; costUSD: number }
+  month:   { tokens: number; messages: number; costUSD: number }
+  allTime: { tokens: number; messages: number; costUSD: number }
+}
+
 const TABS: { id: Tab; label: string }[] = [
   { id: 'identity', label: 'Identidade' },
   { id: 'modules', label: 'Módulos' },
@@ -64,6 +76,9 @@ export default function SettingsPage() {
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [usage, setUsage] = useState<UsageStats | null>(null)
+  const [switchingProvider, setSwitchingProvider] = useState(false)
+  const [providerMsg, setProviderMsg] = useState('')
   const router = useRouter()
 
   const loadConfig = useCallback(async () => {
@@ -105,6 +120,35 @@ export default function SettingsPage() {
     }
   }, [apiUrlInput, router])
 
+  const loadUsage = useCallback(async () => {
+    const apiUrl = getApiUrl()
+    if (!apiUrl) return
+    try {
+      const res = await fetch(`${apiUrl}/configuration/usage`, { headers: authHeaders() })
+      if (res.ok) setUsage(await res.json() as UsageStats)
+    } catch { /* silencioso */ }
+  }, [])
+
+  const switchProvider = useCallback(async (provider: 'groq' | 'claude') => {
+    setSwitchingProvider(true)
+    setProviderMsg('')
+    try {
+      const apiUrl = getApiUrl()
+      const res = await fetch(`${apiUrl}/configuration/llm-provider`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ provider }),
+      })
+      if (!res.ok) throw new Error(`Erro ${res.status}`)
+      setProviderMsg(`Provedor alterado para ${provider === 'groq' ? 'Groq' : 'Claude'}. LiteLLM reiniciado.`)
+      await loadUsage()
+    } catch (err) {
+      setProviderMsg(`Erro: ${err instanceof Error ? err.message : 'falhou'}`)
+    } finally {
+      setSwitchingProvider(false)
+    }
+  }, [loadUsage])
+
   useEffect(() => {
     setApiUrlInput(getApiUrlInputDefault())
   }, [])
@@ -112,7 +156,8 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!apiUrlInput) return
     loadConfig()
-  }, [apiUrlInput, loadConfig])
+    loadUsage()
+  }, [apiUrlInput, loadConfig, loadUsage])
 
   const save = useCallback(async () => {
     if (!config) return
@@ -280,6 +325,79 @@ export default function SettingsPage() {
 
           {activeTab === 'llm' && (
             <div className="space-y-4">
+
+              {/* Provedor ativo */}
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+                <p className="text-xs font-semibold text-zinc-400 mb-3 uppercase tracking-wide">Provedor LLM</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {(['groq', 'claude'] as const).map((p) => {
+                    const active = usage?.provider === p
+                    const labels = { groq: 'Groq — Llama 3.3 70B', claude: 'Claude — Sonnet 4' }
+                    const costs  = { groq: '$0.70/MTok', claude: '$9.00/MTok' }
+                    return (
+                      <button
+                        key={p}
+                        onClick={() => !active && switchProvider(p)}
+                        disabled={switchingProvider}
+                        className={`rounded-xl px-4 py-3 text-left transition-all border ${
+                          active
+                            ? 'bg-zinc-700 border-zinc-500 text-zinc-100'
+                            : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200'
+                        } disabled:opacity-50`}
+                      >
+                        <p className="text-sm font-medium">{labels[p]}</p>
+                        <p className="text-xs text-zinc-500 mt-0.5">{costs[p]} estimado</p>
+                        {active && <p className="text-xs text-emerald-400 mt-1">ativo</p>}
+                      </button>
+                    )
+                  })}
+                </div>
+                {switchingProvider && (
+                  <p className="text-xs text-zinc-400 mt-3">Reiniciando LiteLLM... (pode levar ~15s)</p>
+                )}
+                {providerMsg && !switchingProvider && (
+                  <p className={`text-xs mt-3 ${providerMsg.startsWith('Erro') ? 'text-red-400' : 'text-emerald-400'}`}>
+                    {providerMsg}
+                  </p>
+                )}
+              </div>
+
+              {/* Uso & Custo */}
+              {usage && (
+                <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Uso & Custo Estimado</p>
+                    <button onClick={loadUsage} className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">↻ atualizar</button>
+                  </div>
+                  <div className="grid grid-cols-4 gap-2 text-center">
+                    {([
+                      { label: 'Hoje',    data: usage.today   },
+                      { label: '7 dias',  data: usage.week    },
+                      { label: 'Mês',     data: usage.month   },
+                      { label: 'Total',   data: usage.allTime },
+                    ] as const).map(({ label, data }) => (
+                      <div key={label} className="bg-zinc-800 rounded-lg p-3">
+                        <p className="text-xs text-zinc-500 mb-1">{label}</p>
+                        <p className="text-sm font-semibold text-zinc-100">
+                          {data.tokens >= 1_000_000
+                            ? `${(data.tokens / 1_000_000).toFixed(1)}M`
+                            : data.tokens >= 1_000
+                              ? `${(data.tokens / 1_000).toFixed(1)}k`
+                              : data.tokens}
+                        </p>
+                        <p className="text-xs text-zinc-400">tokens</p>
+                        <p className="text-xs text-amber-400 mt-1">${data.costUSD.toFixed(4)}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-zinc-600 mt-3">
+                    Custo baseado em taxa blended (input+output). Valores reais podem variar.
+                    {usage.provider === 'groq' ? ' Groq tem tier gratuito — custo real pode ser $0.' : ''}
+                  </p>
+                </div>
+              )}
+
+              {/* Config por módulo */}
               {Object.entries(config.llm).map(([module, cfg]) => (
                 <div key={module} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
                   <p className="text-xs font-semibold text-zinc-400 mb-3 uppercase tracking-wide">{module}</p>
