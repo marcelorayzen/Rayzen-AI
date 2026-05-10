@@ -4,11 +4,12 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js'
-import { fileURLToPath } from 'url'
+import { fileURLToPath, pathToFileURL } from 'url'
 import { dirname, join } from 'path'
 
 const __dir = dirname(fileURLToPath(import.meta.url))
-const { default: cfg } = await import(join(__dir, '../hooks/hook.config.mjs'))
+const cfgPath = pathToFileURL(join(__dir, '../hooks/hook.config.mjs')).href
+const { default: cfg } = await import(cfgPath)
 
 const { apiUrl, apiToken, projectId: defaultProjectId } = cfg
 
