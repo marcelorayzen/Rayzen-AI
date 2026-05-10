@@ -108,12 +108,13 @@ Ou via chat: `jarvis:restart_api` (faz git pull + build + restart automático).
 
 | Camada | Tecnologia |
 |---|---|
-| Frontend | Next.js 15 App Router |
+| Frontend | Next.js 16 App Router |
 | Backend | NestJS 10 + Fastify adapter |
 | LLM proxy | LiteLLM `:4100` — `gpt-4o` e `gpt-4o-mini` mapeados para Claude Sonnet |
 | Banco | PostgreSQL 16 + pgvector (`:55432`) |
 | Cache / Fila | Redis 7 (`:56379`) + BullMQ 5 |
-| ORM | Prisma 5 (19 models) |
+| ORM | Prisma 5 (21 models) |
+| Grafo interativo | @xyflow/react v12 (React Flow) |
 | PDF | Puppeteer 22 |
 | DOCX | docxtemplater 3 |
 | Embeddings | Jina AI (vector 1024) |
@@ -406,27 +407,40 @@ ProjectGoal (meta)  ←→  ProjectState (estado atual)
         ↓                        ↓
    Gap Analysis (LLM)  →  Next Best Action
         ↓
-   Diagrama Mermaid (visual)
+   Grafo interativo React Flow (visual + CRUD)
 ```
 
 ### Fluxo de uso
 
 1. Painel web → botão **grafo** no header (aparece só com projeto ativo)
-2. Sub-modo **Goal Graph**: define a meta do projeto (título, critérios de sucesso, KPIs, prazo)
-3. O LLM (gpt-4o-mini) compara a meta com o `ProjectState` atual e eventos recentes → lista de gaps por severidade
-4. **Next Best Action**: uma frase de ação concreta derivada do gap mais crítico
-5. Marcar critérios como done → barra de progresso atualiza
-6. Sub-modo **Estado atual**: diagrama Mermaid do estado (milestones, blockers, próximos passos)
+2. Aba **Estado atual**: grafo interativo com milestones, blockers e próximos passos
+   - Se vazio: **⟳ gerar estado** → LLM analisa eventos e gera estado automaticamente
+   - CRUD direto no grafo: criar/editar/deletar nodes, ciclar status de milestones → **salvar**
+3. Aba **Goal Graph**: define a meta do projeto (título, critérios de sucesso, KPIs, prazo)
+   - LLM (gpt-4o-mini) compara meta vs estado atual → gaps por severidade + Next Best Action
+   - Marcar critérios como done → barra de progresso atualiza
+4. Botão **atualizar** no footer recarrega ambos os dados
 
 ### Estrutura técnica
 
 | Camada | Arquivo | Responsabilidade |
 |---|---|---|
 | Schema | `apps/api/prisma/schema.prisma` | Model `ProjectGoal` com `successCriteria`, `kpis`, hierarquia pai/filho |
-| Service | `apps/api/src/modules/graph/graph.service.ts` | Mermaid generation, gap analysis LLM, upsert goal, toggle criteria |
+| Service | `apps/api/src/modules/graph/graph.service.ts` | Gap analysis LLM, upsert goal, toggle criteria, state mermaid (legado) |
 | Controller | `apps/api/src/modules/graph/graph.controller.ts` | 5 rotas sob `/projects/:id/graph` |
-| UI | `apps/web/app/page.tsx` | Painel "grafo", formulário de meta, cards de gap, Mermaid render |
-| CDN | `apps/web/app/layout.tsx` | `<Script>` Mermaid.js afterInteractive, `theme: dark`, `startOnLoad: false` |
+| Planning | `apps/api/src/modules/project-state/project-state.service.ts` | `updatePlanning` aceita `milestones`, `blockers`, `nextSteps`, `backlog` |
+| Canvas | `apps/web/app/components/GraphCanvas.tsx` | `StateCanvas` (CRUD) + `GoalCanvas` (leitura) via `@xyflow/react` |
+| UI | `apps/web/app/page.tsx` | Painel "grafo", `openGraph`, `saveGoal`, `toggleCriteria`, `refreshGraphState` |
+
+### GraphCanvas — CRUD de nodes (Estado atual)
+
+| Ação | Como |
+|---|---|
+| Criar node | Botões `+ milestone` / `+ blocker` / `+ próximo` → input inline |
+| Editar texto | Duplo clique no node |
+| Ciclar status | Clique no node milestone (pending→active→done) |
+| Deletar | Hover → × |
+| Persistir | Botão **salvar** → `PATCH /projects/:id/state/planning` |
 
 ### GapAnalysis — estrutura JSON
 
@@ -450,7 +464,8 @@ ProjectGoal (meta)  ←→  ProjectState (estado atual)
 // graph.service.ts — adicionar método, exportar no controller
 // Padrão: lê ProjectState via stateService.get(), compara com ProjectGoal via LLM
 // JSON parsing: usar extractJson() interno (cópia de synthesis.service.ts)
-// Novos endpoints: registrar em graph.controller.ts com @ApiOperation
+// GraphCanvas — novos tipos de node: adicionar em COLORS e NodeType
+// Persistência de nodes customizados: usar PATCH /state/planning
 ```
 
 ---
@@ -471,9 +486,10 @@ ProjectGoal (meta)  ←→  ProjectState (estado atual)
 | 010 | Web deploy | Vercel (Hobby) — branch não configurável, deploy via CLI `vercel deploy --prod` |
 | 011 | JSON do LLM | Sem `response_format`, extração robusta: strip code fences + regex `{...}` |
 | 012 | Notion por projeto | Sub-páginas sob rootPageId, fire-and-forget na criação de projeto |
-| 013 | Goal Graph MVP | Mermaid.js via CDN (sem npm) — `startOnLoad: false`, `theme: dark`; React Flow fica para Fase 2 |
+| 013 | Goal Graph visual | `@xyflow/react` v12 via `next/dynamic + ssr: false` — Mermaid descartado (v11 ESM puro, não funciona como UMD global) |
 | 014 | Gap Analysis | LLM gpt-4o-mini (temp 0.2) compara `ProjectGoal` vs `ProjectState` → `GapAnalysis` JSON; sem tabela própria |
 | 015 | repoSlug auto-detect | Hook detecta projeto pelo slug do git remote/pasta → `GET /projects?repoSlug=` com cache de 5 min em arquivo temp |
+| 016 | Graph CRUD | Nodes criados/editados no canvas são persistidos via `PATCH /state/planning` (milestones, blockers, nextSteps) — sem tabela graph_nodes própria no MVP |
 
 ---
 

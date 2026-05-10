@@ -1,9 +1,9 @@
 # Rayzen Goal Graph
 
-**Data:** 2026-05-08  
-**Status:** implementado — MVP Fase 1  
+**Atualizado:** 2026-05-09  
+**Status:** implementado — Fase 2 (React Flow interativo)  
 **Branch:** `local/marcelo`  
-**Commit:** `4f2c762`
+**Commits:** `4f2c762` (MVP) → `9e21b8d` (React Flow + CRUD)
 
 ---
 
@@ -11,21 +11,16 @@
 
 O Rayzen já sabia *o que foi feito* (eventos, sínteses de sessão) e *onde está* (ProjectState: objective, milestones, blockers, risks). Mas faltava a terceira dimensão: **onde quer chegar**.
 
-Sem uma meta declarada, o sistema não consegue responder:
-- O que está atrasado em relação ao objetivo?
-- Qual a ação mais impactante agora?
-- O projeto está convergindo ou divergindo da intenção original?
-
 O **Goal Graph** é a camada de intenção. Ele conecta:
 
 ```
-Meta declarada (ProjectGoal)
+ProjectGoal (meta declarada)
         ↕  LLM compara
-Estado atual (ProjectState)
+ProjectState (estado atual)
         ↓
 Gap Analysis → Next Best Action
         ↓
-Diagrama Mermaid (visual)
+Grafo interativo React Flow (visual + CRUD)
 ```
 
 ---
@@ -37,33 +32,15 @@ Antes do Goal Graph, o Rayzen funcionava como um **espelho do passado**: captura
 Com o Goal Graph:
 - Você declara onde quer chegar (título + critérios de sucesso + KPIs + prazo)
 - O sistema compara com o que foi feito e onde está agora
-- Entrega uma lista priorizada de gaps e **uma ação concreta** para executar
-
-A pergunta "o que eu deveria fazer agora?" passa a ter uma resposta gerada em contexto, não genérica.
+- Entrega gaps priorizados e **uma ação concreta** para executar agora
+- Você edita o estado do projeto diretamente no grafo (CRUD visual)
 
 ---
 
-## O plano (como foi decidido)
+## Arquitetura
 
-### Abordagem escolhida
+### Schema Prisma
 
-**MVP com Mermaid.js via CDN** — sem React Flow (Fase 2 futura), sem nova dependência npm. Rende diagramas SVG a partir de strings `.mmd` geradas pela API.
-
-### O que foi reutilizado
-
-| Existente | Como foi reutilizado |
-|---|---|
-| `ProjectState` | Estado atual: milestones, blockers, risks, objective — input direto para o gap analysis |
-| `ProjectState.milestones` | Nós do diagrama Mermaid de estado atual |
-| `ProjectStateService.get()` | Chamado diretamente pelo `GraphService` |
-| `HealthScoreService.getCurrent()` | Score exibido no `GoalGraphResponse` |
-| `Event.intent` | Filtra `decision` e `problem` para enriquecer o contexto do LLM |
-| `extractJson()` | Copiado de `synthesis.service.ts` — parsing robusto de JSON sem `response_format` |
-| `DataLineageEdge` | Padrão de grafo (source → target) como referência arquitetural para Fase 2 |
-
-### O que foi criado
-
-**Schema:**
 ```prisma
 model ProjectGoal {
   id              String    @id @default(uuid())
@@ -74,82 +51,153 @@ model ProjectGoal {
   kpis            Json      @default("[]")  // [{metric, target, current?, unit}]
   status          String    @default("active")  // active|achieved|paused|cancelled
   targetDate      DateTime?
-  parentGoalId    String?   // hierarquia de goals
+  parentGoalId    String?
   // ...timestamps, relations
   @@map("project_goals")
 }
 ```
 
-**API — módulo `graph`:**
+### API — módulo `graph`
 
 | Rota | Descrição |
 |---|---|
-| `GET /projects/:id/graph` | Mermaid do estado atual (milestones + blockers + next steps) |
-| `GET /projects/:id/graph/goal` | GoalGraphResponse: meta + estado + gap analysis + mermaid + health score |
+| `GET /projects/:id/graph` | Retorna estado atual com `state` (milestones, blockers, nextSteps) |
+| `GET /projects/:id/graph/goal` | GoalGraphResponse: meta + estado + gap analysis + health score |
 | `GET /projects/:id/graph/goals` | Lista todos os goals do projeto |
 | `POST /projects/:id/graph/goal` | Cria nova meta ativa (pausa a anterior) |
 | `PATCH /projects/:id/graph/goal/:goalId/criteria/:criteriaId` | Toggle critério done/undone |
 
-**GapAnalysis — LLM gpt-4o-mini (temp 0.2):**
+### API — planning (atualizado)
 
-Contexto enviado: meta completa + estado atual (milestones, blockers, risks, stage) + últimos 10 eventos de decision/problem.
+`PATCH /projects/:id/state/planning` agora aceita:
+```typescript
+{
+  milestones?: { id, title, status }[]
+  blockers?: string[]        // ← adicionado para CRUD do grafo
+  nextSteps?: string[]       // ← adicionado para CRUD do grafo
+  backlog?: { id, title, priority }[]
+  activeFocus?: string
+  definitionOfDone?: string
+}
+```
 
-Resposta estruturada:
+### GapAnalysis — LLM (gpt-4o-mini, temp 0.2)
+
+Contexto: meta completa + estado atual + últimos 10 eventos de decision/problem/idea.
+
 ```typescript
 {
   gaps: [{ area, description, severity: 'high'|'medium'|'low', relatedCriteria? }]
-  nextBestAction: string    // 1 frase concreta
+  nextBestAction: string    // 1 frase acionável
   goalProgress: number      // 0–100
   confidence: 'low'|'medium'|'high'
 }
 ```
 
-**Web:**
-- Botão **grafo** no header (aparece só com projeto ativo)
-- Sub-modo `goal`: meta + barra de progresso + gaps coloridos por severidade + Next Best Action + diagrama
-- Sub-modo `estado`: diagrama Mermaid do estado atual
-- Formulário de criação: título, descrição, prazo, critérios de sucesso (lista dinâmica)
-- Mermaid renderizado via `window.mermaid.init()` em `useEffect`
-
 ---
 
-## O resultado
+## Componente GraphCanvas
 
-### O que funciona
+**Arquivo:** `apps/web/app/components/GraphCanvas.tsx`  
+**Carregamento:** `next/dynamic` com `ssr: false` (browser-only)  
+**Dependência:** `@xyflow/react` v12
 
-1. **Definir meta:** formulário com título + critérios + prazo → salvo como `ProjectGoal` ativo
-2. **Progresso automático:** marcando critérios como done a barra de progresso atualiza; inclui milestones do `ProjectState`
-3. **Gap Analysis:** LLM lê meta + estado + eventos recentes → lista priorizada de gaps com severidade visual
-4. **Next Best Action:** uma frase de ação gerada em contexto (não genérica)
-5. **Diagrama de estado:** Mermaid do `ProjectState` atual — milestones (verde=done, azul=active, cinza=pending), blockers (vermelho), próximos passos (roxo)
-6. **Diagrama do goal:** Mermaid do goal — critérios, gaps high severity, Next Best Action
+### StateCanvas (aba "Estado atual")
 
-### Limitações do MVP
+Renderiza grafo em 3 colunas:
+- **Esquerda (vermelho):** blockers — `[blocker]` nodes
+- **Centro (azul):** milestones — `[milestone]` nodes com status colorido
+- **Direita (roxo):** próximos passos — `[próximo]` nodes
 
-- **Fase 2 — React Flow:** interatividade completa (arrastar nós, editar inline, timeline visual) ainda não implementada
-- **Sem histórico de goals:** ao criar nova meta, a anterior é pausada mas não há comparação de evolução entre goals
-- **KPIs não verificados:** campo existe mas o LLM não tem fonte de dados para KPI atual — fica como contexto declarado
-- **Mermaid em mobile:** diagramas complexos podem ficar cortados em telas pequenas
-
-### Arquivos modificados
-
-| Arquivo | O que mudou |
+**CRUD disponível:**
+| Ação | Como |
 |---|---|
-| `apps/api/prisma/schema.prisma` | +`ProjectGoal` model, +`projectGoals` relation em `Project` |
-| `apps/api/src/modules/graph/graph.module.ts` | Criado |
-| `apps/api/src/modules/graph/graph.service.ts` | Criado — Mermaid gen + gap analysis LLM + CRUD goal |
-| `apps/api/src/modules/graph/graph.controller.ts` | Criado — 5 rotas |
-| `apps/api/src/app.module.ts` | +`GraphModule` |
-| `apps/web/app/page.tsx` | +interfaces GoalGraph, +state vars, +`openGraph`, +`saveGoal`, +`toggleCriteria`, +painel grafo, +formulário de meta |
-| `apps/web/app/layout.tsx` | +`<Script>` Mermaid CDN com `theme: dark` |
+| Criar milestone | Botão `+ milestone` → input → Enter |
+| Criar blocker | Botão `+ blocker` → input → Enter |
+| Criar próximo passo | Botão `+ próximo` → input → Enter |
+| Editar texto | Duplo clique no node → edita inline → Enter/Blur |
+| Mudar status | Clique no node milestone → cicla pending→active→done |
+| Deletar | Hover no node → clique no × |
+| Salvar | Botão **salvar** aparece quando há mudanças → chama `PATCH /state/planning` |
+
+### GoalCanvas (aba "Goal Graph")
+
+Renderiza hierarquia de cima para baixo:
+- **Topo (amarelo):** meta com prazo
+- **Linha 2 (azul/verde):** critérios de sucesso (done=verde, pending=azul)
+- **Linha 3 (vermelho/laranja):** gaps de alta severidade
+- **Base (ciano):** Next Best Action
+
+Leitura apenas — edições são feitas via formulário de goal.
+
+### Visual
+
+- Background `#050508` com grid sutil
+- Nodes com **glow neon** colorido por tipo
+- Edges animadas para conexões ativas
+- MiniMap no canto inferior direito
+- Controles de zoom/pan integrados
 
 ---
 
-## Fase 2 — próximos passos planejados
+## Fluxo de uso
 
-- **React Flow:** substituir Mermaid por grafo interativo com arrastar/zoom
+1. **Abrir grafo** → botão "grafo" no header (visível só com projeto ativo)
+2. **Estado atual** → aba mostra milestones/blockers/próximos passos do projeto
+   - Se vazio: clicar **⟳ gerar estado** → LLM analisa eventos e gera estado
+   - Se quiser editar manualmente: usar CRUD do grafo → salvar
+3. **Goal Graph** → aba define a meta
+   - Se sem meta: formulário (título, critérios, prazo)
+   - Com meta: vê progresso, gaps por severidade e Next Best Action
+   - Marcar critérios como done atualiza a barra de progresso
+4. **Atualizar** → botão "atualizar" no footer recarrega ambos os dados
+
+---
+
+## Histórico de implementação
+
+### Fase 1 — MVP (2026-05-08)
+- Schema `ProjectGoal`, módulo `graph` (service + controller)
+- Gap Analysis via LLM
+- Web: painel modal com 2 abas, formulário de goal, cards de gap
+- Diagrama: tentativa com Mermaid.js
+
+### Fase 2 — React Flow (2026-05-09)
+- Substituição completa de Mermaid por `@xyflow/react`
+- `GraphCanvas.tsx` — componente client-only com `StateCanvas` e `GoalCanvas`
+- CRUD de nodes no `StateCanvas` (criar, editar inline, deletar, ciclar status)
+- Persistência via `PATCH /projects/:id/state/planning` (adicionado suporte a `blockers` e `nextSteps`)
+- Visual futurista: glow neon, edges animadas, MiniMap
+
+**Por que Mermaid não funcionou:**
+- Mermaid 11 é ESM puro — não define `window.mermaid` como global (CDN UMD inválido)
+- `await import('mermaid')` em Next.js 15 falhou silenciosamente mesmo com `serverExternalPackages`
+- React Flow é nativo React e carrega sem problemas via `next/dynamic + ssr: false`
+
+---
+
+## Arquivos
+
+| Arquivo | Status |
+|---|---|
+| `apps/api/prisma/schema.prisma` | +`ProjectGoal` model |
+| `apps/api/src/modules/graph/graph.module.ts` | criado |
+| `apps/api/src/modules/graph/graph.service.ts` | criado |
+| `apps/api/src/modules/graph/graph.controller.ts` | criado |
+| `apps/api/src/modules/project-state/project-state.service.ts` | +`blockers`/`nextSteps` no `updatePlanning` |
+| `apps/api/src/modules/project-state/project-state.controller.ts` | +`blockers`/`nextSteps` no body |
+| `apps/api/src/app.module.ts` | +`GraphModule` |
+| `apps/web/app/components/GraphCanvas.tsx` | criado — React Flow canvas |
+| `apps/web/app/page.tsx` | +painel grafo, +`openGraph`, +`saveGoal`, +`toggleCriteria`, +`graphStateData` |
+| `apps/web/next.config.ts` | +`serverExternalPackages: ['mermaid']` (legado) |
+| `apps/web/package.json` | +`@xyflow/react` |
+
+---
+
+## Próximos passos
+
 - **Histórico de goals:** timeline de metas com datas de criação e conquista
-- **KPI tracking:** integrar com eventos para rastrear KPIs automaticamente (ex: commits/semana, testes passando)
-- **Goal → EventGraph:** cada evento (Edit, Commit, Decision) vira um nó conectado ao milestone correspondente
-- **Tabelas `graph_nodes`/`graph_edges`:** para persistência de nós editados manualmente
-- **Notificação proativa:** quando `goalProgress` estagnar por N dias → recomendação automática via `ProjectRecommendation`
+- **KPI tracking:** integrar com eventos para rastrear KPIs automaticamente
+- **GoalCanvas CRUD:** edição inline dos critérios diretamente no grafo
+- **Goal → EventGraph:** cada evento (Edit, Commit, Decision) vira nó conectado ao milestone
+- **Notificação proativa:** quando `goalProgress` estagnar por N dias → recomendação automática
