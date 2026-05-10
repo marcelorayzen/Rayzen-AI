@@ -1301,6 +1301,14 @@ export default function Home() {
             setSessionTokens((prev) => prev + (data.tokensUsed as number))
             setDailyTokens((prev) => (prev ?? 0) + (data.tokensUsed as number))
           }
+
+          if (typeof data.message === 'string' && !data.text) {
+            setMessages((prev) => {
+              const updated = [...prev]
+              updated[updated.length - 1] = { ...updated[updated.length - 1], content: `Erro: ${data.message as string}` }
+              return updated
+            })
+          }
         }
       }
       if (autoVoiceRef.current && assistantText.trim()) {
@@ -1314,10 +1322,16 @@ export default function Home() {
         }, 250)
       }
     } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', content: `Erro: ${err instanceof Error ? err.message : 'desconhecido'}` },
-      ])
+      const errMsg = `Erro: ${err instanceof Error ? err.message : 'desconhecido'}`
+      setMessages((prev) => {
+        const updated = [...prev]
+        const last = updated[updated.length - 1]
+        if (last?.role === 'assistant' && !last.content) {
+          updated[updated.length - 1] = { ...last, content: errMsg }
+          return updated
+        }
+        return [...prev, { role: 'assistant', content: errMsg }]
+      })
     } finally {
       setLoading(false)
     }
