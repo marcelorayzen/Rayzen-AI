@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Param, Body, Query } from '@nestjs/common'
+import { Controller, Get, Post, Patch, Param, Body } from '@nestjs/common'
 import { ApiTags, ApiOperation } from '@nestjs/swagger'
 import { GraphService, CreateGoalDto } from './graph.service'
 
@@ -32,6 +32,15 @@ export class GraphController {
     return this.graph.upsertGoal(id, dto)
   }
 
+  @Patch('goal/:goalId/criteria')
+  @ApiOperation({ summary: 'Substituir array completo de critérios da meta' })
+  updateCriteria(
+    @Param('goalId') goalId: string,
+    @Body() body: { criteria: Array<{ id: string; text: string; done: boolean }> },
+  ) {
+    return this.graph.updateCriteria(goalId, body.criteria)
+  }
+
   @Patch('goal/:goalId/criteria/:criteriaId')
   @ApiOperation({ summary: 'Marcar critério de sucesso como done ou undone' })
   toggleCriteria(
@@ -40,5 +49,29 @@ export class GraphController {
     @Body() body: { done: boolean },
   ) {
     return this.graph.toggleCriteria(goalId, criteriaId, body.done)
+  }
+
+  @Patch('goal/:goalId/kpi')
+  @ApiOperation({ summary: 'Atualizar valor atual de um KPI da meta' })
+  updateKpi(
+    @Param('goalId') goalId: string,
+    @Body() body: { metric: string; current: string },
+  ) {
+    return this.graph.updateKpi(goalId, body.metric, body.current)
+  }
+
+  @Post('goal/:goalId/kpi/auto-track')
+  @ApiOperation({ summary: 'Auto-detect valores atuais dos KPIs via LLM analisando eventos recentes' })
+  autoTrackKpis(@Param('id') id: string, @Param('goalId') goalId: string) {
+    return this.graph.autoTrackKpis(id, goalId)
+  }
+
+  @Patch('goal/:goalId/status')
+  @ApiOperation({ summary: 'Alterar status da meta (achieved | paused | cancelled | active)' })
+  setGoalStatus(
+    @Param('goalId') goalId: string,
+    @Body() body: { status: 'active' | 'achieved' | 'paused' | 'cancelled' },
+  ) {
+    return this.graph.setGoalStatus(goalId, body.status)
   }
 }

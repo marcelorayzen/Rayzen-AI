@@ -25,7 +25,7 @@ where ngrok >nul 2>nul
 if errorlevel 1 goto :fail
 
 for /f "tokens=1 delims=." %%v in ('node -p "process.versions.node" 2^>nul') do set NODE_MAJOR=%%v
-if not "%NODE_MAJOR%"=="20" goto :fail
+if not "%NODE_MAJOR%"=="20" if not "%NODE_MAJOR%"=="22" goto :fail
 
 if not exist ".env" goto :fail
 copy /y ".env" "apps\api\.env" >nul
@@ -46,8 +46,8 @@ timeout /t 2 /nobreak >nul
 goto wait_docker
 :docker_ready
 
-echo  Subindo Postgres e Redis...
-docker compose up -d postgres redis
+echo  Subindo Postgres, Redis e LiteLLM...
+docker compose up -d postgres redis litellm
 if errorlevel 1 goto :fail
 
 echo  Aguardando PostgreSQL na porta 55432...
@@ -60,6 +60,17 @@ if !pg_tries! LEQ 0 goto :fail
 timeout /t 2 /nobreak >nul
 goto wait_postgres
 :postgres_ready
+
+echo  Aguardando LiteLLM na porta 4100...
+set /a llm_tries=60
+:wait_litellm
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$ok = (Test-NetConnection -ComputerName 'localhost' -Port 4100 -WarningAction SilentlyContinue).TcpTestSucceeded; if ($ok) { exit 0 } else { exit 1 }" >nul 2>nul
+if not errorlevel 1 goto litellm_ready
+set /a llm_tries-=1
+if !llm_tries! LEQ 0 ( echo  AVISO: LiteLLM demorou — continuando. & goto litellm_ready )
+timeout /t 2 /nobreak >nul
+goto wait_litellm
+:litellm_ready
 
 echo  Gerando Prisma Client...
 call %PNPM% --filter api db:generate

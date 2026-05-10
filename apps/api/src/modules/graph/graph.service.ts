@@ -185,6 +185,13 @@ export class GraphService {
     })
   }
 
+  async updateCriteria(goalId: string, criteria: SuccessCriteria[]) {
+    return this.prisma.projectGoal.update({
+      where: { id: goalId },
+      data: { successCriteria: criteria as unknown as Parameters<typeof this.prisma.projectGoal.update>[0]['data']['successCriteria'] },
+    })
+  }
+
   async toggleCriteria(goalId: string, criteriaId: string, done: boolean) {
     const goal = await this.prisma.projectGoal.findUniqueOrThrow({ where: { id: goalId } })
     const criteria = (goal.successCriteria as unknown as SuccessCriteria[]).map(c =>
@@ -200,6 +207,96 @@ export class GraphService {
     return this.prisma.projectGoal.findMany({
       where: { projectId },
       orderBy: { createdAt: 'desc' },
+    })
+  }
+
+  async setGoalStatus(goalId: string, status: 'active' | 'achieved' | 'paused' | 'cancelled') {
+    return this.prisma.projectGoal.update({
+      where: { id: goalId },
+      data: { status },
+    })
+  }
+
+  async autoTrackKpis(projectId: string, goalId: string): Promise<Record<string, string>> {
+    const [goal, events] = await Promise.all([
+      this.prisma.projectGoal.findUniqueOrThrow({ where: { id: goalId } }),
+      this.prisma.event.findMany({
+        where: { projectId },
+        orderBy: { ts: 'desc' },
+        take: 30,
+        select: { content: true, intent: true, ts: true },
+      }),
+    ])
+
+    const kpis = goal.kpis as unknown as Kpi[]
+    if (kpis.length === 0) return {}
+
+    const eventsSummary = events
+      .map(e => `[${new Date(e.ts).toLocaleDateString('pt-BR')}] ${e.content.slice(0, 150)}`)
+      .join('\n')
+
+    const prompt = `Você é um assistente de análise de projetos. Com base nos eventos recentes, estime os valores atuais dos KPIs abaixo.
+
+KPIs da meta:
+${kpis.map(k => `- ${k.metric}: meta=${k.target} ${k.unit ?? ''} | atual=${k.current ?? 'desconhecido'}`).join('\n')}
+
+Eventos recentes do projeto:
+${eventsSummary || 'Nenhum evento disponível'}
+
+Retorne EXATAMENTE este JSON (sem markdown):
+{
+  "kpis": [
+    { "metric": "nome exato do KPI", "current": "valor estimado como string", "reasoning": "1 frase explicando de onde veio o valor" }
+  ]
+}
+
+Regras:
+- Inclua apenas KPIs para os quais você encontrou evidência nos eventos
+- Use o mesmo nome exato do KPI
+- Se não há evidência suficiente para um KPI, omita-o da lista
+- O valor deve ser uma string numérica ou texto (ex: "47", "sim", "3/10")`
+
+    try {
+      const res = await this.llm.chat.completions.create({
+        model: 'gpt-4o-mini',
+        temperature: 0.1,
+        messages: [{ role: 'user', content: prompt }],
+      })
+      const raw = res.choices[0]?.message?.content ?? ''
+      const parsed = this.extractJson(raw) as { kpis: Array<{ metric: string; current: string }> }
+
+      if (!parsed?.kpis?.length) return {}
+
+      // Aplica as atualizações no banco
+      let updatedKpis = [...kpis]
+      const suggestions: Record<string, string> = {}
+      for (const suggestion of parsed.kpis) {
+        updatedKpis = updatedKpis.map(k =>
+          k.metric === suggestion.metric ? { ...k, current: suggestion.current } : k,
+        )
+        suggestions[suggestion.metric] = suggestion.current
+      }
+
+      await this.prisma.projectGoal.update({
+        where: { id: goalId },
+        data: { kpis: updatedKpis as unknown as Parameters<typeof this.prisma.projectGoal.update>[0]['data']['kpis'] },
+      })
+
+      return suggestions
+    } catch (err) {
+      this.logger.warn(`KPI auto-track falhou: ${err}`)
+      return {}
+    }
+  }
+
+  async updateKpi(goalId: string, metric: string, current: string) {
+    const goal = await this.prisma.projectGoal.findUniqueOrThrow({ where: { id: goalId } })
+    const kpis = (goal.kpis as unknown as Kpi[]).map(k =>
+      k.metric === metric ? { ...k, current } : k,
+    )
+    return this.prisma.projectGoal.update({
+      where: { id: goalId },
+      data: { kpis: kpis as unknown as Parameters<typeof this.prisma.projectGoal.update>[0]['data']['kpis'] },
     })
   }
 

@@ -335,6 +335,14 @@ export default function Home() {
   const [newProjectDesc, setNewProjectDesc] = useState('')
   const [newProjectSlug, setNewProjectSlug] = useState('')
   const [creatingProject, setCreatingProject] = useState(false)
+  const [onboardStep, setOnboardStep] = useState<1 | 2 | 3>(1)
+  const [onboardProjectId, setOnboardProjectId] = useState<string | null>(null)
+  const [onboardSrcTab, setOnboardSrcTab] = useState<'github' | 'notion' | 'skip'>('github')
+  const [onboardIndexing, setOnboardIndexing] = useState(false)
+  const [onboardGoalTitle, setOnboardGoalTitle] = useState('')
+  const [onboardGoalDate, setOnboardGoalDate] = useState('')
+  const [onboardGoalCriteria, setOnboardGoalCriteria] = useState<string[]>([''])
+  const [onboardSavingGoal, setOnboardSavingGoal] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [importTab, setImportTab] = useState<ImportTab>('github')
   const [importLoading, setImportLoading] = useState(false)
@@ -358,6 +366,12 @@ export default function Home() {
   const [graphGoalData, setGraphGoalData] = useState<GoalGraphData | null>(null)
   const [graphLoading, setGraphLoading] = useState(false)
   const [graphStateRefreshing, setGraphStateRefreshing] = useState(false)
+  const [goalsHistory, setGoalsHistory] = useState<ProjectGoal[] | null>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [editingKpi, setEditingKpi] = useState<string | null>(null)
+  const [kpiDraft, setKpiDraft] = useState('')
+  const [autoTrackingKpis, setAutoTrackingKpis] = useState(false)
   const [goalFormOpen, setGoalFormOpen] = useState(false)
   const [goalTitle, setGoalTitle] = useState('')
   const [goalDesc, setGoalDesc] = useState('')
@@ -687,15 +701,68 @@ export default function Home() {
         if (isProject(data)) {
           setProjects(prev => [...prev, data])
           setActiveProjectId(data.id)
-          setNewProjectOpen(false)
-          setNewProjectName('')
-          setNewProjectDesc('')
-          setNewProjectSlug('')
+          setOnboardProjectId(data.id)
+          setOnboardStep(2)
         }
       }
     } catch { /* silencioso */ }
     finally { setCreatingProject(false) }
   }, [newProjectName, newProjectDesc, newProjectSlug])
+
+  const closeNewProject = useCallback(() => {
+    setNewProjectOpen(false)
+    setNewProjectName('')
+    setNewProjectDesc('')
+    setNewProjectSlug('')
+    setOnboardStep(1)
+    setOnboardProjectId(null)
+    setOnboardGoalTitle('')
+    setOnboardGoalDate('')
+    setOnboardGoalCriteria([''])
+    setOnboardSrcTab('github')
+  }, [])
+
+  const onboardIndexSource = useCallback(async () => {
+    if (!onboardProjectId) { setOnboardStep(3); return }
+    setOnboardIndexing(true)
+    try {
+      if (onboardSrcTab === 'github' && githubUser.trim()) {
+        const username = githubUser.trim().replace(/^https?:\/\/github\.com\//, '').replace(/\/$/, '')
+        const res = await fetch(`${API_URL}/memory/index/github`, {
+          method: 'POST',
+          headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ username, repo: githubRepo.trim() || undefined, token: githubToken.trim() || undefined, projectId: onboardProjectId }),
+        })
+        if (!res.ok) console.warn('Onboard GitHub index:', await res.text())
+      } else if (onboardSrcTab === 'notion' && notionToken.trim()) {
+        const res = await fetch(`${API_URL}/memory/index/notion`, {
+          method: 'POST',
+          headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ integrationToken: notionToken.trim(), rootPageId: notionPageId.trim() || undefined, projectId: onboardProjectId }),
+        })
+        if (!res.ok) console.warn('Onboard Notion index:', await res.text())
+      }
+    } catch (err) {
+      console.warn('Onboard index source falhou:', err)
+    } finally {
+      setOnboardIndexing(false)
+      setOnboardStep(3)
+    }
+  }, [onboardProjectId, onboardSrcTab, githubUser, githubRepo, githubToken, notionPageId, notionToken])
+
+  const onboardCreateGoal = useCallback(async () => {
+    if (!onboardProjectId || !onboardGoalTitle.trim()) { closeNewProject(); return }
+    setOnboardSavingGoal(true)
+    try {
+      const criteria = onboardGoalCriteria.filter(c => c.trim()).map((text, i) => ({ id: `c${i}`, text, done: false }))
+      await fetch(`${API_URL}/projects/${onboardProjectId}/graph/goal`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ title: onboardGoalTitle.trim(), successCriteria: criteria, targetDate: onboardGoalDate || undefined }),
+      })
+    } catch { /* silencioso */ }
+    finally { setOnboardSavingGoal(false); closeNewProject() }
+  }, [onboardProjectId, onboardGoalTitle, onboardGoalDate, onboardGoalCriteria, closeNewProject])
 
   useEffect(() => {
     if (activeProjectId) {
@@ -919,6 +986,8 @@ export default function Home() {
     setGraphOpen(true)
     setGraphSubMode(sub)
     setGraphLoading(true)
+    setGoalsHistory(null)
+    setHistoryOpen(false)
     try {
       const [stateRes, goalRes] = await Promise.all([
         fetch(`${API_URL}/projects/${activeProjectId}/graph`, { headers: authHeaders() }),
@@ -955,6 +1024,65 @@ export default function Home() {
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ done }),
     }).catch(() => null)
+    openGraph('goal')
+  }, [activeProjectId, openGraph])
+
+  const loadGoalsHistory = useCallback(async () => {
+    if (!activeProjectId) return
+    setHistoryLoading(true)
+    try {
+      const res = await fetch(`${API_URL}/projects/${activeProjectId}/graph/goals`, { headers: authHeaders() })
+      if (res.ok) setGoalsHistory(await res.json() as ProjectGoal[])
+    } catch { /* silencioso */ }
+    finally { setHistoryLoading(false) }
+  }, [activeProjectId])
+
+  const toggleHistory = useCallback(async () => {
+    if (!historyOpen && !goalsHistory) await loadGoalsHistory()
+    setHistoryOpen(v => !v)
+  }, [historyOpen, goalsHistory, loadGoalsHistory])
+
+  const achieveGoal = useCallback(async (goalId: string) => {
+    if (!activeProjectId) return
+    if (!confirm('Marcar esta meta como conquistada? Ela será arquivada e você poderá criar uma nova.')) return
+    await fetch(`${API_URL}/projects/${activeProjectId}/graph/goal/${goalId}/status`, {
+      method: 'PATCH',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ status: 'achieved' }),
+    }).catch(() => null)
+    setGoalsHistory(null)
+    openGraph('goal')
+  }, [activeProjectId, openGraph])
+
+  const saveKpi = useCallback(async (goalId: string, metric: string) => {
+    if (!activeProjectId) return
+    await fetch(`${API_URL}/projects/${activeProjectId}/graph/goal/${goalId}/kpi`, {
+      method: 'PATCH',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ metric, current: kpiDraft }),
+    }).catch(() => null)
+    setEditingKpi(null)
+    openGraph('goal')
+  }, [activeProjectId, kpiDraft, openGraph])
+
+  const saveCriteria = useCallback(async (goalId: string, criteria: SuccessCriteria[]) => {
+    if (!activeProjectId) return
+    await fetch(`${API_URL}/projects/${activeProjectId}/graph/goal/${goalId}/criteria`, {
+      method: 'PATCH',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ criteria }),
+    }).catch(() => null)
+    openGraph('goal')
+  }, [activeProjectId, openGraph])
+
+  const autoTrackKpis = useCallback(async (goalId: string) => {
+    if (!activeProjectId) return
+    setAutoTrackingKpis(true)
+    await fetch(`${API_URL}/projects/${activeProjectId}/graph/goal/${goalId}/kpi/auto-track`, {
+      method: 'POST',
+      headers: authHeaders(),
+    }).catch(() => null)
+    setAutoTrackingKpis(false)
     openGraph('goal')
   }, [activeProjectId, openGraph])
 
@@ -1290,62 +1418,175 @@ export default function Home() {
         </div>
       )}
 
-      {/* New project modal */}
+      {/* New project wizard */}
       {newProjectOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="fixed inset-0 bg-black/70" onClick={() => { setNewProjectOpen(false); setNewProjectName(''); setNewProjectDesc('') }} />
+          <div className="fixed inset-0 bg-black/70" onClick={onboardStep === 1 ? closeNewProject : undefined} />
           <div className="relative z-50 w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-2xl p-5 mx-4">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold">Novo projeto</h2>
-              <button onClick={() => { setNewProjectOpen(false); setNewProjectName(''); setNewProjectDesc('') }} className="text-zinc-500 hover:text-zinc-300 text-xl leading-none">×</button>
+
+            {/* Header */}
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold">
+                {onboardStep === 1 ? 'Novo projeto' : onboardStep === 2 ? 'Indexar fonte de conhecimento' : 'Primeira meta'}
+              </h2>
+              <button onClick={closeNewProject} className="text-zinc-500 hover:text-zinc-300 text-xl leading-none">×</button>
             </div>
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs text-zinc-500 mb-1 block">Nome *</label>
-                <input
-                  value={newProjectName}
-                  onChange={(e) => {
-                    setNewProjectName(e.target.value)
-                    if (!newProjectSlug) {
-                      setNewProjectSlug(e.target.value.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''))
-                    }
-                  }}
-                  onKeyDown={(e) => { if (e.key === 'Enter') createProject() }}
-                  placeholder="ex: Rayzen PDV"
-                  autoFocus
-                  className="w-full bg-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none focus:ring-1 focus:ring-zinc-600"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-zinc-500 mb-1 block">
-                  Pasta / repo slug
-                  <span className="text-zinc-600 ml-1">— deve bater com o nome da pasta no VS Code</span>
-                </label>
-                <input
-                  value={newProjectSlug}
-                  onChange={(e) => setNewProjectSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                  placeholder="ex: rayzen-pdv"
-                  className="w-full bg-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none focus:ring-1 focus:ring-zinc-600 font-mono"
-                />
-                <p className="text-[10px] text-zinc-600 mt-1">O hook do Claude detecta automaticamente o projeto por este nome</p>
-              </div>
-              <div>
-                <label className="text-xs text-zinc-500 mb-1 block">Descrição (opcional)</label>
-                <input
-                  value={newProjectDesc}
-                  onChange={(e) => setNewProjectDesc(e.target.value)}
-                  placeholder="ex: plataforma de testes de IA"
-                  className="w-full bg-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none focus:ring-1 focus:ring-zinc-600"
-                />
-              </div>
-              <button
-                onClick={createProject}
-                disabled={creatingProject || !newProjectName.trim()}
-                className="w-full bg-zinc-100 text-zinc-900 rounded-lg py-2 text-sm font-medium disabled:opacity-40 hover:bg-white transition-colors"
-              >
-                {creatingProject ? 'Criando…' : 'Criar projeto'}
-              </button>
+
+            {/* Step bar */}
+            <div className="flex gap-1.5 mb-4">
+              {([1, 2, 3] as const).map(s => (
+                <div key={s} className={`h-0.5 flex-1 rounded-full transition-colors ${onboardStep >= s ? 'bg-zinc-100' : 'bg-zinc-700'}`} />
+              ))}
             </div>
+
+            {/* Step 1 — project info */}
+            {onboardStep === 1 && (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-zinc-500 mb-1 block">Nome *</label>
+                  <input
+                    value={newProjectName}
+                    onChange={(e) => {
+                      setNewProjectName(e.target.value)
+                      if (!newProjectSlug) setNewProjectSlug(e.target.value.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''))
+                    }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') createProject() }}
+                    placeholder="ex: Rayzen PDV"
+                    autoFocus
+                    className="w-full bg-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none focus:ring-1 focus:ring-zinc-600"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-zinc-500 mb-1 block">
+                    Pasta / repo slug
+                    <span className="text-zinc-600 ml-1">— deve bater com o nome da pasta no VS Code</span>
+                  </label>
+                  <input
+                    value={newProjectSlug}
+                    onChange={(e) => setNewProjectSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                    placeholder="ex: rayzen-pdv"
+                    className="w-full bg-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none focus:ring-1 focus:ring-zinc-600 font-mono"
+                  />
+                  <p className="text-[10px] text-zinc-600 mt-1">O hook do Claude detecta automaticamente o projeto por este nome</p>
+                </div>
+                <div>
+                  <label className="text-xs text-zinc-500 mb-1 block">Descrição (opcional)</label>
+                  <input
+                    value={newProjectDesc}
+                    onChange={(e) => setNewProjectDesc(e.target.value)}
+                    placeholder="ex: plataforma de testes de IA"
+                    className="w-full bg-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none focus:ring-1 focus:ring-zinc-600"
+                  />
+                </div>
+                <button
+                  onClick={createProject}
+                  disabled={creatingProject || !newProjectName.trim()}
+                  className="w-full bg-zinc-100 text-zinc-900 rounded-lg py-2 text-sm font-medium disabled:opacity-40 hover:bg-white transition-colors"
+                >
+                  {creatingProject ? 'Criando…' : 'Criar e continuar →'}
+                </button>
+              </div>
+            )}
+
+            {/* Step 2 — source indexing */}
+            {onboardStep === 2 && (
+              <div className="space-y-3">
+                <p className="text-xs text-zinc-400">Indexe o repositório ou docs para o Brain entender o contexto do projeto.</p>
+                <div className="flex gap-1">
+                  {(['github', 'notion', 'skip'] as const).map(tab => (
+                    <button key={tab} onClick={() => setOnboardSrcTab(tab)}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${onboardSrcTab === tab ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'}`}>
+                      {tab === 'github' ? 'GitHub' : tab === 'notion' ? 'Notion' : 'Pular'}
+                    </button>
+                  ))}
+                </div>
+
+                {onboardSrcTab === 'github' && (
+                  <div className="space-y-2">
+                    <input value={githubUser} onChange={e => setGithubUser(e.target.value)} placeholder="usuário ou org (ex: marcelorayzen)"
+                      className="w-full bg-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none focus:ring-1 focus:ring-zinc-600" />
+                    <input value={githubRepo} onChange={e => setGithubRepo(e.target.value)} placeholder="repositório (opcional — indexa todos se vazio)"
+                      className="w-full bg-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none focus:ring-1 focus:ring-zinc-600" />
+                    <input value={githubToken} onChange={e => setGithubToken(e.target.value)} placeholder="token GitHub (opcional, para repos privados)" type="password"
+                      className="w-full bg-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none focus:ring-1 focus:ring-zinc-600" />
+                  </div>
+                )}
+
+                {onboardSrcTab === 'notion' && (
+                  <div className="space-y-2">
+                    <input value={notionToken} onChange={e => setNotionToken(e.target.value)} placeholder="Integration token (secret_...) *" type="password"
+                      className="w-full bg-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none focus:ring-1 focus:ring-zinc-600" />
+                    <input value={notionPageId} onChange={e => setNotionPageId(e.target.value)} placeholder="ID ou URL da página (opcional)"
+                      className="w-full bg-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none focus:ring-1 focus:ring-zinc-600" />
+                  </div>
+                )}
+
+                {onboardSrcTab === 'skip' && (
+                  <p className="text-xs text-zinc-500">Você pode indexar fontes depois no painel Brain.</p>
+                )}
+
+                <button
+                  onClick={onboardSrcTab === 'skip' ? () => setOnboardStep(3) : onboardIndexSource}
+                  disabled={
+                    onboardIndexing ||
+                    (onboardSrcTab === 'github' && !githubUser.trim()) ||
+                    (onboardSrcTab === 'notion' && !notionToken.trim())
+                  }
+                  className="w-full bg-zinc-700 hover:bg-zinc-600 text-zinc-100 rounded-lg py-2 text-sm font-medium disabled:opacity-40 transition-colors"
+                >
+                  {onboardIndexing ? 'Indexando…' : onboardSrcTab === 'skip' ? 'Pular →' : 'Indexar e continuar →'}
+                </button>
+              </div>
+            )}
+
+            {/* Step 3 — first goal */}
+            {onboardStep === 3 && (
+              <div className="space-y-3">
+                <p className="text-xs text-zinc-400">Defina onde este projeto quer chegar. O Rayzen usará isso para orientar o Gap Analysis.</p>
+                <div>
+                  <label className="text-xs text-zinc-500 mb-1 block">Título da meta *</label>
+                  <input value={onboardGoalTitle} onChange={e => setOnboardGoalTitle(e.target.value)}
+                    placeholder="ex: Lançar MVP com 50 usuários ativos"
+                    autoFocus
+                    className="w-full bg-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none focus:ring-1 focus:ring-zinc-600" />
+                </div>
+                <div>
+                  <label className="text-xs text-zinc-500 mb-1 block">Prazo (opcional)</label>
+                  <input type="date" value={onboardGoalDate} onChange={e => setOnboardGoalDate(e.target.value)}
+                    className="w-full bg-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 outline-none focus:ring-1 focus:ring-zinc-600" />
+                </div>
+                <div>
+                  <label className="text-xs text-zinc-500 mb-1 block">Critérios de sucesso</label>
+                  <div className="space-y-1.5">
+                    {onboardGoalCriteria.map((c, i) => (
+                      <div key={i} className="flex gap-1.5">
+                        <input value={c} onChange={e => setOnboardGoalCriteria(p => p.map((x, j) => j === i ? e.target.value : x))}
+                          placeholder={`Critério ${i + 1}`}
+                          onKeyDown={e => { if (e.key === 'Enter' && i === onboardGoalCriteria.length - 1) setOnboardGoalCriteria(p => [...p, '']) }}
+                          className="flex-1 bg-zinc-800 rounded-lg px-3 py-1.5 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none focus:ring-1 focus:ring-zinc-600" />
+                        {onboardGoalCriteria.length > 1 && (
+                          <button onClick={() => setOnboardGoalCriteria(p => p.filter((_, j) => j !== i))}
+                            className="text-zinc-600 hover:text-zinc-400 text-lg leading-none px-1">×</button>
+                        )}
+                      </div>
+                    ))}
+                    <button onClick={() => setOnboardGoalCriteria(p => [...p, ''])}
+                      className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">+ critério</button>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={closeNewProject}
+                    className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 rounded-lg py-2 text-sm font-medium transition-colors">
+                    Pular
+                  </button>
+                  <button onClick={onboardCreateGoal} disabled={onboardSavingGoal || !onboardGoalTitle.trim()}
+                    className="flex-1 bg-zinc-100 text-zinc-900 rounded-lg py-2 text-sm font-medium disabled:opacity-40 hover:bg-white transition-colors">
+                    {onboardSavingGoal ? 'Salvando…' : 'Concluir'}
+                  </button>
+                </div>
+              </div>
+            )}
+
           </div>
         </div>
       )}
@@ -2836,11 +3077,20 @@ export default function Home() {
                     <>
                       {/* Goal card */}
                       <div className="bg-zinc-800 rounded-xl p-4 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-semibold text-zinc-200">🎯 {graphGoalData.goal.title}</span>
-                          {graphGoalData.goal.targetDate && (
-                            <span className="text-xs text-zinc-500">{new Date(graphGoalData.goal.targetDate).toLocaleDateString('pt-BR')}</span>
-                          )}
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="text-sm font-semibold text-zinc-200 leading-snug">🎯 {graphGoalData.goal.title}</span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {graphGoalData.goal.targetDate && (
+                              <span className="text-xs text-zinc-500">{new Date(graphGoalData.goal.targetDate).toLocaleDateString('pt-BR')}</span>
+                            )}
+                            <button
+                              onClick={() => achieveGoal(graphGoalData.goal!.id)}
+                              title="Marcar como conquistada"
+                              className="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                            >
+                              conquistar
+                            </button>
+                          </div>
                         </div>
                         {graphGoalData.goal.description && (
                           <p className="text-xs text-zinc-400">{graphGoalData.goal.description}</p>
@@ -2867,6 +3117,69 @@ export default function Home() {
                                 <span className={c.done ? 'line-through text-zinc-600' : ''}>{c.text}</span>
                               </button>
                             ))}
+                          </div>
+                        )}
+
+                        {/* KPIs */}
+                        {graphGoalData.goal.kpis.length > 0 && (
+                          <div className="pt-2 border-t border-zinc-700 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">KPIs</p>
+                              <button
+                                onClick={() => autoTrackKpis(graphGoalData.goal!.id)}
+                                disabled={autoTrackingKpis}
+                                className="text-[10px] text-zinc-500 hover:text-zinc-300 disabled:opacity-40 transition-colors"
+                                title="LLM analisa eventos recentes e estima os valores atuais"
+                              >
+                                {autoTrackingKpis ? 'analisando…' : '⟳ auto-detectar'}
+                              </button>
+                            </div>
+                            {graphGoalData.goal.kpis.map(k => {
+                              const cur = parseFloat(k.current ?? '')
+                              const tgt = parseFloat(k.target)
+                              const pct = !isNaN(cur) && !isNaN(tgt) && tgt > 0 ? Math.min(100, Math.round((cur / tgt) * 100)) : null
+                              const isEditing = editingKpi === k.metric
+                              return (
+                                <div key={k.metric}>
+                                  <div className="flex items-center justify-between text-xs mb-1">
+                                    <span className="text-zinc-400">{k.metric}</span>
+                                    <div className="flex items-center gap-1.5">
+                                      {isEditing ? (
+                                        <>
+                                          <input
+                                            autoFocus
+                                            value={kpiDraft}
+                                            onChange={e => setKpiDraft(e.target.value)}
+                                            onKeyDown={e => {
+                                              if (e.key === 'Enter') saveKpi(graphGoalData.goal!.id, k.metric)
+                                              if (e.key === 'Escape') setEditingKpi(null)
+                                            }}
+                                            onBlur={() => saveKpi(graphGoalData.goal!.id, k.metric)}
+                                            placeholder={k.current ?? '0'}
+                                            className="w-16 bg-zinc-700 rounded px-1.5 py-0.5 text-xs text-zinc-100 outline-none focus:ring-1 focus:ring-blue-500 text-right"
+                                          />
+                                          <span className="text-zinc-500">/ {k.target} {k.unit}</span>
+                                        </>
+                                      ) : (
+                                        <button
+                                          onClick={() => { setEditingKpi(k.metric); setKpiDraft(k.current ?? '') }}
+                                          className="text-zinc-400 hover:text-zinc-200 transition-colors tabular-nums"
+                                          title="Clique para atualizar"
+                                        >
+                                          {k.current ?? '—'} / {k.target} {k.unit}
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {pct !== null && (
+                                    <div className="h-1 bg-zinc-700 rounded-full overflow-hidden">
+                                      <div className={`h-full rounded-full transition-all ${pct >= 100 ? 'bg-emerald-500' : pct >= 60 ? 'bg-blue-500' : 'bg-amber-500'}`}
+                                        style={{ width: `${pct}%` }} />
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })}
                           </div>
                         )}
                       </div>
@@ -2918,8 +3231,66 @@ export default function Home() {
                             gaps={graphGoalData.gapAnalysis?.gaps ?? []}
                             nextBestAction={graphGoalData.gapAnalysis?.nextBestAction}
                             goalProgress={graphGoalData.gapAnalysis?.goalProgress}
+                            goalId={graphGoalData.goal.id}
+                            onToggleCriteria={(cid, done) => toggleCriteria(graphGoalData.goal!.id, cid, done)}
+                            onSaveCriteria={(c) => saveCriteria(graphGoalData.goal!.id, c)}
                           />
                         </div>
+                      </div>
+
+                      {/* Goal history */}
+                      <div className="border-t border-zinc-800 pt-3">
+                        <button onClick={toggleHistory}
+                          className="flex items-center gap-2 text-xs text-zinc-500 hover:text-zinc-300 transition-colors w-full text-left">
+                          <span className="text-[10px]">{historyOpen ? '▲' : '▼'}</span>
+                          histórico de metas
+                          {historyLoading && <span className="text-zinc-600">carregando…</span>}
+                          {goalsHistory && !historyLoading && (
+                            <span className="text-zinc-600">({goalsHistory.length})</span>
+                          )}
+                        </button>
+                        {historyOpen && goalsHistory && (
+                          <div className="mt-2 space-y-2">
+                            {goalsHistory.map(g => {
+                              const total = g.successCriteria.length
+                              const done = g.successCriteria.filter(c => c.done).length
+                              const pct = total > 0 ? Math.round((done / total) * 100) : null
+                              const isActive = g.id === graphGoalData!.goal!.id
+                              return (
+                                <div key={g.id} className={`rounded-xl px-3 py-2.5 border ${isActive ? 'border-zinc-600 bg-zinc-800' : 'border-zinc-800 bg-zinc-900'}`}>
+                                  <div className="flex items-start justify-between gap-2">
+                                    <span className="text-xs text-zinc-300 leading-snug">{g.title}</span>
+                                    <span className={`shrink-0 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                                      g.status === 'active'    ? 'bg-blue-500/20 text-blue-400' :
+                                      g.status === 'achieved'  ? 'bg-emerald-500/20 text-emerald-400' :
+                                      g.status === 'paused'    ? 'bg-zinc-700 text-zinc-400' :
+                                      'bg-red-500/20 text-red-400'
+                                    }`}>{g.status}</span>
+                                  </div>
+                                  <div className="flex items-center gap-3 mt-1.5">
+                                    <span className="text-[10px] text-zinc-600">
+                                      {new Date(g.createdAt).toLocaleDateString('pt-BR')}
+                                    </span>
+                                    {pct !== null && (
+                                      <>
+                                        <div className="flex-1 h-1 bg-zinc-700 rounded-full overflow-hidden">
+                                          <div className={`h-full rounded-full transition-all ${g.status === 'achieved' ? 'bg-emerald-500' : 'bg-blue-500'}`}
+                                            style={{ width: `${pct}%` }} />
+                                        </div>
+                                        <span className="text-[10px] text-zinc-500 shrink-0">{done}/{total}</span>
+                                      </>
+                                    )}
+                                    {g.targetDate && (
+                                      <span className="text-[10px] text-zinc-600">
+                                        prazo {new Date(g.targetDate).toLocaleDateString('pt-BR')}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
                       </div>
                     </>
                   ) : (
@@ -2993,6 +3364,30 @@ export default function Home() {
                       <button onClick={() => setGoalCriteria(prev => prev.filter((_, xi) => xi !== i))} className="text-zinc-600 hover:text-red-400 text-sm">×</button>
                     </div>
                   ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs text-zinc-400">KPIs (opcional)</label>
+                  <button onClick={() => setGoalKpis(k => [...k, { metric: '', target: '', unit: '' }])}
+                    className="text-xs text-zinc-500 hover:text-zinc-300">+ KPI</button>
+                </div>
+                <div className="space-y-1.5">
+                  {goalKpis.map((k, i) => (
+                    <div key={i} className="flex items-center gap-1.5">
+                      <input value={k.metric} onChange={e => setGoalKpis(p => p.map((x, xi) => xi === i ? { ...x, metric: e.target.value } : x))}
+                        placeholder="métrica" className="flex-[2] bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500" />
+                      <input value={k.target} onChange={e => setGoalKpis(p => p.map((x, xi) => xi === i ? { ...x, target: e.target.value } : x))}
+                        placeholder="meta" className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500" />
+                      <input value={k.unit} onChange={e => setGoalKpis(p => p.map((x, xi) => xi === i ? { ...x, unit: e.target.value } : x))}
+                        placeholder="unid." className="w-14 bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500" />
+                      <button onClick={() => setGoalKpis(p => p.filter((_, xi) => xi !== i))} className="text-zinc-600 hover:text-red-400 text-sm">×</button>
+                    </div>
+                  ))}
+                  {goalKpis.length === 0 && (
+                    <p className="text-[10px] text-zinc-600">Ex: usuários ativos / 100 / usuários</p>
+                  )}
                 </div>
               </div>
             </div>

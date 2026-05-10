@@ -50,8 +50,8 @@ timeout /t 2 /nobreak >nul
 goto wait_docker
 :docker_ready
 
-echo  Subindo Postgres e Redis...
-docker compose up -d postgres redis
+echo  Subindo Postgres, Redis e LiteLLM...
+docker compose up -d postgres redis litellm
 if errorlevel 1 goto :fail
 
 echo  Aguardando PostgreSQL (porta 55432)...
@@ -64,6 +64,17 @@ if !pg_tries! LEQ 0 ( echo  ERRO: PostgreSQL nao respondeu. & goto :fail )
 timeout /t 2 /nobreak >nul
 goto wait_postgres
 :postgres_ready
+
+echo  Aguardando LiteLLM (porta 4100)...
+set /a llm_tries=60
+:wait_litellm
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "(Test-NetConnection -ComputerName localhost -Port 4100 -WarningAction SilentlyContinue).TcpTestSucceeded" 2>nul | findstr "True" >nul
+if not errorlevel 1 goto litellm_ready
+set /a llm_tries-=1
+if !llm_tries! LEQ 0 ( echo  AVISO: LiteLLM demorou — continuando assim mesmo. & goto litellm_ready )
+timeout /t 2 /nobreak >nul
+goto wait_litellm
+:litellm_ready
 
 echo  Prisma generate + migrate...
 echo  Encerrando processos anteriores...

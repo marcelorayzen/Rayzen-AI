@@ -23,6 +23,7 @@ interface NodeData extends Record<string, unknown> {
   onDelete?: (id: string) => void
   onStatusCycle?: (id: string) => void
   onLabelChange?: (id: string, label: string) => void
+  onToggle?: () => void
 }
 
 type ProjectNode = Node<NodeData, 'project'>
@@ -74,7 +75,7 @@ function ProjectNode({ data, id, selected }: NodeProps<ProjectNode>) {
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      onClick={() => d.onStatusCycle?.(id)}
+      onClick={() => { d.onStatusCycle?.(id); d.onToggle?.() }}
       onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); setDraft(String(d.label)) }}
     >
       <Handle type="target" position={Position.Left}
@@ -289,25 +290,49 @@ interface GoalCanvasProps {
   criteria: SuccessCriteria[]
   gaps: GapItem[]
   nextBestAction?: string
+  goalId?: string
+  onToggleCriteria?: (criteriaId: string, done: boolean) => void
+  onSaveCriteria?: (criteria: SuccessCriteria[]) => void
 }
 
-export function GoalCanvas({ goalTitle, targetDate, criteria, gaps, nextBestAction }: GoalCanvasProps) {
+export function GoalCanvas({ goalTitle, targetDate, criteria: initCriteria, gaps, nextBestAction, onToggleCriteria, onSaveCriteria }: GoalCanvasProps) {
   const deadline = targetDate ? ` · ${new Date(targetDate).toLocaleDateString('pt-BR')}` : ''
+  const [criteria, setCriteria] = useState<SuccessCriteria[]>(initCriteria)
+  const [dirty, setDirty] = useState(false)
+  const [addText, setAddText] = useState('')
+  const [adding, setAdding] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
 
-  const buildGraph = () => {
+  const buildGraph = useCallback(() => {
     const nodes: Node[] = []
     const edges: Edge[] = []
 
     nodes.push({ id: 'G', type: 'project', position: { x: 220, y: 20 },
       data: { label: `${goalTitle.slice(0, 50)}${deadline}`, type: 'goal' } })
 
+    const handleDelete = (id: string) => {
+      const idx = parseInt(id.replace('C-', ''))
+      setCriteria(p => p.filter((_, i) => i !== idx))
+      setDirty(true)
+    }
+    const handleLabelChange = (id: string, label: string) => {
+      const idx = parseInt(id.replace('C-', ''))
+      setCriteria(p => p.map((c, i) => i === idx ? { ...c, text: label } : c))
+      setDirty(true)
+    }
+
     const perRow = Math.min(criteria.length, 4)
-    const rowW = perRow * 200
+    const rowW = Math.max(perRow, 1) * 200
     criteria.slice(0, 8).forEach((c, i) => {
       const col = i % 4, row = Math.floor(i / 4)
       nodes.push({ id: `C-${i}`, type: 'project',
         position: { x: col * 200 + (500 - rowW) / 2, y: 140 + row * 100 },
-        data: { label: c.text.slice(0, 50), type: 'milestone', status: c.done ? 'done' : 'pending' } })
+        data: {
+          label: c.text.slice(0, 50), type: 'milestone', status: c.done ? 'done' : 'pending',
+          onToggle: onToggleCriteria ? () => onToggleCriteria(c.id, !c.done) : undefined,
+          onDelete: onSaveCriteria ? handleDelete : undefined,
+          onLabelChange: onSaveCriteria ? handleLabelChange : undefined,
+        } })
       edges.push({ id: `eGC${i}`, source: 'G', target: `C-${i}`, animated: !c.done, style: { stroke: c.done ? '#22c55e' : '#3b82f650' } })
     })
 
@@ -329,15 +354,53 @@ export function GoalCanvas({ goalTitle, targetDate, criteria, gaps, nextBestActi
     }
 
     return { nodes, edges }
-  }
+  }, [criteria, goalTitle, deadline, gaps, nextBestAction, onToggleCriteria, onSaveCriteria])
 
   const { nodes: initN, edges: initE } = buildGraph()
-  const [nodes, , onNodesChange] = useNodesState<AppNode>(initN as AppNode[])
+  const [nodes, setNodes, onNodesChange] = useNodesState<AppNode>(initN as AppNode[])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initE)
   const onConnect = useCallback((c: Connection) => setEdges(e => addEdge(c, e)), [setEdges])
 
+  const prevKey = useRef('')
+  const nextKey = `${criteria.length}-${criteria.map(c => c.text + c.done).join()}`
+  if (prevKey.current !== nextKey) {
+    prevKey.current = nextKey
+    const { nodes: n, edges: e } = buildGraph()
+    setTimeout(() => { setNodes(n as AppNode[]); setEdges(e) }, 0)
+  }
+
+  const addCriteria = () => {
+    if (!addText.trim()) return
+    setCriteria(p => [...p, { id: uid(), text: addText.trim(), done: false }])
+    setAddText('')
+    setAdding(false)
+    setDirty(true)
+  }
+
   return (
-    <div style={{ width: '100%', height: 420 }}>
+    <div style={{ width: '100%', height: 420, position: 'relative' }}>
+      {/* toolbar */}
+      {onSaveCriteria && (
+        <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 10, display: 'flex', gap: 6, alignItems: 'center' }}>
+          {adding ? (
+            <>
+              <input ref={inputRef} autoFocus value={addText} onChange={e => setAddText(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') addCriteria(); if (e.key === 'Escape') setAdding(false) }}
+                placeholder="Novo critério…"
+                style={{ background: '#18181b', border: `1px solid ${COLORS.milestone.border}`, borderRadius: 6, padding: '4px 8px', fontSize: 11, color: '#e4e4e7', outline: 'none', width: 200 }}
+              />
+              <button onClick={addCriteria} style={btnStyle(COLORS.milestone.border)}>+</button>
+              <button onClick={() => setAdding(false)} style={btnStyle('#52525b')}>×</button>
+            </>
+          ) : (
+            <button onClick={() => setAdding(true)} style={btnStyle(COLORS.milestone.border)}>+ critério</button>
+          )}
+          {dirty && (
+            <button onClick={() => { onSaveCriteria(criteria); setDirty(false) }} style={btnStyle('#22c55e')}>salvar</button>
+          )}
+        </div>
+      )}
+
       <ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
         onConnect={onConnect} nodeTypes={nodeTypes} fitView fitViewOptions={{ padding: 0.2 }}
         colorMode="dark" proOptions={{ hideAttribution: true }}
@@ -347,12 +410,17 @@ export function GoalCanvas({ goalTitle, targetDate, criteria, gaps, nextBestActi
         <Controls showInteractive={false} style={{ background: '#0f0f14', border: '1px solid #27272a', borderRadius: 8 }} />
         <MiniMap nodeColor={n => COLORS[(n.data as NodeData).type]?.border ?? '#52525b'} style={{ background: '#0f0f14', border: '1px solid #27272a' }} maskColor="#050508cc" />
       </ReactFlow>
+      {onSaveCriteria && (
+        <div style={{ position: 'absolute', bottom: 8, left: 8, zIndex: 10, fontSize: 9, color: '#52525b', letterSpacing: 0.5 }}>
+          DUPLO CLIQUE para renomear · CLIQUE para toggle done · ARRASTAR para mover
+        </div>
+      )}
     </div>
   )
 }
 
 /* ── default export (backwards compat) ─────────────────── */
-export default function GraphCanvas(props: { mode: 'estado'; milestones: Milestone[]; blockers: string[]; nextSteps: string[]; onSave?: StateCanvasProps['onSave'] } | { mode: 'goal'; goalTitle: string; targetDate?: string; criteria: SuccessCriteria[]; gaps: GapItem[]; nextBestAction?: string; goalProgress?: number }) {
+export default function GraphCanvas(props: { mode: 'estado'; milestones: Milestone[]; blockers: string[]; nextSteps: string[]; onSave?: StateCanvasProps['onSave'] } | { mode: 'goal'; goalTitle: string; targetDate?: string; criteria: SuccessCriteria[]; gaps: GapItem[]; nextBestAction?: string; goalProgress?: number; goalId?: string; onToggleCriteria?: (criteriaId: string, done: boolean) => void; onSaveCriteria?: (criteria: SuccessCriteria[]) => void }) {
   if (props.mode === 'estado') return <StateCanvas {...props} />
   return <GoalCanvas {...props} />
 }

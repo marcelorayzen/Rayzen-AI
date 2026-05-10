@@ -225,7 +225,7 @@ git push origin main            # CI/CD automático via GitHub Actions
 | **qa** | `POST /qa/reports/ingest` |
 | **data-quality** | `POST /data-quality/rules`, `GET /data-quality/rules`, `DELETE /data-quality/rules/:id`, `POST /data-quality/results`, `GET /data-quality/results`, `GET /data-quality/score`, `GET /data-quality/score/history`, `GET /data-quality/summary`, `POST /data-quality/schema-diff` |
 | **data-catalog** | `POST /data-catalog/assets`, `GET /data-catalog/assets`, `GET /data-catalog/assets/:id`, `PATCH /data-catalog/assets/:id`, `DELETE /data-catalog/assets/:id`, `POST /data-catalog/lineage/:assetId`, `GET /data-catalog/lineage/:assetId`, `GET /data-catalog/lineage/impact/:assetId` |
-| **graph** | `GET /projects/:id/graph`, `GET /projects/:id/graph/goal`, `GET /projects/:id/graph/goals`, `POST /projects/:id/graph/goal`, `PATCH /projects/:id/graph/goal/:goalId/criteria/:criteriaId` |
+| **graph** | `GET /projects/:id/graph`, `GET /projects/:id/graph/goal`, `GET /projects/:id/graph/goals`, `POST /projects/:id/graph/goal`, `PATCH /projects/:id/graph/goal/:goalId/criteria/:criteriaId`, `PATCH /projects/:id/graph/goal/:goalId/kpi`, `POST /projects/:id/graph/goal/:goalId/kpi/auto-track`, `PATCH /projects/:id/graph/goal/:goalId/status` |
 
 ---
 
@@ -442,6 +442,42 @@ ProjectGoal (meta)  ←→  ProjectState (estado atual)
 | Deletar | Hover → × |
 | Persistir | Botão **salvar** → `PATCH /projects/:id/state/planning` |
 
+### GoalCanvas — interações
+
+| Ação | Como |
+|---|---|
+| Toggle critério | Clique no node de critério → `PATCH /goal/:goalId/criteria/:criteriaId` |
+| Editar KPI atual | Clique no valor do KPI no goal card → campo inline → Enter → `PATCH /goal/:goalId/kpi` |
+| Ver histórico | Botão "histórico de metas" abaixo do diagrama (lazy load via `GET /graph/goals`) |
+
+### KPIs — estrutura
+
+```typescript
+// Armazenados em ProjectGoal.kpis (JSON)
+[{ metric: string; target: string; current?: string; unit?: string }]
+
+// Barra de progresso: current/target como float; cores: verde ≥100%, azul ≥60%, âmbar <60%
+// Edição inline no goal card; campos no formulário de nova meta
+```
+
+### Alerta de estagnação (Proactive Regra 7)
+
+```typescript
+// proactive.service.ts — compute()
+// Se activeGoal.updatedAt > 5 dias e goalProgress < 100%
+// → cria ProjectRecommendation type='goal_stagnant'
+// priority: medium (5-13 dias) | high (14+ dias)
+```
+
+### Onboarding Wizard
+
+```typescript
+// page.tsx — newProjectOpen modal com onboardStep (1|2|3)
+// Passo 1: criar projeto → setOnboardStep(2)
+// Passo 2: indexar GitHub/Notion/pular → setOnboardStep(3)
+// Passo 3: criar primeira meta → closeNewProject()
+```
+
 ### GapAnalysis — estrutura JSON
 
 ```typescript
@@ -490,6 +526,12 @@ ProjectGoal (meta)  ←→  ProjectState (estado atual)
 | 014 | Gap Analysis | LLM gpt-4o-mini (temp 0.2) compara `ProjectGoal` vs `ProjectState` → `GapAnalysis` JSON; sem tabela própria |
 | 015 | repoSlug auto-detect | Hook detecta projeto pelo slug do git remote/pasta → `GET /projects?repoSlug=` com cache de 5 min em arquivo temp |
 | 016 | Graph CRUD | Nodes criados/editados no canvas são persistidos via `PATCH /state/planning` (milestones, blockers, nextSteps) — sem tabela graph_nodes própria no MVP |
+| 017 | KPI update | `PATCH /goal/:goalId/kpi` com `{metric, current}` atualiza o campo `current` no JSON `kpis` do `ProjectGoal` — sem tabela separada |
+| 018 | Goal stagnation | Proactive Regra 7 usa `updatedAt` do `ProjectGoal` como proxy de progresso — sem armazenar histórico de `goalProgress` por data |
+| 019 | Onboarding wizard | Wizard 3-passos embutido no modal de novo projeto usando `onboardStep` (1\|2\|3) — reusa estados existentes de importação (`githubUser`, `notionPageId`, etc.) |
+| 020 | LiteLLM startup | Scripts `.bat` agora sobem LiteLLM junto com Postgres/Redis no `docker compose up`; aguardam porta 4100 antes de compilar a API |
+| 021 | Goal achieved | `PATCH /goal/:goalId/status` com `{status:'achieved'}` arquiva a meta — sem deleção, status serve como filtro no histórico |
+| 022 | KPI auto-track | `POST /goal/:goalId/kpi/auto-track` — LLM analisa últimos 30 eventos, retorna `{metric, current}[]` para KPIs com evidência e salva diretamente no JSON `kpis` do goal |
 
 ---
 

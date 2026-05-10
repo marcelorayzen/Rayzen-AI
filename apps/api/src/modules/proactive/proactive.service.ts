@@ -221,6 +221,31 @@ export class ProactiveService {
       if (driftRec) newRecs.push(driftRec)
     }
 
+    // ── Regra 7: Goal progress estagnado ─────────────────────────────────────
+    const activeGoal = await this.prisma.projectGoal.findFirst({
+      where: { projectId, status: 'active' },
+      orderBy: { createdAt: 'desc' },
+    })
+
+    if (activeGoal) {
+      const criteria = activeGoal.successCriteria as Array<{ id: string; text: string; done: boolean }>
+      const done = criteria.filter(c => c.done).length
+      const total = criteria.length
+      const progress = total > 0 ? Math.round((done / total) * 100) : 0
+      const daysSinceUpdate = Math.floor((Date.now() - activeGoal.updatedAt.getTime()) / 86400000)
+
+      if (progress < 100 && daysSinceUpdate >= 5) {
+        newRecs.push({
+          projectId,
+          type: 'goal_stagnant',
+          title: `Meta "${activeGoal.title.slice(0, 45)}" sem progresso há ${daysSinceUpdate} dias`,
+          description: `${done}/${total} critérios concluídos (${progress}%). Nenhuma atualização registrada nos últimos ${daysSinceUpdate} dias.`,
+          priority: daysSinceUpdate >= 14 ? 'high' : 'medium',
+          action: 'Marque critérios cumpridos no Goal Graph ou redefina a meta para refletir a realidade atual.',
+        })
+      }
+    }
+
     if (newRecs.length > 0) {
       await this.prisma.projectRecommendation.createMany({ data: newRecs })
     } else {
