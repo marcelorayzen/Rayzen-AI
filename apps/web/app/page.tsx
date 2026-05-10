@@ -361,7 +361,9 @@ export default function Home() {
   const [memorySearchResults, setMemorySearchResults] = useState<Array<{ id: string; content: string; sourcePath: string | null; score: number }> | null>(null)
   const [memorySearching, setMemorySearching] = useState(false)
   const [graphOpen, setGraphOpen] = useState(false)
-  const [graphSubMode, setGraphSubMode] = useState<'estado' | 'goal'>('estado')
+  const [graphSubMode, setGraphSubMode] = useState<'estado' | 'goal' | 'eventos'>('estado')
+  const [graphEventData, setGraphEventData] = useState<{ milestones: Array<{ id: string; title: string; status: string }>; events: Array<{ id: string; content: string; intent: string | null; type: string; ts: string; milestoneId: string | null }> } | null>(null)
+  const [graphEventLoading, setGraphEventLoading] = useState(false)
   const [graphStateData, setGraphStateData] = useState<ProjectState | null>(null)
   const [graphGoalData, setGraphGoalData] = useState<GoalGraphData | null>(null)
   const [graphLoading, setGraphLoading] = useState(false)
@@ -981,13 +983,24 @@ export default function Home() {
     setGraphStateRefreshing(false)
   }, [activeProjectId])
 
-  const openGraph = useCallback(async (sub: 'estado' | 'goal' = 'estado') => {
+  const loadEventGraph = useCallback(async () => {
+    if (!activeProjectId) return
+    setGraphEventLoading(true)
+    try {
+      const res = await fetch(`${API_URL}/projects/${activeProjectId}/graph/events`, { headers: authHeaders() })
+      if (res.ok) setGraphEventData(await res.json())
+    } catch { /* ignore */ }
+    setGraphEventLoading(false)
+  }, [activeProjectId])
+
+  const openGraph = useCallback(async (sub: 'estado' | 'goal' | 'eventos' = 'estado') => {
     if (!activeProjectId) return
     setGraphOpen(true)
     setGraphSubMode(sub)
     setGraphLoading(true)
     setGoalsHistory(null)
     setHistoryOpen(false)
+    setGraphEventData(null)
     try {
       const [stateRes, goalRes] = await Promise.all([
         fetch(`${API_URL}/projects/${activeProjectId}/graph`, { headers: authHeaders() }),
@@ -3029,10 +3042,13 @@ export default function Home() {
               <div className="flex items-center gap-4">
                 <span className="text-sm font-semibold text-zinc-200">Goal Graph</span>
                 <div className="flex gap-1">
-                  {(['estado', 'goal'] as const).map(m => (
-                    <button key={m} onClick={() => setGraphSubMode(m)}
+                  {(['estado', 'goal', 'eventos'] as const).map(m => (
+                    <button key={m} onClick={() => {
+                      setGraphSubMode(m)
+                      if (m === 'eventos' && !graphEventData) loadEventGraph()
+                    }}
                       className={`px-3 py-1 rounded-full text-xs transition-colors ${graphSubMode === m ? 'bg-zinc-700 text-zinc-200' : 'text-zinc-500 hover:text-zinc-300'}`}>
-                      {m === 'goal' ? 'Goal Graph' : 'Estado atual'}
+                      {m === 'goal' ? 'Goal Graph' : m === 'eventos' ? 'Eventos' : 'Estado atual'}
                     </button>
                   ))}
                 </div>
@@ -3043,6 +3059,21 @@ export default function Home() {
             <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
               {graphLoading ? (
                 <div className="text-zinc-500 text-sm text-center py-8">Carregando…</div>
+              ) : graphSubMode === 'eventos' ? (
+                <>
+                  <p className="text-xs text-zinc-500 mb-2">Eventos recentes conectados aos milestones do projeto via LLM.</p>
+                  {graphEventLoading ? (
+                    <div className="text-zinc-500 text-sm text-center py-8">Mapeando eventos…</div>
+                  ) : graphEventData ? (
+                    <div className="rounded-xl overflow-hidden border border-zinc-800">
+                      <GraphCanvas mode="eventos" milestones={graphEventData.milestones} events={graphEventData.events} />
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <button onClick={loadEventGraph} className="text-xs text-blue-400 hover:text-blue-300 transition-colors">⟳ carregar event graph</button>
+                    </div>
+                  )}
+                </>
               ) : graphSubMode === 'estado' ? (
                 <>
                   <div className="flex items-center justify-between mb-1">

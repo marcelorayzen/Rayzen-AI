@@ -26,6 +26,12 @@ export class GraphController {
     return this.graph.listGoals(id)
   }
 
+  @Get('events')
+  @ApiOperation({ summary: 'Event Graph: eventos recentes mapeados por milestone via LLM' })
+  getEventGraph(@Param('id') id: string) {
+    return this.graph.getEventGraph(id)
+  }
+
   @Post('goal')
   @ApiOperation({ summary: 'Criar novo goal ativo (pausa o anterior)' })
   upsertGoal(@Param('id') id: string, @Body() dto: CreateGoalDto) {

@@ -41,6 +41,20 @@ export interface GoalGraphResponse {
   updatedAt: string
 }
 
+export interface EventNode {
+  id: string
+  content: string
+  intent: string | null
+  type: string
+  ts: string
+  milestoneId: string | null
+}
+
+export interface EventGraphData {
+  milestones: Array<{ id: string; title: string; status: string }>
+  events: EventNode[]
+}
+
 export interface CreateGoalDto {
   title: string
   description?: string
@@ -210,6 +224,45 @@ export class GraphService {
     })
   }
 
+  async getEventGraph(projectId: string): Promise<EventGraphData> {
+    const [state, rawEvents] = await Promise.all([
+      this.stateService.get(projectId),
+      this.prisma.event.findMany({
+        where: {
+          projectId,
+          OR: [
+            { intent: { in: ['decision', 'problem', 'idea', 'reference'] } },
+            { type: { in: ['decision', 'note'] } },
+          ],
+        },
+        orderBy: { ts: 'desc' },
+        take: 20,
+        select: { id: true, content: true, intent: true, type: true, ts: true },
+      }),
+    ])
+
+    const milestones = ((state?.milestones ?? []) as Array<{ id: string; title: string; status: string }>)
+
+    const events: EventNode[] = rawEvents.map(e => ({
+      id: e.id,
+      content: e.content,
+      intent: e.intent,
+      type: e.type,
+      ts: e.ts.toISOString(),
+      milestoneId: null,
+    }))
+
+    if (milestones.length > 0 && events.length > 0) {
+      const mappings = await this.mapEventsToMilestones(milestones, events)
+      for (const m of mappings) {
+        const ev = events.find(e => e.id === m.eventId)
+        if (ev && m.milestoneId !== 'none') ev.milestoneId = m.milestoneId
+      }
+    }
+
+    return { milestones, events }
+  }
+
   async setGoalStatus(goalId: string, status: 'active' | 'achieved' | 'paused' | 'cancelled') {
     return this.prisma.projectGoal.update({
       where: { id: goalId },
@@ -298,6 +351,42 @@ Regras:
       where: { id: goalId },
       data: { kpis: kpis as unknown as Parameters<typeof this.prisma.projectGoal.update>[0]['data']['kpis'] },
     })
+  }
+
+  private async mapEventsToMilestones(
+    milestones: Array<{ id: string; title: string }>,
+    events: EventNode[],
+  ): Promise<Array<{ eventId: string; milestoneId: string }>> {
+    const prompt = `Mapeie cada evento ao milestone mais relacionado, ou "none" se não houver relação clara.
+
+Milestones:
+${milestones.map(m => `- id="${m.id}": ${m.title}`).join('\n')}
+
+Eventos:
+${events.map(e => `- id="${e.id}": [${e.intent ?? e.type}] ${e.content.slice(0, 100)}`).join('\n')}
+
+Retorne EXATAMENTE este JSON (sem markdown):
+{
+  "mappings": [
+    { "eventId": "id-do-evento", "milestoneId": "id-do-milestone-ou-none" }
+  ]
+}
+
+Inclua todos os eventos. Use os ids exatos. milestoneId="none" quando sem relação clara.`
+
+    try {
+      const res = await this.llm.chat.completions.create({
+        model: 'gpt-4o-mini',
+        temperature: 0,
+        messages: [{ role: 'user', content: prompt }],
+      })
+      const raw = res.choices[0]?.message?.content ?? ''
+      const parsed = this.extractJson(raw) as { mappings: Array<{ eventId: string; milestoneId: string }> }
+      return parsed?.mappings ?? []
+    } catch (err) {
+      this.logger.warn(`Event mapping LLM failed: ${err}`)
+      return []
+    }
   }
 
   private buildGoalMermaid(

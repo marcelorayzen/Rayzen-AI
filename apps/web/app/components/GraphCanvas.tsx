@@ -13,8 +13,9 @@ import '@xyflow/react/dist/style.css'
 export interface Milestone { id: string; title: string; status: 'pending' | 'active' | 'done' }
 export interface GapItem { area: string; description: string; severity: 'high' | 'medium' | 'low' }
 export interface SuccessCriteria { id: string; text: string; done: boolean }
+export interface EventNode { id: string; content: string; intent: string | null; type: string; ts: string; milestoneId: string | null }
 
-type NodeType = 'milestone' | 'blocker' | 'next' | 'goal' | 'gap' | 'action'
+type NodeType = 'milestone' | 'blocker' | 'next' | 'goal' | 'gap' | 'action' | 'decision' | 'problem' | 'idea' | 'event'
 
 interface NodeData extends Record<string, unknown> {
   label: string
@@ -35,6 +36,10 @@ const COLORS: Record<NodeType, { border: string; glow: string; bg: string; text:
   goal:      { border: '#f59e0b', glow: '#f59e0b', bg: '#0f0800',  text: '#fcd34d', tag: 'meta'      },
   gap:       { border: '#f97316', glow: '#f97316', bg: '#0f0400',  text: '#fdba74', tag: 'gap'       },
   action:    { border: '#06b6d4', glow: '#06b6d4', bg: '#00090f',  text: '#67e8f9', tag: 'ação'      },
+  decision:  { border: '#10b981', glow: '#10b981', bg: '#01100a',  text: '#6ee7b7', tag: 'decisão'   },
+  problem:   { border: '#f43f5e', glow: '#f43f5e', bg: '#100108',  text: '#fda4af', tag: 'problema'  },
+  idea:      { border: '#a78bfa', glow: '#a78bfa', bg: '#06020f',  text: '#ddd6fe', tag: 'ideia'     },
+  event:     { border: '#71717a', glow: '#71717a', bg: '#0a0a0a',  text: '#a1a1aa', tag: 'evento'    },
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -419,9 +424,129 @@ export function GoalCanvas({ goalTitle, targetDate, criteria: initCriteria, gaps
   )
 }
 
+/* ── Event Graph canvas ─────────────────────────────────── */
+interface EventCanvasProps {
+  milestones: Array<{ id: string; title: string; status: string }>
+  events: EventNode[]
+}
+
+function intentType(intent: string | null): NodeType {
+  if (intent === 'decision') return 'decision'
+  if (intent === 'problem') return 'problem'
+  if (intent === 'idea') return 'idea'
+  return 'event'
+}
+
+function fmtDate(ts: string) {
+  return new Date(ts).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+}
+
+export function EventCanvas({ milestones, events }: EventCanvasProps) {
+  const buildGraph = useCallback(() => {
+    const nodes: Node[] = []
+    const edges: Edge[] = []
+    const EVENT_H = 90
+    const MILESTONE_MIN_H = 100
+
+    if (events.length === 0) {
+      nodes.push({ id: 'empty', type: 'project', position: { x: 180, y: 80 },
+        data: { label: 'Nenhum evento registrado ainda', type: 'event' as NodeType } })
+      return { nodes, edges }
+    }
+
+    if (milestones.length === 0) {
+      // Timeline linear
+      events.forEach((ev, i) => {
+        nodes.push({ id: `EV-${ev.id}`, type: 'project',
+          position: { x: 80, y: i * EVENT_H },
+          data: { label: `${ev.content.slice(0, 55)} · ${fmtDate(ev.ts)}`, type: intentType(ev.intent) } })
+        if (i > 0) {
+          edges.push({ id: `eTL${i}`, source: `EV-${events[i - 1].id}`, target: `EV-${ev.id}`,
+            style: { stroke: '#27272a', strokeDasharray: '3 2' } })
+        }
+      })
+      return { nodes, edges }
+    }
+
+    // Grouped by milestone
+    let yOffset = 0
+    milestones.forEach(m => {
+      const mEvents = events.filter(e => e.milestoneId === m.id)
+      const groupH = Math.max(MILESTONE_MIN_H, mEvents.length * EVENT_H)
+      const mY = yOffset + groupH / 2 - 25
+      nodes.push({ id: `M-${m.id}`, type: 'project',
+        position: { x: 60, y: mY },
+        data: { label: m.title.slice(0, 45), type: 'milestone' as NodeType, status: m.status as 'pending' | 'active' | 'done' } })
+      mEvents.forEach((ev, j) => {
+        nodes.push({ id: `EV-${ev.id}`, type: 'project',
+          position: { x: 340, y: yOffset + j * EVENT_H + 10 },
+          data: { label: `${ev.content.slice(0, 50)} · ${fmtDate(ev.ts)}`, type: intentType(ev.intent) } })
+        edges.push({ id: `eMEV-${m.id}-${j}`, source: `M-${m.id}`, target: `EV-${ev.id}`,
+          animated: true, style: { stroke: '#3b82f660' } })
+      })
+      yOffset += groupH
+    })
+
+    // Unmapped events under "Geral"
+    const unmapped = events.filter(e => !e.milestoneId)
+    if (unmapped.length > 0) {
+      const gY = yOffset + 30
+      const groupH = Math.max(MILESTONE_MIN_H, unmapped.length * EVENT_H)
+      nodes.push({ id: 'M-general', type: 'project',
+        position: { x: 60, y: gY + groupH / 2 - 25 },
+        data: { label: 'Geral', type: 'milestone' as NodeType } })
+      unmapped.forEach((ev, j) => {
+        nodes.push({ id: `EV-${ev.id}`, type: 'project',
+          position: { x: 340, y: yOffset + 30 + j * EVENT_H + 10 },
+          data: { label: `${ev.content.slice(0, 50)} · ${fmtDate(ev.ts)}`, type: intentType(ev.intent) } })
+        edges.push({ id: `eGEV-${j}`, source: 'M-general', target: `EV-${ev.id}`,
+          style: { stroke: '#27272a' } })
+      })
+    }
+
+    return { nodes, edges }
+  }, [milestones, events])
+
+  const { nodes: initN, edges: initE } = buildGraph()
+  const [nodes, setNodes, onNodesChange] = useNodesState<AppNode>(initN as AppNode[])
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initE)
+
+  const prevKey = useRef('')
+  const nextKey = `${milestones.length}-${events.length}-${events.map(e => e.id + e.milestoneId).join()}`
+  if (prevKey.current !== nextKey) {
+    prevKey.current = nextKey
+    const { nodes: n, edges: e } = buildGraph()
+    setTimeout(() => { setNodes(n as AppNode[]); setEdges(e) }, 0)
+  }
+
+  return (
+    <div style={{ width: '100%', height: 420, position: 'relative' }}>
+      <ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
+        nodeTypes={nodeTypes} fitView fitViewOptions={{ padding: 0.25 }}
+        colorMode="dark" proOptions={{ hideAttribution: true }}
+        style={{ background: '#050508' }}
+      >
+        <Background color="#1c1c24" gap={24} size={1} />
+        <Controls showInteractive={false} style={{ background: '#0f0f14', border: '1px solid #27272a', borderRadius: 8 }} />
+        <MiniMap nodeColor={n => COLORS[(n.data as NodeData).type]?.border ?? '#52525b'} style={{ background: '#0f0f14', border: '1px solid #27272a' }} maskColor="#050508cc" />
+      </ReactFlow>
+      <div style={{ position: 'absolute', bottom: 8, left: 8, zIndex: 10, fontSize: 9, color: '#52525b', letterSpacing: 0.5 }}>
+        {milestones.length === 0
+          ? 'TIMELINE LINEAR · defina milestones na aba Estado para ver conexões'
+          : 'EVENTOS conectados aos milestones correspondentes · ARRASTAR para mover'}
+      </div>
+    </div>
+  )
+}
+
 /* ── default export (backwards compat) ─────────────────── */
-export default function GraphCanvas(props: { mode: 'estado'; milestones: Milestone[]; blockers: string[]; nextSteps: string[]; onSave?: StateCanvasProps['onSave'] } | { mode: 'goal'; goalTitle: string; targetDate?: string; criteria: SuccessCriteria[]; gaps: GapItem[]; nextBestAction?: string; goalProgress?: number; goalId?: string; onToggleCriteria?: (criteriaId: string, done: boolean) => void; onSaveCriteria?: (criteria: SuccessCriteria[]) => void }) {
+export default function GraphCanvas(props:
+  | { mode: 'estado'; milestones: Milestone[]; blockers: string[]; nextSteps: string[]; onSave?: StateCanvasProps['onSave'] }
+  | { mode: 'goal'; goalTitle: string; targetDate?: string; criteria: SuccessCriteria[]; gaps: GapItem[]; nextBestAction?: string; goalProgress?: number; goalId?: string; onToggleCriteria?: (criteriaId: string, done: boolean) => void; onSaveCriteria?: (criteria: SuccessCriteria[]) => void }
+  | { mode: 'eventos'; milestones: Array<{ id: string; title: string; status: string }>; events: EventNode[] }
+) {
   if (props.mode === 'estado') return <StateCanvas {...props} />
+  if (props.mode === 'eventos') return <EventCanvas milestones={props.milestones} events={props.events} />
   return <GoalCanvas {...props} />
 }
 
