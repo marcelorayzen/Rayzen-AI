@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "rayzen": {
+      "command": "node",
+      "args": ["C:\\Users\\marce\\Desktop\\Projects\\rayzen-ai\\apps\\agent\\src\\mcp\\rayzen-mcp.mjs"]
+    }
+  }
+}
