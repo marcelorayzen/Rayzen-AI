@@ -80,4 +80,13 @@ export class GraphController {
   ) {
     return this.graph.setGoalStatus(goalId, body.status)
   }
+
+  @Patch('goal/:goalId/rename')
+  @ApiOperation({ summary: 'Renomear meta (título e descrição opcional)' })
+  renameGoal(
+    @Param('goalId') goalId: string,
+    @Body() body: { title: string; description?: string },
+  ) {
+    return this.graph.renameGoal(goalId, body.title, body.description)
+  }
 }

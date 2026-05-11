@@ -276,6 +276,59 @@ interface GoalGraphData {
   gapAnalysis: GapAnalysis | null; healthScore: number; updatedAt: string
 }
 
+function GoalHistoryCard({ g, isActive, total, done, pct }: {
+  g: ProjectGoal; isActive: boolean; total: number; done: number; pct: number | null
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className={`rounded-xl border ${isActive ? 'border-zinc-600 bg-zinc-800' : 'border-zinc-800 bg-zinc-900'}`}>
+      <button className="w-full text-left px-3 py-2.5" onClick={() => setOpen(o => !o)}>
+        <div className="flex items-start justify-between gap-2">
+          <span className="text-xs text-zinc-300 leading-snug">{g.title}</span>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${
+              g.status === 'active'   ? 'bg-blue-500/20 text-blue-400' :
+              g.status === 'achieved' ? 'bg-emerald-500/20 text-emerald-400' :
+              g.status === 'paused'   ? 'bg-zinc-700 text-zinc-400' :
+              'bg-red-500/20 text-red-400'
+            }`}>{g.status}</span>
+            <span className="text-zinc-600 text-xs">{open ? '▲' : '▼'}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 mt-1.5">
+          <span className="text-[10px] text-zinc-600">{new Date(g.createdAt).toLocaleDateString('pt-BR')}</span>
+          {pct !== null && (
+            <>
+              <div className="flex-1 h-1 bg-zinc-700 rounded-full overflow-hidden">
+                <div className={`h-full rounded-full transition-all ${g.status === 'achieved' ? 'bg-emerald-500' : 'bg-blue-500'}`}
+                  style={{ width: `${pct}%` }} />
+              </div>
+              <span className="text-[10px] text-zinc-500 shrink-0">{done}/{total}</span>
+            </>
+          )}
+          {g.targetDate && (
+            <span className="text-[10px] text-zinc-600">prazo {new Date(g.targetDate).toLocaleDateString('pt-BR')}</span>
+          )}
+        </div>
+      </button>
+      {open && g.successCriteria.length > 0 && (
+        <div className="px-3 pb-3 space-y-1.5 border-t border-zinc-800 pt-2">
+          {g.successCriteria.map(c => (
+            <div key={c.id} className="flex items-start gap-2">
+              <span className={`mt-0.5 shrink-0 text-xs ${c.done ? 'text-emerald-500' : 'text-zinc-600'}`}>
+                {c.done ? '✓' : '○'}
+              </span>
+              <span className={`text-xs leading-snug ${c.done ? 'text-zinc-400 line-through decoration-zinc-600' : 'text-zinc-400'}`}>
+                {c.text}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -3302,36 +3355,7 @@ export default function Home() {
                               const pct = total > 0 ? Math.round((done / total) * 100) : null
                               const isActive = g.id === graphGoalData!.goal!.id
                               return (
-                                <div key={g.id} className={`rounded-xl px-3 py-2.5 border ${isActive ? 'border-zinc-600 bg-zinc-800' : 'border-zinc-800 bg-zinc-900'}`}>
-                                  <div className="flex items-start justify-between gap-2">
-                                    <span className="text-xs text-zinc-300 leading-snug">{g.title}</span>
-                                    <span className={`shrink-0 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${
-                                      g.status === 'active'    ? 'bg-blue-500/20 text-blue-400' :
-                                      g.status === 'achieved'  ? 'bg-emerald-500/20 text-emerald-400' :
-                                      g.status === 'paused'    ? 'bg-zinc-700 text-zinc-400' :
-                                      'bg-red-500/20 text-red-400'
-                                    }`}>{g.status}</span>
-                                  </div>
-                                  <div className="flex items-center gap-3 mt-1.5">
-                                    <span className="text-[10px] text-zinc-600">
-                                      {new Date(g.createdAt).toLocaleDateString('pt-BR')}
-                                    </span>
-                                    {pct !== null && (
-                                      <>
-                                        <div className="flex-1 h-1 bg-zinc-700 rounded-full overflow-hidden">
-                                          <div className={`h-full rounded-full transition-all ${g.status === 'achieved' ? 'bg-emerald-500' : 'bg-blue-500'}`}
-                                            style={{ width: `${pct}%` }} />
-                                        </div>
-                                        <span className="text-[10px] text-zinc-500 shrink-0">{done}/{total}</span>
-                                      </>
-                                    )}
-                                    {g.targetDate && (
-                                      <span className="text-[10px] text-zinc-600">
-                                        prazo {new Date(g.targetDate).toLocaleDateString('pt-BR')}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
+                                <GoalHistoryCard key={g.id} g={g} isActive={isActive} total={total} done={done} pct={pct} />
                               )
                             })}
                           </div>

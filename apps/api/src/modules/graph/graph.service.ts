@@ -273,6 +273,13 @@ export class GraphService {
     })
   }
 
+  async renameGoal(goalId: string, title: string, description?: string) {
+    return this.prisma.projectGoal.update({
+      where: { id: goalId },
+      data: { title, ...(description !== undefined ? { description } : {}) },
+    })
+  }
+
   async autoTrackKpis(projectId: string, goalId: string): Promise<Record<string, string>> {
     const [goal, events] = await Promise.all([
       this.prisma.projectGoal.findUniqueOrThrow({ where: { id: goalId } }),
