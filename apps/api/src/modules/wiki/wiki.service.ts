@@ -223,6 +223,16 @@ export class WikiService {
     return page
   }
 
+  // ─── Create (direct, sem LLM) ───────────────────────────────────────────────
+
+  async create(slug: string, title: string, contentMd: string): Promise<WikiPage> {
+    return this.prisma.wikiPage.upsert({
+      where: { slug },
+      create: { slug, title, contentMd, editStatus: 'human_edited' },
+      update: { title, contentMd, editStatus: 'human_edited' },
+    })
+  }
+
   // ─── Update (human edit) ─────────────────────────────────────────────────────
 
   async update(slug: string, contentMd: string): Promise<WikiPage> {

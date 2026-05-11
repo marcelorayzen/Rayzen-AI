@@ -15,6 +15,17 @@ class IndexDto {
   projectId?: string
 }
 
+class CreateDto {
+  @IsString()
+  slug!: string
+
+  @IsString()
+  title!: string
+
+  @IsString()
+  contentMd!: string
+}
+
 class UpdateDto {
   @IsString()
   contentMd!: string
@@ -28,6 +39,11 @@ export class WikiController {
   @Post('index')
   index(@Body() dto: IndexDto, @Query('force') force?: string) {
     return this.svc.index(dto, force === 'true')
+  }
+
+  @Post()
+  create(@Body() dto: CreateDto) {
+    return this.svc.create(dto.slug, dto.title, dto.contentMd)
   }
 
   @Get()
