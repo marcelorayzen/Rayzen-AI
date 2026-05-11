@@ -34,9 +34,13 @@ if not exist "node_modules" (
     if errorlevel 1 ( echo  ERRO: pnpm install falhou. & pause & exit /b 1 )
 )
 
-echo  Subindo Postgres, Redis e LiteLLM...
-docker compose up -d postgres redis litellm
+echo  Subindo Postgres e Redis...
+docker compose up -d postgres redis
 if errorlevel 1 ( echo  ERRO: docker compose falhou. & pause & exit /b 1 )
+
+echo  Reiniciando LiteLLM (aplica config atual)...
+docker compose restart litellm
+if errorlevel 1 ( echo  ERRO: litellm restart falhou. & pause & exit /b 1 )
 
 echo  Aguardando PostgreSQL (porta 55432)...
 set /a pg_tries=%POSTGRES_WAIT_TRIES%
