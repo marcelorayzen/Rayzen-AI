@@ -229,7 +229,14 @@ export class GraphService {
     const [state, rawEvents] = await Promise.all([
       this.stateService.get(projectId),
       this.prisma.event.findMany({
-        where: { projectId },
+        where: {
+          projectId,
+          NOT: [
+            { content: { startsWith: 'Sessão encerrada' } },
+            { content: { startsWith: 'Sessão iniciada' } },
+            { content: { startsWith: 'Session ended' } },
+          ],
+        },
         orderBy: { ts: 'asc' },
         take: 100,
         select: { id: true, content: true, intent: true, type: true, source: true, ts: true },
