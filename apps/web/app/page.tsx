@@ -362,7 +362,7 @@ export default function Home() {
   const [memorySearching, setMemorySearching] = useState(false)
   const [graphOpen, setGraphOpen] = useState(false)
   const [graphSubMode, setGraphSubMode] = useState<'estado' | 'goal' | 'eventos'>('estado')
-  const [graphEventData, setGraphEventData] = useState<{ milestones: Array<{ id: string; title: string; status: string }>; events: Array<{ id: string; content: string; intent: string | null; type: string; ts: string; milestoneId: string | null }> } | null>(null)
+  const [graphEventData, setGraphEventData] = useState<{ milestones: Array<{ id: string; title: string; status: string }>; events: Array<{ id: string; content: string; intent: string | null; type: string; source: string; ts: string; milestoneId: string | null }> } | null>(null)
   const [graphEventLoading, setGraphEventLoading] = useState(false)
   const [graphStateData, setGraphStateData] = useState<ProjectState | null>(null)
   const [graphGoalData, setGraphGoalData] = useState<GoalGraphData | null>(null)

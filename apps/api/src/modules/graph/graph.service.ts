@@ -46,6 +46,7 @@ export interface EventNode {
   content: string
   intent: string | null
   type: string
+  source: string
   ts: string
   milestoneId: string | null
 }
@@ -228,16 +229,10 @@ export class GraphService {
     const [state, rawEvents] = await Promise.all([
       this.stateService.get(projectId),
       this.prisma.event.findMany({
-        where: {
-          projectId,
-          OR: [
-            { intent: { in: ['decision', 'problem', 'idea', 'reference'] } },
-            { type: { in: ['decision', 'note'] } },
-          ],
-        },
-        orderBy: { ts: 'desc' },
-        take: 20,
-        select: { id: true, content: true, intent: true, type: true, ts: true },
+        where: { projectId },
+        orderBy: { ts: 'asc' },
+        take: 100,
+        select: { id: true, content: true, intent: true, type: true, source: true, ts: true },
       }),
     ])
 
@@ -248,6 +243,7 @@ export class GraphService {
       content: e.content,
       intent: e.intent,
       type: e.type,
+      source: e.source,
       ts: e.ts.toISOString(),
       milestoneId: null,
     }))
@@ -363,7 +359,7 @@ Milestones:
 ${milestones.map(m => `- id="${m.id}": ${m.title}`).join('\n')}
 
 Eventos:
-${events.map(e => `- id="${e.id}": [${e.intent ?? e.type}] ${e.content.slice(0, 100)}`).join('\n')}
+${events.map(e => `- id="${e.id}": [${e.source}/${e.intent ?? e.type}] ${e.content.slice(0, 150)}`).join('\n')}
 
 Retorne EXATAMENTE este JSON (sem markdown):
 {

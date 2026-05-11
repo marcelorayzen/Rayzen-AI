@@ -13,9 +13,9 @@ import '@xyflow/react/dist/style.css'
 export interface Milestone { id: string; title: string; status: 'pending' | 'active' | 'done' }
 export interface GapItem { area: string; description: string; severity: 'high' | 'medium' | 'low' }
 export interface SuccessCriteria { id: string; text: string; done: boolean }
-export interface EventNode { id: string; content: string; intent: string | null; type: string; ts: string; milestoneId: string | null }
+export interface EventNode { id: string; content: string; intent: string | null; type: string; source: string; ts: string; milestoneId: string | null }
 
-type NodeType = 'milestone' | 'blocker' | 'next' | 'goal' | 'gap' | 'action' | 'decision' | 'problem' | 'idea' | 'event'
+type NodeType = 'milestone' | 'blocker' | 'next' | 'goal' | 'gap' | 'action' | 'decision' | 'problem' | 'idea' | 'event' | 'git' | 'voice' | 'notion' | 'cli' | 'execution' | 'brain'
 
 interface NodeData extends Record<string, unknown> {
   label: string
@@ -40,6 +40,12 @@ const COLORS: Record<NodeType, { border: string; glow: string; bg: string; text:
   problem:   { border: '#f43f5e', glow: '#f43f5e', bg: '#100108',  text: '#fda4af', tag: 'problema'  },
   idea:      { border: '#a78bfa', glow: '#a78bfa', bg: '#06020f',  text: '#ddd6fe', tag: 'ideia'     },
   event:     { border: '#71717a', glow: '#71717a', bg: '#0a0a0a',  text: '#a1a1aa', tag: 'evento'    },
+  git:       { border: '#eab308', glow: '#eab308', bg: '#0a0800',  text: '#fde047', tag: 'git'       },
+  voice:     { border: '#22d3ee', glow: '#22d3ee', bg: '#000d0f',  text: '#a5f3fc', tag: 'voz'       },
+  notion:    { border: '#818cf8', glow: '#818cf8', bg: '#02020f',  text: '#c7d2fe', tag: 'notion'    },
+  cli:       { border: '#4ade80', glow: '#4ade80', bg: '#010f03',  text: '#86efac', tag: 'hook'      },
+  execution: { border: '#fb923c', glow: '#fb923c', bg: '#0f0400',  text: '#fdba74', tag: 'execução'  },
+  brain:     { border: '#c084fc', glow: '#c084fc', bg: '#08020f',  text: '#e9d5ff', tag: 'brain'     },
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -430,23 +436,48 @@ interface EventCanvasProps {
   events: EventNode[]
 }
 
-function intentType(intent: string | null): NodeType {
+function resolveType(source: string, intent: string | null): NodeType {
   if (intent === 'decision') return 'decision'
-  if (intent === 'problem') return 'problem'
-  if (intent === 'idea') return 'idea'
+  if (intent === 'problem')  return 'problem'
+  if (intent === 'idea')     return 'idea'
+  if (source === 'git')       return 'git'
+  if (source === 'voice')     return 'voice'
+  if (source === 'brain' || source === 'memory') return 'brain'
+  if (source === 'cli')       return 'cli'
+  if (source === 'execution') return 'execution'
+  if (source === 'notion')    return 'notion'
   return 'event'
 }
 
+const LEGEND_TYPES: NodeType[] = ['decision', 'problem', 'idea', 'git', 'cli', 'brain', 'notion', 'voice', 'execution', 'event']
+
 function fmtDate(ts: string) {
   return new Date(ts).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+}
+
+const SWIMLANE_COLS: { label: string; x: number; sources: string[]; intents: string[] }[] = [
+  { label: 'Decisões / Ideias',  x: 60,   sources: [],                     intents: ['decision', 'idea', 'problem', 'reference'] },
+  { label: 'Git',                x: 300,  sources: ['git'],                 intents: [] },
+  { label: 'Hook / CLI',         x: 540,  sources: ['cli', 'manual'],       intents: [] },
+  { label: 'Brain / Notion',     x: 780,  sources: ['brain', 'memory', 'notion'], intents: [] },
+  { label: 'Voz / Execução',     x: 1020, sources: ['voice', 'execution'],  intents: [] },
+  { label: 'Chat / Outros',      x: 1260, sources: ['chat'],                intents: [] },
+]
+
+function assignLane(ev: EventNode): number {
+  if (ev.intent && ['decision','idea','problem','reference'].includes(ev.intent)) return 0
+  for (let i = 1; i < SWIMLANE_COLS.length; i++) {
+    if (SWIMLANE_COLS[i].sources.includes(ev.source)) return i
+  }
+  return SWIMLANE_COLS.length - 1
 }
 
 export function EventCanvas({ milestones, events }: EventCanvasProps) {
   const buildGraph = useCallback(() => {
     const nodes: Node[] = []
     const edges: Edge[] = []
-    const EVENT_H = 90
-    const MILESTONE_MIN_H = 100
+    const EVENT_H = 100
+    const MILESTONE_MIN_H = 110
 
     if (events.length === 0) {
       nodes.push({ id: 'empty', type: 'project', position: { x: 180, y: 80 },
@@ -455,15 +486,37 @@ export function EventCanvas({ milestones, events }: EventCanvasProps) {
     }
 
     if (milestones.length === 0) {
-      // Timeline linear
-      events.forEach((ev, i) => {
-        nodes.push({ id: `EV-${ev.id}`, type: 'project',
-          position: { x: 80, y: i * EVENT_H },
-          data: { label: `${ev.content.slice(0, 55)} · ${fmtDate(ev.ts)}`, type: intentType(ev.intent) } })
-        if (i > 0) {
-          edges.push({ id: `eTL${i}`, source: `EV-${events[i - 1].id}`, target: `EV-${ev.id}`,
-            style: { stroke: '#27272a', strokeDasharray: '3 2' } })
-        }
+      // Swim-lane layout by source group
+      const lanes: EventNode[][] = SWIMLANE_COLS.map(() => [])
+      events.forEach(ev => lanes[assignLane(ev)].push(ev))
+
+      SWIMLANE_COLS.forEach((col, laneIdx) => {
+        const laneEvents = lanes[laneIdx]
+        if (laneEvents.length === 0) return
+
+        // Column header node
+        nodes.push({
+          id: `LANE-${laneIdx}`,
+          type: 'project',
+          position: { x: col.x, y: -60 },
+          data: { label: col.label, type: 'milestone' as NodeType },
+        })
+
+        laneEvents.forEach((ev, j) => {
+          const nodeId = `EV-${ev.id}`
+          nodes.push({
+            id: nodeId, type: 'project',
+            position: { x: col.x, y: j * EVENT_H },
+            data: { label: `${ev.content.slice(0, 80)} · ${fmtDate(ev.ts)}`, type: resolveType(ev.source, ev.intent) },
+          })
+          if (j > 0) {
+            edges.push({ id: `eTL-${laneIdx}-${j}`, source: `EV-${laneEvents[j - 1].id}`, target: nodeId,
+              style: { stroke: '#27272a', strokeDasharray: '3 2' } })
+          } else {
+            edges.push({ id: `eLH-${laneIdx}`, source: `LANE-${laneIdx}`, target: nodeId,
+              style: { stroke: '#27272a40', strokeDasharray: '2 3' } })
+          }
+        })
       })
       return { nodes, edges }
     }
@@ -478,11 +531,12 @@ export function EventCanvas({ milestones, events }: EventCanvasProps) {
         position: { x: 60, y: mY },
         data: { label: m.title.slice(0, 45), type: 'milestone' as NodeType, status: m.status as 'pending' | 'active' | 'done' } })
       mEvents.forEach((ev, j) => {
+        const nodeType = resolveType(ev.source, ev.intent)
         nodes.push({ id: `EV-${ev.id}`, type: 'project',
           position: { x: 340, y: yOffset + j * EVENT_H + 10 },
-          data: { label: `${ev.content.slice(0, 50)} · ${fmtDate(ev.ts)}`, type: intentType(ev.intent) } })
+          data: { label: `${ev.content.slice(0, 80)} · ${fmtDate(ev.ts)}`, type: nodeType } })
         edges.push({ id: `eMEV-${m.id}-${j}`, source: `M-${m.id}`, target: `EV-${ev.id}`,
-          animated: true, style: { stroke: '#3b82f660' } })
+          animated: true, style: { stroke: (COLORS[nodeType]?.border ?? '#3b82f6') + '60' } })
       })
       yOffset += groupH
     })
@@ -496,9 +550,10 @@ export function EventCanvas({ milestones, events }: EventCanvasProps) {
         position: { x: 60, y: gY + groupH / 2 - 25 },
         data: { label: 'Geral', type: 'milestone' as NodeType } })
       unmapped.forEach((ev, j) => {
+        const nodeType = resolveType(ev.source, ev.intent)
         nodes.push({ id: `EV-${ev.id}`, type: 'project',
           position: { x: 340, y: yOffset + 30 + j * EVENT_H + 10 },
-          data: { label: `${ev.content.slice(0, 50)} · ${fmtDate(ev.ts)}`, type: intentType(ev.intent) } })
+          data: { label: `${ev.content.slice(0, 80)} · ${fmtDate(ev.ts)}`, type: nodeType } })
         edges.push({ id: `eGEV-${j}`, source: 'M-general', target: `EV-${ev.id}`,
           style: { stroke: '#27272a' } })
       })
@@ -519,10 +574,30 @@ export function EventCanvas({ milestones, events }: EventCanvasProps) {
     setTimeout(() => { setNodes(n as AppNode[]); setEdges(e) }, 0)
   }
 
+  // Only show legend entries that exist in current events
+  const activeSources = new Set(events.map(e => resolveType(e.source, e.intent)))
+  const legendItems = LEGEND_TYPES.filter(t => activeSources.has(t))
+
   return (
-    <div style={{ width: '100%', height: 420, position: 'relative' }}>
+    <div style={{ width: '100%', height: 480, position: 'relative' }}>
+      {/* Legend */}
+      {legendItems.length > 0 && (
+        <div style={{
+          position: 'absolute', top: 8, right: 8, zIndex: 10,
+          background: '#09090b', border: '1px solid #27272a', borderRadius: 8,
+          padding: '6px 10px', display: 'flex', flexWrap: 'wrap', gap: '6px 12px', maxWidth: 340,
+        }}>
+          {legendItems.map(t => (
+            <span key={t} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: '#a1a1aa', letterSpacing: 0.5 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: COLORS[t].border, display: 'inline-block', boxShadow: `0 0 4px ${COLORS[t].border}` }} />
+              {COLORS[t].tag}
+            </span>
+          ))}
+        </div>
+      )}
+
       <ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
-        nodeTypes={nodeTypes} fitView fitViewOptions={{ padding: 0.25 }}
+        nodeTypes={nodeTypes} fitView fitViewOptions={{ padding: 0.2 }}
         colorMode="dark" proOptions={{ hideAttribution: true }}
         style={{ background: '#050508' }}
       >
@@ -532,8 +607,8 @@ export function EventCanvas({ milestones, events }: EventCanvasProps) {
       </ReactFlow>
       <div style={{ position: 'absolute', bottom: 8, left: 8, zIndex: 10, fontSize: 9, color: '#52525b', letterSpacing: 0.5 }}>
         {milestones.length === 0
-          ? 'TIMELINE LINEAR · defina milestones na aba Estado para ver conexões'
-          : 'EVENTOS conectados aos milestones correspondentes · ARRASTAR para mover'}
+          ? 'SWIM LANES por fonte · defina milestones na aba Estado para ver conexões'
+          : 'EVENTOS conectados aos milestones · cores por fonte · ARRASTAR para mover'}
       </div>
     </div>
   )
