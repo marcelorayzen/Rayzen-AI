@@ -3349,7 +3349,7 @@ export default function Home() {
                         </button>
                         {historyOpen && goalsHistory && (
                           <div className="mt-2 space-y-2">
-                            {goalsHistory.map(g => {
+                            {goalsHistory.filter(g => g.status !== 'cancelled').map(g => {
                               const total = g.successCriteria.length
                               const done = g.successCriteria.filter(c => c.done).length
                               const pct = total > 0 ? Math.round((done / total) * 100) : null
