@@ -10,7 +10,9 @@ import {
 import '@xyflow/react/dist/style.css'
 
 /* ── types ─────────────────────────────────────────────── */
-export interface Milestone { id: string; title: string; status: 'pending' | 'active' | 'done' }
+export interface PlanningNode { id: string; title: string; description?: string }
+export interface Milestone extends PlanningNode { status: 'pending' | 'active' | 'done' }
+export interface GraphLink { id: string; sourceId: string; targetId: string; label?: string }
 export interface GapItem { area: string; description: string; severity: 'high' | 'medium' | 'low' }
 export interface SuccessCriteria { id: string; text: string; done: boolean }
 export interface EventNode { id: string; content: string; intent: string | null; type: string; source: string; ts: string; milestoneId: string | null }
@@ -19,11 +21,13 @@ type NodeType = 'milestone' | 'blocker' | 'next' | 'goal' | 'gap' | 'action' | '
 
 interface NodeData extends Record<string, unknown> {
   label: string
+  description?: string
   type: NodeType
   status?: 'pending' | 'active' | 'done'
   onDelete?: (id: string) => void
   onStatusCycle?: (id: string) => void
   onLabelChange?: (id: string, label: string) => void
+  onDescriptionChange?: (id: string, description: string) => void
   onToggle?: () => void
 }
 
@@ -54,6 +58,8 @@ const STATUS_COLORS: Record<string, string> = {
   pending: '#52525b',
 }
 
+const MONO_FONT = "'IBM Plex Mono', 'Consolas', 'Cascadia Code', monospace"
+
 /* ── custom node ────────────────────────────────────────── */
 function ProjectNode({ data, id, selected }: NodeProps<ProjectNode>) {
   const [hovered, setHovered] = useState(false)
@@ -83,6 +89,7 @@ function ProjectNode({ data, id, selected }: NodeProps<ProjectNode>) {
         position: 'relative',
         transition: 'box-shadow 0.2s, border-color 0.2s',
         cursor: d.onStatusCycle ? 'pointer' : 'default',
+        fontFamily: MONO_FONT,
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -119,6 +126,12 @@ function ProjectNode({ data, id, selected }: NodeProps<ProjectNode>) {
         </div>
       )}
 
+      {d.description && !editing && (
+        <div style={{ fontSize: 10, color: '#71717a', lineHeight: 1.35, marginTop: 5, wordBreak: 'break-word' }}>
+          {String(d.description)}
+        </div>
+      )}
+
       {/* delete btn */}
       {hovered && !editing && d.onDelete && (
         <button
@@ -126,6 +139,18 @@ function ProjectNode({ data, id, selected }: NodeProps<ProjectNode>) {
           style={{ position: 'absolute', top: 4, right: 6, background: 'transparent', border: 'none', color: '#71717a', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: 0 }}
           title="Remover"
         >×</button>
+      )}
+
+      {hovered && !editing && d.onDescriptionChange && (
+        <button
+          onClick={e => {
+            e.stopPropagation()
+            const next = window.prompt('Descrição do item', String(d.description ?? ''))
+            if (next !== null) d.onDescriptionChange?.(id, next.trim())
+          }}
+          style={{ position: 'absolute', bottom: 4, right: 6, background: 'transparent', border: 'none', color: '#71717a', cursor: 'pointer', fontSize: 9, lineHeight: 1, padding: 0 }}
+          title="Editar descrição"
+        >desc</button>
       )}
 
       <Handle type="source" position={Position.Right}
@@ -138,23 +163,31 @@ type AppNode = ProjectNode | Node
 const nodeTypes = { project: ProjectNode }
 
 /* ── layout helpers ─────────────────────────────────────── */
-const COL = { blocker: 60, milestone: 300, next: 560 }
+const COL = { goal: 40, milestone: 260, blocker: 500, next: 740 }
 const ROW_H = 100
 
 function uid() { return Math.random().toString(36).slice(2, 8) }
+function stateNodeId(kind: 'goal' | 'milestone' | 'blocker' | 'next', id: string) { return `${kind}-${id}` }
+function normalizePlanningNodes(items: Array<string | PlanningNode>, prefix: 'blocker' | 'next'): PlanningNode[] {
+  return items.map((item, i) => typeof item === 'string' ? { id: `${prefix}-${i}-${uid()}`, title: item } : item)
+}
 
 /* ── Estado atual ───────────────────────────────────────── */
 interface StateCanvasProps {
   milestones: Milestone[]
-  blockers: string[]
-  nextSteps: string[]
-  onSave?: (patch: { milestones: Milestone[]; blockers: string[]; nextSteps: string[] }) => void
+  blockers: Array<string | PlanningNode>
+  nextSteps: Array<string | PlanningNode>
+  graphLinks?: GraphLink[]
+  goal?: { id: string; title: string } | null
+  onSave?: (patch: { milestones: Milestone[]; blockers: PlanningNode[]; nextSteps: PlanningNode[]; graphLinks: GraphLink[] }) => void
 }
 
-export function StateCanvas({ milestones: initMilestones, blockers: initBlockers, nextSteps: initNextSteps, onSave }: StateCanvasProps) {
+export function StateCanvas({ milestones: initMilestones, blockers: initBlockers, nextSteps: initNextSteps, graphLinks: initGraphLinks = [], goal, onSave }: StateCanvasProps) {
   const [milestones, setMilestones] = useState<Milestone[]>(initMilestones)
-  const [blockers, setBlockers] = useState<string[]>(initBlockers)
-  const [nextSteps, setNextSteps] = useState<string[]>(initNextSteps)
+  const [blockers, setBlockers] = useState<PlanningNode[]>(() => normalizePlanningNodes(initBlockers, 'blocker'))
+  const [nextSteps, setNextSteps] = useState<PlanningNode[]>(() => normalizePlanningNodes(initNextSteps, 'next'))
+  const [graphLinks, setGraphLinks] = useState<GraphLink[]>(initGraphLinks)
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
   const [addType, setAddType] = useState<NodeType | null>(null)
   const [addText, setAddText] = useState('')
@@ -164,74 +197,105 @@ export function StateCanvas({ milestones: initMilestones, blockers: initBlockers
     const nodes: Node[] = []
     const edges: Edge[] = []
     const activeIdx = milestones.findIndex(m => m.status === 'active')
+    const activeMilestone = activeIdx >= 0 ? milestones[activeIdx] : milestones[0]
 
     const handleDelete = (id: string) => {
-      const [type, idxStr] = id.split('-')
-      const idx = Number(idxStr)
-      if (type === 'M') setMilestones(p => p.filter((_, i) => i !== idx))
-      else if (type === 'B') setBlockers(p => p.filter((_, i) => i !== idx))
-      else if (type === 'NS') setNextSteps(p => p.filter((_, i) => i !== idx))
+      if (!window.confirm('Excluir este item do grafo?')) return
+      if (id.startsWith('milestone-')) setMilestones(p => p.filter(m => stateNodeId('milestone', m.id) !== id))
+      else if (id.startsWith('blocker-')) setBlockers(p => p.filter(b => stateNodeId('blocker', b.id) !== id))
+      else if (id.startsWith('next-')) setNextSteps(p => p.filter(s => stateNodeId('next', s.id) !== id))
+      setGraphLinks(p => p.filter(l => l.sourceId !== id && l.targetId !== id))
       setDirty(true)
     }
 
     const handleStatusCycle = (id: string) => {
-      const [type, idxStr] = id.split('-')
-      if (type !== 'M') return
-      const idx = Number(idxStr)
-      setMilestones(p => p.map((m, i) => i === idx ? { ...m, status: m.status === 'pending' ? 'active' : m.status === 'active' ? 'done' : 'pending' } : m))
+      if (!id.startsWith('milestone-')) return
+      setMilestones(p => p.map(m => stateNodeId('milestone', m.id) === id ? { ...m, status: m.status === 'pending' ? 'active' : m.status === 'active' ? 'done' : 'pending' } : m))
       setDirty(true)
     }
 
     const handleLabelChange = (id: string, label: string) => {
-      const [type, idxStr] = id.split('-')
-      const idx = Number(idxStr)
-      if (type === 'M') setMilestones(p => p.map((m, i) => i === idx ? { ...m, title: label } : m))
-      else if (type === 'B') setBlockers(p => p.map((b, i) => i === idx ? label : b))
-      else if (type === 'NS') setNextSteps(p => p.map((s, i) => i === idx ? label : s))
+      if (id.startsWith('milestone-')) setMilestones(p => p.map(m => stateNodeId('milestone', m.id) === id ? { ...m, title: label } : m))
+      else if (id.startsWith('blocker-')) setBlockers(p => p.map(b => stateNodeId('blocker', b.id) === id ? { ...b, title: label } : b))
+      else if (id.startsWith('next-')) setNextSteps(p => p.map(s => stateNodeId('next', s.id) === id ? { ...s, title: label } : s))
       setDirty(true)
+    }
+
+    const handleDescriptionChange = (id: string, description: string) => {
+      if (id.startsWith('milestone-')) setMilestones(p => p.map(m => stateNodeId('milestone', m.id) === id ? { ...m, description } : m))
+      else if (id.startsWith('blocker-')) setBlockers(p => p.map(b => stateNodeId('blocker', b.id) === id ? { ...b, description } : b))
+      else if (id.startsWith('next-')) setNextSteps(p => p.map(s => stateNodeId('next', s.id) === id ? { ...s, description } : s))
+      setDirty(true)
+    }
+
+    if (goal) {
+      nodes.push({
+        id: stateNodeId('goal', goal.id), type: 'project',
+        position: { x: COL.goal, y: 40 },
+        data: { label: goal.title, type: 'goal' },
+      })
     }
 
     milestones.forEach((m, i) => {
       nodes.push({
-        id: `M-${i}`, type: 'project',
+        id: stateNodeId('milestone', m.id), type: 'project',
         position: { x: COL.milestone, y: i * ROW_H + 40 },
-        data: { label: m.title, type: 'milestone', status: m.status, onDelete: handleDelete, onStatusCycle: handleStatusCycle, onLabelChange: handleLabelChange },
+        data: { label: m.title, description: m.description, type: 'milestone', status: m.status, onDelete: handleDelete, onStatusCycle: handleStatusCycle, onLabelChange: handleLabelChange, onDescriptionChange: handleDescriptionChange },
       })
     })
 
     blockers.forEach((b, i) => {
       nodes.push({
-        id: `B-${i}`, type: 'project',
+        id: stateNodeId('blocker', b.id), type: 'project',
         position: { x: COL.blocker, y: i * ROW_H + 40 },
-        data: { label: b, type: 'blocker', onDelete: handleDelete, onLabelChange: handleLabelChange },
+        data: { label: b.title, description: b.description, type: 'blocker', onDelete: handleDelete, onLabelChange: handleLabelChange, onDescriptionChange: handleDescriptionChange },
       })
-      if (activeIdx >= 0) edges.push({ id: `eB${i}`, source: `B-${i}`, target: `M-${activeIdx}`, label: 'bloqueia', animated: true, style: { stroke: '#ef4444', strokeDasharray: '4 2' }, labelStyle: { fill: '#ef4444', fontSize: 9 }, labelBgStyle: { fill: '#0f0202' } })
     })
 
     nextSteps.forEach((s, i) => {
       nodes.push({
-        id: `NS-${i}`, type: 'project',
+        id: stateNodeId('next', s.id), type: 'project',
         position: { x: COL.next, y: i * ROW_H + 40 },
-        data: { label: s, type: 'next', onDelete: handleDelete, onLabelChange: handleLabelChange },
+        data: { label: s.title, description: s.description, type: 'next', onDelete: handleDelete, onLabelChange: handleLabelChange, onDescriptionChange: handleDescriptionChange },
       })
-      if (activeIdx >= 0) edges.push({ id: `eNS${i}`, source: `M-${activeIdx}`, target: `NS-${i}`, animated: true, style: { stroke: '#8b5cf6' } })
     })
+
+    const nodeIds = new Set(nodes.map(n => n.id))
+    const manualEdges = graphLinks.filter(l => nodeIds.has(l.sourceId) && nodeIds.has(l.targetId))
+    if (manualEdges.length > 0) {
+      manualEdges.forEach(l => edges.push({
+        id: l.id, source: l.sourceId, target: l.targetId, label: l.label,
+        animated: true, style: { stroke: '#06b6d4' }, labelStyle: { fill: '#67e8f9', fontSize: 9 }, labelBgStyle: { fill: '#00090f' },
+      }))
+    } else {
+      if (goal) milestones.forEach(m => edges.push({ id: `auto-goal-${m.id}`, source: stateNodeId('goal', goal.id), target: stateNodeId('milestone', m.id), animated: true, style: { stroke: '#f59e0b80' } }))
+      if (activeMilestone) {
+        blockers.forEach(b => edges.push({ id: `auto-blocker-${b.id}`, source: stateNodeId('milestone', activeMilestone.id), target: stateNodeId('blocker', b.id), label: 'bloqueia', animated: true, style: { stroke: '#ef4444', strokeDasharray: '4 2' }, labelStyle: { fill: '#ef4444', fontSize: 9 }, labelBgStyle: { fill: '#0f0202' } }))
+        nextSteps.forEach(s => edges.push({ id: `auto-next-${s.id}`, source: stateNodeId('milestone', activeMilestone.id), target: stateNodeId('next', s.id), animated: true, style: { stroke: '#8b5cf6' } }))
+      }
+    }
 
     if (nodes.length === 0) {
       nodes.push({ id: 'empty', type: 'project', position: { x: 180, y: 80 }, data: { label: 'Nenhum dado — clique em gerar estado ou adicione itens', type: 'milestone' } })
     }
 
     return { nodes, edges }
-  }, [milestones, blockers, nextSteps])
+  }, [milestones, blockers, nextSteps, graphLinks, goal])
 
   const { nodes: initN, edges: initE } = buildGraph()
   const [nodes, setNodes, onNodesChange] = useNodesState<AppNode>(initN as AppNode[])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initE)
-  const onConnect = useCallback((c: Connection) => setEdges(e => addEdge(c, e)), [setEdges])
+  const onConnect = useCallback((c: Connection) => {
+    if (!c.source || !c.target || c.source === c.target) return
+    const link: GraphLink = { id: `link-${uid()}`, sourceId: c.source, targetId: c.target }
+    setGraphLinks(p => [...p.filter(l => !(l.sourceId === link.sourceId && l.targetId === link.targetId)), link])
+    setEdges(e => addEdge({ ...c, id: link.id, animated: true, style: { stroke: '#06b6d4' } }, e))
+    setDirty(true)
+  }, [setEdges])
 
   // rebuild when state changes — use ref to avoid render-phase setState
   const prevKey = useRef('')
-  const nextKey = `${milestones.length}-${blockers.length}-${nextSteps.length}-${milestones.map(m => m.status + m.title).join()}`
+  const nextKey = `${goal?.id ?? ''}-${milestones.length}-${blockers.length}-${nextSteps.length}-${graphLinks.length}-${milestones.map(m => m.id + m.status + m.title + (m.description ?? '')).join()}-${blockers.map(b => b.id + b.title + (b.description ?? '')).join()}-${nextSteps.map(s => s.id + s.title + (s.description ?? '')).join()}-${graphLinks.map(l => l.id + l.sourceId + l.targetId).join()}`
   if (prevKey.current !== nextKey) {
     prevKey.current = nextKey
     const { nodes: n, edges: e } = buildGraph()
@@ -242,8 +306,8 @@ export function StateCanvas({ milestones: initMilestones, blockers: initBlockers
   const addNode = () => {
     if (!addText.trim() || !addType) return
     if (addType === 'milestone') setMilestones(p => [...p, { id: uid(), title: addText.trim(), status: 'pending' }])
-    else if (addType === 'blocker') setBlockers(p => [...p, addText.trim()])
-    else if (addType === 'next') setNextSteps(p => [...p, addText.trim()])
+    else if (addType === 'blocker') setBlockers(p => [...p, { id: uid(), title: addText.trim() }])
+    else if (addType === 'next') setNextSteps(p => [...p, { id: uid(), title: addText.trim() }])
     setAddText('')
     setAddType(null)
     setDirty(true)
@@ -270,17 +334,26 @@ export function StateCanvas({ milestones: initMilestones, blockers: initBlockers
             <button onClick={() => setAddType('next')}      style={btnStyle('#8b5cf6')}>+ próximo</button>
           </>
         )}
+        {selectedEdgeId && (
+          <button onClick={() => {
+            if (!window.confirm('Remover esta conexão?')) return
+            setGraphLinks(p => p.filter(l => l.id !== selectedEdgeId))
+            setEdges(e => e.filter(edge => edge.id !== selectedEdgeId))
+            setSelectedEdgeId(null)
+            setDirty(true)
+          }} style={btnStyle('#ef4444')}>remover conexão</button>
+        )}
         {dirty && onSave && (
-          <button onClick={() => { onSave({ milestones, blockers, nextSteps }); setDirty(false) }} style={btnStyle('#22c55e')}>
+          <button onClick={() => { onSave({ milestones, blockers, nextSteps, graphLinks }); setDirty(false) }} style={btnStyle('#22c55e')}>
             salvar
           </button>
         )}
       </div>
 
       <ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
-        onConnect={onConnect} nodeTypes={nodeTypes} fitView fitViewOptions={{ padding: 0.25 }}
+        onConnect={onConnect} onEdgeClick={(_, edge) => setSelectedEdgeId(edge.id)} nodeTypes={nodeTypes} fitView fitViewOptions={{ padding: 0.25 }}
         colorMode="dark" proOptions={{ hideAttribution: true }}
-        style={{ background: '#050508' }}
+        style={{ background: '#050508', fontFamily: MONO_FONT }}
       >
         <Background color="#1c1c24" gap={24} size={1} />
         <Controls showInteractive={false} style={{ background: '#0f0f14', border: '1px solid #27272a', borderRadius: 8 }} />
@@ -288,7 +361,7 @@ export function StateCanvas({ milestones: initMilestones, blockers: initBlockers
       </ReactFlow>
 
       <div style={{ position: 'absolute', bottom: 8, left: 8, zIndex: 10, fontSize: 9, color: '#52525b', letterSpacing: 0.5 }}>
-        DUPLO CLIQUE para editar · CLIQUE em milestone para trocar status · ARRASTAR para mover
+        DUPLO CLIQUE para editar · HOVER desc/× · ARRASTE handles para conectar · CLIQUE edge para remover
       </div>
     </div>
   )
@@ -322,6 +395,7 @@ export function GoalCanvas({ goalTitle, targetDate, criteria: initCriteria, gaps
       data: { label: `${goalTitle.slice(0, 50)}${deadline}`, type: 'goal' } })
 
     const handleDelete = (id: string) => {
+      if (!window.confirm('Excluir este critério?')) return
       const idx = parseInt(id.replace('C-', ''))
       setCriteria(p => p.filter((_, i) => i !== idx))
       setDirty(true)
@@ -415,7 +489,7 @@ export function GoalCanvas({ goalTitle, targetDate, criteria: initCriteria, gaps
       <ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
         onConnect={onConnect} nodeTypes={nodeTypes} fitView fitViewOptions={{ padding: 0.2 }}
         colorMode="dark" proOptions={{ hideAttribution: true }}
-        style={{ background: '#050508' }}
+        style={{ background: '#050508', fontFamily: MONO_FONT }}
       >
         <Background color="#1c1c24" gap={24} size={1} />
         <Controls showInteractive={false} style={{ background: '#0f0f14', border: '1px solid #27272a', borderRadius: 8 }} />
@@ -599,7 +673,7 @@ export function EventCanvas({ milestones, events }: EventCanvasProps) {
       <ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes} fitView fitViewOptions={{ padding: 0.2 }}
         colorMode="dark" proOptions={{ hideAttribution: true }}
-        style={{ background: '#050508' }}
+        style={{ background: '#050508', fontFamily: MONO_FONT }}
       >
         <Background color="#1c1c24" gap={24} size={1} />
         <Controls showInteractive={false} style={{ background: '#0f0f14', border: '1px solid #27272a', borderRadius: 8 }} />
@@ -616,7 +690,7 @@ export function EventCanvas({ milestones, events }: EventCanvasProps) {
 
 /* ── default export (backwards compat) ─────────────────── */
 export default function GraphCanvas(props:
-  | { mode: 'estado'; milestones: Milestone[]; blockers: string[]; nextSteps: string[]; onSave?: StateCanvasProps['onSave'] }
+  | { mode: 'estado'; milestones: Milestone[]; blockers: Array<string | PlanningNode>; nextSteps: Array<string | PlanningNode>; graphLinks?: GraphLink[]; goal?: { id: string; title: string } | null; onSave?: StateCanvasProps['onSave'] }
   | { mode: 'goal'; goalTitle: string; targetDate?: string; criteria: SuccessCriteria[]; gaps: GapItem[]; nextBestAction?: string; goalProgress?: number; goalId?: string; onToggleCriteria?: (criteriaId: string, done: boolean) => void; onSaveCriteria?: (criteria: SuccessCriteria[]) => void }
   | { mode: 'eventos'; milestones: Array<{ id: string; title: string; status: string }>; events: EventNode[] }
 ) {

@@ -193,13 +193,14 @@ interface SynthesisArtifact {
 interface ProjectState {
   objective: string
   stage: string
-  blockers: string[]
+  blockers: PlanningNode[]
   recentDecisions: string[]
-  nextSteps: string[]
+  nextSteps: PlanningNode[]
   risks: string[]
   docGaps: string[]
   riskLevel: 'low' | 'medium' | 'high'
-  milestones: Array<{ id: string; title: string; status: 'pending' | 'active' | 'done' }>
+  milestones: Array<{ id: string; title: string; description?: string; status: 'pending' | 'active' | 'done' }>
+  graphLinks: GraphLink[]
   backlog: Array<{ id: string; title: string; priority: 'high' | 'medium' | 'low' }>
   activeFocus: string
   definitionOfDone: string
@@ -263,6 +264,8 @@ interface DocVersion {
 type ImportTab = 'github' | 'file' | 'url' | 'notion'
 
 interface SuccessCriteria { id: string; text: string; done: boolean }
+interface PlanningNode { id: string; title: string; description?: string }
+interface GraphLink { id: string; sourceId: string; targetId: string; label?: string }
 interface GapItem { area: string; description: string; severity: 'high' | 'medium' | 'low'; relatedCriteria?: string }
 interface GapAnalysis { gaps: GapItem[]; nextBestAction: string; goalProgress: number; confidence: 'low' | 'medium' | 'high' }
 interface ProjectGoal {
@@ -274,6 +277,10 @@ interface ProjectGoal {
 interface GoalGraphData {
   goal: ProjectGoal | null; state: ProjectState | null; mermaid: string
   gapAnalysis: GapAnalysis | null; healthScore: number; updatedAt: string
+}
+
+function planningTitle(item: string | PlanningNode) {
+  return typeof item === 'string' ? item : item.title
 }
 
 function GoalHistoryCard({ g, isActive, total, done, pct }: {
@@ -428,11 +435,12 @@ export default function Home() {
   const [kpiDraft, setKpiDraft] = useState('')
   const [autoTrackingKpis, setAutoTrackingKpis] = useState(false)
   const [goalFormOpen, setGoalFormOpen] = useState(false)
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null)
   const [goalTitle, setGoalTitle] = useState('')
   const [goalDesc, setGoalDesc] = useState('')
   const [goalTargetDate, setGoalTargetDate] = useState('')
   const [goalCriteria, setGoalCriteria] = useState<SuccessCriteria[]>([])
-  const [goalKpis, setGoalKpis] = useState<Array<{ metric: string; target: string; unit: string }>>([])
+  const [goalKpis, setGoalKpis] = useState<Array<{ metric: string; target: string; current?: string; unit: string }>>([])
   const [savingGoal, setSavingGoal] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const autoVoiceRef = useRef(false)
@@ -837,7 +845,12 @@ export default function Home() {
     if (!activeProjectId) return
     setRecsOpen(true)
     setRecsLoading(true)
+    setRecommendations([])
     try {
+      await fetch(`${API_URL}/projects/${activeProjectId}/health/compute`, {
+        method: 'POST',
+        headers: authHeaders(),
+      }).catch(() => null)
       const res = await fetch(`${API_URL}/projects/${activeProjectId}/recommendations`, { headers: authHeaders() })
       if (res.ok) {
         const data = await res.json() as Recommendation[]
@@ -1067,22 +1080,51 @@ export default function Home() {
     setGraphLoading(false)
   }, [activeProjectId])
 
+  const resetGoalForm = useCallback(() => {
+    setEditingGoalId(null)
+    setGoalTitle('')
+    setGoalDesc('')
+    setGoalTargetDate('')
+    setGoalCriteria([])
+    setGoalKpis([])
+  }, [])
+
+  const openCreateGoalForm = useCallback(() => {
+    resetGoalForm()
+    setGoalFormOpen(true)
+  }, [resetGoalForm])
+
+  const openEditGoalForm = useCallback((goal: ProjectGoal) => {
+    setEditingGoalId(goal.id)
+    setGoalTitle(goal.title)
+    setGoalDesc(goal.description ?? '')
+    setGoalTargetDate(goal.targetDate ? goal.targetDate.slice(0, 10) : '')
+    setGoalCriteria(goal.successCriteria ?? [])
+    setGoalKpis((goal.kpis ?? []).map(k => ({ metric: k.metric, target: k.target, current: k.current, unit: k.unit ?? '' })))
+    setGoalFormOpen(true)
+  }, [])
+
   const saveGoal = useCallback(async () => {
     if (!activeProjectId || !goalTitle.trim()) return
     setSavingGoal(true)
     try {
-      const res = await fetch(`${API_URL}/projects/${activeProjectId}/graph/goal`, {
-        method: 'POST',
+      const url = editingGoalId
+        ? `${API_URL}/projects/${activeProjectId}/graph/goal/${editingGoalId}`
+        : `${API_URL}/projects/${activeProjectId}/graph/goal`
+      const res = await fetch(url, {
+        method: editingGoalId ? 'PATCH' : 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ title: goalTitle, description: goalDesc || undefined, successCriteria: goalCriteria, kpis: goalKpis, targetDate: goalTargetDate || undefined }),
       })
       if (res.ok) {
-        setGoalFormOpen(false); setGoalTitle(''); setGoalDesc(''); setGoalTargetDate(''); setGoalCriteria([]); setGoalKpis([])
+        setGoalFormOpen(false)
+        resetGoalForm()
+        setGoalsHistory(null)
         openGraph('goal')
       }
     } catch { /* ignore */ }
     setSavingGoal(false)
-  }, [activeProjectId, goalTitle, goalDesc, goalTargetDate, goalCriteria, goalKpis, openGraph])
+  }, [activeProjectId, editingGoalId, goalTitle, goalDesc, goalTargetDate, goalCriteria, goalKpis, openGraph, resetGoalForm])
 
   const toggleCriteria = useCallback(async (goalId: string, criteriaId: string, done: boolean) => {
     await fetch(`${API_URL}/projects/${activeProjectId}/graph/goal/${goalId}/criteria/${criteriaId}`, {
@@ -1120,6 +1162,17 @@ export default function Home() {
     openGraph('goal')
   }, [activeProjectId, openGraph])
 
+  const deleteGoal = useCallback(async (goalId: string) => {
+    if (!activeProjectId) return
+    if (!confirm('Excluir esta meta inteira? Esta ação não apaga o estado do projeto.')) return
+    await fetch(`${API_URL}/projects/${activeProjectId}/graph/goal/${goalId}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    }).catch(() => null)
+    setGoalsHistory(null)
+    openGraph('goal')
+  }, [activeProjectId, openGraph])
+
   const saveKpi = useCallback(async (goalId: string, metric: string) => {
     if (!activeProjectId) return
     await fetch(`${API_URL}/projects/${activeProjectId}/graph/goal/${goalId}/kpi`, {
@@ -1137,6 +1190,16 @@ export default function Home() {
       method: 'PATCH',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ criteria }),
+    }).catch(() => null)
+    openGraph('goal')
+  }, [activeProjectId, openGraph])
+
+  const saveGoalKpis = useCallback(async (goalId: string, kpis: ProjectGoal['kpis']) => {
+    if (!activeProjectId) return
+    await fetch(`${API_URL}/projects/${activeProjectId}/graph/goal/${goalId}/kpis`, {
+      method: 'PATCH',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ kpis }),
     }).catch(() => null)
     openGraph('goal')
   }, [activeProjectId, openGraph])
@@ -1440,7 +1503,8 @@ export default function Home() {
   }
 
   return (
-    <main className="h-screen overflow-hidden bg-zinc-950 text-zinc-100 flex flex-col">
+    <main className="h-screen overflow-hidden flex flex-col">
+      <div className="hud-scanline" aria-hidden="true" />
 
       {/* Document versions modal */}
       {versionsOpen && (
@@ -1914,7 +1978,7 @@ export default function Home() {
                 <div>
                   <p className="text-[10px] font-semibold text-red-400 uppercase tracking-wide mb-1">Bloqueios</p>
                   <ul className="space-y-1">{projectState.blockers.map((b, i) => (
-                    <li key={i} className="text-xs text-zinc-300 flex gap-1"><span className="text-red-500">■</span>{b}</li>
+                    <li key={i} className="text-xs text-zinc-300 flex gap-1"><span className="text-red-500">■</span>{planningTitle(b)}</li>
                   ))}</ul>
                 </div>
               )}
@@ -1922,7 +1986,7 @@ export default function Home() {
                 <div>
                   <p className="text-[10px] font-semibold text-amber-400 uppercase tracking-wide mb-1">Próximos passos</p>
                   <ul className="space-y-1">{projectState.nextSteps.map((s, i) => (
-                    <li key={i} className="text-xs text-zinc-300 flex gap-1"><span className="text-amber-500">→</span>{s}</li>
+                    <li key={i} className="text-xs text-zinc-300 flex gap-1"><span className="text-amber-500">→</span>{planningTitle(s)}</li>
                   ))}</ul>
                 </div>
               )}
@@ -2720,11 +2784,12 @@ export default function Home() {
       )}
 
       {/* Header */}
-      <div className="shrink-0 sticky top-0 z-30 bg-zinc-950/95 backdrop-blur border-b border-zinc-800 px-6 py-4 flex items-center justify-between gap-4">
+      <div className="hud-header shrink-0 sticky top-0 z-30 px-6 py-4 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={openSidebar}
-            className="text-zinc-400 hover:text-zinc-200 transition-colors"
+            style={{color:'var(--hud-dim)'}}
+            className="hover:text-white transition-colors"
             title="Histórico de conversas"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -2735,7 +2800,8 @@ export default function Home() {
           </button>
           <button
             onClick={() => router.push('/settings')}
-            className="text-zinc-400 hover:text-zinc-200 transition-colors"
+            style={{color:'var(--hud-dim)'}}
+            className="hover:text-white transition-colors"
             title="Configurações"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -2745,7 +2811,8 @@ export default function Home() {
           </button>
           <button
             onClick={openMemoryPanel}
-            className="text-zinc-400 hover:text-zinc-200 transition-colors"
+            style={{color:'var(--hud-dim)'}}
+            className="hover:text-white transition-colors"
             title="Memória indexada"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -2756,7 +2823,8 @@ export default function Home() {
           </button>
           <button
             onClick={() => { setImportOpen(true); setImportResult(null) }}
-            className="text-zinc-400 hover:text-zinc-200 transition-colors"
+            style={{color:'var(--hud-dim)'}}
+            className="hover:text-white transition-colors"
             title="Indexar no Brain"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -2766,8 +2834,8 @@ export default function Home() {
             </svg>
           </button>
           <div>
-            <h1 className="text-lg font-semibold">Rayzen AI</h1>
-            <p className="text-xs text-zinc-500 mt-0.5">Sessão: {sessionId.slice(0, 8)}…</p>
+            <h1 className="hud-title text-base font-bold">RAYZEN AI</h1>
+            <p className="text-[10px] mt-0.5" style={{color:'var(--hud-dim)'}}>SID: {sessionId.slice(0, 8)}…</p>
           </div>
         </div>
         <div className="flex items-center gap-3 flex-wrap justify-end min-w-0">
@@ -2834,7 +2902,7 @@ export default function Home() {
           )}
           {activeProjectId && projectState && (
             <button
-              onClick={() => setStateOpen(true)}
+              onClick={() => { setStateOpen(true); loadProjectState(activeProjectId!) }}
               className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
               title="Ver estado do projeto"
             >
@@ -2883,7 +2951,7 @@ export default function Home() {
           {activeProjectId && (
             <button
               onClick={() => setQuickCaptureOpen(true)}
-              className="text-zinc-500 hover:text-zinc-300 transition-colors text-xs"
+              className="hud-nav"
               title="Captura rápida: decisão, ideia, problema"
             >
               + capturar
@@ -2893,7 +2961,7 @@ export default function Home() {
             <button
               onClick={doCheckpoint}
               disabled={checkpointing}
-              className="text-zinc-500 hover:text-zinc-300 disabled:opacity-40 transition-colors text-xs"
+              className="hud-nav"
               title="Checkpoint: sintetiza atividade recente"
             >
               {checkpointing ? '…' : 'checkpoint'}
@@ -2901,14 +2969,14 @@ export default function Home() {
           )}
           <button
             onClick={openActivity}
-            className="text-zinc-500 hover:text-zinc-300 transition-colors text-xs"
+            className="hud-nav"
           >
             atividade
           </button>
           {activeProjectId && (
             <button
               onClick={() => openGraph('goal')}
-              className="text-zinc-500 hover:text-zinc-300 transition-colors text-xs"
+              className="hud-nav"
               title="Goal Graph — meta vs estado atual"
             >
               grafo
@@ -2916,23 +2984,21 @@ export default function Home() {
           )}
           <button
             onClick={() => setAutoVoice((v) => !v)}
-            className={`text-xs transition-colors ${
-              autoVoice ? 'text-emerald-400 hover:text-emerald-300' : 'text-zinc-500 hover:text-zinc-300'
-            }`}
+            className={`hud-nav ${autoVoice ? 'active' : ''}`}
             title="Ler respostas do assistente em voz alta automaticamente"
           >
-            voz auto {autoVoice ? 'on' : 'off'}
+            voz {autoVoice ? 'on' : 'off'}
           </button>
           <button
             onClick={openSynthesis}
-            className="text-zinc-500 hover:text-zinc-300 transition-colors text-xs"
+            className="hud-nav"
           >
             síntese
           </button>
           {activeProjectId && (
             <button
               onClick={openDocs}
-              className="text-zinc-500 hover:text-zinc-300 transition-colors text-xs"
+              className="hud-nav"
             >
               docs
             </button>
@@ -2943,7 +3009,7 @@ export default function Home() {
               localStorage.removeItem('rayzen_token')
               router.push('/login')
             }}
-            className="text-zinc-600 hover:text-zinc-400 transition-colors text-xs"
+            className="hud-nav"
             title="Sair"
           >
             sair
@@ -2974,13 +3040,13 @@ export default function Home() {
         className="flex-1 min-h-0 overflow-y-auto px-4 py-6 flex flex-col gap-4 max-w-3xl w-full mx-auto"
       >
         {messages.length === 0 && (
-          <div className="text-center text-zinc-600 text-sm mt-20">Diga algo para começar…</div>
+          <div className="hud-empty mt-20">AGUARDANDO INPUT</div>
         )}
         {messages.map((msg, i) => (
           <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div
-              className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                msg.role === 'user' ? 'bg-zinc-100 text-zinc-900' : 'bg-zinc-800 text-zinc-100'
+              className={`max-w-[80%] px-4 py-3 text-sm leading-relaxed ${
+                msg.role === 'user' ? 'hud-msg-user' : 'hud-msg-ai'
               }`}
             >
               {msg.role === 'assistant' ? (
@@ -3052,14 +3118,18 @@ export default function Home() {
         ))}
         {loading && (
           <div className="flex justify-start">
-            <div className="bg-zinc-800 rounded-2xl px-4 py-3 text-sm text-zinc-400">Pensando…</div>
+            <div className="hud-msg-ai px-4 py-3">
+              <div className="hud-dots">
+                <span /><span /><span />
+              </div>
+            </div>
           </div>
         )}
         <div ref={bottomRef} />
       </div>
 
       {/* Input */}
-      <div className="shrink-0 border-t border-zinc-800 bg-zinc-950 px-4 py-4">
+      <div className="hud-input-bar shrink-0 px-4 py-4">
         <form onSubmit={handleSubmit} className="flex gap-2 max-w-3xl mx-auto">
           <textarea
             ref={inputRef}
@@ -3074,27 +3144,28 @@ export default function Home() {
             placeholder="Digite uma mensagem ou use o microfone…"
             disabled={loading}
             rows={1}
-            className="flex-1 rounded-xl bg-zinc-800 px-4 py-3 text-sm outline-none placeholder:text-zinc-500 focus:ring-2 focus:ring-zinc-600 disabled:opacity-50 resize-none"
+            className="hud-input flex-1 px-4 py-3 disabled:opacity-50"
           />
           <button
             type="button"
             onClick={toggleRecording}
             disabled={loading || transcribing}
             title={recording ? 'Parar gravação' : transcribing ? 'Transcrevendo…' : 'Gravar áudio'}
-            className={`rounded-xl px-4 py-3 text-sm font-medium transition-colors disabled:opacity-40 ${
+            className={`hud-btn ${
               recording
-                ? 'bg-red-500 text-white animate-pulse'
+                ? 'hud-btn-danger px-4 py-3'
                 : transcribing
-                ? 'bg-zinc-600 text-zinc-300 animate-pulse'
-                : 'bg-zinc-700 text-zinc-200 hover:bg-zinc-600'
+                ? 'px-4 py-3 opacity-60'
+                : 'px-4 py-3'
             }`}
+            style={recording ? {animation:'hud-pulse-red 1s ease-in-out infinite'} : undefined}
           >
             {recording ? '⏹' : transcribing ? '…' : '🎤'}
           </button>
           <button
             type="submit"
             disabled={loading || !input.trim()}
-            className="rounded-xl bg-zinc-100 px-5 py-3 text-sm font-medium text-zinc-900 disabled:opacity-40 hover:bg-white transition-colors"
+            className="hud-btn hud-btn-primary px-5 py-3"
           >
             Enviar
           </button>
@@ -3104,17 +3175,17 @@ export default function Home() {
       {graphOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="fixed inset-0 bg-black/70" onClick={() => setGraphOpen(false)} />
-          <div className="relative bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl mx-4">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
+          <div className="hud-surface relative w-full max-w-3xl max-h-[90vh] flex flex-col mx-4">
+            <div className="flex items-center justify-between px-6 py-4" style={{borderBottom:'1px solid var(--hud-border)'}}>
               <div className="flex items-center gap-4">
-                <span className="text-sm font-semibold text-zinc-200">Goal Graph</span>
+                <span className="hud-title text-sm">GOAL GRAPH</span>
                 <div className="flex gap-1">
                   {(['estado', 'goal', 'eventos'] as const).map(m => (
                     <button key={m} onClick={() => {
                       setGraphSubMode(m)
                       if (m === 'eventos' && !graphEventData) loadEventGraph()
                     }}
-                      className={`px-3 py-1 rounded-full text-xs transition-colors ${graphSubMode === m ? 'bg-zinc-700 text-zinc-200' : 'text-zinc-500 hover:text-zinc-300'}`}>
+                      className={`hud-nav ${graphSubMode === m ? 'active' : ''}`}>
                       {m === 'goal' ? 'Goal Graph' : m === 'eventos' ? 'Eventos' : 'Estado atual'}
                     </button>
                   ))}
@@ -3148,23 +3219,27 @@ export default function Home() {
                     <button
                       onClick={refreshGraphState}
                       disabled={graphStateRefreshing}
-                      className="text-xs text-blue-400 hover:text-blue-300 disabled:opacity-40 transition-colors shrink-0"
+                      className="hud-btn shrink-0"
                     >
                       {graphStateRefreshing ? 'Analisando…' : '⟳ gerar estado'}
                     </button>
                   </div>
                   <div className="rounded-xl overflow-hidden border border-zinc-800">
                     <GraphCanvas
+                      key={`state-${graphStateData?.updatedAt ?? 'empty'}-${graphStateData?.graphLinks?.length ?? 0}`}
                       mode="estado"
                       milestones={graphStateData?.milestones ?? []}
                       blockers={graphStateData?.blockers ?? []}
                       nextSteps={graphStateData?.nextSteps ?? []}
+                      graphLinks={graphStateData?.graphLinks ?? []}
+                      goal={graphGoalData?.goal ? { id: graphGoalData.goal.id, title: graphGoalData.goal.title } : null}
                       onSave={async (patch) => {
-                        await fetch(`${API_URL}/projects/${activeProjectId}/state/planning`, {
+                        const res = await fetch(`${API_URL}/projects/${activeProjectId}/state/planning`, {
                           method: 'PATCH',
                           headers: authHeaders({ 'Content-Type': 'application/json' }),
                           body: JSON.stringify(patch),
                         }).catch(() => null)
+                        if (res && 'ok' in res && res.ok) setGraphStateData(await res.json() as ProjectState)
                       }}
                     />
                   </div>
@@ -3174,7 +3249,7 @@ export default function Home() {
                   {graphGoalData.goal ? (
                     <>
                       {/* Goal card */}
-                      <div className="bg-zinc-800 rounded-xl p-4 space-y-2">
+                      <div className="hud-card p-4 space-y-2">
                         <div className="flex items-start justify-between gap-2">
                           <span className="text-sm font-semibold text-zinc-200 leading-snug">🎯 {graphGoalData.goal.title}</span>
                           <div className="flex items-center gap-2 shrink-0">
@@ -3182,11 +3257,23 @@ export default function Home() {
                               <span className="text-xs text-zinc-500">{new Date(graphGoalData.goal.targetDate).toLocaleDateString('pt-BR')}</span>
                             )}
                             <button
+                              onClick={() => openEditGoalForm(graphGoalData.goal!)}
+                              className="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-300 hover:bg-blue-500/20 transition-colors"
+                            >
+                              editar meta
+                            </button>
+                            <button
                               onClick={() => achieveGoal(graphGoalData.goal!.id)}
                               title="Marcar como conquistada"
                               className="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 transition-colors"
                             >
                               conquistar
+                            </button>
+                            <button
+                              onClick={() => deleteGoal(graphGoalData.goal!.id)}
+                              className="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 hover:bg-red-500/20 transition-colors"
+                            >
+                              excluir meta
                             </button>
                           </div>
                         </div>
@@ -3217,6 +3304,49 @@ export default function Home() {
                             ))}
                           </div>
                         )}
+
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                          <button
+                            onClick={() => {
+                              const text = prompt('Novo critério')
+                              if (!text?.trim()) return
+                              saveCriteria(graphGoalData.goal!.id, [...graphGoalData.goal!.successCriteria, { id: `c-${Date.now()}`, text: text.trim(), done: false }])
+                            }}
+                            className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
+                          >
+                            + critério
+                          </button>
+                          {graphGoalData.goal.successCriteria.map(c => (
+                            <span key={c.id} className="inline-flex items-center gap-1 text-[10px] text-zinc-600">
+                              {c.text.slice(0, 24)}
+                              <button onClick={() => {
+                                const text = prompt('Editar critério', c.text)
+                                if (!text?.trim()) return
+                                saveCriteria(graphGoalData.goal!.id, graphGoalData.goal!.successCriteria.map(x => x.id === c.id ? { ...x, text: text.trim() } : x))
+                              }} className="hover:text-zinc-300">editar</button>
+                              <button onClick={() => {
+                                if (!confirm('Excluir este critério?')) return
+                                saveCriteria(graphGoalData.goal!.id, graphGoalData.goal!.successCriteria.filter(x => x.id !== c.id))
+                              }} className="hover:text-red-400">excluir</button>
+                            </span>
+                          ))}
+                        </div>
+
+                        <div className="pt-1">
+                          <button
+                            onClick={() => {
+                              const metric = prompt('Métrica do KPI')
+                              if (!metric?.trim()) return
+                              const target = prompt('Meta do KPI')
+                              if (!target?.trim()) return
+                              const unit = prompt('Unidade do KPI', '') ?? ''
+                              saveGoalKpis(graphGoalData.goal!.id, [...graphGoalData.goal!.kpis, { metric: metric.trim(), target: target.trim(), unit }])
+                            }}
+                            className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
+                          >
+                            + KPI
+                          </button>
+                        </div>
 
                         {/* KPIs */}
                         {graphGoalData.goal.kpis.length > 0 && (
@@ -3267,6 +3397,18 @@ export default function Home() {
                                           {k.current ?? '—'} / {k.target} {k.unit}
                                         </button>
                                       )}
+                                      <button onClick={() => {
+                                        const metric = prompt('Métrica do KPI', k.metric)
+                                        if (!metric?.trim()) return
+                                        const target = prompt('Meta do KPI', k.target)
+                                        if (!target?.trim()) return
+                                        const unit = prompt('Unidade do KPI', k.unit ?? '') ?? ''
+                                        saveGoalKpis(graphGoalData.goal!.id, graphGoalData.goal!.kpis.map(x => x.metric === k.metric ? { ...x, metric: metric.trim(), target: target.trim(), unit } : x))
+                                      }} className="text-[10px] text-zinc-600 hover:text-zinc-300">editar</button>
+                                      <button onClick={() => {
+                                        if (!confirm('Excluir este KPI?')) return
+                                        saveGoalKpis(graphGoalData.goal!.id, graphGoalData.goal!.kpis.filter(x => x.metric !== k.metric))
+                                      }} className="text-[10px] text-zinc-600 hover:text-red-400">excluir</button>
                                     </div>
                                   </div>
                                   {pct !== null && (
@@ -3366,7 +3508,7 @@ export default function Home() {
                     /* No goal yet — show form trigger */
                     <div className="text-center py-8 space-y-3">
                       <p className="text-zinc-400 text-sm">Nenhuma meta definida para este projeto.</p>
-                      <button onClick={() => setGoalFormOpen(true)}
+                      <button onClick={openCreateGoalForm}
                         className="bg-blue-600 hover:bg-blue-500 text-white text-sm px-4 py-2 rounded-lg transition-colors">
                         Definir meta
                       </button>
@@ -3383,7 +3525,7 @@ export default function Home() {
                 atualizar
               </button>
               {graphSubMode === 'goal' && activeProjectId && (
-                <button onClick={() => setGoalFormOpen(true)}
+                <button onClick={openCreateGoalForm}
                   className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
                   {graphGoalData?.goal ? 'nova meta' : 'definir meta'}
                 </button>
@@ -3396,11 +3538,11 @@ export default function Home() {
       {/* Goal form modal */}
       {goalFormOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center">
-          <div className="fixed inset-0 bg-black/80" onClick={() => setGoalFormOpen(false)} />
+          <div className="fixed inset-0 bg-black/80" onClick={() => { setGoalFormOpen(false); resetGoalForm() }} />
           <div className="relative bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col shadow-2xl mx-4">
             <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
-              <span className="text-sm font-semibold text-zinc-200">Definir meta do projeto</span>
-              <button onClick={() => setGoalFormOpen(false)} className="text-zinc-500 hover:text-zinc-300 text-lg">×</button>
+              <span className="text-sm font-semibold text-zinc-200">{editingGoalId ? 'Editar meta do projeto' : 'Definir meta do projeto'}</span>
+              <button onClick={() => { setGoalFormOpen(false); resetGoalForm() }} className="text-zinc-500 hover:text-zinc-300 text-lg">×</button>
             </div>
             <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
               <div>
@@ -3461,10 +3603,10 @@ export default function Home() {
               </div>
             </div>
             <div className="border-t border-zinc-800 px-6 py-3 flex justify-end gap-2">
-              <button onClick={() => setGoalFormOpen(false)} className="text-xs text-zinc-500 hover:text-zinc-300 px-3 py-2">Cancelar</button>
+              <button onClick={() => { setGoalFormOpen(false); resetGoalForm() }} className="text-xs text-zinc-500 hover:text-zinc-300 px-3 py-2">Cancelar</button>
               <button onClick={saveGoal} disabled={savingGoal || !goalTitle.trim()}
                 className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-xs px-4 py-2 rounded-lg transition-colors">
-                {savingGoal ? 'Salvando…' : 'Salvar meta'}
+                {savingGoal ? 'Salvando…' : editingGoalId ? 'Salvar edição' : 'Salvar meta'}
               </button>
             </div>
           </div>

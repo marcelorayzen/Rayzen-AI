@@ -1,40 +1,395 @@
 @import "tailwindcss";
 
+/* ═══════════════════════════════════════════════════
+   RAYZEN AI — HUD Design System
+   Paleta: Ciano / Azul elétrico (JARVIS / Iron Man)
+═══════════════════════════════════════════════════ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --hud-bg:        #020810;
+  --hud-surface:   #040e1e;
+  --hud-card:      #071528;
+  --hud-cyan:      #00d4ff;
+  --hud-blue:      #0066ff;
+  --hud-cyan-40:   rgba(0,212,255,0.40);
+  --hud-cyan-20:   rgba(0,212,255,0.20);
+  --hud-cyan-10:   rgba(0,212,255,0.10);
+  --hud-cyan-05:   rgba(0,212,255,0.05);
+  --hud-border:    rgba(0,212,255,0.18);
+  --hud-border-hi: rgba(0,212,255,0.50);
+  --hud-text:      #c8e8ff;
+  --hud-dim:       #3a6a8a;
+  --hud-glow-sm:   0 0 12px rgba(0,212,255,0.30);
+  --hud-glow:      0 0 20px rgba(0,212,255,0.35), 0 0 50px rgba(0,212,255,0.12);
+  --background:    var(--hud-bg);
+  --foreground:    var(--hud-text);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* ── Reset & Base ───────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+html { height: 100%; }
+
+body {
+  height: 100%;
+  background: var(--hud-bg);
+  color: var(--hud-text);
+  font-family: 'IBM Plex Mono', 'Consolas', 'Cascadia Code', ui-monospace, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ── Animated HUD Grid Background ──────────────── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    linear-gradient(rgba(0,212,255,0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,0.035) 1px, transparent 1px);
+  background-size: 55px 55px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Corner accent glow */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 600px 400px at 0% 0%,   rgba(0,102,255,0.06) 0%, transparent 60%),
+    radial-gradient(ellipse 600px 400px at 100% 100%, rgba(0,212,255,0.05) 0%, transparent 60%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Scan line */
+.hud-scanline {
+  position: fixed;
+  left: 0; right: 0;
+  height: 200px;
+  background: linear-gradient(to bottom,
+    transparent 0%,
+    rgba(0,212,255,0.03) 40%,
+    rgba(0,212,255,0.06) 50%,
+    rgba(0,212,255,0.03) 60%,
+    transparent 100%);
+  animation: hud-scan 14s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+@keyframes hud-scan {
+  0%   { top: -200px; }
+  100% { top: 100vh; }
+}
+
+/* Content above background */
+#__next, [data-nextjs-scroll-focus-boundary], body > div { position: relative; z-index: 1; }
+
+/* ── Scrollbar ──────────────────────────────────── */
+::-webkit-scrollbar              { width: 3px; height: 3px; }
+::-webkit-scrollbar-track        { background: transparent; }
+::-webkit-scrollbar-thumb        { background: var(--hud-cyan-20); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover  { background: var(--hud-cyan-40); }
+
+/* ── Typography ─────────────────────────────────── */
+.hud-title {
+  font-family: 'Orbitron', 'Segoe UI', sans-serif;
+  letter-spacing: 0.08em;
+  color: var(--hud-cyan);
+  text-shadow: 0 0 20px var(--hud-cyan-40);
+}
+
+/* ── Header ─────────────────────────────────────── */
+.hud-header {
+  background: rgba(2,8,16,0.90) !important;
+  backdrop-filter: blur(14px) !important;
+  border-bottom: 1px solid var(--hud-border) !important;
+  box-shadow: 0 1px 0 var(--hud-cyan-10), 0 4px 30px rgba(0,0,0,0.6) !important;
+}
+
+/* ── Nav buttons (header links) ─────────────────── */
+.hud-nav {
+  background: none;
+  border: none;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--hud-dim);
+  cursor: pointer;
+  transition: color 0.15s, text-shadow 0.15s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.hud-nav:hover {
+  color: var(--hud-cyan);
+  text-shadow: 0 0 10px var(--hud-cyan-40);
+}
+.hud-nav.active {
+  color: var(--hud-cyan);
+  text-shadow: 0 0 10px var(--hud-cyan-40);
+}
+
+/* ── HUD Buttons ────────────────────────────────── */
+.hud-btn {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 5px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--hud-border-hi);
+  background: var(--hud-cyan-05);
+  color: var(--hud-cyan);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s, color 0.2s, transform 0.1s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.hud-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(0,212,255,0.22) 50%, transparent 100%);
+  transform: translateX(-150%);
+  transition: transform 0.5s ease;
+}
+.hud-btn:hover {
+  border-color: var(--hud-cyan);
+  background: var(--hud-cyan-10);
+  box-shadow: var(--hud-glow-sm), inset 0 0 8px var(--hud-cyan-05);
+  color: #fff;
+}
+.hud-btn:hover::before { transform: translateX(150%); }
+.hud-btn:active { transform: scale(0.96); }
+.hud-btn:disabled { opacity: 0.3; pointer-events: none; }
+
+/* Danger variant */
+.hud-btn-danger {
+  border-color: rgba(255,60,60,0.5);
+  color: #ff6060;
+  background: rgba(255,60,60,0.06);
+}
+.hud-btn-danger:hover {
+  border-color: #ff4444;
+  background: rgba(255,60,60,0.12);
+  box-shadow: 0 0 12px rgba(255,68,68,0.3);
+  color: #fff;
+}
+
+/* Primary variant (send) */
+.hud-btn-primary {
+  border-color: var(--hud-cyan);
+  background: linear-gradient(135deg, rgba(0,40,100,0.8), rgba(0,80,180,0.6));
+  color: #fff;
+  box-shadow: 0 0 14px rgba(0,102,255,0.3);
+}
+.hud-btn-primary:hover {
+  box-shadow: 0 0 28px rgba(0,212,255,0.5), 0 0 8px rgba(0,212,255,0.3);
+  background: linear-gradient(135deg, rgba(0,50,120,0.9), rgba(0,100,220,0.7));
+  transform: translateY(-1px);
+}
+.hud-btn-primary:disabled { opacity: 0.3; transform: none; }
+
+/* ── Input fields ───────────────────────────────── */
+.hud-input-bar {
+  background: rgba(2,8,16,0.95) !important;
+  border-top: 1px solid var(--hud-border) !important;
+  box-shadow: 0 -1px 0 var(--hud-cyan-10) !important;
+}
+
+.hud-input {
+  background: rgba(4,14,30,0.95);
+  border: 1px solid var(--hud-border-hi);
+  border-radius: 10px;
+  color: var(--hud-text);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  resize: none;
+}
+.hud-input::placeholder { color: var(--hud-dim); }
+.hud-input:focus {
+  border-color: var(--hud-cyan);
+  box-shadow: 0 0 0 1px var(--hud-cyan-20), 0 0 20px var(--hud-cyan-10);
+}
+
+/* ── Classic input (forms/modals) ───────────────── */
+.input {
+  width: 100%;
+  background: var(--hud-card);
+  border: 1px solid var(--hud-border-hi);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--hud-text);
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.input:focus {
+  border-color: var(--hud-cyan);
+  box-shadow: 0 0 0 1px var(--hud-cyan-20);
+}
+
+/* ── Message bubbles ────────────────────────────── */
+.hud-msg-user {
+  background: linear-gradient(135deg, rgba(0,25,60,0.95), rgba(0,50,120,0.85));
+  border: 1px solid var(--hud-border-hi);
+  color: #dff0ff;
+  border-radius: 14px 14px 3px 14px;
+  box-shadow: 0 0 12px rgba(0,102,255,0.18);
+}
+
+.hud-msg-ai {
+  background: var(--hud-card);
+  border: 1px solid var(--hud-border);
+  color: var(--hud-text);
+  border-radius: 3px 14px 14px 14px;
+  position: relative;
+}
+.hud-msg-ai::before {
+  content: '';
+  position: absolute;
+  top: -1px; left: -1px;
+  width: 8px; height: 8px;
+  border-top: 2px solid var(--hud-cyan);
+  border-left: 2px solid var(--hud-cyan);
+  border-radius: 2px 0 0 0;
+  opacity: 0.8;
+}
+
+/* ── HUD Surface (modals, panels) ───────────────── */
+.hud-surface {
+  background: var(--hud-surface);
+  border: 1px solid var(--hud-border-hi);
+  border-radius: 16px;
+  position: relative;
+  box-shadow: 0 0 60px rgba(0,212,255,0.10), 0 30px 80px rgba(0,0,0,0.8);
+}
+.hud-surface::before, .hud-surface::after {
+  content: '';
+  position: absolute;
+  width: 14px; height: 14px;
+  border-color: var(--hud-cyan);
+  border-style: solid;
+  opacity: 0.6;
+}
+.hud-surface::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; border-radius: 2px 0 0 0; }
+.hud-surface::after  { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; border-radius: 0 0 2px 0; }
+
+/* ── HUD Card (clickable items) ─────────────────── */
+.hud-card {
+  background: var(--hud-card);
+  border: 1px solid var(--hud-border);
+  border-radius: 10px;
+  position: relative;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+.hud-card::before, .hud-card::after {
+  content: '';
+  position: absolute;
+  width: 8px; height: 8px;
+  border-color: var(--hud-cyan);
+  border-style: solid;
+  opacity: 0;
+  transition: opacity 0.2s, width 0.2s, height 0.2s;
+}
+.hud-card::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; border-radius: 2px 0 0 0; }
+.hud-card::after  { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; border-radius: 0 0 2px 0; }
+.hud-card:hover {
+  border-color: var(--hud-border-hi);
+  box-shadow: var(--hud-glow-sm);
+  transform: translateY(-1px) scale(1.005);
+}
+.hud-card:hover::before, .hud-card:hover::after { opacity: 0.8; width: 12px; height: 12px; }
+
+/* ── Loading dots ───────────────────────────────── */
+.hud-dots {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.hud-dots span {
+  display: inline-block;
+  width: 5px; height: 5px;
+  background: var(--hud-cyan);
+  border-radius: 50%;
+  animation: hud-dot 1.4s ease-in-out infinite;
+}
+.hud-dots span:nth-child(2) { animation-delay: 0.2s; }
+.hud-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes hud-dot {
+  0%, 80%, 100% { transform: scale(0.55); opacity: 0.35; }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+    box-shadow: 0 0 8px var(--hud-cyan);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ── Mic recording animation ────────────────────── */
+@keyframes hud-pulse-red {
+  0%, 100% { box-shadow: 0 0 6px rgba(255,68,68,0.4); }
+  50%       { box-shadow: 0 0 18px rgba(255,68,68,0.7); }
 }
 
-.input {
-  width: 100%;
-  background: #27272a;
-  border: 1px solid #3f3f46;
-  border-radius: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.875rem;
-  color: #e4e4e7;
+/* ── Status pulse ───────────────────────────────── */
+@keyframes hud-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+.hud-pulse { animation: hud-pulse 2s ease-in-out infinite; }
+
+/* ── Empty state ────────────────────────────────── */
+.hud-empty {
+  color: var(--hud-dim);
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-align: center;
+  text-transform: uppercase;
+}
+.hud-empty::after {
+  content: '';
+  display: block;
+  margin: 14px auto 0;
+  width: 80px; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--hud-cyan-20), transparent);
+}
+
+/* ── Select dropdowns ───────────────────────────── */
+select {
+  background: var(--hud-card);
+  border: 1px solid var(--hud-border-hi);
+  color: var(--hud-text);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 12px;
   outline: none;
+  cursor: pointer;
 }
-.input:focus {
-  border-color: #71717a;
+select:focus { border-color: var(--hud-cyan); }
+
+/* ── React Flow — force font inheritance ────────── */
+.react-flow__node,
+.react-flow__node *,
+.react-flow__edge-label,
+.react-flow__attribution {
+  font-family: 'IBM Plex Mono', 'Consolas', ui-monospace, monospace !important;
 }
+
+/* ── Prose (markdown) ───────────────────────────── */
+.prose { color: var(--hud-text) !important; }
+.prose code { color: var(--hud-cyan) !important; background: var(--hud-cyan-05) !important; border-radius: 4px; padding: 1px 5px; }
+.prose pre  { background: var(--hud-card) !important; border: 1px solid var(--hud-border) !important; }
+.prose a    { color: var(--hud-cyan) !important; }
+.prose strong { color: #fff !important; }
+.prose h1, .prose h2, .prose h3 { color: var(--hud-text) !important; }
