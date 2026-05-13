@@ -33,7 +33,7 @@ body {
   height: 100%;
   background: var(--hud-bg);
   color: var(--hud-text);
-  font-family: 'IBM Plex Mono', 'Consolas', 'Cascadia Code', ui-monospace, monospace;
+  font-family: 'IBM Plex Mono', 'Consolas', 'Cascadia Code', ui-monospace, monospace, 'Segoe UI Symbol', 'Segoe UI Emoji', 'Apple Color Emoji';
 }
 
 /* ── Animated HUD Grid Background ──────────────── */

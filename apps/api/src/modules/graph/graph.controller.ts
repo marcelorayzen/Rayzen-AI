@@ -1,6 +1,6 @@
-import { Controller, Get, Post, Patch, Param, Body } from '@nestjs/common'
+import { Controller, Get, Post, Patch, Delete, Param, Body } from '@nestjs/common'
 import { ApiTags, ApiOperation } from '@nestjs/swagger'
-import { GraphService, CreateGoalDto } from './graph.service'
+import { GraphService, CreateGoalDto, UpdateGoalDto, Kpi } from './graph.service'
 
 @ApiTags('graph')
 @Controller('projects/:id/graph')
@@ -38,6 +38,22 @@ export class GraphController {
     return this.graph.upsertGoal(id, dto)
   }
 
+  @Patch('goal/:goalId')
+  @ApiOperation({ summary: 'Editar goal existente' })
+  updateGoal(
+    @Param('id') id: string,
+    @Param('goalId') goalId: string,
+    @Body() dto: UpdateGoalDto,
+  ) {
+    return this.graph.updateGoal(id, goalId, dto)
+  }
+
+  @Delete('goal/:goalId')
+  @ApiOperation({ summary: 'Excluir goal existente' })
+  deleteGoal(@Param('id') id: string, @Param('goalId') goalId: string) {
+    return this.graph.deleteGoal(id, goalId)
+  }
+
   @Patch('goal/:goalId/criteria')
   @ApiOperation({ summary: 'Substituir array completo de critérios da meta' })
   updateCriteria(
@@ -64,6 +80,15 @@ export class GraphController {
     @Body() body: { metric: string; current: string },
   ) {
     return this.graph.updateKpi(goalId, body.metric, body.current)
+  }
+
+  @Patch('goal/:goalId/kpis')
+  @ApiOperation({ summary: 'Substituir array completo de KPIs da meta' })
+  replaceKpis(
+    @Param('goalId') goalId: string,
+    @Body() body: { kpis: Kpi[] },
+  ) {
+    return this.graph.replaceKpis(goalId, body.kpis ?? [])
   }
 
   @Post('goal/:goalId/kpi/auto-track')

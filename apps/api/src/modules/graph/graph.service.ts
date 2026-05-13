@@ -65,6 +65,14 @@ export interface CreateGoalDto {
   parentGoalId?: string
 }
 
+export interface UpdateGoalDto {
+  title?: string
+  description?: string | null
+  successCriteria?: SuccessCriteria[]
+  kpis?: Kpi[]
+  targetDate?: string | null
+}
+
 @Injectable()
 export class GraphService {
   private readonly logger = new Logger(GraphService.name)
@@ -99,7 +107,7 @@ export class GraphService {
     })
 
     // Blockers → connect to active milestones
-    const blockers = (state.blockers ?? []) as string[]
+    const blockers = (state.blockers ?? []).map(b => b.title)
     blockers.slice(0, 4).forEach((b, i) => {
       lines.push(`  B${i}["[blocker] ${sanitize(b)}"]`)
       lines.push(`  style B${i} fill:#ef4444,color:#fff`)
@@ -108,7 +116,7 @@ export class GraphService {
     })
 
     // Next steps
-    const nextSteps = (state.nextSteps ?? []) as string[]
+    const nextSteps = (state.nextSteps ?? []).map(s => s.title)
     nextSteps.slice(0, 3).forEach((s, i) => {
       lines.push(`  NS${i}["[prox] ${sanitize(s)}"]`)
       lines.push(`  style NS${i} fill:#8b5cf6,color:#fff`)
@@ -204,6 +212,62 @@ export class GraphService {
     return this.prisma.projectGoal.update({
       where: { id: goalId },
       data: { successCriteria: criteria as unknown as Parameters<typeof this.prisma.projectGoal.update>[0]['data']['successCriteria'] },
+    })
+  }
+
+  async updateGoal(projectId: string, goalId: string, dto: UpdateGoalDto) {
+    await this.prisma.projectGoal.findFirstOrThrow({ where: { id: goalId, projectId } })
+
+    const criteria = dto.successCriteria?.map((c, i) => ({
+      id: c.id || `c-${i}-${Date.now()}`,
+      text: c.text,
+      done: c.done ?? false,
+    })).filter(c => c.text.trim())
+
+    const kpis = dto.kpis
+      ?.map(k => ({
+        metric: k.metric?.trim(),
+        target: k.target?.trim(),
+        ...(k.current !== undefined ? { current: k.current } : {}),
+        ...(k.unit?.trim() ? { unit: k.unit.trim() } : {}),
+      }))
+      .filter(k => k.metric && k.target)
+
+    return this.prisma.projectGoal.update({
+      where: { id: goalId },
+      data: {
+        ...(dto.title !== undefined ? { title: dto.title } : {}),
+        ...(dto.description !== undefined ? { description: dto.description || null } : {}),
+        ...(dto.successCriteria !== undefined ? { successCriteria: criteria as unknown as Parameters<typeof this.prisma.projectGoal.update>[0]['data']['successCriteria'] } : {}),
+        ...(dto.kpis !== undefined ? { kpis: kpis as unknown as Parameters<typeof this.prisma.projectGoal.update>[0]['data']['kpis'] } : {}),
+        ...(dto.targetDate !== undefined ? { targetDate: dto.targetDate ? new Date(dto.targetDate) : null } : {}),
+      },
+    })
+  }
+
+  async deleteGoal(projectId: string, goalId: string) {
+    await this.prisma.projectGoal.updateMany({
+      where: { projectId, parentGoalId: goalId },
+      data: { parentGoalId: null },
+    })
+    const deleted = await this.prisma.projectGoal.deleteMany({ where: { id: goalId, projectId } })
+    if (deleted.count === 0) throw new NotFoundException('Meta não encontrada')
+    return { deleted: true }
+  }
+
+  async replaceKpis(goalId: string, kpis: Kpi[]) {
+    const clean = kpis
+      .map(k => ({
+        metric: k.metric?.trim(),
+        target: k.target?.trim(),
+        ...(k.current !== undefined ? { current: k.current } : {}),
+        ...(k.unit?.trim() ? { unit: k.unit.trim() } : {}),
+      }))
+      .filter(k => k.metric && k.target)
+
+    return this.prisma.projectGoal.update({
+      where: { id: goalId },
+      data: { kpis: clean as unknown as Parameters<typeof this.prisma.projectGoal.update>[0]['data']['kpis'] },
     })
   }
 

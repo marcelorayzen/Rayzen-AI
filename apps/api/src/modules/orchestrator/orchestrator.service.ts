@@ -102,6 +102,19 @@ export class OrchestratorService {
     try { return this.rayzenConfig.getConfig() } catch { return null }
   }
 
+  private async getProjectContext(projectId?: string): Promise<string> {
+    if (!projectId) return ''
+    try {
+      const project = await this.prisma.project.findUnique({
+        where: { id: projectId },
+        select: { name: true, description: true },
+      })
+      if (!project) return ''
+      const desc = project.description ? ` — ${project.description}` : ''
+      return `\n\nProjeto ativo: "${project.name}"${desc}. Responda SOMENTE sobre este projeto. Não mencione outros projetos.`
+    } catch { return '' }
+  }
+
   private getSystemPrompt(module: string): string {
     const cfg = this.getRayzenConfig()
     const base = cfg?.identity.personality ?? 'Seja direto e objetivo. Sem frases de abertura. Português brasileiro.'
@@ -223,7 +236,7 @@ export class OrchestratorService {
     // 2. Rotear para Brain se necessário
     if (classify.module === 'brain') {
       try {
-        const result = await this.memory.searchAndSynthesize(prompt, sessionId)
+        const result = await this.memory.searchAndSynthesize(prompt, sessionId, projectId)
         this.extractAndIndex(prompt, result.answer)
         return {
           reply: result.answer,
@@ -233,7 +246,22 @@ export class OrchestratorService {
           tokensUsed: result.tokensUsed,
           sessionId,
         }
-      } catch {
+      } catch (err) {
+        const reply = `Não consegui consultar o Brain agora: ${(err as Error).message}. Não vou responder com base em suposição.`
+        await this.prisma.conversationMessage.createMany({
+          data: [
+            { sessionId, module: 'brain', role: 'user', content: prompt, projectId, workMode: workMode ?? null },
+            { sessionId, module: 'brain', role: 'assistant', content: reply, tokensUsed: 0, projectId, workMode: workMode ?? null },
+          ],
+        })
+        return {
+          reply,
+          module: 'brain',
+          action: classify.action,
+          confidence: classify.confidence,
+          tokensUsed: 0,
+          sessionId,
+        }
         // Fallback para chat normal se embeddings não estiverem disponíveis
       }
     }
@@ -382,10 +410,24 @@ Seja direto, claro e amigável. Português brasileiro. Sem JSON bruto.`,
       content: m.content,
     }))
 
-    // 3. Gerar resposta com contexto do módulo + work mode
-    const basePrompt = this.getSystemPrompt(classify.module)
+    // 3. Gerar resposta com contexto do módulo + work mode + projeto + brain
+    const [basePromptStr, projectCtx, brainResults] = await Promise.all([
+      Promise.resolve(this.getSystemPrompt(classify.module)),
+      this.getProjectContext(projectId),
+      this.memory.search(prompt, 4, projectId).catch(() => [] as import('../memory/memory.service').SearchResult[]),
+    ])
     const modeConfig = getWorkModeConfig(workMode)
-    const systemPrompt = modeConfig ? basePrompt + modeConfig.systemPromptSuffix : basePrompt
+    let systemPrompt = basePromptStr + projectCtx
+    if (modeConfig) systemPrompt += modeConfig.systemPromptSuffix
+
+    const brainCtx = brainResults
+      .filter(r => r.score > 0.5)
+      .map((r, i) => `[${i + 1}] ${r.sourcePath ? `(${r.sourcePath}) ` : ''}${r.content.slice(0, 400)}`)
+      .join('\n\n')
+    if (brainCtx) {
+      systemPrompt += `\n\n--- Documentação indexada relevante (use como referência) ---\n${brainCtx}\n--- Fim da documentação ---`
+    }
+
     const messages: ChatMessage[] = [...historyMessages, { role: 'user', content: prompt }]
 
     const res = await this.llm.chat.completions.create({
@@ -483,9 +525,9 @@ Formato da resposta: { "module": "...", "action": "...", "confidence": 0.0-1.0 }
       messages: [
         {
           role: 'system',
-          content: `VocÃª Ã© Rayzen, assistente pessoal. O PC Agent executou uma tarefa e retornou dados.
-VÃ¡ direto ao ponto â€” apresente os dados imediatamente, sem frases introdutÃ³rias como "OlÃ¡", "Claro", "Com prazer" ou "Estou aqui para ajudar".
-Seja direto, claro e amigÃ¡vel. PortuguÃªs brasileiro. Sem JSON bruto.`,
+          content: `Você é Rayzen, assistente pessoal. O PC Agent executou uma tarefa e retornou dados.
+Vá direto ao ponto — apresente os dados imediatamente, sem frases introdutórias como “Olá”, “Claro”, “Com prazer” ou “Estou aqui para ajudar”.
+Seja direto, claro e amigável. Português brasileiro. Sem JSON bruto.`,
         },
         {
           role: 'user',
@@ -571,9 +613,23 @@ Seja criterioso — não memorize perguntas, comandos ou respostas genéricas.`,
       content: m.content,
     }))
 
-    const basePrompt = this.getSystemPrompt(module)
+    const [basePrompt, projectCtx, brainResults] = await Promise.all([
+      Promise.resolve(this.getSystemPrompt(module)),
+      this.getProjectContext(projectId),
+      this.memory.search(prompt, 4, projectId).catch(() => [] as import('../memory/memory.service').SearchResult[]),
+    ])
     const modeConfig = getWorkModeConfig(workMode)
-    const systemPrompt = modeConfig ? basePrompt + modeConfig.systemPromptSuffix : basePrompt
+    let systemPrompt = basePrompt + projectCtx
+    if (modeConfig) systemPrompt += modeConfig.systemPromptSuffix
+
+    const brainCtx = brainResults
+      .filter(r => r.score > 0.5)
+      .map((r, i) => `[${i + 1}] ${r.sourcePath ? `(${r.sourcePath}) ` : ''}${r.content.slice(0, 400)}`)
+      .join('\n\n')
+    if (brainCtx) {
+      systemPrompt += `\n\n--- Documentação indexada relevante (use como referência) ---\n${brainCtx}\n--- Fim da documentação ---`
+    }
+
     const messages: ChatMessage[] = [...historyMessages, { role: 'user', content: prompt }]
 
     const stream = await this.llm.chat.completions.create({

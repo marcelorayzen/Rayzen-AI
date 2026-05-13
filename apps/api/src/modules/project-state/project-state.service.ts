@@ -8,7 +8,21 @@ import { EventService } from '../event/event.service'
 export interface Milestone {
   id: string
   title: string
+  description?: string
   status: 'pending' | 'active' | 'done'
+}
+
+export interface PlanningNode {
+  id: string
+  title: string
+  description?: string
+}
+
+export interface GraphLink {
+  id: string
+  sourceId: string
+  targetId: string
+  label?: string
 }
 
 export interface BacklogItem {
@@ -20,13 +34,14 @@ export interface BacklogItem {
 export interface ProjectStateData {
   objective: string
   stage: string
-  blockers: string[]
+  blockers: PlanningNode[]
   recentDecisions: string[]
-  nextSteps: string[]
+  nextSteps: PlanningNode[]
   risks: string[]
   docGaps: string[]
   riskLevel: 'low' | 'medium' | 'high'
   milestones: Milestone[]
+  graphLinks: GraphLink[]
   backlog: BacklogItem[]
   activeFocus: string
   definitionOfDone: string
@@ -165,6 +180,7 @@ Regras:
         docGaps: [],
         riskLevel: 'low',
         milestones: [],
+        graphLinks: [],
         backlog: [],
         activeFocus: '',
         definitionOfDone: '',
@@ -177,13 +193,14 @@ Regras:
         projectId,
         objective: derived.objective,
         stage: derived.stage,
-        blockers: derived.blockers as object,
+        blockers: this.normalizePlanningNodes(derived.blockers, 'blocker') as object,
         recentDecisions: derived.recentDecisions as object,
-        nextSteps: derived.nextSteps as object,
+        nextSteps: this.normalizePlanningNodes(derived.nextSteps, 'next') as object,
         risks: derived.risks as object,
         docGaps: derived.docGaps as object,
         riskLevel: derived.riskLevel,
-        milestones: (derived.milestones ?? []) as object,
+        milestones: this.normalizeMilestones(derived.milestones) as object,
+        graphLinks: [],
         backlog: (derived.backlog ?? []) as object,
         activeFocus: derived.activeFocus || null,
         definitionOfDone: derived.definitionOfDone || null,
@@ -191,13 +208,14 @@ Regras:
       update: {
         objective: derived.objective,
         stage: derived.stage,
-        blockers: derived.blockers as object,
+        blockers: this.normalizePlanningNodes(derived.blockers, 'blocker') as object,
         recentDecisions: derived.recentDecisions as object,
-        nextSteps: derived.nextSteps as object,
+        nextSteps: this.normalizePlanningNodes(derived.nextSteps, 'next') as object,
         risks: derived.risks as object,
         docGaps: derived.docGaps as object,
         riskLevel: derived.riskLevel,
-        milestones: (derived.milestones ?? []) as object,
+        milestones: this.normalizeMilestones(derived.milestones) as object,
+        graphLinks: (existing?.graphLinks ?? []) as object,
         backlog: (derived.backlog ?? []) as object,
         activeFocus: derived.activeFocus || null,
         definitionOfDone: derived.definitionOfDone || null,
@@ -246,11 +264,11 @@ Regras:
     )
 
     // Blockers do estado atual
-    const blockers = (serialized?.blockers ?? []) as string[]
+    const blockers = (serialized?.blockers ?? []).map(b => b.title)
 
     // Next best step: activeFocus > primeiro nextStep > primeiro backlog item
     const nextBestStep = serialized?.activeFocus
-      ?? (serialized?.nextSteps as string[])?.[0]
+      ?? serialized?.nextSteps?.[0]?.title
       ?? ((serialized?.backlog as BacklogItem[])?.[0]?.title ?? '')
 
     // Se há artefato recente de síntese, usar para enriquecer o brief
@@ -280,22 +298,29 @@ Regras:
       backlog?: BacklogItem[]
       activeFocus?: string
       definitionOfDone?: string
-      blockers?: string[]
-      nextSteps?: string[]
+      blockers?: Array<string | PlanningNode>
+      nextSteps?: Array<string | PlanningNode>
+      graphLinks?: GraphLink[]
     },
   ) {
     const state = await this.prisma.projectState.findUnique({ where: { projectId } })
     if (!state) throw new NotFoundException('Estado do projeto não encontrado')
 
+    const milestones = patch.milestones !== undefined ? this.normalizeMilestones(patch.milestones) : undefined
+    const blockers = patch.blockers !== undefined ? this.normalizePlanningNodes(patch.blockers, 'blocker') : undefined
+    const nextSteps = patch.nextSteps !== undefined ? this.normalizePlanningNodes(patch.nextSteps, 'next') : undefined
+    const graphLinks = patch.graphLinks !== undefined ? this.normalizeGraphLinks(patch.graphLinks) : undefined
+
     const updated = await this.prisma.projectState.update({
       where: { projectId },
       data: {
-        ...(patch.milestones !== undefined ? { milestones: patch.milestones as object } : {}),
+        ...(milestones !== undefined ? { milestones: milestones as object } : {}),
         ...(patch.backlog !== undefined ? { backlog: patch.backlog as object } : {}),
         ...(patch.activeFocus !== undefined ? { activeFocus: patch.activeFocus || null } : {}),
         ...(patch.definitionOfDone !== undefined ? { definitionOfDone: patch.definitionOfDone || null } : {}),
-        ...(patch.blockers !== undefined ? { blockers: patch.blockers } : {}),
-        ...(patch.nextSteps !== undefined ? { nextSteps: patch.nextSteps } : {}),
+        ...(blockers !== undefined ? { blockers: blockers as object } : {}),
+        ...(nextSteps !== undefined ? { nextSteps: nextSteps as object } : {}),
+        ...(graphLinks !== undefined ? { graphLinks: graphLinks as object } : {}),
       },
     })
 
@@ -314,6 +339,7 @@ Regras:
     docGaps: unknown
     riskLevel: string
     milestones: unknown
+    graphLinks?: unknown
     backlog: unknown
     activeFocus: string | null
     definitionOfDone: string | null
@@ -324,17 +350,97 @@ Regras:
       projectId: state.projectId,
       objective: state.objective ?? '',
       stage: state.stage ?? 'building',
-      blockers: (state.blockers as string[]) ?? [],
+      blockers: this.normalizePlanningNodes(state.blockers, 'blocker'),
       recentDecisions: (state.recentDecisions as string[]) ?? [],
-      nextSteps: (state.nextSteps as string[]) ?? [],
+      nextSteps: this.normalizePlanningNodes(state.nextSteps, 'next'),
       risks: (state.risks as string[]) ?? [],
       docGaps: (state.docGaps as string[]) ?? [],
       riskLevel: state.riskLevel as 'low' | 'medium' | 'high',
-      milestones: (state.milestones as Milestone[]) ?? [],
+      milestones: this.normalizeMilestones(state.milestones),
+      graphLinks: this.normalizeGraphLinks(state.graphLinks),
       backlog: (state.backlog as BacklogItem[]) ?? [],
       activeFocus: state.activeFocus ?? '',
       definitionOfDone: state.definitionOfDone ?? '',
       updatedAt: state.updatedAt.toISOString(),
     }
+  }
+
+  private normalizeMilestones(value: unknown): Milestone[] {
+    if (!Array.isArray(value)) return []
+    return value
+      .map((item, index) => {
+        if (typeof item === 'string') {
+          return { id: this.legacyId('milestone', item, index), title: item, status: 'pending' as const }
+        }
+        if (!item || typeof item !== 'object') return null
+        const raw = item as Record<string, unknown>
+        const title = typeof raw.title === 'string' ? raw.title.trim() : ''
+        if (!title) return null
+        const status = raw.status === 'active' || raw.status === 'done' ? raw.status : 'pending'
+        const description = typeof raw.description === 'string' && raw.description.trim()
+          ? raw.description.trim()
+          : undefined
+        return {
+          id: typeof raw.id === 'string' && raw.id.trim() ? raw.id.trim() : this.legacyId('milestone', title, index),
+          title,
+          ...(description ? { description } : {}),
+          status,
+        }
+      })
+      .filter((item): item is Milestone => Boolean(item))
+  }
+
+  private normalizePlanningNodes(value: unknown, prefix: 'blocker' | 'next'): PlanningNode[] {
+    if (!Array.isArray(value)) return []
+    return value
+      .map((item, index) => {
+        if (typeof item === 'string') {
+          return { id: this.legacyId(prefix, item, index), title: item }
+        }
+        if (!item || typeof item !== 'object') return null
+        const raw = item as Record<string, unknown>
+        const title = typeof raw.title === 'string' ? raw.title.trim() : ''
+        if (!title) return null
+        const description = typeof raw.description === 'string' && raw.description.trim()
+          ? raw.description.trim()
+          : undefined
+        return {
+          id: typeof raw.id === 'string' && raw.id.trim() ? raw.id.trim() : this.legacyId(prefix, title, index),
+          title,
+          ...(description ? { description } : {}),
+        }
+      })
+      .filter((item): item is PlanningNode => Boolean(item))
+  }
+
+  private normalizeGraphLinks(value: unknown): GraphLink[] {
+    if (!Array.isArray(value)) return []
+    return value
+      .map((item, index) => {
+        if (!item || typeof item !== 'object') return null
+        const raw = item as Record<string, unknown>
+        const sourceId = typeof raw.sourceId === 'string' ? raw.sourceId.trim() : ''
+        const targetId = typeof raw.targetId === 'string' ? raw.targetId.trim() : ''
+        if (!sourceId || !targetId || sourceId === targetId) return null
+        const label = typeof raw.label === 'string' && raw.label.trim() ? raw.label.trim() : undefined
+        return {
+          id: typeof raw.id === 'string' && raw.id.trim() ? raw.id.trim() : `link-${index}-${sourceId}-${targetId}`,
+          sourceId,
+          targetId,
+          ...(label ? { label } : {}),
+        }
+      })
+      .filter((item): item is GraphLink => Boolean(item))
+  }
+
+  private legacyId(prefix: string, title: string, index: number) {
+    const slug = title
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 32)
+    return `${prefix}-${index}-${slug || 'item'}`
   }
 }

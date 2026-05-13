@@ -28,6 +28,10 @@ class SearchDto {
   @IsOptional()
   @IsString()
   sessionId?: string
+
+  @IsOptional()
+  @IsString()
+  projectId?: string
 }
 
 class GithubDto {
@@ -82,7 +86,7 @@ export class MemoryController {
   @Post('search')
   search(@Body() dto: SearchDto) {
     const sessionId = dto.sessionId ?? crypto.randomUUID()
-    return this.svc.searchAndSynthesize(dto.query, sessionId)
+    return this.svc.searchAndSynthesize(dto.query, sessionId, dto.projectId)
   }
 
   @Get('documents')

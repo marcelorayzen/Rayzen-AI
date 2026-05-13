@@ -132,6 +132,7 @@ model ProjectState {
   // Fase 11 — Planejamento operacional
   milestones       Json     @default("[]")   // { id, title, status: pending|active|done }[]
   backlog          Json     @default("[]")   // { id, title, priority: high|medium|low }[]
+  graphLinks       Json     @default("[]") @map("graph_links") // { id, sourceId, targetId, label? }[]
   activeFocus      String?  @map("active_focus")
   definitionOfDone String?  @map("definition_of_done")
   updatedAt        DateTime @updatedAt @map("updated_at")

@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Patch, Param, Body } from '@nestjs/common'
 import { ApiTags, ApiOperation } from '@nestjs/swagger'
-import { ProjectStateService, Milestone, BacklogItem } from './project-state.service'
+import { ProjectStateService, Milestone, BacklogItem, PlanningNode, GraphLink } from './project-state.service'
 
 @ApiTags('project-state')
 @Controller('projects')
@@ -34,8 +34,9 @@ export class ProjectStateController {
       backlog?: BacklogItem[]
       activeFocus?: string
       definitionOfDone?: string
-      blockers?: string[]
-      nextSteps?: string[]
+      blockers?: Array<string | PlanningNode>
+      nextSteps?: Array<string | PlanningNode>
+      graphLinks?: GraphLink[]
     },
   ) {
     return this.svc.updatePlanning(id, body)

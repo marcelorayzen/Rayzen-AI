@@ -94,10 +94,26 @@ export class MemoryService {
     return { id, status: 'created' }
   }
 
-  async search(query: string, limit = 5): Promise<SearchResult[]> {
+  async search(query: string, limit = 5, projectId?: string): Promise<SearchResult[]> {
     const vector = await this.embed(query)
 
-    const results = await this.prisma.$queryRaw<Array<{
+    const results = projectId
+      ? await this.prisma.$queryRaw<Array<{
+        id: string
+        content: string
+        source_path: string | null
+        metadata: Record<string, unknown>
+        score: number
+      }>>`
+        SELECT id, content, source_path, metadata,
+               1 - (embedding <=> ${JSON.stringify(vector)}::vector) AS score
+        FROM documents
+        WHERE embedding IS NOT NULL
+          AND project_id = ${projectId}
+        ORDER BY embedding <=> ${JSON.stringify(vector)}::vector
+        LIMIT ${limit}
+      `
+      : await this.prisma.$queryRaw<Array<{
       id: string
       content: string
       source_path: string | null
@@ -121,15 +137,45 @@ export class MemoryService {
     }))
   }
 
-  async searchAndSynthesize(query: string, sessionId: string): Promise<SearchSynthesis> {
-    const sources = await this.search(query)
+  async countDocuments(projectId?: string) {
+    return this.prisma.document.count({ where: projectId ? { projectId } : undefined })
+  }
+
+  private isMemoryInventoryQuestion(query: string) {
+    const normalized = query.toLowerCase()
+    return /\b(quantas?|qtd|total|existem|tem|tenho|acesso|indexa[cç][õo]es?|chunks?|documentos?)\b/.test(normalized)
+      && /\b(brain|mem[oó]ria|indexa[cç][õo]es?|chunks?|documentos?|acesso)\b/.test(normalized)
+  }
+
+  private async saveBrainExchange(sessionId: string, query: string, answer: string, tokensUsed: number, projectId?: string) {
+    await this.prisma.conversationMessage.createMany({
+      data: [
+        { sessionId, module: 'brain', role: 'user', content: query, projectId: projectId ?? null },
+        { sessionId, module: 'brain', role: 'assistant', content: answer, tokensUsed, projectId: projectId ?? null },
+      ],
+    })
+  }
+
+  async searchAndSynthesize(query: string, sessionId: string, projectId?: string): Promise<SearchSynthesis> {
+    const totalDocs = await this.countDocuments(projectId)
+    const scope = projectId ? 'neste projeto' : 'na base global'
+
+    if (this.isMemoryInventoryQuestion(query)) {
+      const answer = totalDocs > 0
+        ? `Tenho acesso operacional ao Brain ${scope}: há ${totalDocs} chunks/documentos indexados. Para responder sobre conteúdo, eu ainda preciso consultar os trechos relevantes; a contagem sozinha não prova o conteúdo de cada indexação.`
+        : `Consultei o Brain ${scope}, mas não há chunks/documentos indexados nesse escopo.`
+      await this.saveBrainExchange(sessionId, query, answer, 0, projectId)
+      return { answer, sources: [], tokensUsed: 0 }
+    }
+
+    const sources = await this.search(query, 5, projectId)
 
     if (sources.length === 0) {
-      return {
-        answer: 'Não encontrei documentos relevantes na sua base de conhecimento. Você pode indexar novos documentos enviando o conteúdo.',
-        sources: [],
-        tokensUsed: 0,
-      }
+      const answer = totalDocs > 0
+        ? `Consultei o Brain ${scope}, que tem ${totalDocs} chunks/documentos indexados, mas não encontrei trechos relevantes para responder com segurança.`
+        : `Consultei o Brain ${scope}, mas não há documentos indexados nesse escopo.`
+      await this.saveBrainExchange(sessionId, query, answer, 0, projectId)
+      return { answer, sources: [], tokensUsed: 0 }
     }
 
     const context = sources
@@ -146,6 +192,10 @@ export class MemoryService {
       messages: [
         {
           role: 'system',
+          content: 'Responda somente com base nos documentos encontrados e nas estatisticas explicitas fornecidas. Nao confirme numeros, fatos ou acesso que nao estejam nos documentos ou nas estatisticas.',
+        },
+        {
+          role: 'system',
           content: `Você é Rayzen, um assistente com acesso à base de conhecimento pessoal do usuário.
 Com base nos documentos encontrados, responda a pergunta de forma clara e direta.
 Se a informação não estiver nos documentos, diga isso honestamente.
@@ -153,7 +203,7 @@ Língua: português brasileiro.`,
         },
         {
           role: 'user',
-          content: `Pergunta: ${query}\n\nDocumentos encontrados:\n${context}`,
+          content: `Pergunta: ${query}\n\nEstatisticas do Brain: ${totalDocs} chunks/documentos indexados ${scope}.\n\nDocumentos encontrados:\n${context}`,
         },
       ],
       temperature: 0.3,
@@ -162,12 +212,7 @@ Língua: português brasileiro.`,
     const answer = res.choices[0].message.content ?? ''
     const tokensUsed = res.usage?.total_tokens ?? 0
 
-    await this.prisma.conversationMessage.createMany({
-      data: [
-        { sessionId, module: 'brain', role: 'user', content: query },
-        { sessionId, module: 'brain', role: 'assistant', content: answer, tokensUsed },
-      ],
-    })
+    await this.saveBrainExchange(sessionId, query, answer, tokensUsed, projectId)
 
     return { answer, sources, tokensUsed }
   }

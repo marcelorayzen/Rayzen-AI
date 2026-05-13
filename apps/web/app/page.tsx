@@ -1238,13 +1238,13 @@ export default function Home() {
       const res = await fetch(`${API_URL}/memory/search`, {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ query: memorySearch.trim(), sessionId: 'memory-panel' }),
+        body: JSON.stringify({ query: memorySearch.trim(), sessionId: 'memory-panel', ...(activeProjectId ? { projectId: activeProjectId } : {}) }),
       })
       const data = await res.json() as { sources?: Array<{ id: string; content: string; sourcePath: string | null; score: number }> }
       setMemorySearchResults(data.sources ?? [])
     } catch { setMemorySearchResults([]) }
     finally { setMemorySearching(false) }
-  }, [memorySearch])
+  }, [memorySearch, activeProjectId])
 
   const drainQueue = useCallback(() => {
     if (drainActiveRef.current) return
@@ -3298,8 +3298,8 @@ export default function Home() {
                             {graphGoalData.goal.successCriteria.map(c => (
                               <button key={c.id} onClick={() => toggleCriteria(graphGoalData.goal!.id, c.id, !c.done)}
                                 className="flex items-center gap-2 w-full text-left text-xs text-zinc-400 hover:text-zinc-200 transition-colors">
-                                <span className={c.done ? 'text-emerald-400' : 'text-zinc-600'}>{c.done ? '✅' : '⬜'}</span>
-                                <span className={c.done ? 'line-through text-zinc-600' : ''}>{c.text}</span>
+                                <span className={c.done ? 'text-emerald-400' : 'text-zinc-600'}>{c.done ? '✓' : '○'}</span>
+                                <span className={c.done ? 'line-through text-zinc-600' : ''}>{c.text.replace(/◈/g, '◆')}</span>
                               </button>
                             ))}
                           </div>

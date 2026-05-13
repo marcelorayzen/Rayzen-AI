@@ -159,7 +159,7 @@ describe('OrchestratorService', () => {
 
       const result = await service.handleMessage('Quem sou eu?', 'sess-1')
 
-      expect(memoryService.searchAndSynthesize).toHaveBeenCalledWith('Quem sou eu?', 'sess-1')
+      expect(memoryService.searchAndSynthesize).toHaveBeenCalledWith('Quem sou eu?', 'sess-1', undefined)
       expect(result.module).toBe('brain')
       expect(result.reply).toBe('Você é Marcelo Rayzen, QA Engineer.')
     })
