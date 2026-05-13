@@ -105,13 +105,55 @@ export class OrchestratorService {
   private async getProjectContext(projectId?: string): Promise<string> {
     if (!projectId) return ''
     try {
-      const project = await this.prisma.project.findUnique({
-        where: { id: projectId },
-        select: { name: true, description: true },
-      })
+      const [project, state, goal, recentEvents] = await Promise.all([
+        this.prisma.project.findUnique({
+          where: { id: projectId },
+          select: { name: true, description: true },
+        }),
+        (this.prisma.projectState.findFirst({
+          where: { projectId },
+          orderBy: { updatedAt: 'desc' },
+          select: { objective: true, stage: true, blockers: true, recentDecisions: true, activeFocus: true },
+        }) as Promise<{ objective: string | null; stage: string | null; blockers: unknown; recentDecisions: unknown; activeFocus: string | null } | null>).catch(() => null),
+        (this.prisma.projectGoal.findFirst({
+          where: { projectId, status: 'active' },
+          orderBy: { createdAt: 'desc' },
+          select: { title: true, successCriteria: true, targetDate: true },
+        }) as Promise<{ title: string; successCriteria: unknown; targetDate: Date | null } | null>).catch(() => null),
+        this.prisma.event.findMany({
+          where: { projectId },
+          orderBy: { ts: 'desc' },
+          take: 8,
+          select: { content: true, type: true },
+        }).catch(() => [] as Array<{ content: string; type: string }>),
+      ])
       if (!project) return ''
-      const desc = project.description ? ` — ${project.description}` : ''
-      return `\n\nProjeto ativo: "${project.name}"${desc}. Responda SOMENTE sobre este projeto. Não mencione outros projetos.`
+
+      let ctx = `\n\nProjeto ativo: "${project.name}"${project.description ? ` — ${project.description}` : ''}. Responda SOMENTE sobre este projeto.`
+
+      if (state?.objective) {
+        ctx += `\n\nEstado atual: ${state.stage ?? 'desconhecido'} | Objetivo: ${state.objective}`
+        if (state.activeFocus) ctx += ` | Foco: ${state.activeFocus}`
+        const blockers = (state.blockers as Array<{ title: string }> | null) ?? []
+        if (blockers.length > 0) ctx += `\nBlockers: ${blockers.map(b => b.title).join(', ')}`
+        const decisions = (state.recentDecisions as string[] | null) ?? []
+        if (decisions.length > 0) ctx += `\nDecisões recentes: ${decisions.slice(0, 3).join('; ')}`
+      }
+
+      if (goal) {
+        const criteria = (goal.successCriteria as Array<{ text: string; done: boolean }> | null) ?? []
+        const done = criteria.filter(c => c.done).length
+        ctx += `\n\nMeta ativa: "${goal.title}" (${done}/${criteria.length} critérios concluídos)`
+        if (goal.targetDate) ctx += ` | Prazo: ${new Date(goal.targetDate).toLocaleDateString('pt-BR')}`
+      }
+
+      if (recentEvents.length > 0) {
+        ctx += `\n\nAtividade recente:\n` + recentEvents
+          .map(e => `- [${e.type}] ${e.content.slice(0, 120)}`)
+          .join('\n')
+      }
+
+      return ctx
     } catch { return '' }
   }
 
@@ -237,7 +279,7 @@ export class OrchestratorService {
     if (classify.module === 'brain') {
       try {
         const result = await this.memory.searchAndSynthesize(prompt, sessionId, projectId)
-        this.extractAndIndex(prompt, result.answer)
+        this.extractAndIndex(prompt, result.answer, projectId)
         return {
           reply: result.answer,
           module: classify.module,
@@ -400,7 +442,7 @@ Seja direto, claro e amigável. Português brasileiro. Sem JSON bruto.`,
 
     // 4. Carregar histórico da sessão
     const history = await this.prisma.conversationMessage.findMany({
-      where: { sessionId },
+      where: { sessionId, ...(projectId ? { projectId } : {}) },
       orderBy: { createdAt: 'asc' },
       take: 20,
     })
@@ -448,7 +490,7 @@ Seja direto, claro e amigável. Português brasileiro. Sem JSON bruto.`,
     })
 
     // 5. Extrair e indexar memória em background (sem bloquear resposta)
-    this.extractAndIndex(prompt, reply)
+    this.extractAndIndex(prompt, reply, projectId)
 
     // 6. Emitir evento de chat
     this.eventService.create({
@@ -499,7 +541,6 @@ Formato da resposta: { "module": "...", "action": "...", "confidence": 0.0-1.0 }
     const res = await this.llm.chat.completions.create({
       model: 'gpt-4o-mini',
       messages,
-      response_format: { type: 'json_object' },
       temperature: 0,
     })
     const parsed = this.parseLlmJson<ClassifyResult>(
@@ -564,7 +605,7 @@ Seja direto, claro e amigável. Português brasileiro. Sem JSON bruto.`,
       || /\b(qual|quais|mostra|minha|meus|minhas)\b.*\b(status do pc|status do computador|info do sistema|commits recentes|agenda|emails|schema)\b/.test(normalized)
   }
 
-  private async extractAndIndex(prompt: string, reply: string): Promise<void> {
+  private async extractAndIndex(prompt: string, reply: string, projectId?: string): Promise<void> {
     try {
       const res = await this.llm.chat.completions.create({
         model: 'gpt-4o-mini',
@@ -580,7 +621,6 @@ Seja criterioso — não memorize perguntas, comandos ou respostas genéricas.`,
           },
           { role: 'user', content: `Mensagem do usuário: "${prompt}"` },
         ],
-        response_format: { type: 'json_object' },
         temperature: 0,
       })
 
@@ -594,7 +634,7 @@ Seja criterioso — não memorize perguntas, comandos ou respostas genéricas.`,
         await this.memory.indexDocument(extracted.content, extracted.sourcePath ?? 'memoria/auto', {
           auto: true,
           originalPrompt: prompt.slice(0, 100),
-        })
+        }, projectId)
       }
     } catch (err) {
       console.error('[extractAndIndex] falhou:', (err as Error).message)
@@ -603,7 +643,7 @@ Seja criterioso — não memorize perguntas, comandos ou respostas genéricas.`,
 
   async streamChat(prompt: string, sessionId: string, module: string, onToken: (token: string) => void, projectId?: string, workMode?: string): Promise<void> {
     const history = await this.prisma.conversationMessage.findMany({
-      where: { sessionId },
+      where: { sessionId, ...(projectId ? { projectId } : {}) },
       orderBy: { createdAt: 'asc' },
       take: 20,
     })
@@ -659,7 +699,7 @@ Seja criterioso — não memorize perguntas, comandos ou respostas genéricas.`,
     })
 
     // Extrair e indexar memória em background
-    this.extractAndIndex(prompt, fullReply)
+    this.extractAndIndex(prompt, fullReply, projectId)
 
     // Emitir evento de chat
     this.eventService.create({
