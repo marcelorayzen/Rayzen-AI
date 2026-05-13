@@ -166,7 +166,7 @@ export class DataCatalogService {
     for (const edge of edges) {
       const depth = visited.size
       results.push({ ...edge.target, depth })
-      const nested = await this.getImpact(edge.target.id, visited)
+      const nested = await this.getImpact(edge.target.id, new Set(visited))
       results.push(...nested)
     }
 

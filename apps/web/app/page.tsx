@@ -6,6 +6,10 @@ import { authHeaders, TOKEN_KEY } from '../lib/api-client'
 import { useRouter } from 'next/navigation'
 import ReactMarkdown from 'react-markdown'
 import dynamic from 'next/dynamic'
+import { useProjects, type Project, type ImportTab } from './hooks/useProjects'
+import { useMemory, type MemoryDoc } from './hooks/useMemory'
+import { useGoalGraph, type ProjectGoal, type ProjectState, type GoalGraphData, type SuccessCriteria, type PlanningNode, type GapItem } from './hooks/useGoalGraph'
+import { useChatStream, type Message, type Session, type WorkMode } from './hooks/useChatStream'
 const GraphCanvas = dynamic(() => import('./components/GraphCanvas'), { ssr: false })
 
 const MODULE_LABELS: Record<string, string> = {
@@ -14,42 +18,6 @@ const MODULE_LABELS: Record<string, string> = {
   doc:     'documents',
   content: 'content-engine',
   system:  'system',
-}
-
-interface Message {
-  role: 'user' | 'assistant'
-  content: string
-  module?: string
-}
-
-interface Session {
-  sessionId: string
-  messages: number
-  lastActivity: string
-  title: string
-}
-
-interface Project {
-  id: string
-  name: string
-  status: string
-}
-
-function isProject(value: unknown): value is Project {
-  if (!value || typeof value !== 'object') return false
-  const project = value as Partial<Project>
-  return typeof project.id === 'string' && typeof project.name === 'string' && typeof project.status === 'string'
-}
-
-function projectListFromResponse(data: unknown): Project[] {
-  if (Array.isArray(data)) return data.filter(isProject)
-  if (!data || typeof data !== 'object') return []
-
-  const payload = data as { projects?: unknown; items?: unknown; data?: unknown }
-  if (Array.isArray(payload.projects)) return payload.projects.filter(isProject)
-  if (Array.isArray(payload.items)) return payload.items.filter(isProject)
-  if (Array.isArray(payload.data)) return payload.data.filter(isProject)
-  return []
 }
 
 interface ActivityEvent {
@@ -69,14 +37,6 @@ interface ProjectDoc {
   content: string
   generatedAt: string
   reviewedAt: string | null
-}
-
-interface MemoryDoc {
-  id: string
-  sourcePath: string | null
-  metadata?: Record<string, unknown> | null
-  projectId?: string | null
-  createdAt: string
 }
 
 function memoryGroupFor(doc: MemoryDoc): { key: string; label: string } {
@@ -182,23 +142,6 @@ interface SynthesisArtifact {
   }
 }
 
-interface ProjectState {
-  objective: string
-  stage: string
-  blockers: PlanningNode[]
-  recentDecisions: string[]
-  nextSteps: PlanningNode[]
-  risks: string[]
-  docGaps: string[]
-  riskLevel: 'low' | 'medium' | 'high'
-  milestones: Array<{ id: string; title: string; description?: string; status: 'pending' | 'active' | 'done' }>
-  graphLinks: GraphLink[]
-  backlog: Array<{ id: string; title: string; priority: 'high' | 'medium' | 'low' }>
-  activeFocus: string
-  definitionOfDone: string
-  updatedAt: string
-}
-
 interface HealthBreakdown {
   activity: number
   documentation: number
@@ -232,7 +175,6 @@ interface GitContext {
 
 type QuickCaptureIntent = 'decision' | 'idea' | 'problem' | 'reference'
 type MemoryClassFilter = 'all' | 'global' | 'inbox' | 'working' | 'consolidated' | 'archive'
-type WorkMode = 'implementation' | 'debugging' | 'architecture' | 'study' | 'review'
 
 interface Recommendation {
   id: string
@@ -251,24 +193,6 @@ interface DocVersion {
   reason: string
   sourceIds: string[]
   createdAt: string
-}
-
-type ImportTab = 'github' | 'file' | 'url' | 'notion'
-
-interface SuccessCriteria { id: string; text: string; done: boolean }
-interface PlanningNode { id: string; title: string; description?: string }
-interface GraphLink { id: string; sourceId: string; targetId: string; label?: string }
-interface GapItem { area: string; description: string; severity: 'high' | 'medium' | 'low'; relatedCriteria?: string }
-interface GapAnalysis { gaps: GapItem[]; nextBestAction: string; goalProgress: number; confidence: 'low' | 'medium' | 'high' }
-interface ProjectGoal {
-  id: string; title: string; description?: string
-  successCriteria: SuccessCriteria[]
-  kpis: Array<{ metric: string; target: string; current?: string; unit?: string }>
-  status: string; targetDate?: string; createdAt: string
-}
-interface GoalGraphData {
-  goal: ProjectGoal | null; state: ProjectState | null; mermaid: string
-  gapAnalysis: GapAnalysis | null; healthScore: number; updatedAt: string
 }
 
 function planningTitle(item: string | PlanningNode) {
@@ -329,23 +253,126 @@ function GoalHistoryCard({ g, isActive, total, done, pct }: {
 }
 
 export default function Home() {
-  const [messages, setMessages] = useState<Message[]>([])
-  const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [sessionId, setSessionId] = useState('')
-  const [playingIndex, setPlayingIndex] = useState<number | null>(null)
-  const [autoVoice, setAutoVoice] = useState(false)
-  const [sessionTokens, setSessionTokens] = useState(0)
-  const [dailyTokens, setDailyTokens] = useState<number | null>(null)
-  const [recording, setRecording] = useState(false)
-  const [transcribing, setTranscribing] = useState(false)
-  const [sessions, setSessions] = useState<Session[]>([])
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [loadingSession, setLoadingSession] = useState<string | null>(null)
-  const [deletingSession, setDeletingSession] = useState<string | null>(null)
   const router = useRouter()
-  const [projects, setProjects] = useState<Project[]>([])
-  const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
+
+  // ── domain hooks ─────────────────────────────────────────────────────────────
+  const {
+    projects, setProjects,
+    activeProjectId, setActiveProjectId,
+    newProjectOpen, setNewProjectOpen,
+    newProjectName, setNewProjectName,
+    newProjectDesc, setNewProjectDesc,
+    newProjectSlug, setNewProjectSlug,
+    creatingProject,
+    onboardStep, setOnboardStep,
+    onboardProjectId,
+    onboardSrcTab, setOnboardSrcTab,
+    onboardIndexing,
+    onboardGoalTitle, setOnboardGoalTitle,
+    onboardGoalDate, setOnboardGoalDate,
+    onboardGoalCriteria, setOnboardGoalCriteria,
+    onboardSavingGoal,
+    importOpen, setImportOpen,
+    importTab, setImportTab,
+    importLoading,
+    importResult, setImportResult,
+    githubUser, setGithubUser,
+    githubRepo, setGithubRepo,
+    githubToken, setGithubToken,
+    importUrl, setImportUrl,
+    notionToken, setNotionToken,
+    notionPageId, setNotionPageId,
+    createProject, closeNewProject,
+    onboardIndexSource, onboardCreateGoal,
+    deleteProject, renameProject,
+    handleImportGithub, handleImportUrl, handleImportFile, handleImportNotion,
+  } = useProjects()
+
+  const {
+    memoryOpen, setMemoryOpen,
+    memoryDocs, setMemoryDocs,
+    memoryDocsLoading,
+    memorySearch, setMemorySearch,
+    memoryListFilter, setMemoryListFilter,
+    memorySearchResults, setMemorySearchResults,
+    memorySearching,
+    openMemoryPanel,
+    handleMemorySearch,
+  } = useMemory(activeProjectId)
+
+  const {
+    graphOpen, setGraphOpen,
+    graphSubMode, setGraphSubMode,
+    graphStateData, setGraphStateData,
+    graphGoalData,
+    graphLoading,
+    graphStateRefreshing,
+    graphEventData,
+    graphEventLoading,
+    goalsHistory, setGoalsHistory,
+    historyOpen,
+    historyLoading,
+    editingKpi, setEditingKpi,
+    kpiDraft, setKpiDraft,
+    autoTrackingKpis,
+    goalFormOpen, setGoalFormOpen,
+    editingGoalId,
+    goalTitle, setGoalTitle,
+    goalDesc, setGoalDesc,
+    goalTargetDate, setGoalTargetDate,
+    goalCriteria, setGoalCriteria,
+    goalKpis, setGoalKpis,
+    savingGoal,
+    openGraph,
+    refreshGraphState,
+    loadEventGraph,
+    resetGoalForm,
+    openCreateGoalForm,
+    openEditGoalForm,
+    saveGoal,
+    toggleCriteria,
+    loadGoalsHistory,
+    toggleHistory,
+    achieveGoal,
+    deleteGoal,
+    saveKpi,
+    saveCriteria,
+    saveGoalKpis,
+    autoTrackKpis,
+  } = useGoalGraph(activeProjectId)
+
+  const {
+    messages, setMessages,
+    input, setInput,
+    loading,
+    sessionId, setSessionId,
+    sessionTokens, setSessionTokens,
+    dailyTokens, setDailyTokens,
+    playingIndex,
+    autoVoice, setAutoVoice,
+    recording,
+    transcribing,
+    workMode, setWorkMode,
+    sessions,
+    sidebarOpen, setSidebarOpen,
+    loadingSession,
+    deletingSession,
+    bottomRef,
+    messagesContainerRef,
+    shouldAutoScrollRef,
+    submitMessageRef,
+    drainQueue,
+    playAudio,
+    sendMessage,
+    toggleRecording,
+    loadSessions,
+    openSidebar,
+    loadSession,
+    deleteSession,
+    newChat,
+  } = useChatStream(activeProjectId)
+
+  // ── local state (panels not yet extracted) ───────────────────────────────────
   const [activityOpen, setActivityOpen] = useState(false)
   const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([])
   const [activityLoading, setActivityLoading] = useState(false)
@@ -381,196 +408,18 @@ export default function Home() {
   const [quickCaptureSaving, setQuickCaptureSaving] = useState(false)
   const [healthOpen, setHealthOpen] = useState(false)
   const [healthData, setHealthData] = useState<HealthData | null>(null)
-  const [workMode, setWorkMode] = useState<WorkMode | null>(null)
-  const [newProjectOpen, setNewProjectOpen] = useState(false)
-  const [newProjectName, setNewProjectName] = useState('')
-  const [newProjectDesc, setNewProjectDesc] = useState('')
-  const [newProjectSlug, setNewProjectSlug] = useState('')
-  const [creatingProject, setCreatingProject] = useState(false)
-  const [onboardStep, setOnboardStep] = useState<1 | 2 | 3>(1)
-  const [onboardProjectId, setOnboardProjectId] = useState<string | null>(null)
-  const [onboardSrcTab, setOnboardSrcTab] = useState<'github' | 'notion' | 'skip'>('github')
-  const [onboardIndexing, setOnboardIndexing] = useState(false)
-  const [onboardGoalTitle, setOnboardGoalTitle] = useState('')
-  const [onboardGoalDate, setOnboardGoalDate] = useState('')
-  const [onboardGoalCriteria, setOnboardGoalCriteria] = useState<string[]>([''])
-  const [onboardSavingGoal, setOnboardSavingGoal] = useState(false)
-  const [importOpen, setImportOpen] = useState(false)
-  const [importTab, setImportTab] = useState<ImportTab>('github')
-  const [importLoading, setImportLoading] = useState(false)
-  const [importResult, setImportResult] = useState<string | null>(null)
-  const [githubUser, setGithubUser] = useState('')
-  const [githubRepo, setGithubRepo] = useState('')
-  const [githubToken, setGithubToken] = useState('')
-  const [importUrl, setImportUrl] = useState('')
-  const [notionToken, setNotionToken] = useState('')
-  const [notionPageId, setNotionPageId] = useState('')
-  const [memoryOpen, setMemoryOpen] = useState(false)
-  const [memoryDocs, setMemoryDocs] = useState<MemoryDoc[]>([])
-  const [memoryDocsLoading, setMemoryDocsLoading] = useState(false)
-  const [memorySearch, setMemorySearch] = useState('')
-  const [memoryListFilter, setMemoryListFilter] = useState('')
-  const [memorySearchResults, setMemorySearchResults] = useState<Array<{ id: string; content: string; sourcePath: string | null; score: number }> | null>(null)
-  const [memorySearching, setMemorySearching] = useState(false)
-  const [graphOpen, setGraphOpen] = useState(false)
-  const [graphSubMode, setGraphSubMode] = useState<'estado' | 'goal' | 'eventos'>('estado')
-  const [graphEventData, setGraphEventData] = useState<{ milestones: Array<{ id: string; title: string; status: string }>; events: Array<{ id: string; content: string; intent: string | null; type: string; source: string; ts: string; milestoneId: string | null }> } | null>(null)
-  const [graphEventLoading, setGraphEventLoading] = useState(false)
-  const [graphStateData, setGraphStateData] = useState<ProjectState | null>(null)
-  const [graphGoalData, setGraphGoalData] = useState<GoalGraphData | null>(null)
-  const [graphLoading, setGraphLoading] = useState(false)
-  const [graphStateRefreshing, setGraphStateRefreshing] = useState(false)
-  const [goalsHistory, setGoalsHistory] = useState<ProjectGoal[] | null>(null)
-  const [historyOpen, setHistoryOpen] = useState(false)
-  const [historyLoading, setHistoryLoading] = useState(false)
-  const [editingKpi, setEditingKpi] = useState<string | null>(null)
-  const [kpiDraft, setKpiDraft] = useState('')
-  const [autoTrackingKpis, setAutoTrackingKpis] = useState(false)
-  const [goalFormOpen, setGoalFormOpen] = useState(false)
-  const [editingGoalId, setEditingGoalId] = useState<string | null>(null)
-  const [goalTitle, setGoalTitle] = useState('')
-  const [goalDesc, setGoalDesc] = useState('')
-  const [goalTargetDate, setGoalTargetDate] = useState('')
-  const [goalCriteria, setGoalCriteria] = useState<SuccessCriteria[]>([])
-  const [goalKpis, setGoalKpis] = useState<Array<{ metric: string; target: string; current?: string; unit: string }>>([])
-  const [savingGoal, setSavingGoal] = useState(false)
-  const audioRef = useRef<HTMLAudioElement | null>(null)
-  const autoVoiceRef = useRef(false)
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const chunksRef = useRef<Blob[]>([])
-  const tokenQueueRef = useRef<string[]>([])
-  const drainActiveRef = useRef(false)
-  const bottomRef = useRef<HTMLDivElement>(null)
-  const messagesContainerRef = useRef<HTMLDivElement>(null)
-  const shouldAutoScrollRef = useRef(true)
-  const submitMessageRef = useRef<(text: string) => void>(() => {})
+
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const projectSelectionInitializedRef = useRef(false)
 
   useEffect(() => {
     const token = localStorage.getItem(TOKEN_KEY)
-    if (!token) {
-      router.push('/login')
-      return
-    }
+    if (!token) { router.push('/login'); return }
   }, [router])
-
-  useEffect(() => {
-    fetch(`${API_URL}/sessions/tokens`, { headers: authHeaders() })
-      .then((r) => r.json())
-      .then((d) => setDailyTokens(d.last24h?.tokens ?? 0))
-      .catch(() => null)
-  }, [])
-
-  useEffect(() => {
-    const saved = localStorage.getItem('rayzen_auto_voice')
-    if (saved === 'true') {
-      setAutoVoice(true)
-      autoVoiceRef.current = true
-    }
-  }, [])
-
-  useEffect(() => {
-    autoVoiceRef.current = autoVoice
-    localStorage.setItem('rayzen_auto_voice', autoVoice ? 'true' : 'false')
-  }, [autoVoice])
-
-  useEffect(() => {
-    fetch(`${API_URL}/projects`, { headers: authHeaders() })
-      .then((r) => r.json())
-      .then((d) => setProjects(projectListFromResponse(d)))
-      .catch(() => setProjects([]))
-  }, [])
-
-  useEffect(() => {
-    if (projects.length === 0 || projectSelectionInitializedRef.current) return
-    projectSelectionInitializedRef.current = true
-
-    const savedProjectId = localStorage.getItem('rayzen_active_project_id')
-    const savedProject = savedProjectId ? projects.find((project) => project.id === savedProjectId) : null
-    const firstActiveProject = projects.find((project) => project.status === 'active') ?? projects[0]
-    setActiveProjectId(savedProject?.id ?? firstActiveProject.id)
-  }, [projects])
-
-  useEffect(() => {
-    if (activeProjectId) {
-      localStorage.setItem('rayzen_active_project_id', activeProjectId)
-    } else {
-      localStorage.removeItem('rayzen_active_project_id')
-    }
-  }, [activeProjectId])
-
-  useEffect(() => {
-    setSessionId(crypto.randomUUID())
-  }, [])
 
   useEffect(() => {
     if (!shouldAutoScrollRef.current) return
     bottomRef.current?.scrollIntoView({ behavior: 'auto' })
   }, [messages])
-
-  const loadSessions = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_URL}/sessions`, { headers: authHeaders() })
-      const data = await res.json()
-      setSessions(Array.isArray(data) ? data : [])
-    } catch {
-      // silencioso
-    }
-  }, [])
-
-  const openSidebar = useCallback(() => {
-    setSidebarOpen(true)
-    loadSessions()
-  }, [loadSessions])
-
-  const loadSession = useCallback(async (sid: string) => {
-    if (loadingSession) return
-    setLoadingSession(sid)
-    try {
-      const res = await fetch(`${API_URL}/sessions/${sid}/messages`, { headers: authHeaders() })
-      const data = await res.json() as Array<{ role: string; content: string; module: string | null }>
-      const loaded: Message[] = data.map((m) => ({
-        role: m.role as 'user' | 'assistant',
-        content: m.content,
-        module: m.module ?? undefined,
-      }))
-      setMessages(loaded)
-      setSessionId(sid)
-      setSessionTokens(0)
-      setSidebarOpen(false)
-    } catch {
-      // silencioso
-    } finally {
-      setLoadingSession(null)
-    }
-  }, [loadingSession])
-
-  const deleteSession = useCallback(async (sid: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (deletingSession) return
-    setDeletingSession(sid)
-    try {
-      await fetch(`${API_URL}/sessions/${sid}`, { method: 'DELETE', headers: authHeaders() })
-      setSessions((prev) => prev.filter((s) => s.sessionId !== sid))
-      if (sid === sessionId) {
-        setMessages([])
-        setSessionId(crypto.randomUUID())
-        setSessionTokens(0)
-      }
-    } catch {
-      // silencioso
-    } finally {
-      setDeletingSession(null)
-    }
-  }, [deletingSession, sessionId])
-
-  const newChat = useCallback(() => {
-    setMessages([])
-    setSessionId(crypto.randomUUID())
-    setSessionTokens(0)
-    setSidebarOpen(false)
-  }, [])
 
   const loadActivityEvents = useCallback(async (memClass: MemoryClassFilter) => {
     setActivityLoading(true)
@@ -691,25 +540,6 @@ export default function Home() {
     finally { setVersionsLoading(false) }
   }, [activeProjectId])
 
-  const deleteProject = useCallback(async (id: string) => {
-    if (!confirm('Deletar este projeto? Esta ação não pode ser desfeita.')) return
-    await fetch(`${API_URL}/projects/${id}`, { method: 'DELETE', headers: authHeaders() })
-    setProjects((prev) => prev.filter((p) => p.id !== id))
-    if (activeProjectId === id) setActiveProjectId(null)
-  }, [activeProjectId])
-
-  const renameProject = useCallback(async (id: string, currentName: string) => {
-    const name = prompt('Novo nome do projeto:', currentName)
-    if (!name?.trim() || name.trim() === currentName) return
-    const res = await fetch(`${API_URL}/projects/${id}`, {
-      method: 'PATCH',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ name: name.trim() }),
-    })
-    const updated = await res.json() as { id: string; name: string; status: string }
-    setProjects((prev) => prev.map((p) => p.id === id ? { ...p, name: updated.name } : p))
-  }, [])
-
   const loadProjectState = useCallback(async (projectId: string) => {
     try {
       const res = await fetch(`${API_URL}/projects/${projectId}/state`, { headers: authHeaders() })
@@ -740,84 +570,6 @@ export default function Home() {
       if (res.ok) setHealthData(await res.json() as HealthData)
     } catch { /* silencioso */ }
   }, [])
-
-  const createProject = useCallback(async () => {
-    if (!newProjectName.trim()) return
-    setCreatingProject(true)
-    try {
-      const slug = newProjectSlug.trim() || newProjectName.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-      const res = await fetch(`${API_URL}/projects`, {
-        method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ name: newProjectName.trim(), description: newProjectDesc.trim() || undefined, repoSlug: slug }),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        if (isProject(data)) {
-          setProjects(prev => [...prev, data])
-          setActiveProjectId(data.id)
-          setOnboardProjectId(data.id)
-          setOnboardStep(2)
-        }
-      }
-    } catch { /* silencioso */ }
-    finally { setCreatingProject(false) }
-  }, [newProjectName, newProjectDesc, newProjectSlug])
-
-  const closeNewProject = useCallback(() => {
-    setNewProjectOpen(false)
-    setNewProjectName('')
-    setNewProjectDesc('')
-    setNewProjectSlug('')
-    setOnboardStep(1)
-    setOnboardProjectId(null)
-    setOnboardGoalTitle('')
-    setOnboardGoalDate('')
-    setOnboardGoalCriteria([''])
-    setOnboardSrcTab('github')
-  }, [])
-
-  const onboardIndexSource = useCallback(async () => {
-    if (!onboardProjectId) { setOnboardStep(3); return }
-    setOnboardIndexing(true)
-    try {
-      if (onboardSrcTab === 'github' && githubUser.trim()) {
-        const username = githubUser.trim().replace(/^https?:\/\/github\.com\//, '').replace(/\/$/, '')
-        const res = await fetch(`${API_URL}/memory/index/github`, {
-          method: 'POST',
-          headers: authHeaders({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({ username, repo: githubRepo.trim() || undefined, token: githubToken.trim() || undefined, projectId: onboardProjectId }),
-        })
-        if (!res.ok) console.warn('Onboard GitHub index:', await res.text())
-      } else if (onboardSrcTab === 'notion' && notionToken.trim()) {
-        const res = await fetch(`${API_URL}/memory/index/notion`, {
-          method: 'POST',
-          headers: authHeaders({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({ integrationToken: notionToken.trim(), rootPageId: notionPageId.trim() || undefined, projectId: onboardProjectId }),
-        })
-        if (!res.ok) console.warn('Onboard Notion index:', await res.text())
-      }
-    } catch (err) {
-      console.warn('Onboard index source falhou:', err)
-    } finally {
-      setOnboardIndexing(false)
-      setOnboardStep(3)
-    }
-  }, [onboardProjectId, onboardSrcTab, githubUser, githubRepo, githubToken, notionPageId, notionToken])
-
-  const onboardCreateGoal = useCallback(async () => {
-    if (!onboardProjectId || !onboardGoalTitle.trim()) { closeNewProject(); return }
-    setOnboardSavingGoal(true)
-    try {
-      const criteria = onboardGoalCriteria.filter(c => c.trim()).map((text, i) => ({ id: `c${i}`, text, done: false }))
-      await fetch(`${API_URL}/projects/${onboardProjectId}/graph/goal`, {
-        method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ title: onboardGoalTitle.trim(), successCriteria: criteria, targetDate: onboardGoalDate || undefined }),
-      })
-    } catch { /* silencioso */ }
-    finally { setOnboardSavingGoal(false); closeNewProject() }
-  }, [onboardProjectId, onboardGoalTitle, onboardGoalDate, onboardGoalCriteria, closeNewProject])
 
   useEffect(() => {
     if (activeProjectId) {
@@ -916,538 +668,6 @@ export default function Home() {
     } catch { /* silencioso */ }
     finally { setQuickCaptureSaving(false) }
   }, [quickCaptureText, quickCaptureIntent, activeProjectId])
-
-  const handleImportGithub = useCallback(async () => {
-    if (!githubUser.trim()) return
-    setImportLoading(true)
-    setImportResult(null)
-    try {
-      // Remove URL caso o usuário cole o link completo
-      const username = githubUser.trim().replace(/^https?:\/\/github\.com\//, '').replace(/\/$/, '')
-      const res = await fetch(`${API_URL}/memory/index/github`, {
-        method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({
-          username,
-          repository: githubRepo.trim() || undefined,
-          token: githubToken.trim() || undefined,
-          projectId: activeProjectId ?? undefined,
-        }),
-      })
-      if (!res.ok) {
-        const err = await res.text()
-        throw new Error(err || `HTTP ${res.status}`)
-      }
-      const data = await res.json() as { indexed: number; repos: number }
-      setImportResult(`${data.repos} repositório${data.repos > 1 ? 's' : ''} indexado${data.repos > 1 ? 's' : ''} (${data.indexed} chunks)`)
-    } catch (err) {
-      setImportResult(`Erro: ${err instanceof Error ? err.message : 'falhou'}`)
-    } finally {
-      setImportLoading(false)
-    }
-  }, [githubUser, githubRepo, githubToken, activeProjectId])
-
-  const handleImportUrl = useCallback(async () => {
-    if (!importUrl.trim()) return
-    setImportLoading(true)
-    setImportResult(null)
-    try {
-      const res = await fetch(`${API_URL}/memory/index/url`, {
-        method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ url: importUrl.trim(), projectId: activeProjectId ?? undefined }),
-      })
-      if (!res.ok) throw new Error(await res.text() || `HTTP ${res.status}`)
-      const data = await res.json() as { indexed: number }
-      setImportResult(`${data.indexed} chunks indexados`)
-    } catch (err) {
-      setImportResult(`Erro: ${err instanceof Error ? err.message : 'falhou'}`)
-    } finally {
-      setImportLoading(false)
-    }
-  }, [importUrl, activeProjectId])
-
-  const handleImportFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? [])
-    if (files.length === 0) return
-    setImportLoading(true)
-    setImportResult(null)
-    try {
-      let totalChunks = 0
-      let errors = 0
-      for (const file of files) {
-        try {
-          const formData = new FormData()
-          formData.append('file', file)
-          if (activeProjectId) formData.append('projectId', activeProjectId)
-          const res = await fetch(`${API_URL}/memory/index/file`, {
-            method: 'POST',
-            headers: authHeaders(),
-            body: formData,
-          })
-          if (!res.ok) throw new Error(await res.text() || `HTTP ${res.status}`)
-          const data = await res.json() as { indexed: number }
-          totalChunks += data.indexed
-        } catch {
-          errors++
-        }
-        setImportResult(`Indexando… ${files.indexOf(file) + 1}/${files.length}`)
-      }
-      const msg = errors > 0
-        ? `${files.length - errors}/${files.length} arquivos indexados (${totalChunks} chunks) — ${errors} erro(s)`
-        : `${files.length} arquivo${files.length > 1 ? 's' : ''} indexado${files.length > 1 ? 's' : ''} (${totalChunks} chunks)`
-      setImportResult(msg)
-    } catch (err) {
-      setImportResult(`Erro: ${err instanceof Error ? err.message : 'falhou'}`)
-    } finally {
-      setImportLoading(false)
-      e.target.value = ''
-    }
-  }, [activeProjectId])
-
-  const handleImportNotion = useCallback(async () => {
-    if (!notionToken.trim()) return
-    setImportLoading(true)
-    setImportResult(null)
-    try {
-      const res = await fetch(`${API_URL}/memory/index/notion`, {
-        method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ integrationToken: notionToken.trim(), rootPageId: notionPageId.trim() || undefined, projectId: activeProjectId ?? undefined }),
-      })
-      if (!res.ok) {
-        const err = await res.json() as { message?: string }
-        throw new Error(err.message ?? `HTTP ${res.status}`)
-      }
-      const data = await res.json() as { indexed: number; pages: number }
-      setImportResult(`${data.pages} páginas indexadas (${data.indexed} chunks)`)
-    } catch (err) {
-      setImportResult(`Erro: ${err instanceof Error ? err.message : 'falhou'}`)
-    } finally {
-      setImportLoading(false)
-    }
-  }, [notionToken, notionPageId, activeProjectId])
-
-
-  const refreshGraphState = useCallback(async () => {
-    if (!activeProjectId) return
-    setGraphStateRefreshing(true)
-    try {
-      await fetch(`${API_URL}/projects/${activeProjectId}/state/refresh`, { method: 'POST', headers: authHeaders() })
-      const res = await fetch(`${API_URL}/projects/${activeProjectId}/graph`, { headers: authHeaders() })
-      const data = res.ok ? await res.json() : null
-      if (data?.state) setGraphStateData(data.state as ProjectState)
-    } catch { /* ignore */ }
-    setGraphStateRefreshing(false)
-  }, [activeProjectId])
-
-  const loadEventGraph = useCallback(async () => {
-    if (!activeProjectId) return
-    setGraphEventLoading(true)
-    try {
-      const res = await fetch(`${API_URL}/projects/${activeProjectId}/graph/events`, { headers: authHeaders() })
-      if (res.ok) setGraphEventData(await res.json())
-    } catch { /* ignore */ }
-    setGraphEventLoading(false)
-  }, [activeProjectId])
-
-  const openGraph = useCallback(async (sub: 'estado' | 'goal' | 'eventos' = 'estado') => {
-    if (!activeProjectId) return
-    setGraphOpen(true)
-    setGraphSubMode(sub)
-    setGraphLoading(true)
-    setGoalsHistory(null)
-    setHistoryOpen(false)
-    setGraphEventData(null)
-    try {
-      const [stateRes, goalRes] = await Promise.all([
-        fetch(`${API_URL}/projects/${activeProjectId}/graph`, { headers: authHeaders() }),
-        fetch(`${API_URL}/projects/${activeProjectId}/graph/goal`, { headers: authHeaders() }),
-      ])
-      const stateData = stateRes.ok ? await stateRes.json() : null
-      const goalData = goalRes.ok ? await goalRes.json() : null
-      if (stateData?.state) setGraphStateData(stateData.state as ProjectState)
-      if (goalData?.mermaid) setGraphGoalData(goalData as GoalGraphData)
-    } catch { /* ignore */ }
-    setGraphLoading(false)
-  }, [activeProjectId])
-
-  const resetGoalForm = useCallback(() => {
-    setEditingGoalId(null)
-    setGoalTitle('')
-    setGoalDesc('')
-    setGoalTargetDate('')
-    setGoalCriteria([])
-    setGoalKpis([])
-  }, [])
-
-  const openCreateGoalForm = useCallback(() => {
-    resetGoalForm()
-    setGoalFormOpen(true)
-  }, [resetGoalForm])
-
-  const openEditGoalForm = useCallback((goal: ProjectGoal) => {
-    setEditingGoalId(goal.id)
-    setGoalTitle(goal.title)
-    setGoalDesc(goal.description ?? '')
-    setGoalTargetDate(goal.targetDate ? goal.targetDate.slice(0, 10) : '')
-    setGoalCriteria(goal.successCriteria ?? [])
-    setGoalKpis((goal.kpis ?? []).map(k => ({ metric: k.metric, target: k.target, current: k.current, unit: k.unit ?? '' })))
-    setGoalFormOpen(true)
-  }, [])
-
-  const saveGoal = useCallback(async () => {
-    if (!activeProjectId || !goalTitle.trim()) return
-    setSavingGoal(true)
-    try {
-      const url = editingGoalId
-        ? `${API_URL}/projects/${activeProjectId}/graph/goal/${editingGoalId}`
-        : `${API_URL}/projects/${activeProjectId}/graph/goal`
-      const res = await fetch(url, {
-        method: editingGoalId ? 'PATCH' : 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ title: goalTitle, description: goalDesc || undefined, successCriteria: goalCriteria, kpis: goalKpis, targetDate: goalTargetDate || undefined }),
-      })
-      if (res.ok) {
-        setGoalFormOpen(false)
-        resetGoalForm()
-        setGoalsHistory(null)
-        openGraph('goal')
-      }
-    } catch { /* ignore */ }
-    setSavingGoal(false)
-  }, [activeProjectId, editingGoalId, goalTitle, goalDesc, goalTargetDate, goalCriteria, goalKpis, openGraph, resetGoalForm])
-
-  const toggleCriteria = useCallback(async (goalId: string, criteriaId: string, done: boolean) => {
-    await fetch(`${API_URL}/projects/${activeProjectId}/graph/goal/${goalId}/criteria/${criteriaId}`, {
-      method: 'PATCH',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ done }),
-    }).catch(() => null)
-    openGraph('goal')
-  }, [activeProjectId, openGraph])
-
-  const loadGoalsHistory = useCallback(async () => {
-    if (!activeProjectId) return
-    setHistoryLoading(true)
-    try {
-      const res = await fetch(`${API_URL}/projects/${activeProjectId}/graph/goals`, { headers: authHeaders() })
-      if (res.ok) setGoalsHistory(await res.json() as ProjectGoal[])
-    } catch { /* silencioso */ }
-    finally { setHistoryLoading(false) }
-  }, [activeProjectId])
-
-  const toggleHistory = useCallback(async () => {
-    if (!historyOpen && !goalsHistory) await loadGoalsHistory()
-    setHistoryOpen(v => !v)
-  }, [historyOpen, goalsHistory, loadGoalsHistory])
-
-  const achieveGoal = useCallback(async (goalId: string) => {
-    if (!activeProjectId) return
-    if (!confirm('Marcar esta meta como conquistada? Ela será arquivada e você poderá criar uma nova.')) return
-    await fetch(`${API_URL}/projects/${activeProjectId}/graph/goal/${goalId}/status`, {
-      method: 'PATCH',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ status: 'achieved' }),
-    }).catch(() => null)
-    setGoalsHistory(null)
-    openGraph('goal')
-  }, [activeProjectId, openGraph])
-
-  const deleteGoal = useCallback(async (goalId: string) => {
-    if (!activeProjectId) return
-    if (!confirm('Excluir esta meta inteira? Esta ação não apaga o estado do projeto.')) return
-    await fetch(`${API_URL}/projects/${activeProjectId}/graph/goal/${goalId}`, {
-      method: 'DELETE',
-      headers: authHeaders(),
-    }).catch(() => null)
-    setGoalsHistory(null)
-    openGraph('goal')
-  }, [activeProjectId, openGraph])
-
-  const saveKpi = useCallback(async (goalId: string, metric: string) => {
-    if (!activeProjectId) return
-    await fetch(`${API_URL}/projects/${activeProjectId}/graph/goal/${goalId}/kpi`, {
-      method: 'PATCH',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ metric, current: kpiDraft }),
-    }).catch(() => null)
-    setEditingKpi(null)
-    openGraph('goal')
-  }, [activeProjectId, kpiDraft, openGraph])
-
-  const saveCriteria = useCallback(async (goalId: string, criteria: SuccessCriteria[]) => {
-    if (!activeProjectId) return
-    await fetch(`${API_URL}/projects/${activeProjectId}/graph/goal/${goalId}/criteria`, {
-      method: 'PATCH',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ criteria }),
-    }).catch(() => null)
-    openGraph('goal')
-  }, [activeProjectId, openGraph])
-
-  const saveGoalKpis = useCallback(async (goalId: string, kpis: ProjectGoal['kpis']) => {
-    if (!activeProjectId) return
-    await fetch(`${API_URL}/projects/${activeProjectId}/graph/goal/${goalId}/kpis`, {
-      method: 'PATCH',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ kpis }),
-    }).catch(() => null)
-    openGraph('goal')
-  }, [activeProjectId, openGraph])
-
-  const autoTrackKpis = useCallback(async (goalId: string) => {
-    if (!activeProjectId) return
-    setAutoTrackingKpis(true)
-    await fetch(`${API_URL}/projects/${activeProjectId}/graph/goal/${goalId}/kpi/auto-track`, {
-      method: 'POST',
-      headers: authHeaders(),
-    }).catch(() => null)
-    setAutoTrackingKpis(false)
-    openGraph('goal')
-  }, [activeProjectId, openGraph])
-
-  const openMemoryPanel = useCallback(async () => {
-    setMemoryOpen(true)
-    setMemorySearch('')
-    setMemorySearchResults(null)
-    setMemoryDocsLoading(true)
-    try {
-      const url = activeProjectId
-        ? `${API_URL}/memory/documents?projectId=${activeProjectId}`
-        : `${API_URL}/memory/documents`
-      const res = await fetch(url, { headers: authHeaders() })
-      const data = await res.json() as MemoryDoc[]
-      setMemoryDocs(data)
-    } catch { /* silencioso */ }
-    finally { setMemoryDocsLoading(false) }
-  }, [activeProjectId])
-
-  const handleMemorySearch = useCallback(async () => {
-    if (!memorySearch.trim()) { setMemorySearchResults(null); return }
-    setMemorySearching(true)
-    try {
-      const res = await fetch(`${API_URL}/memory/search`, {
-        method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ query: memorySearch.trim(), sessionId: 'memory-panel', ...(activeProjectId ? { projectId: activeProjectId } : {}) }),
-      })
-      const data = await res.json() as { sources?: Array<{ id: string; content: string; sourcePath: string | null; score: number }> }
-      setMemorySearchResults(data.sources ?? [])
-    } catch { setMemorySearchResults([]) }
-    finally { setMemorySearching(false) }
-  }, [memorySearch, activeProjectId])
-
-  const drainQueue = useCallback(() => {
-    if (drainActiveRef.current) return
-    drainActiveRef.current = true
-
-    const tick = () => {
-      const token = tokenQueueRef.current.shift()
-      if (token === undefined) {
-        drainActiveRef.current = false
-        return
-      }
-      setMessages((prev) => {
-        const updated = [...prev]
-        const last = updated[updated.length - 1]
-        updated[updated.length - 1] = { ...last, content: last.content + token }
-        return updated
-      })
-      setTimeout(tick, 18)
-    }
-    tick()
-  }, [])
-
-  const toggleRecording = useCallback(async () => {
-    if (recording) {
-      mediaRecorderRef.current?.stop()
-      return
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
-      const mediaRecorder = new MediaRecorder(stream, { mimeType })
-      mediaRecorderRef.current = mediaRecorder
-      chunksRef.current = []
-
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data)
-      }
-
-      mediaRecorder.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop())
-        setRecording(false)
-        setTranscribing(true)
-
-        const blob = new Blob(chunksRef.current, { type: mimeType })
-        const formData = new FormData()
-        formData.append('file', blob, `audio.${mimeType.includes('webm') ? 'webm' : 'mp4'}`)
-
-        try {
-          const res = await fetch(`${API_URL}/voice/transcribe`, {
-            method: 'POST',
-            headers: authHeaders(),
-            body: formData,
-          })
-          if (!res.ok) throw new Error('STT falhou')
-          const data = await res.json() as { text: string }
-          if (data.text) submitMessageRef.current(data.text)
-        } catch (err) {
-          console.error('STT error:', err)
-        } finally {
-          setTranscribing(false)
-        }
-      }
-
-      mediaRecorder.start()
-      setRecording(true)
-    } catch (err) {
-      console.error('Microfone error:', err)
-    }
-  }, [recording])
-
-  const playAudio = useCallback(async (text: string, index: number, force = false) => {
-    if (!force && playingIndex === index) {
-      audioRef.current?.pause()
-      setPlayingIndex(null)
-      return
-    }
-
-    const spokenText = text
-      .replace(/\n?\[DOC_PENDING:[A-Za-z0-9+/=]*\]/g, '')
-      .replace(/\n?\[ACTION_PENDING:[A-Za-z0-9+/=]*\]/g, '')
-      .trim()
-    if (!spokenText) return
-
-    setPlayingIndex(index)
-    try {
-      const res = await fetch(`${API_URL}/voice/synthesize`, {
-        method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ text: spokenText }),
-      })
-      if (!res.ok) throw new Error('TTS falhou')
-
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-
-      if (audioRef.current) {
-        audioRef.current.pause()
-        URL.revokeObjectURL(audioRef.current.src)
-      }
-
-      const audio = new Audio(url)
-      audioRef.current = audio
-      audio.onended = () => setPlayingIndex(null)
-      audio.onerror = () => setPlayingIndex(null)
-      await audio.play()
-    } catch {
-      setPlayingIndex(null)
-    }
-  }, [playingIndex])
-
-  const sendMessage = useCallback(async (userMessage: string) => {
-    if (!userMessage.trim() || loading) return
-    shouldAutoScrollRef.current = true
-    setInput('')
-    setMessages((prev) => [...prev, { role: 'user', content: userMessage }])
-    setLoading(true)
-
-    try {
-      const res = await fetch(`${API_URL}/orchestrate/stream`, {
-        method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ prompt: userMessage, sessionId, ...(activeProjectId ? { projectId: activeProjectId } : {}), ...(workMode ? { workMode } : {}) }),
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-
-      const reader = res.body?.getReader()
-      const decoder = new TextDecoder()
-      let currentModule = ''
-      let buffer = ''
-      let assistantText = ''
-
-      setMessages((prev) => [...prev, { role: 'assistant', content: '', module: '' }])
-
-      while (reader) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() ?? ''
-
-        for (const line of lines) {
-          if (line.startsWith('event: ')) continue
-          if (!line.startsWith('data: ')) continue
-
-          let data: Record<string, unknown>
-          try {
-            data = JSON.parse(line.slice(6)) as Record<string, unknown>
-          } catch {
-            continue
-          }
-
-          if (typeof data.module === 'string') currentModule = data.module
-
-          if (data.text !== undefined) {
-            assistantText += data.text as string
-            if (currentModule) {
-              setMessages((prev) => {
-                const updated = [...prev]
-                updated[updated.length - 1] = { ...updated[updated.length - 1], module: currentModule }
-                return updated
-              })
-            }
-            tokenQueueRef.current.push(data.text as string)
-            drainQueue()
-          }
-
-          if (typeof data.tokensUsed === 'number' && data.tokensUsed > 0) {
-            setSessionTokens((prev) => prev + (data.tokensUsed as number))
-            setDailyTokens((prev) => (prev ?? 0) + (data.tokensUsed as number))
-          }
-
-          if (typeof data.message === 'string' && !data.text) {
-            setMessages((prev) => {
-              const updated = [...prev]
-              updated[updated.length - 1] = { ...updated[updated.length - 1], content: `Erro: ${data.message as string}` }
-              return updated
-            })
-          }
-        }
-      }
-      if (autoVoiceRef.current && assistantText.trim()) {
-        setTimeout(() => {
-          setMessages((prev) => {
-            const index = prev.length - 1
-            const last = prev[index]
-            if (last?.role === 'assistant') void playAudio(last.content || assistantText, index, true)
-            return prev
-          })
-        }, 250)
-      }
-    } catch (err) {
-      const errMsg = `Erro: ${err instanceof Error ? err.message : 'desconhecido'}`
-      setMessages((prev) => {
-        const updated = [...prev]
-        const last = updated[updated.length - 1]
-        if (last?.role === 'assistant' && !last.content) {
-          updated[updated.length - 1] = { ...last, content: errMsg }
-          return updated
-        }
-        return [...prev, { role: 'assistant', content: errMsg }]
-      })
-    } finally {
-      setLoading(false)
-    }
-  }, [loading, sessionId, drainQueue])
-
-  useEffect(() => {
-    submitMessageRef.current = sendMessage
-  }, [sendMessage])
 
   useEffect(() => {
     if (!loading) inputRef.current?.focus()
