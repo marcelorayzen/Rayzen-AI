@@ -22,18 +22,23 @@ $pull = & git pull origin $Branch 2>&1
 Log $pull
 if ($LASTEXITCODE -ne 0) { Log "ERRO: git pull falhou."; exit 1 }
 
-# 2. build da API
+# 2. regenerar Prisma Client (garante que schema e client estão em sincronia)
+Log "Gerando Prisma Client..."
+& pnpm.cmd --filter api db:generate 2>&1 | ForEach-Object { Log $_ }
+if ($LASTEXITCODE -ne 0) { Log "ERRO: prisma generate falhou."; exit 1 }
+
+# 3. build da API
 Log "Compilando API..."
 & pnpm.cmd --filter api build 2>&1 | ForEach-Object { Log $_ }
 if ($LASTEXITCODE -ne 0) { Log "ERRO: build falhou."; exit 1 }
 
-# 3. matar processo na porta
+# 4. matar processo na porta
 Log "Encerrando processo na porta $Port..."
 Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
   ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
 Start-Sleep -Seconds 2
 
-# 4. subir API em background
+# 5. subir API em background
 Log "Subindo API em background..."
 Start-Process powershell.exe -WindowStyle Hidden -ArgumentList `
   "-NoProfile -ExecutionPolicy Bypass -Command `"Set-Location -LiteralPath '$ROOT'; `$env:API_PORT='$Port'; `$env:REDIS_URL='redis://localhost:56379'; pnpm.cmd --filter api start`""
