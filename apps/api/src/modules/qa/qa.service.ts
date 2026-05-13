@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { MemoryService } from '../memory/memory.service'
 
@@ -36,9 +36,26 @@ export interface SaveTestRunDto extends ParsedTestRun {
 
 // ── Parsers ───────────────────────────────────────────────────────────────────
 
+function stripCdata(s: string): string {
+  return s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, (_, content: string) => content)
+}
+
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, code: string) => String.fromCharCode(parseInt(code, 10)))
+}
+
+// Handles both single-quoted and double-quoted attribute values.
+// Negative lookbehind prevents 'name' matching inside 'classname'.
 function attr(tag: string, name: string): string {
-  const m = tag.match(new RegExp(`${name}="([^"]*)"`, 'i'))
-  return m?.[1] ?? ''
+  const pattern = new RegExp(`(?<![A-Za-z0-9_])${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, 'i')
+  const m = tag.match(pattern)
+  return decodeEntities(m?.[1] ?? m?.[2] ?? '')
 }
 
 function num(tag: string, name: string, fallback = 0): number {
@@ -46,10 +63,12 @@ function num(tag: string, name: string, fallback = 0): number {
   return isNaN(v) ? fallback : v
 }
 
-export function parseJUnitXML(xml: string): ParsedTestRun {
-  // Suites — <testsuite ...>
+export function parseJUnitXML(raw: string): ParsedTestRun {
+  const xml = stripCdata(raw)
+
+  // Suites — <testsuite ...> or <testsuite ... />
   const suites: TestSuite[] = []
-  const suiteMatches = xml.matchAll(/<testsuite\s([^>]*)>/gi)
+  const suiteMatches = xml.matchAll(/<testsuite\s([^>]*?)\/?\s*>/gi)
   for (const m of suiteMatches) {
     suites.push({
       name: attr(m[1], 'name'),
@@ -59,32 +78,39 @@ export function parseJUnitXML(xml: string): ParsedTestRun {
     })
   }
 
-  // Root totals — prefer <testsuites> tag, fallback to sum
-  const rootMatch = xml.match(/<testsuites\s([^>]*)>/)
+  // Root totals — prefer <testsuites> tag, fallback to sum of suites
+  const rootMatch = xml.match(/<testsuites\s([^>]*?)\/?\s*>/)
   const rootTag = rootMatch?.[1] ?? ''
   const totalTests = num(rootTag, 'tests') || suites.reduce((s, x) => s + x.tests, 0)
-  const failed = num(rootTag, 'failures') + num(rootTag, 'errors')
+  const failed = (num(rootTag, 'failures') + num(rootTag, 'errors'))
     || suites.reduce((s, x) => s + x.failures, 0)
-  const skipped = num(rootTag, 'skipped')
-  const passed = totalTests - failed - skipped
+  const skipped = num(rootTag, 'skipped') || suites.reduce((s, x) => s + (num(x.name, 'skipped')), 0)
+  const passed = Math.max(0, totalTests - failed - skipped)
   const durationMs = Math.round(num(rootTag, 'time') * 1000)
     || suites.reduce((s, x) => s + x.durationMs, 0)
 
-  // Failed cases — <testcase ...><failure ...>...</failure></testcase>
+  // Failed cases — handle both <testcase ...>...</testcase> and self-closing <testcase ... />
   const failedCases: FailedCase[] = []
-  const caseBlocks = xml.matchAll(/<testcase\s([^>]*)>([\s\S]*?)<\/testcase>/gi)
+
+  // Strip self-closing testcases (always passing) before scanning for failures
+  // so they don't absorb the content of subsequent failing testcases
+  const xmlForCases = xml.replace(/<testcase\s[^>]*\/\s*>/gi, '')
+  const caseBlocks = xmlForCases.matchAll(/<testcase\s([^>]*?)>([\s\S]*?)<\/testcase>/gi)
   for (const m of caseBlocks) {
     const inner = m[2]
     if (!/<failure|<error/i.test(inner)) continue
     const tagAttrs = m[1]
-    const failMatch = inner.match(/<(?:failure|error)\s*([^>]*)>([\s\S]*?)<\/(?:failure|error)>/i)
-    const msgAttr = failMatch ? attr(failMatch[1], 'message') : ''
-    const stacktrace = failMatch ? failMatch[2].trim().slice(0, 1000) : ''
+    // Match both <failure ...>body</failure> and self-closing <failure ... />
+    const fullMatch = inner.match(/<(?:failure|error)\s*([^>]*?)>([\s\S]*?)<\/(?:failure|error)>/i)
+    const selfClose = !fullMatch ? inner.match(/<(?:failure|error)\s*([^>]*?)\/>/i) : null
+    const failAttrs = fullMatch ? fullMatch[1] : selfClose ? selfClose[1] : ''
+    const msgAttr = failAttrs ? attr(failAttrs, 'message') : ''
+    const rawStack = fullMatch ? fullMatch[2].trim() : ''
     failedCases.push({
       suite: attr(tagAttrs, 'classname') || attr(tagAttrs, 'name'),
       name: attr(tagAttrs, 'name'),
-      message: msgAttr,
-      stacktrace,
+      message: decodeEntities(msgAttr).slice(0, 500),
+      stacktrace: decodeEntities(rawStack).slice(0, 1000),
     })
   }
 
@@ -135,6 +161,8 @@ export function parseAllureJSON(raw: string): ParsedTestRun {
 
 @Injectable()
 export class QaService {
+  private readonly logger = new Logger(QaService.name)
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly memory: MemoryService,
@@ -170,7 +198,7 @@ export class QaService {
         `qa/test-run/${run.id}`,
         { type: 'test_failures', tool: dto.tool, runId: run.id },
         dto.projectId,
-      ).catch(() => null)
+      ).catch(err => this.logger.warn(`Failed to index test failures for run ${run.id}: ${(err as Error).message}`))
     }
 
     return { id: run.id }

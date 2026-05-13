@@ -2,15 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { API_URL } from '../lib/api-url'
-
-function authHeaders(extra?: Record<string, string>): Record<string, string> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('rayzen_token') : null
-  return {
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    'ngrok-skip-browser-warning': 'true',
-    ...(extra ?? {}),
-  }
-}
+import { authHeaders, TOKEN_KEY } from '../lib/api-client'
 import { useRouter } from 'next/navigation'
 import ReactMarkdown from 'react-markdown'
 import dynamic from 'next/dynamic'
@@ -456,7 +448,7 @@ export default function Home() {
   const projectSelectionInitializedRef = useRef(false)
 
   useEffect(() => {
-    const token = localStorage.getItem('rayzen_token')
+    const token = localStorage.getItem(TOKEN_KEY)
     if (!token) {
       router.push('/login')
       return
@@ -3006,7 +2998,7 @@ export default function Home() {
           <button
             onClick={() => {
               document.cookie = 'rayzen_token=; path=/; max-age=0'
-              localStorage.removeItem('rayzen_token')
+              localStorage.removeItem(TOKEN_KEY)
               router.push('/login')
             }}
             className="hud-nav"

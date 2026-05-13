@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { Injectable, Logger, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { MemoryService } from '../memory/memory.service'
 
@@ -19,6 +19,8 @@ export interface CreateDataAssetDto {
 
 @Injectable()
 export class DataCatalogService {
+  private readonly logger = new Logger(DataCatalogService.name)
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly memory: MemoryService,
@@ -42,20 +44,19 @@ export class DataCatalogService {
       },
     })
 
-    // Index in pgvector for semantic search
     const text = this.buildAssetText(asset as unknown as CreateDataAssetDto & { name: string; id: string })
     this.memory.indexDocument(
       text,
       `data-catalog/asset/${asset.id}`,
       { type: 'data_asset', assetType: asset.type, sensitivity: asset.sensitivity, containsPII: String(asset.containsPII) },
       dto.projectId,
-    ).catch(() => null)
+    ).catch(err => this.logger.warn(`Failed to index asset ${asset.id}: ${(err as Error).message}`))
 
     return asset
   }
 
   async updateAsset(id: string, dto: Partial<CreateDataAssetDto>) {
-    await this.getAsset(id)
+    const existing = await this.getAsset(id)
     const asset = await this.prisma.dataAsset.update({
       where: { id },
       data: {
@@ -73,13 +74,15 @@ export class DataCatalogService {
       },
     })
 
+    // Use asset's own projectId (not DTO) to ensure consistent scoping
+    const projectId = (existing as unknown as { projectId: string | null }).projectId ?? dto.projectId
     const text = this.buildAssetText(asset as unknown as CreateDataAssetDto & { name: string; id: string })
     this.memory.indexDocument(
       text,
       `data-catalog/asset/${asset.id}`,
       { type: 'data_asset', assetType: asset.type, sensitivity: asset.sensitivity, containsPII: String(asset.containsPII) },
-      dto.projectId,
-    ).catch(() => null)
+      projectId ?? undefined,
+    ).catch(err => this.logger.warn(`Failed to re-index asset ${asset.id}: ${(err as Error).message}`))
 
     return asset
   }
@@ -108,6 +111,17 @@ export class DataCatalogService {
 
   async deleteAsset(id: string) {
     await this.getAsset(id)
+    // Clean up indexed documents before hard delete to avoid orphaned chunks
+    const sourcePath = `data-catalog/asset/${id}`
+    try {
+      const docs = await this.prisma.document.findMany({ where: { sourcePath }, select: { id: true } })
+      if (docs.length > 0) {
+        await this.prisma.document.deleteMany({ where: { sourcePath } })
+        this.logger.log(`Deleted ${docs.length} indexed chunk(s) for asset ${id}`)
+      }
+    } catch (err) {
+      this.logger.warn(`Could not clean up indexed docs for asset ${id}: ${(err as Error).message}`)
+    }
     return this.prisma.dataAsset.delete({ where: { id } })
   }
 

@@ -108,12 +108,14 @@ export class DataQualityService {
 
   // Aggregate score per dataset: weighted average of latest result per rule
   // critical weight=3, warning weight=2, info weight=1
+  // score=null means no rule has been executed yet — NOT assumed passing
   async computeDatasetScore(projectId?: string, dataset?: string): Promise<{
     dataset: string
-    score: number
+    score: number | null  // null = no evidence (no rules ever run)
     rules: number
     failing: number
-    detail: Array<{ ruleId: string; field: string | null; ruleType: string; severity: string; score: number; passed: boolean }>
+    notRun: number
+    detail: Array<{ ruleId: string; field: string | null; ruleType: string; severity: string; score: number | null; passed: boolean | null; status: 'passed' | 'failed' | 'not_run' }>
   }[]> {
     const rules = await this.prisma.dataQualityRule.findMany({
       where: {
@@ -123,21 +125,21 @@ export class DataQualityService {
       },
     })
 
-    // Group by dataset
     const byDataset: Record<string, typeof rules> = {}
     for (const r of rules) {
       if (!byDataset[r.dataset]) byDataset[r.dataset] = []
       byDataset[r.dataset].push(r)
     }
 
-    const results: ReturnType<typeof this.computeDatasetScore> extends Promise<infer T> ? T : never = []
+    const results: Awaited<ReturnType<typeof this.computeDatasetScore>> = []
 
     for (const [ds, dsRules] of Object.entries(byDataset)) {
       const WEIGHTS: Record<string, number> = { critical: 3, warning: 2, info: 1 }
       let weightedSum = 0
       let weightTotal = 0
       let failing = 0
-      const detail: Array<{ ruleId: string; field: string | null; ruleType: string; severity: string; score: number; passed: boolean }> = []
+      let notRun = 0
+      const detail: Awaited<ReturnType<typeof this.computeDatasetScore>>[number]['detail'] = []
 
       for (const rule of dsRules) {
         const latest = await this.prisma.dataQualityResult.findFirst({
@@ -145,22 +147,26 @@ export class DataQualityService {
           orderBy: { checkedAt: 'desc' },
         })
 
-        const score = latest?.score ?? 1.0  // assume passing if never run
-        const passed = latest?.passed ?? true
+        if (!latest) {
+          notRun++
+          detail.push({ ruleId: rule.id, field: rule.field, ruleType: rule.ruleType, severity: rule.severity, score: null, passed: null, status: 'not_run' })
+          continue
+        }
+
         const w = WEIGHTS[rule.severity] ?? 1
-
-        weightedSum += score * w
+        weightedSum += latest.score * w
         weightTotal += w
-        if (!passed) failing++
+        if (!latest.passed) failing++
 
-        detail.push({ ruleId: rule.id, field: rule.field, ruleType: rule.ruleType, severity: rule.severity, score, passed })
+        detail.push({ ruleId: rule.id, field: rule.field, ruleType: rule.ruleType, severity: rule.severity, score: latest.score, passed: latest.passed, status: latest.passed ? 'passed' : 'failed' })
       }
 
       results.push({
         dataset: ds,
-        score: weightTotal > 0 ? Math.round((weightedSum / weightTotal) * 100) : 100,
+        score: weightTotal > 0 ? Math.round((weightedSum / weightTotal) * 100) : null,
         rules: dsRules.length,
         failing,
+        notRun,
         detail,
       })
     }
@@ -210,11 +216,13 @@ export class DataQualityService {
       where: { ...(projectId ? { projectId } : {}), active: true },
     })
     const totalFailing = scores.reduce((s, d) => s + d.failing, 0)
-    const avgScore = scores.length > 0
-      ? Math.round(scores.reduce((s, d) => s + d.score, 0) / scores.length)
-      : 100
+    const totalNotRun = scores.reduce((s, d) => s + d.notRun, 0)
+    const scoredDatasets = scores.filter(d => d.score !== null)
+    const avgScore = scoredDatasets.length > 0
+      ? Math.round(scoredDatasets.reduce((s, d) => s + (d.score ?? 0), 0) / scoredDatasets.length)
+      : null  // null = no rules have ever been executed
 
-    return { datasets: scores, totalRules: rules, totalFailing, avgScore }
+    return { datasets: scores, totalRules: rules, totalFailing, totalNotRun, avgScore }
   }
 
   async diffSchema(models: ModelInfo[], projectId?: string): Promise<{ hasChanges: boolean; changes?: SchemaChangeSummary }> {
