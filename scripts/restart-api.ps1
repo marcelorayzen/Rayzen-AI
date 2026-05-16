@@ -22,21 +22,21 @@ $pull = & git pull origin $Branch 2>&1
 Log $pull
 if ($LASTEXITCODE -ne 0) { Log "ERRO: git pull falhou."; exit 1 }
 
-# 2. regenerar Prisma Client (garante que schema e client estão em sincronia)
-Log "Gerando Prisma Client..."
-& pnpm.cmd --filter api db:generate 2>&1 | ForEach-Object { Log $_ }
-if ($LASTEXITCODE -ne 0) { Log "ERRO: prisma generate falhou."; exit 1 }
-
-# 3. build da API
-Log "Compilando API..."
-& pnpm.cmd --filter api build 2>&1 | ForEach-Object { Log $_ }
-if ($LASTEXITCODE -ne 0) { Log "ERRO: build falhou."; exit 1 }
-
-# 4. matar processo na porta
+# 2. matar processo na porta (antes do prisma generate — API segura a DLL do query engine)
 Log "Encerrando processo na porta $Port..."
 Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
   ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
 Start-Sleep -Seconds 2
+
+# 3. regenerar Prisma Client (API já encerrada — sem EPERM)
+Log "Gerando Prisma Client..."
+& pnpm.cmd --filter api db:generate 2>&1 | ForEach-Object { Log $_ }
+if ($LASTEXITCODE -ne 0) { Log "ERRO: prisma generate falhou."; exit 1 }
+
+# 4. build da API
+Log "Compilando API..."
+& pnpm.cmd --filter api build 2>&1 | ForEach-Object { Log $_ }
+if ($LASTEXITCODE -ne 0) { Log "ERRO: build falhou."; exit 1 }
 
 # 5. subir API em background
 Log "Subindo API em background..."
