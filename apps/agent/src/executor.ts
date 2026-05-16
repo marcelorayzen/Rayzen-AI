@@ -43,11 +43,11 @@ export async function executeTask(task: Task): Promise<unknown> {
     case 'jarvis:list_dir':        return listDir(p as { path: string })
     case 'jarvis:file_search':     return fileSearch(p as { query: string; path?: string })
     case 'jarvis:organize_downloads': return organizeDownloads(p as { path: string; dryRun?: boolean })
-    case 'jarvis:create_project_folder': return createProjectFolder(p as { name: string; root?: string; template?: 'blank' | 'node' | 'nextjs' | 'python'; openVscode?: boolean; dryRun?: boolean })
+    case 'jarvis:create_project_folder': return createProjectFolder(p as { name: string; root?: string; template?: 'blank' | 'node' | 'nextjs' | 'python' | 'rayzen'; openVscode?: boolean; dryRun?: boolean })
 
     // Sistema
     case 'jarvis:get_system_info': return getSystemInfo()
-    case 'jarvis:screenshot':      return takeScreenshot()
+    case 'jarvis:screenshot':      return takeScreenshot(p as { projectName?: string; label?: string })
     case 'jarvis:notify':          return notify(p as { title: string; message: string })
     case 'jarvis:clipboard_read':  return clipboardRead()
     case 'jarvis:clipboard_write': return clipboardWrite(p as { text: string })

@@ -11,13 +11,14 @@ const SAFE_ROOTS = [
   'D:\\Projects',
 ]
 
-export type ProjectTemplate = 'blank' | 'node' | 'nextjs' | 'python'
+export type ProjectTemplate = 'blank' | 'node' | 'nextjs' | 'python' | 'rayzen'
 
 const TEMPLATES: Record<ProjectTemplate, string[]> = {
   blank: [],
   node: ['src', 'tests'],
   nextjs: ['app', 'components', 'public'],
   python: ['src', 'tests', 'data'],
+  rayzen: ['src', 'tests', 'docs'],
 }
 
 export async function createProjectFolder(payload: {
@@ -69,6 +70,75 @@ export async function createProjectFolder(payload: {
     join(projectPath, 'README.md'),
     `# ${name}\n\nProjeto criado via Rayzen AI.\n`,
   )
+
+  // Template rayzen: cria .claude/settings.json e RAYZEN-SETUP.md
+  if (template === 'rayzen') {
+    await mkdir(join(projectPath, '.claude'), { recursive: true })
+
+    await writeFile(
+      join(projectPath, '.claude', 'settings.json'),
+      JSON.stringify({
+        mcpServers: {
+          rayzen: {
+            command: 'node',
+            args: ['<CAMINHO_RAYZEN_AI>/apps/agent/dist/mcp-server.js'],
+            env: {
+              AGENT_API_URL: 'https://<NGROK_URL>',
+              AGENT_TOKEN: '<JWT_TOKEN>',
+              PROJECT_ID: '<PROJECT_ID>',
+            },
+          },
+        },
+      }, null, 2),
+    )
+
+    await writeFile(
+      join(projectPath, 'RAYZEN-SETUP.md'),
+      `# Setup Rayzen AI — ${name}
+
+## Passo 1 — Criar projeto no Rayzen
+
+1. Acesse https://rayzen-web.vercel.app
+2. Clique no \`+\` ao lado do seletor de projetos
+3. Digite o nome: **${name}**
+4. Copie o **projectId** gerado (aparece na URL ou no painel)
+
+## Passo 2 — Configurar o hook
+
+Edite \`apps/agent/src/hooks/hook.config.mjs\` no repositório rayzen-ai:
+
+\`\`\`js
+export default {
+  apiUrl: 'https://<url-ngrok-atual>',
+  apiToken: '<jwt-token>',
+  projectId: '<id-copiado-no-passo-1>',
+}
+\`\`\`
+
+## Passo 3 — Configurar MCP
+
+Edite \`.claude/settings.json\` nesta pasta com os valores corretos:
+- \`<CAMINHO_RAYZEN_AI>\`: caminho completo para o repositório rayzen-ai
+- \`<NGROK_URL>\`: URL do ngrok ativo no notebook
+- \`<JWT_TOKEN>\`: token JWT (veja hook.config.mjs)
+- \`<PROJECT_ID>\`: ID copiado no Passo 1
+
+## Passo 4 — Indexar no Brain
+
+No painel Rayzen → aba Brain → selecione este projeto e indexe as fontes:
+- GitHub: cole a URL do repositório
+- Arquivos: faça upload de docs, specs, etc.
+
+## Verificação
+
+Abra o VS Code nesta pasta, faça uma edição qualquer e verifique se o evento aparece
+no painel "Atividade" do projeto no Rayzen (https://rayzen-web.vercel.app).
+
+---
+*Gerado automaticamente via jarvis:create_project_folder template=rayzen*
+`,
+    )
+  }
 
   // Abre no VS Code se solicitado
   let openedVscode = false

@@ -179,7 +179,7 @@ export async function captureTestFailure(payload: {
   const shouldAutoScreenshot = (payload.takeScreenshotOnFailure ?? true) && cases.length > 0 && screenshotsTaken.length === 0
   if (shouldAutoScreenshot) {
     try {
-      const shot = await takeScreenshot()
+      const shot = await takeScreenshot({ projectName: basename(projectPath), label: 'test-failure' })
       screenshotsTaken.push(shot.path)
       // Associa a primeira falha sem screenshot
       const first = cases.find(c => !c.screenshotPath)

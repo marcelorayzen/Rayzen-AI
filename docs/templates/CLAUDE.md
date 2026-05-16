@@ -171,6 +171,75 @@ Criar um documento de spec em `docs/specs/[feature].md` antes de codar quando:
 
 ---
 
+## Rayzen AI — Integração
+
+> Esta seção é obrigatória para projetos que usam o Rayzen AI como plataforma de acompanhamento.
+
+### Hook Claude Code
+
+O hook envia cada ação do Claude (Edit, Write, Bash, Read) para a API do Rayzen como evento.
+
+**Arquivo de config:** `apps/agent/src/hooks/hook.config.mjs` (gitignored no rayzen-ai — nunca sobe)
+
+```js
+export default {
+  apiUrl: 'https://<url-ngrok-atual>',  // atualizar quando ngrok reiniciar
+  apiToken: '<jwt-token>',              // expira 4 de junho de 2026
+  projectId: '<id-deste-projeto>',      // copiar da URL ou painel Rayzen
+}
+```
+
+**Como obter o projectId:**
+1. Abra https://rayzen-web.vercel.app
+2. Selecione o projeto no dropdown superior esquerdo
+3. O ID aparece na URL ou no painel — copie e cole no `hook.config.mjs`
+
+**Importante:** abrir uma pasta no VS Code NÃO vincula automaticamente ao projeto Rayzen. É preciso atualizar o `projectId` manualmente ao trocar de projeto.
+
+### MCP Rayzen
+
+O MCP permite que o Claude consulte estado, memória, eventos e wiki do projeto diretamente.
+
+**Verificar se está ativo:** `.claude/settings.json` deve conter:
+```json
+{
+  "mcpServers": {
+    "rayzen": {
+      "command": "node",
+      "args": ["<caminho-para-rayzen-ai>/apps/agent/dist/mcp-server.js"],
+      "env": {
+        "AGENT_API_URL": "https://<ngrok-url>",
+        "AGENT_TOKEN": "<jwt-token>",
+        "PROJECT_ID": "<id-deste-projeto>"
+      }
+    }
+  }
+}
+```
+
+**Ferramentas disponíveis via MCP:**
+- `rayzen_get_state` — estado atual do projeto (stage, blockers, decisions)
+- `rayzen_get_goal` — meta ativa com critérios de sucesso
+- `rayzen_get_events` — atividade recente
+- `rayzen_search_memory` — busca semântica no Brain do projeto
+- `rayzen_get_wiki` — wiki indexada
+- `rayzen_get_resume` — resumo executivo
+- `rayzen_checkpoint` — criar checkpoint de sessão
+- `rayzen_add_event` — registrar evento manual
+- `rayzen_update_planning` — atualizar milestones/blockers/nextSteps
+
+### Problemas comuns
+
+| Sintoma | Causa provável | Solução |
+|---|---|---|
+| Claude inventa coisas sobre o projeto | Brain não indexado ou `projectId` errado no hook | Indexar fontes no painel Brain; verificar `hook.config.mjs` |
+| Dados de outro projeto aparecem no chat | `projectId` antigo no hook | Atualizar `projectId` no `hook.config.mjs` |
+| Hook não envia eventos | ngrok URL expirou ou token inválido | Atualizar `apiUrl` e `apiToken` no `hook.config.mjs` |
+| MCP não conecta | `AGENT_API_URL` ou `PROJECT_ID` errado | Verificar `.claude/settings.json` com valores corretos |
+| `jarvis:restart_api` falha | API segurando DLL do Prisma | Parar API → `npx prisma generate` → reiniciar |
+
+---
+
 ## Links úteis
 
 - Swagger/Docs da API: [url]
@@ -178,3 +247,4 @@ Criar um documento de spec em `docs/specs/[feature].md` antes de codar quando:
 - Board / Issues: [url]
 - Staging: [url]
 - Monitoramento: [url]
+- Rayzen AI (produção): https://rayzen-web.vercel.app
