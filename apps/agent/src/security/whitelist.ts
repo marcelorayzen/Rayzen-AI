@@ -30,6 +30,7 @@ export const ALLOWED_ACTIONS = new Set([
   'jarvis:parse_test_report',
   'jarvis:get_qa_summary',
   'jarvis:get_data_quality',
+  'jarvis:capture_test_failure',
 
   // Docker
   'jarvis:docker_ps',

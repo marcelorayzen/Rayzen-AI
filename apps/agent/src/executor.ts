@@ -22,6 +22,7 @@ import { restartApi } from './actions/restart-api'
 import { parseTestReport } from './actions/parse-test-report'
 import { getQaSummary } from './actions/get-qa-summary'
 import { getDataQuality } from './actions/get-data-quality'
+import { captureTestFailure } from './actions/capture-test-failure'
 
 export async function executeTask(task: Task): Promise<unknown> {
   const key = `${task.module}:${task.action}`
@@ -59,7 +60,7 @@ export async function executeTask(task: Task): Promise<unknown> {
 
     // Terminal
     case 'jarvis:run_command':    return runCommand(p as { command: string; path?: string })
-    case 'jarvis:run_tests':      return runTests(p as { projectPath?: string; runner?: 'jest' | 'vitest' | 'playwright'; coverage?: boolean; filter?: string })
+    case 'jarvis:run_tests':      return runTests(p as { projectPath?: string; runner?: 'jest' | 'vitest' | 'playwright' | 'maven' | 'gradle' | 'pytest' | 'newman'; coverage?: boolean; filter?: string; collectionPath?: string; environment?: string })
     case 'jarvis:inspect_schema': return inspectSchema(p as { projectPath?: string })
 
     // Docker
@@ -73,9 +74,10 @@ export async function executeTask(task: Task): Promise<unknown> {
     case 'jarvis:get_calendar': return getCalendar(p as { days?: number })
 
     // QA
-    case 'jarvis:parse_test_report': return parseTestReport(p as { reportPath: string; format?: 'junit' | 'allure' | 'auto'; projectId?: string; branch?: string; commitHash?: string })
-    case 'jarvis:get_qa_summary':    return getQaSummary(p as { projectId?: string; type?: 'summary' | 'patterns' | 'flaky' | 'trend'; days?: number; runs?: number })
-    case 'jarvis:get_data_quality':  return getDataQuality(p as { projectId?: string; dataset?: string; type?: 'summary' | 'score' | 'history' | 'rules' | 'results'; ruleId?: string; days?: number })
+    case 'jarvis:parse_test_report':    return parseTestReport(p as { reportPath: string; format?: 'junit' | 'allure' | 'auto'; projectId?: string; branch?: string; commitHash?: string })
+    case 'jarvis:get_qa_summary':       return getQaSummary(p as { projectId?: string; type?: 'summary' | 'patterns' | 'flaky' | 'trend'; days?: number; runs?: number })
+    case 'jarvis:get_data_quality':     return getDataQuality(p as { projectId?: string; dataset?: string; type?: 'summary' | 'score' | 'history' | 'rules' | 'results'; ruleId?: string; days?: number })
+    case 'jarvis:capture_test_failure': return captureTestFailure(p as { projectPath?: string; reportDir?: string; screenshotDir?: string; projectId?: string; takeScreenshotOnFailure?: boolean })
 
     // Infraestrutura do notebook
     case 'jarvis:restart_api':  return restartApi(p as { branch?: string; dryRun?: boolean })
