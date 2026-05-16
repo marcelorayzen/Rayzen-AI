@@ -11,6 +11,7 @@ export interface Task {
   action: string
   payload: Record<string, unknown>
   status: TaskStatus
+  targetRole?: string   // 'notebook' | 'desktop' | undefined (any)
   result?: unknown
   error?: string
   createdAt: string
@@ -21,6 +22,7 @@ export interface TaskCreateDto {
   module: TaskModule
   action: string
   payload: Record<string, unknown>
+  targetRole?: string
 }
 
 // Agent types

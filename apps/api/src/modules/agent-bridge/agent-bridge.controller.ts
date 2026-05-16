@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Param, Body, UseGuards } from '@nestjs/common'
+import { Controller, Get, Patch, Param, Body, Query, UseGuards } from '@nestjs/common'
 import { ApiTags } from '@nestjs/swagger'
 import { SkipThrottle } from '@nestjs/throttler'
 import { AgentBridgeService } from './agent-bridge.service'
@@ -20,7 +20,7 @@ export class AgentBridgeController {
   constructor(private readonly svc: AgentBridgeService) {}
 
   @Get('pending')
-  getPending() { return this.svc.getPending() }
+  getPending(@Query('role') role?: string) { return this.svc.getPending(role) }
 
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateTaskDto) {

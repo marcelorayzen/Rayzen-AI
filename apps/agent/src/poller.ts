@@ -2,6 +2,8 @@ import axios from 'axios'
 import { Task } from '@rayzen/types'
 import { executeTask } from './executor'
 
+const AGENT_ROLE = process.env.AGENT_ROLE ?? 'desktop'
+
 const api = axios.create({
   baseURL: process.env.AGENT_API_URL,
   headers: { Authorization: `Bearer ${process.env.AGENT_TOKEN}` },
@@ -10,7 +12,7 @@ const api = axios.create({
 
 export async function poll(): Promise<void> {
   try {
-    const { data: tasks } = await api.get<Task[]>('/tasks/pending')
+    const { data: tasks } = await api.get<Task[]>(`/tasks/pending?role=${AGENT_ROLE}`)
     for (const task of tasks) {
       await processTask(task)
     }

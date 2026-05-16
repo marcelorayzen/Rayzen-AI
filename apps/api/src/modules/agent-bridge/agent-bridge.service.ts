@@ -16,11 +16,12 @@ export class AgentBridgeService {
     return task
   }
 
-  async getPending(): Promise<Task[]> {
+  async getPending(role?: string): Promise<Task[]> {
     const jobs = await this.queue.getJobs(['waiting', 'delayed'])
     return jobs
       .map((j) => j.data as Task)
       .filter((t) => t.status === 'pending')
+      .filter((t) => !t.targetRole || !role || t.targetRole === role)
   }
 
   async updateStatus(id: string, status: TaskStatus, result?: unknown, error?: string) {

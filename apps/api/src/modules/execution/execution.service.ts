@@ -8,6 +8,11 @@ import { EventService } from '../event/event.service'
 const POLL_INTERVAL_MS = 500
 const POLL_TIMEOUT_MS = 30_000
 
+// Ações que só podem executar num role específico de agente
+const ACTION_ROLE: Record<string, string> = {
+  restart_api: 'notebook',
+}
+
 @Injectable()
 export class ExecutionService {
   constructor(
@@ -16,7 +21,8 @@ export class ExecutionService {
   ) {}
 
   async dispatch(action: string, payload: Record<string, unknown>): Promise<unknown> {
-    const dto: TaskCreateDto = { module: 'jarvis', action, payload }
+    const targetRole = ACTION_ROLE[action]
+    const dto: TaskCreateDto = { module: 'jarvis', action, payload, ...(targetRole ? { targetRole } : {}) }
     const id = randomUUID()
     const now = new Date().toISOString()
     const task: Task = { id, ...dto, status: 'pending', createdAt: now, updatedAt: now }
