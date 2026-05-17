@@ -307,6 +307,8 @@ chore: [descrição curta]    # infra, deps, config
 
 ## 8. ONBOARDING — Setup em máquina nova
 
+### 8.1 Setup do projeto
+
 ```bash
 # 1. Clonar
 git clone [url]
@@ -332,3 +334,80 @@ cp .env.example .env
 - [ ] [verificação 1 — ex: "acessar localhost:3000 e ver a tela inicial"]
 - [ ] [verificação 2 — ex: "criar um usuário de teste e fazer login"]
 - [ ] [verificação 3 — ex: "rodar os testes e ver todos passando"]
+
+---
+
+### 8.2 Setup Rayzen AI
+
+> Siga esta seção para integrar o projeto ao Rayzen AI (hook, MCP, Brain).
+> Pré-requisito: notebook com Rayzen rodando (`start-rayzen-notebook.bat`) e ngrok ativo.
+
+#### Passo 1 — Criar o projeto no Rayzen
+
+1. Acesse https://rayzen-web.vercel.app
+2. Clique no `+` ao lado do seletor de projetos → nome: **[NOME DO PROJETO]**
+3. Copie o **projectId** gerado (visível na URL ou no painel do projeto)
+
+#### Passo 2 — Configurar o hook do Claude Code
+
+Edite `apps/agent/src/hooks/hook.config.mjs` no repositório rayzen-ai:
+
+```js
+export default {
+  apiUrl: 'https://<url-ngrok-atual>',  // copiar da janela do ngrok no notebook
+  apiToken: '<jwt-token>',              // GET /auth/login no notebook
+  projectId: '<id-copiado-no-passo-1>',
+}
+```
+
+> **Atenção:** abrir o VS Code nesta pasta **não** vincula automaticamente ao projeto.
+> É preciso atualizar `projectId` manualmente sempre que trocar de projeto ativo.
+
+#### Passo 3 — Configurar MCP (opcional mas recomendado)
+
+Edite `.claude/settings.json` nesta pasta:
+
+```json
+{
+  "mcpServers": {
+    "rayzen": {
+      "command": "node",
+      "args": ["<CAMINHO_RAYZEN_AI>/apps/agent/dist/mcp-server.js"],
+      "env": {
+        "AGENT_API_URL": "https://<ngrok-url>",
+        "AGENT_TOKEN": "<jwt-token>",
+        "PROJECT_ID": "<id-do-projeto>"
+      }
+    }
+  }
+}
+```
+
+Com MCP ativo, o Claude consulta estado, memória e eventos do projeto diretamente.
+
+#### Passo 4 — Indexar fontes no Brain
+
+No painel Rayzen → aba **Brain** → selecione o projeto e indexe:
+- **GitHub**: URL do repositório → indexa código e README
+- **Arquivos**: specs, ADRs, documentação técnica
+- **Notion**: páginas relevantes do projeto
+
+#### Passo 5 — Verificar integração
+
+Faça qualquer edição no VS Code e verifique se o evento aparece no painel **Atividade** do projeto no Rayzen. Se não aparecer:
+
+| Sintoma | Verificar |
+|---|---|
+| Nenhum evento chega | `apiUrl` e `apiToken` no `hook.config.mjs` |
+| Eventos de outro projeto | `projectId` errado no `hook.config.mjs` |
+| MCP não conecta | `AGENT_API_URL` e `PROJECT_ID` no `.claude/settings.json` |
+| Claude inventa sobre o projeto | Brain não indexado — refaça o Passo 4 |
+
+#### Agente no notebook (para ações como `restart_api`)
+
+```powershell
+# No notebook, com AGENT_ROLE=notebook:
+.\start-agent-notebook.ps1
+# ou com auto-restart:
+.\start-agent-notebook.ps1 -Watchdog
+```
