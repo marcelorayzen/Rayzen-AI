@@ -356,12 +356,13 @@ Edite `apps/agent/src/hooks/hook.config.mjs` no repositório rayzen-ai:
 export default {
   apiUrl: 'https://<url-ngrok-atual>',  // copiar da janela do ngrok no notebook
   apiToken: '<jwt-token>',              // GET /auth/login no notebook
-  projectId: '<id-copiado-no-passo-1>',
+  projectId: '',  // vazio = detecção automática pelo nome do repo git
 }
 ```
 
-> **Atenção:** abrir o VS Code nesta pasta **não** vincula automaticamente ao projeto.
-> É preciso atualizar `projectId` manualmente sempre que trocar de projeto ativo.
+O hook detecta o projeto automaticamente pelo `repoSlug` do repositório git aberto no VS Code — sem precisar atualizar o `projectId` ao trocar de projeto.
+
+**Pré-requisito:** o `repoSlug` deste projeto no Rayzen deve bater com o nome do repositório git (ex: pasta `selenium-tests` → repoSlug `selenium-tests`). Projetos criados via `jarvis:create_project_folder template=rayzen` já têm isso configurado.
 
 #### Passo 3 — Configurar MCP (opcional mas recomendado)
 

@@ -189,12 +189,23 @@ export default {
 }
 ```
 
-**Como obter o projectId:**
-1. Abra https://rayzen-web.vercel.app
-2. Selecione o projeto no dropdown superior esquerdo
-3. O ID aparece na URL ou no painel — copie e cole no `hook.config.mjs`
+**Detecção automática de projeto (recomendado):**
 
-**Importante:** abrir uma pasta no VS Code NÃO vincula automaticamente ao projeto Rayzen. É preciso atualizar o `projectId` manualmente ao trocar de projeto.
+Deixe `projectId` vazio — o hook detecta o projeto pelo nome do repositório git:
+
+```js
+export default {
+  apiUrl: 'https://<url-ngrok-atual>',
+  apiToken: '<jwt-token>',
+  projectId: '',  // vazio = auto-detect pelo repoSlug do git remote
+}
+```
+
+O hook lê `git remote get-url origin`, extrai o nome do repo e consulta `GET /projects?repoSlug=<nome>`. Trocar de projeto = abrir outra pasta no VS Code, sem tocar no config.
+
+**Pré-requisito:** o `repoSlug` do projeto no Rayzen deve bater com o nome do repositório git. Projetos criados via `jarvis:create_project_folder template=rayzen` já têm isso configurado automaticamente.
+
+**Forçar projeto específico:** preencha `projectId` manualmente — útil se o repo git não corresponde ao projeto Rayzen.
 
 ### MCP Rayzen
 
@@ -232,9 +243,10 @@ O MCP permite que o Claude consulte estado, memória, eventos e wiki do projeto 
 
 | Sintoma | Causa provável | Solução |
 |---|---|---|
-| Claude inventa coisas sobre o projeto | Brain não indexado ou `projectId` errado no hook | Indexar fontes no painel Brain; verificar `hook.config.mjs` |
-| Dados de outro projeto aparecem no chat | `projectId` antigo no hook | Atualizar `projectId` no `hook.config.mjs` |
+| Claude inventa coisas sobre o projeto | Brain não indexado ou repoSlug não bate | Indexar fontes no painel Brain; verificar se `repoSlug` do projeto bate com o nome do repo git |
+| Eventos vão para o projeto errado | repoSlug de outro projeto bateu antes (cache) | Aguardar 5 min (TTL do cache) ou deletar `%TEMP%\rayzen-slug-cache.json` |
 | Hook não envia eventos | ngrok URL expirou ou token inválido | Atualizar `apiUrl` e `apiToken` no `hook.config.mjs` |
+| Hook não detecta o projeto | Pasta sem git remote ou repoSlug não cadastrado | Verificar `git remote get-url origin`; corrigir `repoSlug` via `PATCH /projects/:id` |
 | MCP não conecta | `AGENT_API_URL` ou `PROJECT_ID` errado | Verificar `.claude/settings.json` com valores corretos |
 | `jarvis:restart_api` falha | API segurando DLL do Prisma | Parar API → `npx prisma generate` → reiniciar |
 

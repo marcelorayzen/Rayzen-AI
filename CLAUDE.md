@@ -41,7 +41,8 @@ Acesse **https://rayzen-web.vercel.app** — a web está no Vercel, não precisa
 - **Selecionar projeto:** clica no nome no dropdown
 
 ### 4. Vincular VS Code ao projeto
-O hook do Claude Code envia eventos para um `projectId` fixo configurado em:
+O hook do Claude Code detecta o projeto automaticamente pelo nome do repositório git:
+
 ```
 apps/agent/src/hooks/hook.config.mjs   ← gitignored, não sobe para o repositório
 ```
@@ -49,11 +50,15 @@ apps/agent/src/hooks/hook.config.mjs   ← gitignored, não sobe para o reposit�
 export default {
   apiUrl: 'https://<url-ngrok-atual>',
   apiToken: '<jwt-token>',
-  projectId: '<id-do-projeto-ativo>',  // ← mude aqui ao trocar de projeto
+  projectId: '',  // ← vazio = detecção automática por repoSlug
 }
 ```
-**Importante:** abrir uma pasta no VS Code não vincula automaticamente ao projeto Rayzen.
-Para mudar o projeto ativo no hook: copie o ID do projeto (visível na URL ou no painel) e atualize `projectId` no `hook.config.mjs`.
+
+**Como funciona:** ao abrir qualquer pasta no VS Code, o hook lê o nome do repositório via `git remote get-url origin`, consulta `GET /projects?repoSlug=<nome>` e vincula os eventos ao projeto correto automaticamente (cache de 5 min).
+
+**Pré-requisito:** o `repoSlug` do projeto no Rayzen deve bater com o nome do repositório git. Projetos criados via `jarvis:create_project_folder template=rayzen` já têm isso configurado. Para projetos existentes, verifique em `PATCH /projects/:id` se necessário.
+
+**Trocar de projeto:** basta abrir outra pasta no VS Code — sem tocar no `hook.config.mjs`.
 
 **Token atual expira: 4 de junho de 2026.** Para renovar:
 ```bash
@@ -316,7 +321,7 @@ export default {
 }
 ```
 
-**Limitação atual:** o `projectId` é fixo por máquina. Não há detecção automática de projeto por pasta do VS Code. Para trabalhar em outro projeto, atualize o `projectId` manualmente.
+**Detecção automática:** o hook identifica o projeto pelo `repoSlug` do repositório git aberto no VS Code. Deixe `projectId` vazio no `hook.config.mjs` para ativar. Para fixar um projeto independente da pasta aberta, preencha `projectId` manualmente.
 
 ---
 
