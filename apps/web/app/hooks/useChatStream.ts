@@ -19,6 +19,12 @@ export interface Session {
 
 export type WorkMode = 'implementation' | 'debugging' | 'architecture' | 'study' | 'review'
 
+function createSessionId() {
+  return globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function'
+    ? globalThis.crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
 export function useChatStream(activeProjectId: string | null) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -48,7 +54,7 @@ export function useChatStream(activeProjectId: string | null) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    setSessionId(crypto.randomUUID())
+    setSessionId(createSessionId())
   }, [])
 
   useEffect(() => {
@@ -275,7 +281,7 @@ export function useChatStream(activeProjectId: string | null) {
       setSessions(prev => prev.filter(s => s.sessionId !== sid))
       if (sid === sessionId) {
         setMessages([])
-        setSessionId(crypto.randomUUID())
+        setSessionId(createSessionId())
         setSessionTokens(0)
       }
     } catch { /* silencioso */ }
@@ -284,7 +290,7 @@ export function useChatStream(activeProjectId: string | null) {
 
   const newChat = useCallback(() => {
     setMessages([])
-    setSessionId(crypto.randomUUID())
+    setSessionId(createSessionId())
     setSessionTokens(0)
     setSidebarOpen(false)
   }, [])
