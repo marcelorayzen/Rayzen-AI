@@ -2,6 +2,8 @@ import { execSync } from 'child_process'
 import { resolve, join } from 'path'
 import { existsSync } from 'fs'
 import { mkdir, writeFile } from 'fs/promises'
+import { request } from 'node:http'
+import { request as httpsRequest } from 'node:https'
 
 const HOME = process.env.USERPROFILE ?? process.env.HOME ?? ''
 
@@ -21,6 +23,51 @@ const TEMPLATES: Record<ProjectTemplate, string[]> = {
   rayzen: ['src', 'tests', 'docs'],
 }
 
+// Deriva repoSlug do nome (igual ao ProjectService da API)
+function toRepoSlug(name: string): string {
+  return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+}
+
+// Registra projeto na API Rayzen e retorna o projectId
+async function registerInRayzen(name: string, repoSlug: string): Promise<string | null> {
+  const apiUrl = process.env.AGENT_API_URL ?? 'http://localhost:3101'
+  const token  = process.env.AGENT_TOKEN ?? ''
+  if (!token) return null
+
+  return new Promise((resolve_) => {
+    const body = JSON.stringify({ name, repoSlug })
+    const parsed = new URL(`${apiUrl}/projects`)
+    const isHttps = parsed.protocol === 'https:'
+    const lib = isHttps ? httpsRequest : request
+
+    const req = lib({
+      hostname: parsed.hostname,
+      port: parsed.port || (isHttps ? 443 : 80),
+      path: parsed.pathname,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body),
+        'Authorization': `Bearer ${token}`,
+      },
+    }, (res) => {
+      let data = ''
+      res.on('data', (d) => { data += d })
+      res.on('end', () => {
+        try {
+          const project = JSON.parse(data)
+          resolve_(project?.id ?? null)
+        } catch { resolve_(null) }
+      })
+    })
+
+    req.on('error', () => resolve_(null))
+    req.setTimeout(8000, () => { req.destroy(); resolve_(null) })
+    req.write(body)
+    req.end()
+  })
+}
+
 export async function createProjectFolder(payload: {
   name: string
   root?: string
@@ -32,6 +79,8 @@ export async function createProjectFolder(payload: {
   created: boolean
   dryRun: boolean
   openedVscode: boolean
+  projectId?: string
+  repoSlug?: string
 }> {
   const root = payload.root ?? (HOME + '\\Projects')
   const resolved = resolve(root)
@@ -46,33 +95,38 @@ export async function createProjectFolder(payload: {
   if (!name) throw new Error('Nome do projeto inválido')
 
   const projectPath = join(resolved, name)
+  const repoSlug = toRepoSlug(name)
 
   if (payload.dryRun) {
-    return { path: projectPath, created: false, dryRun: true, openedVscode: false }
+    return { path: projectPath, created: false, dryRun: true, openedVscode: false, repoSlug }
   }
 
   if (existsSync(projectPath)) {
     throw new Error(`Projeto já existe: ${projectPath}`)
   }
 
-  // Cria pasta raiz
+  // Cria pasta raiz e subpastas do template
   await mkdir(projectPath, { recursive: true })
-
-  // Cria subpastas do template
   const template = payload.template ?? 'blank'
-  const subfolders = TEMPLATES[template] ?? []
-  for (const sub of subfolders) {
+  for (const sub of TEMPLATES[template] ?? []) {
     await mkdir(join(projectPath, sub), { recursive: true })
   }
 
-  // Cria README.md básico
+  // README básico
   await writeFile(
     join(projectPath, 'README.md'),
     `# ${name}\n\nProjeto criado via Rayzen AI.\n`,
   )
 
-  // Template rayzen: cria .claude/settings.json e RAYZEN-SETUP.md
+  // Template rayzen: registra na API + gera arquivos com projectId real
+  let projectId: string | undefined
   if (template === 'rayzen') {
+    // Registra no Rayzen e obtém o ID real
+    projectId = await registerInRayzen(name, repoSlug) ?? undefined
+
+    const rayzenRoot = resolve(join(__dirname, '..', '..', '..', '..', '..'))
+    const apiUrl     = process.env.AGENT_API_URL ?? 'https://<NGROK_URL>'
+
     await mkdir(join(projectPath, '.claude'), { recursive: true })
 
     await writeFile(
@@ -81,58 +135,61 @@ export async function createProjectFolder(payload: {
         mcpServers: {
           rayzen: {
             command: 'node',
-            args: ['<CAMINHO_RAYZEN_AI>/apps/agent/dist/mcp-server.js'],
+            args: [join(rayzenRoot, 'apps', 'agent', 'dist', 'mcp-server.js')],
             env: {
-              AGENT_API_URL: 'https://<NGROK_URL>',
-              AGENT_TOKEN: '<JWT_TOKEN>',
-              PROJECT_ID: '<PROJECT_ID>',
+              AGENT_API_URL: apiUrl,
+              AGENT_TOKEN: process.env.AGENT_TOKEN ?? '<JWT_TOKEN>',
+              PROJECT_ID: projectId ?? '<PROJECT_ID>',
             },
           },
         },
       }, null, 2),
     )
 
+    const setupStatus = projectId
+      ? `Projeto registrado automaticamente no Rayzen!\n**projectId:** \`${projectId}\`\n**repoSlug:** \`${repoSlug}\``
+      : `Não foi possível registrar automaticamente (API offline?).\nAcesse https://rayzen-web.vercel.app e crie o projeto com o nome **${name}**.`
+
     await writeFile(
       join(projectPath, 'RAYZEN-SETUP.md'),
       `# Setup Rayzen AI — ${name}
 
-## Passo 1 — Criar projeto no Rayzen
+## Status
 
-1. Acesse https://rayzen-web.vercel.app
-2. Clique no \`+\` ao lado do seletor de projetos
-3. Digite o nome: **${name}**
-4. Copie o **projectId** gerado (aparece na URL ou no painel)
+${setupStatus}
 
-## Passo 2 — Configurar o hook
+## Hook — detecção automática de projeto
 
-Edite \`apps/agent/src/hooks/hook.config.mjs\` no repositório rayzen-ai:
+O hook do Claude Code detecta este projeto automaticamente pelo \`repoSlug: ${repoSlug}\`.
+**Não é necessário configurar \`projectId\` no \`hook.config.mjs\`** — basta deixar vazio:
 
 \`\`\`js
+// apps/agent/src/hooks/hook.config.mjs no repositório rayzen-ai
 export default {
-  apiUrl: 'https://<url-ngrok-atual>',
+  apiUrl: 'https://<ngrok-url>',
   apiToken: '<jwt-token>',
-  projectId: '<id-copiado-no-passo-1>',
+  projectId: '',  // vazio = auto-detect pelo nome do repo git
 }
 \`\`\`
 
-## Passo 3 — Configurar MCP
+## MCP — acesso ao contexto do projeto
 
-Edite \`.claude/settings.json\` nesta pasta com os valores corretos:
-- \`<CAMINHO_RAYZEN_AI>\`: caminho completo para o repositório rayzen-ai
-- \`<NGROK_URL>\`: URL do ngrok ativo no notebook
-- \`<JWT_TOKEN>\`: token JWT (veja hook.config.mjs)
-- \`<PROJECT_ID>\`: ID copiado no Passo 1
+O arquivo \`.claude/settings.json\` já foi gerado com os valores corretos.
+${projectId ? `O \`PROJECT_ID\` já está preenchido: \`${projectId}\`` : 'Preencha o `PROJECT_ID` após criar o projeto no Rayzen.'}
 
-## Passo 4 — Indexar no Brain
+Verifique se o caminho do \`mcp-server.js\` e o \`AGENT_TOKEN\` estão corretos.
 
-No painel Rayzen → aba Brain → selecione este projeto e indexe as fontes:
-- GitHub: cole a URL do repositório
-- Arquivos: faça upload de docs, specs, etc.
+## Brain — indexar fontes de conhecimento
+
+No painel Rayzen → aba **Brain** → selecione **${name}** e indexe:
+- GitHub: URL do repositório
+- Arquivos: specs, ADRs, documentação técnica
 
 ## Verificação
 
-Abra o VS Code nesta pasta, faça uma edição qualquer e verifique se o evento aparece
-no painel "Atividade" do projeto no Rayzen (https://rayzen-web.vercel.app).
+1. Abra esta pasta no VS Code
+2. Faça qualquer edição
+3. Verifique se o evento aparece no painel **Atividade** do projeto no Rayzen
 
 ---
 *Gerado automaticamente via jarvis:create_project_folder template=rayzen*
@@ -149,5 +206,5 @@ no painel "Atividade" do projeto no Rayzen (https://rayzen-web.vercel.app).
     } catch { /* VS Code não instalado ou não no PATH */ }
   }
 
-  return { path: projectPath, created: true, dryRun: false, openedVscode }
+  return { path: projectPath, created: true, dryRun: false, openedVscode, projectId, repoSlug }
 }
