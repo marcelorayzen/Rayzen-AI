@@ -214,6 +214,15 @@ indexe o relatório de testes do build no dashboard QA
    → o documento consolida screenshots manuais do projeto com descrição, data e link
 ```
 
+### Categorias autom?ticas de evid?ncia
+
+Ao usar uma descri??o depois dos dois-pontos, o Rayzen classifica a captura para organizar melhor a documenta??o:
+
+- `teste de API 52` ? **Testes de API**
+- `teste manual do login` ? **Testes manuais**
+- `bug no login com senha inv?lida` ? **Bugs encontrados**
+- `corre??o do fluxo de checkout` ? **Evid?ncias de corre??o**
+
 ---
 
 ## 5. Integração com o Brain — dicas

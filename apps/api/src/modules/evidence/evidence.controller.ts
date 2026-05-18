@@ -38,6 +38,7 @@ export class EvidenceController {
       takenAt: typeof fields.takenAt?.value === 'string' ? fields.takenAt.value : null,
       prompt: typeof fields.prompt?.value === 'string' ? fields.prompt.value : null,
       description: typeof fields.description?.value === 'string' ? fields.description.value : null,
+      category: typeof fields.category?.value === 'string' ? fields.category.value : 'general',
       projectName: typeof fields.projectName?.value === 'string' ? fields.projectName.value : null,
     })
 

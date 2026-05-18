@@ -50,6 +50,7 @@ interface EvidenceItem {
   takenAt: string | null
   prompt: string | null
   description: string | null
+  category: string | null
   projectName: string | null
   createdAt: string
 }
@@ -2712,7 +2713,14 @@ export default function Home() {
                     )}
                     <div className="p-3 space-y-2">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-900 text-cyan-300">screenshot</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-900 text-cyan-300">screenshot</span>
+                          {item.category && item.category !== 'general' && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300">
+                              {item.category}
+                            </span>
+                          )}
+                        </div>
                         <span className="text-[10px] text-zinc-600">
                           {new Date(item.takenAt ?? item.createdAt).toLocaleString('pt-BR')}
                         </span>

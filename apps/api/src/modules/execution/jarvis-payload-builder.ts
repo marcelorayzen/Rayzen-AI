@@ -117,7 +117,9 @@ export function buildJarvisPayload(action: string, prompt: string): Record<strin
   if (action === 'screenshot') {
     const descriptionMatch = prompt.match(/:\s*(.+?)\s*$/)
     const description = descriptionMatch?.[1]?.trim()
-    return description ? { description, label: toEvidenceLabel(description) } : {}
+    return description
+      ? { description, label: toEvidenceLabel(description), category: classifyEvidenceDescription(description) }
+      : {}
   }
 
   if (action === 'notify') {
@@ -213,4 +215,13 @@ function toEvidenceLabel(value: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 60) || 'screenshot'
+}
+
+function classifyEvidenceDescription(value: string): 'api_test' | 'manual_test' | 'bug' | 'fix' | 'general' {
+  const text = value.toLowerCase()
+  if (/\b(api|endpoint|postman|newman|request|response)\b/.test(text)) return 'api_test'
+  if (/\b(bug|erro|falha|quebra|defeito)\b/.test(text)) return 'bug'
+  if (/\b(corre[cç][aã]o|corrigido|fix|ajuste resolvido)\b/.test(text)) return 'fix'
+  if (/\b(teste|valida[cç][aã]o|fluxo manual|manual)\b/.test(text)) return 'manual_test'
+  return 'general'
 }

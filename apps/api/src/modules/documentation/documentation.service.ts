@@ -247,7 +247,24 @@ export class DocumentationService {
       .map((event) => ({ event, metadata: (event.metadata ?? {}) as Record<string, unknown> }))
       .filter(({ metadata }) => metadata.kind === 'evidence' && metadata.evidenceType === 'screenshot')
 
-    const lines = evidence.map(({ event, metadata }) => {
+    const categoryLabels: Record<string, string> = {
+      api_test: 'Testes de API',
+      manual_test: 'Testes manuais',
+      bug: 'Bugs encontrados',
+      fix: 'Evidências de correção',
+      general: 'Gerais',
+    }
+
+    const byCategory = new Map<string, Array<{ event: typeof events[number]; metadata: Record<string, unknown> }>>()
+    for (const item of evidence) {
+      const category = typeof item.metadata.category === 'string' ? item.metadata.category : 'general'
+      const current = byCategory.get(category) ?? []
+      current.push(item)
+      byCategory.set(category, current)
+    }
+
+    const lines = [...byCategory.entries()].map(([category, items]) => {
+      const entries = items.map(({ event, metadata }) => {
       const description =
         typeof metadata.description === 'string' && metadata.description.trim()
           ? metadata.description
@@ -259,11 +276,17 @@ export class DocumentationService {
       const localPath = typeof metadata.path === 'string' ? metadata.path : null
 
       return [
-        `## ${new Date(event.ts).toLocaleString('pt-BR')}`,
+        `### ${new Date(event.ts).toLocaleString('pt-BR')}`,
         `**Descrição:** ${description}`,
         `**Evidência:** ${evidenceLink}`,
         localPath ? `**Arquivo local:** \`${localPath}\`` : null,
       ].filter(Boolean).join('\n')
+      })
+
+      return [
+        `## ${categoryLabels[category] ?? category}`,
+        entries.join('\n\n'),
+      ].join('\n\n')
     })
 
     const content = [

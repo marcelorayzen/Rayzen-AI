@@ -11,6 +11,7 @@ interface EvidenceMetadata {
   takenAt?: string | null
   prompt?: string
   description?: string | null
+  category?: string | null
   projectName?: string | null
 }
 
@@ -21,6 +22,7 @@ interface CreateScreenshotEvidenceInput {
   takenAt?: string | null
   prompt?: string | null
   description?: string | null
+  category?: string | null
   projectName?: string | null
 }
 
@@ -62,6 +64,7 @@ export class EvidenceService {
           takenAt: input.takenAt ?? null,
           prompt: input.prompt ?? null,
           description: input.description ?? null,
+          category: input.category ?? 'general',
           projectName: input.projectName ?? null,
         } as object,
       },
@@ -92,6 +95,7 @@ export class EvidenceService {
           takenAt: metadata.takenAt ?? null,
           prompt: metadata.prompt ?? null,
           description: metadata.description ?? null,
+          category: metadata.category ?? 'general',
           projectName: metadata.projectName ?? null,
           createdAt: event.ts,
         }
