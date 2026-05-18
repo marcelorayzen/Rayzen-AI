@@ -344,7 +344,7 @@ cp .env.example .env
 
 #### Passo 1 — Criar o projeto no Rayzen
 
-1. Acesse https://rayzen-web.vercel.app
+1. Acesse http://<VPS_IP>:3100
 2. Clique no `+` ao lado do seletor de projetos → nome: **[NOME DO PROJETO]**
 3. Copie o **projectId** gerado (visível na URL ou no painel do projeto)
 

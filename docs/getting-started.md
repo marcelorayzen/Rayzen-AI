@@ -2,6 +2,8 @@
 
 Para novos usuários que querem colocar o Rayzen funcionando do zero.
 
+> Estado atual do projeto: stack central em VPS + Agent desktop no PC de trabalho.
+
 ---
 
 ## O que é o Rayzen AI
@@ -74,7 +76,7 @@ ADMIN_PASSWORD=suasenha
 
 ---
 
-## Subir a infraestrutura
+## Subir a infraestrutura local (desenvolvimento)
 
 ```bash
 # Inicia PostgreSQL, Redis e LiteLLM proxy
@@ -108,6 +110,18 @@ pnpm dev:agent
 ```
 
 Acesse **http://localhost:3100** e faça login com sua `ADMIN_PASSWORD`.
+
+## Operação atual em produção
+
+Na instalação atual:
+
+- Web: `http://<VPS_IP>:3100`
+- API: `http://<VPS_IP>:3101`
+- Banco oficial: VPS
+- Agent desktop: PC de trabalho via `agent-start.bat`
+- Agent server: VPS via `docker compose up -d agent-server`
+
+Para o fluxo detalhado, consulte `docs/remote-agent-setup.md`.
 
 ---
 

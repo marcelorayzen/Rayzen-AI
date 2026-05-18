@@ -72,6 +72,18 @@ Antes de mudar uma decisão arquitetural, registrar aqui:
 
 ---
 
+
+### 2026-05-18 — Consolidação VPS, Agents por papel e evidências de QA
+**Contexto:** O Rayzen deixou de operar com API/banco no notebook e passou a usar uma VPS central, mantendo ações locais no PC de trabalho.
+**Decisão:** Consolidar `main` como branch principal, separar Agents por papel (`desktop` e `server`) e usar `repoSlug` como identidade técnica por projeto.
+**Impacto:** API, Web, Postgres, Redis, LiteLLM e Agent server rodam na VPS; o Agent desktop executa ações locais e preserva a separação entre projetos.
+
+### 2026-05-18 — Evidências visuais viraram artefato de QA
+**Contexto:** Screenshots eram úteis como prova, mas ficavam soltos e sem vínculo claro com projeto/documentação.
+**Decisão:** Capturas com projeto ativo agora salvam em `Pictures\Rayzen\<repoSlug>`, fazem upload para a API, aparecem na aba **Evidências** e alimentam o documento **Evidências de teste**.
+**Impacto:** O texto após `:` no comando vira descrição, base do nome do arquivo e categoria automática (`api_test`, `manual_test`, `bug`, `fix`, `general`).
+**Próxima evolução planejada:** primeiro vincular evidências a `TestRun`; depois vincular a uma falha/caso específico do run.
+
 ## Problemas enfrentados
 
 ### 2026-04-01 — Navegador abrindo em loop infinito

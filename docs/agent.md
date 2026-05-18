@@ -1,7 +1,11 @@
 # Rayzen AI — PC Agent: Guia Completo
 
-O PC Agent é o componente que roda na sua máquina local e executa tarefas físicas no seu computador a pedido do Rayzen.
-Ele é separado da API (que roda na VPS) por segurança — a VPS nunca tem acesso direto ao seu PC.
+O Agent é dividido em dois papéis:
+
+- `desktop`: roda no PC de trabalho e executa tarefas locais como screenshot, VS Code, clipboard e testes locais;
+- `server`: roda na VPS e executa tarefas da stack hospedada, como Docker e restart da API.
+
+O papel `desktop` é separado da API por segurança — a VPS nunca tem acesso direto ao seu PC.
 
 ---
 
@@ -29,6 +33,9 @@ O agent **nunca recebe comandos diretos** — ele só lê tarefas da fila. Se a 
 | `jarvis:list_dir` | Lista arquivos de uma pasta | Baixo |
 | `jarvis:get_system_info` | Retorna CPU, RAM, disco, SO | Baixo |
 | `jarvis:organize_downloads` | Move arquivos por tipo de extensão | Médio |
+| `jarvis:screenshot` | Captura tela, salva por `repoSlug` e envia evidência ao projeto | Médio |
+| `jarvis:docker_logs` | Lê logs de container no Agent `server` | Baixo |
+| `jarvis:restart_api` | Reinicia a API via Agent `server` | Alto |
 
 ---
 

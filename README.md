@@ -118,6 +118,7 @@
 | "Salva isso no meu Notion" | Notion | Cria/acrescenta páginas via SDK Notion, markdown → blocos Notion |
 | "Mostra o schema do banco de dados" | Execution → Agent | `inspect_schema` parseia `schema.prisma` localmente, retorna catálogo de modelos |
 | "Roda os testes e mostra coverage" | Execution → Agent | `run_tests` invoca Jest/Vitest/Playwright, retorna resultado estruturado |
+| "Tire um print da tela: teste de API 52" | Evidence | Desktop Agent salva por `repoSlug`, envia para a API e alimenta a documentação de teste |
 
 ---
 
@@ -291,7 +292,9 @@ Veja [docs/agent-runtime.md](docs/agent-runtime.md) para o modelo de segurança 
 
 ## Quick start
 
-**Pré-requisitos:** Node.js 20 LTS, pnpm 9.x, Docker Desktop
+**Pré-requisitos para desenvolvimento local:** Node.js 20+ no Agent Rayzen, pnpm 9.x e Docker Desktop.
+
+**Operação atual:** stack central em VPS, Web/API em `<VPS_IP>`, Agent desktop no PC de trabalho e Agent server na VPS. Veja `docs/remote-agent-setup.md`.
 
 ```bash
 git clone https://github.com/marcelorayzen/rayzen-ai.git

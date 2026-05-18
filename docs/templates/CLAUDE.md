@@ -268,4 +268,4 @@ O MCP permite que o Claude consulte estado, memória, eventos e wiki do projeto 
 - Board / Issues: [url]
 - Staging: [url]
 - Monitoramento: [url]
-- Rayzen AI (produção): https://rayzen-web.vercel.app
+- Rayzen AI (produção): http://<VPS_IP>:3100

@@ -10,7 +10,7 @@ Plataforma pessoal de IA com automação, memória semântica, geração de docu
 
 **Dono:** Marcelo Rayzen — QA Automation Engineer / Full-stack Developer
 **Repositório:** `github.com/marcelorayzen/rayzen-ai`
-**Branch de trabalho temporária:** `local/marcelo` até consolidar a linha atual em `main`
+**Branch principal:** `main`
 **Web atual:** `http://<VPS_IP>:3100`
 **API atual:** `http://<VPS_IP>:3101`
 **Notion:** https://www.notion.so/334c784498d6818e83a2f0439f5da8cd
@@ -132,7 +132,7 @@ rayzen-ai/
 │   ├── api/                    # NestJS + Fastify
 │   │   ├── src/modules/        # 28 módulos (ver tabela abaixo)
 │   │   └── prisma/schema.prisma
-│   ├── web/                    # Next.js App Router (Vercel)
+│   ├── web/                    # Next.js App Router (servi?o web na VPS)
 │   └── agent/
 │       ├── src/
 │       │   ├── index.ts        # entry point — poll loop
@@ -266,7 +266,7 @@ Toda nova ação **deve** ser adicionada a `apps/agent/src/security/whitelist.ts
 | `jarvis:organize_downloads` | `organize-downloads.ts` | dryRun disponível |
 | `jarvis:create_project_folder` | `create-project-folder.ts` | templates: blank/node/nextjs/python |
 | `jarvis:get_system_info` | `get-system-info.ts` | CPU, RAM, disco, uptime |
-| `jarvis:screenshot` | `screenshot.ts` | salva em Pictures |
+| `jarvis:screenshot` | `screenshot.ts` | salva por `repoSlug`, envia evid?ncia para a API e alimenta documenta??o de teste |
 | `jarvis:notify` | `notify.ts` | toast Windows |
 | `jarvis:clipboard_read` | `clipboard.ts` | |
 | `jarvis:clipboard_write` | `clipboard.ts` | |

@@ -211,7 +211,9 @@ See [docs/agent-runtime.md](docs/agent-runtime.md) for the full security model a
 
 ## Quick start
 
-**Prerequisites:** Node.js 20 LTS, pnpm 9.x, Docker Desktop
+**Local development prerequisites:** Node.js 20+ for the Rayzen Agent, pnpm 9.x, Docker Desktop.
+
+**Current operation:** central stack on a VPS, Web/API on `<VPS_IP>`, desktop Agent on the workstation, and server Agent on the VPS. See `docs/remote-agent-setup.md`.
 
 ```bash
 git clone https://github.com/marcelorayzen/rayzen-ai.git

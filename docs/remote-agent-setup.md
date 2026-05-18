@@ -113,3 +113,30 @@ Separação operacional:
 | `server` | VPS | logs de containers, Docker da stack, restart da API |
 
 `screenshot` fica no desktop; provas visuais saem da tela real do usuário. Na VPS, a evidência normalmente é log, status de container ou resposta HTTP.
+
+## 7) Evidências visuais por projeto
+
+1. Com um projeto ativo no Rayzen, peça:
+   - `tire um print da tela: teste de API 52`
+2. O fluxo esperado é:
+   - o desktop Agent captura a tela real do PC;
+   - salva localmente em `Pictures\Rayzen\<repoSlug>\...`;
+   - faz upload para a API da VPS;
+   - cria uma evidência vinculada ao projeto;
+   - mostra o item na aba **Evidências**;
+   - alimenta o documento **Evidências de teste**.
+3. O trecho após `:` vira:
+   - descrição da evidência;
+   - base do nome do arquivo;
+   - insumo para a categoria automática.
+4. Categorias iniciais:
+   - `api_test`
+   - `manual_test`
+   - `bug`
+   - `fix`
+   - `general`
+
+### Evolução planejada
+
+- Etapa futura 1: vincular evidência ao `TestRun` do projeto.
+- Etapa futura 2: vincular evidência a uma falha/caso específico do run.
