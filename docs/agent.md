@@ -291,3 +291,35 @@ apps/agent/src/
 - [ ] Está na whitelist?
 - [ ] Tem handler no `executor.ts`?
 - [ ] Foi testada manualmente antes de ser usada em produção?
+
+
+---
+
+## Captura de atividade: Claude hook + watcher agnostico
+
+Existem dois caminhos diferentes para registrar atividade no Rayzen:
+
+1. **Hook do Claude Code**
+   - Captura eventos ricos do Claude, como `PostToolUse`, `Stop`, arquivos lidos/editados e comandos executados pelo Claude.
+   - Depende do Claude Code e do arquivo `%USERPROFILE%\.claude\settings.json`.
+   - Nao captura automaticamente sessoes feitas pelo Codex, terminal comum, VS Code manual, Postman ou outras ferramentas.
+
+2. **Workspace watcher do Desktop Agent**
+   - Roda dentro do Agent desktop.
+   - Observa repositorios Git configurados em `AGENT_WORKSPACE_ROOTS`.
+   - Detecta alteracoes reais no workspace via `git status`.
+   - Envia eventos para o Rayzen mesmo quando a atividade veio de Codex, VS Code, terminal comum ou outra ferramenta.
+
+O hook do Claude continua util porque fornece eventos mais detalhados. O watcher agnostico e a base para nao depender de uma unica ferramenta.
+
+Configuracao no `.env.agent.local`:
+
+```env
+AGENT_WORKSPACE_WATCH_ENABLED=true
+AGENT_WORKSPACE_WATCH_INTERVAL_MS=30000
+AGENT_WORKSPACE_ROOTS=C:\Users\marce\Desktop\Projects;C:\Users\marce\Desktop\boost
+```
+
+Se `AGENT_WORKSPACE_ROOTS` ficar vazio, o Agent usa o diretorio atual e `%USERPROFILE%\Desktop\Projects`.
+
+Limitacao importante: o watcher nao sabe qual comando interno o Codex ou outra ferramenta executou. Ele registra a consequencia operacional no repositorio: arquivos alterados, branch, commit atual e `repoSlug`.

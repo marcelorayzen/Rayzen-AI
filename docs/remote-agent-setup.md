@@ -28,9 +28,16 @@
    - inicia `node dist/index.js`
 5. O Agent aceita Node.js `20+` no PC de trabalho. Isso é independente da versão exigida pelo projeto que estiver aberto no VS Code.
 
-## 3) Hook global e separação por projeto
+## 3) Captura automatica de atividade
 
-1. O hook global do Claude fica em `%USERPROFILE%\\.claude\\settings.json`.
+O Rayzen usa duas formas de captura:
+
+- **Claude hook:** captura eventos ricos quando o trabalho acontece no Claude Code.
+- **Workspace watcher:** roda no Desktop Agent e captura alteracoes de repositorios Git, inclusive quando o trabalho acontece no Codex, VS Code, terminal comum, Postman, Playwright ou outras ferramentas.
+
+### 3.1) Claude hook
+
+1. O hook global do Claude fica em `%USERPROFILE%\.claude\settings.json`.
 2. O script executado pelo hook fica em:
    - `apps/agent/src/hooks/rayzen-hook.mjs`
 3. No `hook.config.mjs`, use:
@@ -43,12 +50,26 @@ export default {
 }
 ```
 
-4. Com `projectId` vazio, o hook resolve o projeto pelo `repoSlug` do repositório Git aberto:
+4. Com `projectId` vazio, o hook resolve o projeto pelo `repoSlug` do repositorio Git aberto:
    - `rayzen-ai` -> `Rayzen AI`
    - `Rayzen-PDV` -> `Rayzen-PDV`
-5. Para não misturar projetos:
+5. Para nao misturar projetos:
    - cada projeto no Rayzen precisa ter `repoSlug` correto;
-   - o workspace aberto precisa ser um repositório Git com `origin` coerente.
+   - o workspace aberto precisa ser um repositorio Git com `origin` coerente.
+
+### 3.2) Workspace watcher agnostico
+
+Configure no `.env.agent.local`:
+
+```env
+AGENT_WORKSPACE_WATCH_ENABLED=true
+AGENT_WORKSPACE_WATCH_INTERVAL_MS=30000
+AGENT_WORKSPACE_ROOTS=C:\Users\marce\Desktop\Projects;C:\Users\marce\Desktop\boost
+```
+
+O watcher procura repositorios Git nessas pastas, detecta mudancas por `git status` e envia eventos para o projeto correspondente pelo `repoSlug`.
+
+Essa captura e menos detalhada que o hook do Claude, mas funciona independentemente da ferramenta usada.
 
 ## 4) MCP por projeto
 

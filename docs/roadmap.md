@@ -41,9 +41,9 @@ Cada fase tem escopo mínimo e critério de done explícito. Nada avança sem o 
 
 ---
 
-## Fase 3 — Hooks Claude Code → Rayzen
+## Fase 3 ? Captura de atividade Claude Code + workspace ? Rayzen
 
-**Objetivo:** o trabalho no terminal (Claude Code CLI) aparece automaticamente no Rayzen sem ação manual.
+**Objetivo:** o trabalho no terminal e no workspace aparece automaticamente no Rayzen sem acao manual, sem depender exclusivamente de uma unica ferramenta.
 
 ### O que implementar
 
@@ -52,10 +52,15 @@ Cada fase tem escopo mínimo e critério de done explícito. Nada avança sem o 
 - [x] Hook `Stop` no `settings.json`
 - [x] Campo `active_project_id` via `hook.config.mjs`
 - [x] Teste manual: rodar Claude Code, editar um arquivo, verificar evento no Rayzen
+- [x] Workspace watcher no Desktop Agent para capturar alteracoes feitas por Codex, VS Code, terminal comum ou outras ferramentas
+- [x] Configuracao `AGENT_WORKSPACE_ROOTS` para observar multiplas pastas de projetos
+- [x] Resolucao por `repoSlug` para manter eventos no projeto correto
 
-### Critério de done
+### Criterio de done
 
-> Trabalho 10 minutos no terminal com o Claude Code, abro o Rayzen e vejo na timeline: quais arquivos foram tocados, quais comandos rodaram e o resumo da sessão — sem ter feito nada manualmente.
+> Trabalho 10 minutos no Claude Code, Codex, VS Code ou terminal comum. Ao abrir o Rayzen, vejo atividade no projeto correto: arquivos alterados, branch, commit atual e origem da captura, sem registrar manualmente.
+
+**Limitacao documentada:** o hook do Claude captura detalhes internos da sessao do Claude. O watcher agnostico captura o efeito no workspace, mas nao sabe todos os comandos internos executados por cada ferramenta.
 
 ---
 

@@ -35,8 +35,11 @@ if %NODE_MAJOR% LSS 20 (
     goto :fail
 )
 
-if not exist ".env" (
-    echo  ERRO: .env nao encontrado.
+set "ENV_FILE=.env.agent.local"
+if not exist "%ENV_FILE%" set "ENV_FILE=.env"
+
+if not exist "%ENV_FILE%" (
+    echo  ERRO: .env.agent.local ou .env nao encontrado.
     echo  Use .env.agent.example como base no PC de trabalho.
     goto :fail
 )
@@ -44,7 +47,7 @@ if not exist ".env" (
 set "AGENT_API_URL="
 set "AGENT_TOKEN="
 set "AGENT_ROLE="
-for /f "tokens=1,* delims==" %%A in (.env) do (
+for /f "tokens=1,* delims==" %%A in (%ENV_FILE%) do (
     if /i "%%A"=="AGENT_API_URL" set "AGENT_API_URL=%%B"
     if /i "%%A"=="AGENT_TOKEN" set "AGENT_TOKEN=%%B"
     if /i "%%A"=="AGENT_ROLE" set "AGENT_ROLE=%%B"
@@ -85,6 +88,7 @@ echo.
 echo  Iniciando Agent...
 echo  Papel: %AGENT_ROLE%
 echo  API: %AGENT_API_URL%
+echo  Env: %ENV_FILE%
 echo.
 call %PNPM% --filter agent build
 if errorlevel 1 (
@@ -92,7 +96,7 @@ if errorlevel 1 (
     goto :fail
 )
 
-start "Rayzen Remote Agent" powershell.exe -NoProfile -NoExit -ExecutionPolicy Bypass -Command "Set-Location -LiteralPath '%CD%'; pnpm.cmd --filter agent start"
+start "Rayzen Remote Agent" powershell.exe -NoProfile -NoExit -ExecutionPolicy Bypass -Command "Set-Location -LiteralPath '%CD%'; $env:DOTENV_CONFIG_PATH='%ENV_FILE%'; pnpm.cmd --filter agent start"
 
 if "%AUTO_MODE%"=="0" pause
 exit /b 0

@@ -122,11 +122,12 @@ O Agent deixou de ser único: hoje há separação entre execução local e oper
 
 ---
 
-## Slide 8 — Hooks e Event Log
+## Slide 8 — Hooks, watcher e Event Log
 ### Captura automática gera rastreabilidade por projeto
 
 **Fontes capturadas**
-- Terminal / Claude Code.
+- Claude Code via hook.
+- Codex, VS Code e terminal comum via workspace watcher.
 - Arquivos alterados.
 - Comandos executados.
 - Fim de sessão.
@@ -137,7 +138,7 @@ O Agent deixou de ser único: hoje há separação entre execução local e oper
 Cada evento é associado ao projeto correto e passa a compor a timeline de trabalho.
 
 **Mensagem final:**  
-Eventos reais deixam de se perder e viram matéria-prima para memória, retomada e documentação.
+Eventos reais deixam de se perder e viram matéria-prima para memória, retomada e documentação. O hook do Claude captura detalhes internos da sessão; o watcher agnóstico captura alterações reais do workspace.
 
 ---
 

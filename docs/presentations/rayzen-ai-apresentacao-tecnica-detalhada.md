@@ -198,6 +198,28 @@ o usuário pode perguntar “onde parei?”, “qual foi a decisão sobre Docker
 
 ---
 
+## Slide 8A — Captura de atividade
+
+### Claude hook + workspace watcher
+
+O Rayzen possui dois caminhos de captura:
+
+**Claude hook**
+- registra eventos ricos do Claude Code;
+- captura uso de ferramentas, arquivos lidos/editados e fim de sessão;
+- depende do hook configurado no Claude.
+
+**Workspace watcher**
+- roda no Desktop Agent;
+- observa repositórios Git configurados;
+- detecta mudanças feitas por Codex, VS Code, terminal comum ou outras ferramentas;
+- associa a atividade ao projeto correto pelo `repoSlug`.
+
+**Mensagem-chave:**  
+o Rayzen não deve depender de uma única ferramenta. O Claude fornece captura detalhada; o watcher garante captura operacional agnóstica.
+
+---
+
 ## Slide 9 — Documentação viva
 
 ### Documentação gerada a partir de eventos reais
@@ -546,4 +568,3 @@ Ele combina:
 
 **Frase final sugerida:**  
 O objetivo não é substituir o trabalho técnico, mas aumentar a capacidade de lembrar, organizar, testar, documentar e executar com mais clareza.
-
