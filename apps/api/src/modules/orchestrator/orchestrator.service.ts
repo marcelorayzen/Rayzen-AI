@@ -620,8 +620,9 @@ Seja direto, claro e amigável. Português brasileiro. Sem JSON bruto.`,
       takenAt?: string
       upload?: { url?: string }
     }
+    const fileName = screenshot.path?.split(/[\\/]/).pop()
     const lines = [
-      screenshot.path ? `Print salvo em \`${screenshot.path}\`.` : 'Print capturado.',
+      screenshot.path ? `Print salvo: \`${fileName ?? screenshot.path}\`.` : 'Print capturado.',
     ]
     if (screenshot.upload?.url) {
       lines.push(`[Abrir evidência](${screenshot.upload.url})`)

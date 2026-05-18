@@ -49,6 +49,7 @@ interface EvidenceItem {
   remotePath: string | null
   takenAt: string | null
   prompt: string | null
+  description: string | null
   projectName: string | null
   createdAt: string
 }
@@ -2715,7 +2716,9 @@ export default function Home() {
                           {new Date(item.takenAt ?? item.createdAt).toLocaleString('pt-BR')}
                         </span>
                       </div>
-                      {item.prompt && <p className="text-xs text-zinc-300 line-clamp-2">{item.prompt}</p>}
+                      {item.description
+                        ? <p className="text-xs text-zinc-200 line-clamp-2">{item.description}</p>
+                        : item.prompt && <p className="text-xs text-zinc-300 line-clamp-2">{item.prompt}</p>}
                       {item.localPath && (
                         <p className="text-[10px] font-mono text-zinc-600 truncate" title={item.localPath}>{item.localPath}</p>
                       )}

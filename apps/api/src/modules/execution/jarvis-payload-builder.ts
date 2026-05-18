@@ -114,7 +114,11 @@ export function buildJarvisPayload(action: string, prompt: string): Record<strin
     return { name: nameMatch ? nameMatch[1] : '', tail: tailMatch ? parseInt(tailMatch[1]) : 100 }
   }
 
-  if (action === 'screenshot') return {}
+  if (action === 'screenshot') {
+    const descriptionMatch = prompt.match(/:\s*(.+?)\s*$/)
+    const description = descriptionMatch?.[1]?.trim()
+    return description ? { description, label: toEvidenceLabel(description) } : {}
+  }
 
   if (action === 'notify') {
     const titleMatch = prompt.match(/(?:título|title|assunto)\s+[""']?(.+?)[""']?(?:\s+mensagem|\s+com|$)/i)
@@ -199,4 +203,14 @@ export function buildJarvisPayload(action: string, prompt: string): Record<strin
   }
 
   return { prompt }
+}
+
+function toEvidenceLabel(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60) || 'screenshot'
 }

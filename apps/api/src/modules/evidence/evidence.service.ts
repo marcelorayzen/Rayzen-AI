@@ -10,6 +10,7 @@ interface EvidenceMetadata {
   remotePath?: string | null
   takenAt?: string | null
   prompt?: string
+  description?: string | null
   projectName?: string | null
 }
 
@@ -19,6 +20,7 @@ interface CreateScreenshotEvidenceInput {
   remotePath: string
   takenAt?: string | null
   prompt?: string | null
+  description?: string | null
   projectName?: string | null
 }
 
@@ -47,7 +49,11 @@ export class EvidenceService {
         source: 'execution',
         type: 'note',
         intent: 'reference',
-        content: input.localPath ? `Screenshot capturado: ${input.localPath}` : 'Screenshot capturado',
+        content: input.description
+          ? `Screenshot: ${input.description}`
+          : input.localPath
+            ? `Screenshot capturado: ${input.localPath}`
+            : 'Screenshot capturado',
         metadata: {
           kind: 'evidence',
           evidenceType: 'screenshot',
@@ -55,6 +61,7 @@ export class EvidenceService {
           remotePath: input.remotePath,
           takenAt: input.takenAt ?? null,
           prompt: input.prompt ?? null,
+          description: input.description ?? null,
           projectName: input.projectName ?? null,
         } as object,
       },
@@ -84,6 +91,7 @@ export class EvidenceService {
           remotePath: metadata.remotePath ?? null,
           takenAt: metadata.takenAt ?? null,
           prompt: metadata.prompt ?? null,
+          description: metadata.description ?? null,
           projectName: metadata.projectName ?? null,
           createdAt: event.ts,
         }

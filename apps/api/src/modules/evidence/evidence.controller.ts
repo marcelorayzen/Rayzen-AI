@@ -37,6 +37,7 @@ export class EvidenceController {
       remotePath: relativePath,
       takenAt: typeof fields.takenAt?.value === 'string' ? fields.takenAt.value : null,
       prompt: typeof fields.prompt?.value === 'string' ? fields.prompt.value : null,
+      description: typeof fields.description?.value === 'string' ? fields.description.value : null,
       projectName: typeof fields.projectName?.value === 'string' ? fields.projectName.value : null,
     })
 

@@ -60,6 +60,7 @@ async function maybeUploadEvidence(task: Task, result: unknown): Promise<unknown
     if (screenshot.takenAt) form.set('takenAt', screenshot.takenAt)
     if (typeof payload.prompt === 'string') form.set('prompt', payload.prompt)
     if (typeof payload.projectName === 'string') form.set('projectName', payload.projectName)
+    if (typeof payload.description === 'string') form.set('description', payload.description)
 
     const response = await fetch(`${process.env.AGENT_API_URL}/evidence/upload/${projectId}`, {
       method: 'POST',
