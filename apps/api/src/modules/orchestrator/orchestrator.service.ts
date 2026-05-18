@@ -336,6 +336,17 @@ export class OrchestratorService {
           return { reply, module: classify.module, action: classify.action, confidence: classify.confidence, tokensUsed: 0, sessionId }
         }
         const result = await this.execution.dispatch(classify.action, jarvisPayload)
+        const directReply = this.buildDirectJarvisReply(classify.action, result)
+        if (directReply) {
+          return {
+            reply: directReply,
+            module: classify.module,
+            action: classify.action,
+            confidence: classify.confidence,
+            tokensUsed: 0,
+            sessionId,
+          }
+        }
         // Sintetiza resposta natural a partir do resultado
         const synthesis = await this.llm.chat.completions.create({
           model: 'gpt-4o-mini',
@@ -564,6 +575,17 @@ Formato da resposta: { "module": "...", "action": "...", "confidence": 0.0-1.0 }
     projectId?: string,
   ): Promise<OrchestrateResult> {
     const result = await this.execution.dispatch(action, payload)
+    const directReply = this.buildDirectJarvisReply(action, result)
+    if (directReply) {
+      return {
+        reply: directReply,
+        module: 'jarvis',
+        action,
+        confidence: 1,
+        tokensUsed: 0,
+        sessionId,
+      }
+    }
     const synthesis = await this.llm.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
@@ -591,6 +613,22 @@ Seja direto, claro e amigável. Português brasileiro. Sem JSON bruto.`,
     }
   }
 
+  private buildDirectJarvisReply(action: string, result: unknown): string | null {
+    if (action !== 'screenshot') return null
+    const screenshot = result as {
+      path?: string
+      takenAt?: string
+      upload?: { url?: string }
+    }
+    const lines = [
+      screenshot.path ? `Print salvo em \`${screenshot.path}\`.` : 'Print capturado.',
+    ]
+    if (screenshot.upload?.url) {
+      lines.push(`[Abrir evidência](${screenshot.upload.url})`)
+    }
+    return lines.join('\n\n')
+  }
+
   private async enrichJarvisPayload(
     action: string,
     payload: Record<string, unknown>,
@@ -601,11 +639,17 @@ Seja direto, claro e amigável. Português brasileiro. Sem JSON bruto.`,
 
     const project = await this.prisma.project.findUnique({
       where: { id: projectId },
-      select: { name: true },
+      select: { name: true, repoSlug: true },
     })
 
     return project?.name
-      ? { ...payload, projectId, projectName: project.name, prompt }
+      ? {
+          ...payload,
+          projectId,
+          projectName: project.name,
+          projectFolder: project.repoSlug ?? project.name,
+          prompt,
+        }
       : { ...payload, projectId, prompt }
   }
 

@@ -4,13 +4,14 @@ import { join } from 'node:path'
 
 export async function takeScreenshot(payload?: {
   projectName?: string
+  projectFolder?: string
   label?: string
 }): Promise<{ path: string; takenAt: string }> {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
 
   // Organiza por projeto: Pictures\Rayzen\{projeto}\{label}-{ts}.png
   // Sem projeto: Pictures\Rayzen\geral\{ts}.png
-  const project = sanitize(payload?.projectName) ?? 'geral'
+  const project = sanitize(payload?.projectFolder ?? payload?.projectName) ?? 'geral'
   const prefix  = sanitize(payload?.label) ?? 'screenshot'
   const filename = `${prefix}-${timestamp}.png`
 
