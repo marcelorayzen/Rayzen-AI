@@ -3,7 +3,7 @@ import { ApiTags } from '@nestjs/swagger'
 import { SkipThrottle } from '@nestjs/throttler'
 import { AgentBridgeService } from './agent-bridge.service'
 import { AgentTokenGuard } from './agent-token.guard'
-import { TaskStatus } from '@rayzen/types'
+import { AgentRole, TaskStatus } from '@rayzen/types'
 import { IsString, IsOptional } from 'class-validator'
 
 class UpdateTaskDto {
@@ -20,7 +20,7 @@ export class AgentBridgeController {
   constructor(private readonly svc: AgentBridgeService) {}
 
   @Get('pending')
-  getPending(@Query('role') role?: string) { return this.svc.getPending(role) }
+  getPending(@Query('role') role?: AgentRole) { return this.svc.getPending(role) }
 
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateTaskDto) {

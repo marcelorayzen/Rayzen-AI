@@ -1,5 +1,6 @@
 // Task types (shared entre API e Agent)
 export type TaskStatus = 'pending' | 'processing' | 'done' | 'failed'
+export type AgentRole = 'desktop' | 'server'
 // TaskModule: valores literais NÃO mudam — usados em runtime pelo executor.ts e whitelist.ts do agent
 export type TaskModule = 'jarvis' | 'content' | 'doc' | 'brain' | 'system'
 // TaskDomain: alias semântico para uso em código novo
@@ -11,7 +12,7 @@ export interface Task {
   action: string
   payload: Record<string, unknown>
   status: TaskStatus
-  targetRole?: string   // 'notebook' | 'desktop' | undefined (any)
+    targetRole?: AgentRole
   result?: unknown
   error?: string
   createdAt: string
@@ -22,7 +23,7 @@ export interface TaskCreateDto {
   module: TaskModule
   action: string
   payload: Record<string, unknown>
-  targetRole?: string
+    targetRole?: AgentRole
 }
 
 // Agent types

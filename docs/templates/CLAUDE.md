@@ -239,6 +239,15 @@ O MCP permite que o Claude consulte estado, memória, eventos e wiki do projeto 
 - `rayzen_add_event` — registrar evento manual
 - `rayzen_update_planning` — atualizar milestones/blockers/nextSteps
 
+### Papéis dos Agents
+
+| Papel | Onde roda | Exemplos |
+|---|---|---|
+| `desktop` | PC de trabalho | screenshot, VS Code, clipboard, testes locais, provas visuais |
+| `server` | VPS | logs de containers, Docker da stack, restart da API |
+
+`screenshot` pertence ao desktop; logs e status da stack hospedada pertencem ao server.
+
 ### Problemas comuns
 
 | Sintoma | Causa provável | Solução |

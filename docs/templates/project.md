@@ -409,6 +409,7 @@ Faça qualquer edição no VS Code e verifique se o evento aparece no painel **A
 O Agent local continua no seu PC e deve apontar para a API da VPS:
 
 ```env
+AGENT_ROLE=desktop
 AGENT_API_URL=http://<VPS_IP>:3101
 AGENT_TOKEN=<agent-token>
 ```

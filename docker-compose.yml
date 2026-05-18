@@ -63,6 +63,23 @@ services:
       litellm:
         condition: service_started
 
+  agent-server:
+    build:
+      context: .
+      dockerfile: apps/agent/Dockerfile.server
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      AGENT_ROLE: server
+      AGENT_API_URL: http://api:3001
+      AGENT_TOKEN: ${AGENT_TOKEN}
+      AGENT_POLL_INTERVAL_MS: 3000
+      SERVER_API_CONTAINER: rayzen-ai-api-1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - api
+
 volumes:
   pg_data:
   redis_data:

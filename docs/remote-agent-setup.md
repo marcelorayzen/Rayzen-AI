@@ -13,10 +13,11 @@
    - API: `http://<VPS_IP>:3101`
 3. O banco oficial fica na VPS. O PC de trabalho não precisa manter Postgres local para operar o Rayzen.
 
-## 2) PC de trabalho (Agent remoto)
+## 2) PC de trabalho (Agent desktop)
 
 1. Clone o repo.
 2. Configure o `.env` usado por `agent-start.bat`:
+   - `AGENT_ROLE=desktop`
    - `AGENT_API_URL=http://<VPS_IP>:3101`
    - `AGENT_TOKEN=<mesmo token configurado na VPS>`
 3. Inicie:
@@ -76,3 +77,38 @@ Exemplo:
 - Não reutilize token fraco em `AGENT_TOKEN`.
 - Rotacione `AGENT_TOKEN` se houver suspeita de vazamento.
 - Próximo passo recomendado: domínio + HTTPS com proxy reverso.
+
+## 6) Agent da VPS
+
+O Agent da VPS executa apenas ações próprias do servidor, como:
+
+- `docker_ps`
+- `docker_logs`
+- `docker_start`
+- `docker_stop`
+- `restart_api`
+
+Configuração preferida na VPS: serviço `agent-server` do `docker-compose.yml`.
+
+```bash
+docker compose build agent-server
+docker compose up -d agent-server
+```
+
+Configuração alternativa fora do compose:
+
+```bash
+cp .env.agent.server.example .env.agent.server
+# editar AGENT_TOKEN se necessário
+chmod +x agent-server-start.sh
+./agent-server-start.sh
+```
+
+Separação operacional:
+
+| Papel | Onde roda | Exemplos |
+|---|---|---|
+| `desktop` | PC de trabalho | screenshot, VS Code, clipboard, testes locais, provas visuais |
+| `server` | VPS | logs de containers, Docker da stack, restart da API |
+
+`screenshot` fica no desktop; provas visuais saem da tela real do usuário. Na VPS, a evidência normalmente é log, status de container ou resposta HTTP.

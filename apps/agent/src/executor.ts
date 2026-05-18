@@ -23,12 +23,19 @@ import { parseTestReport } from './actions/parse-test-report'
 import { getQaSummary } from './actions/get-qa-summary'
 import { getDataQuality } from './actions/get-data-quality'
 import { captureTestFailure } from './actions/capture-test-failure'
+import { dockerLogs } from './actions/docker'
+import { isActionAllowedForRole } from './role-policy'
+import { AgentRole } from '@rayzen/types'
 
 export async function executeTask(task: Task): Promise<unknown> {
   const key = `${task.module}:${task.action}`
 
   if (!ALLOWED_ACTIONS.has(key)) {
     throw new Error(`Ação não permitida: ${key}`)
+  }
+  const role: AgentRole = process.env.AGENT_ROLE === 'server' ? 'server' : 'desktop'
+  if (!isActionAllowedForRole(role, key)) {
+    throw new Error(`Ação ${key} não permitida para o agente ${role}`)
   }
 
   const p = task.payload as Record<string, unknown>
@@ -67,6 +74,7 @@ export async function executeTask(task: Task): Promise<unknown> {
     case 'jarvis:docker_ps':    return dockerPs()
     case 'jarvis:docker_start': return dockerStart(p as { name: string; dryRun?: boolean })
     case 'jarvis:docker_stop':  return dockerStop(p as { name: string; dryRun?: boolean })
+    case 'jarvis:docker_logs':  return dockerLogs(p as { name: string; tail?: number })
 
     // Outlook
     case 'jarvis:read_emails':  return readEmails(p as { limit?: number })
@@ -79,8 +87,8 @@ export async function executeTask(task: Task): Promise<unknown> {
     case 'jarvis:get_data_quality':     return getDataQuality(p as { projectId?: string; dataset?: string; type?: 'summary' | 'score' | 'history' | 'rules' | 'results'; ruleId?: string; days?: number })
     case 'jarvis:capture_test_failure': return captureTestFailure(p as { projectPath?: string; reportDir?: string; screenshotDir?: string; projectId?: string; takeScreenshotOnFailure?: boolean })
 
-    // Infraestrutura do notebook
-    case 'jarvis:restart_api':  return restartApi(p as { branch?: string; dryRun?: boolean })
+    // Infraestrutura do servidor
+    case 'jarvis:restart_api':  return restartApi(p as { dryRun?: boolean })
 
     default:
       throw new Error(`Handler não implementado: ${key}`)

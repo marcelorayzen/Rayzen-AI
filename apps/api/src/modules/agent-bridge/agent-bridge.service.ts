@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { InjectQueue } from '@nestjs/bull'
 import { Queue } from 'bull'
-import { Task, TaskCreateDto, TaskStatus } from '@rayzen/types'
+import { AgentRole, Task, TaskCreateDto, TaskStatus } from '@rayzen/types'
 import { randomUUID } from 'crypto'
 
 @Injectable()
@@ -16,7 +16,7 @@ export class AgentBridgeService {
     return task
   }
 
-  async getPending(role?: string): Promise<Task[]> {
+  async getPending(role?: AgentRole): Promise<Task[]> {
     const jobs = await this.queue.getJobs(['waiting', 'delayed'])
     return jobs
       .map((j) => j.data as Task)

@@ -28,3 +28,11 @@ export async function dockerStop(payload: { name: string; dryRun?: boolean }) {
   exec(`docker stop ${name}`)
   return { stopped: name }
 }
+
+export async function dockerLogs(payload: { name: string; tail?: number }) {
+  const name = payload.name.replace(/[^a-zA-Z0-9_\-]/g, '')
+  if (!name) throw new Error('Nome do container inválido')
+  const tail = Math.min(Math.max(payload.tail ?? 100, 1), 500)
+  const output = exec(`docker logs --tail ${tail} ${name}`)
+  return { name, tail, output: output.slice(-12000) }
+}

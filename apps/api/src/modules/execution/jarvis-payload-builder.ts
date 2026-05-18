@@ -108,6 +108,12 @@ export function buildJarvisPayload(action: string, prompt: string): Record<strin
     return { name: nameMatch ? nameMatch[1] : '', dryRun: false }
   }
 
+  if (action === 'docker_logs') {
+    const nameMatch = prompt.match(/(?:container|servi[çc]o|logs?)\s+([a-zA-Z0-9_\-]+)/i)
+    const tailMatch = prompt.match(/(?:ultim[oa]s?|tail)\s+(\d+)/i)
+    return { name: nameMatch ? nameMatch[1] : '', tail: tailMatch ? parseInt(tailMatch[1]) : 100 }
+  }
+
   if (action === 'screenshot') return {}
 
   if (action === 'notify') {
@@ -173,9 +179,8 @@ export function buildJarvisPayload(action: string, prompt: string): Record<strin
   }
 
   if (action === 'restart_api') {
-    const branchMatch = prompt.match(/(?:branch|rama|local\/|origin\/)\s*([a-zA-Z0-9_\-/]+)/i)
     const dryRun = /dry.?run|simula|teste|testar/i.test(prompt)
-    return { branch: branchMatch ? branchMatch[1] : 'local/marcelo', dryRun }
+    return { dryRun }
   }
 
   if (action === 'inspect_schema') {

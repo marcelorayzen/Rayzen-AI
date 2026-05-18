@@ -43,9 +43,11 @@ if not exist ".env" (
 
 set "AGENT_API_URL="
 set "AGENT_TOKEN="
+set "AGENT_ROLE="
 for /f "tokens=1,* delims==" %%A in (.env) do (
     if /i "%%A"=="AGENT_API_URL" set "AGENT_API_URL=%%B"
     if /i "%%A"=="AGENT_TOKEN" set "AGENT_TOKEN=%%B"
+    if /i "%%A"=="AGENT_ROLE" set "AGENT_ROLE=%%B"
 )
 
 if "%AGENT_API_URL%"=="" (
@@ -54,6 +56,11 @@ if "%AGENT_API_URL%"=="" (
 )
 if "%AGENT_TOKEN%"=="" (
     echo  ERRO: AGENT_TOKEN nao definido no .env
+    goto :fail
+)
+if "%AGENT_ROLE%"=="" set "AGENT_ROLE=desktop"
+if /i not "%AGENT_ROLE%"=="desktop" (
+    echo  ERRO: agent-start.bat e exclusivo do desktop. AGENT_ROLE atual: %AGENT_ROLE%
     goto :fail
 )
 
@@ -76,6 +83,7 @@ if errorlevel 1 (
 
 echo.
 echo  Iniciando Agent...
+echo  Papel: %AGENT_ROLE%
 echo  API: %AGENT_API_URL%
 echo.
 call %PNPM% --filter agent build

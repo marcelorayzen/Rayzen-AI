@@ -1,8 +1,8 @@
 import axios from 'axios'
-import { Task } from '@rayzen/types'
+import { AgentRole, Task } from '@rayzen/types'
 import { executeTask } from './executor'
 
-const AGENT_ROLE = process.env.AGENT_ROLE ?? 'desktop'
+const AGENT_ROLE: AgentRole = process.env.AGENT_ROLE === 'server' ? 'server' : 'desktop'
 
 const api = axios.create({
   baseURL: process.env.AGENT_API_URL,

@@ -1,16 +1,46 @@
 import { Injectable } from '@nestjs/common'
 import { InjectQueue } from '@nestjs/bull'
 import { Queue } from 'bull'
-import { Task, TaskCreateDto } from '@rayzen/types'
+import { AgentRole, Task, TaskCreateDto } from '@rayzen/types'
 import { randomUUID } from 'crypto'
 import { EventService } from '../event/event.service'
 
 const POLL_INTERVAL_MS = 500
 const POLL_TIMEOUT_MS = 30_000
 
-// Ações que só podem executar num role específico de agente
-const ACTION_ROLE: Record<string, string> = {
-  restart_api: 'notebook',
+// Ações que só podem executar num role específico de agente.
+// O desktop fornece evidências visuais e automações da estação de trabalho.
+// O server opera a stack hospedada na VPS.
+const ACTION_ROLE: Partial<Record<string, AgentRole>> = {
+  open_app: 'desktop',
+  open_url: 'desktop',
+  open_vscode: 'desktop',
+  list_dir: 'desktop',
+  file_search: 'desktop',
+  organize_downloads: 'desktop',
+  create_project_folder: 'desktop',
+  get_system_info: 'desktop',
+  screenshot: 'desktop',
+  notify: 'desktop',
+  clipboard_read: 'desktop',
+  clipboard_write: 'desktop',
+  git_status: 'desktop',
+  git_log: 'desktop',
+  git_branch: 'desktop',
+  git_commit: 'desktop',
+  run_command: 'desktop',
+  run_tests: 'desktop',
+  inspect_schema: 'desktop',
+  read_emails: 'desktop',
+  send_email: 'desktop',
+  get_calendar: 'desktop',
+  parse_test_report: 'desktop',
+  capture_test_failure: 'desktop',
+  docker_ps: 'server',
+  docker_start: 'server',
+  docker_stop: 'server',
+  docker_logs: 'server',
+  restart_api: 'server',
 }
 
 @Injectable()
