@@ -1,33 +1,29 @@
-# Stage 1: builder
 FROM node:20-slim AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     openssl \
     && rm -rf /var/lib/apt/lists/*
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 
 WORKDIR /app
 
-# Copy workspace manifests (preserving structure for pnpm)
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.base.json rayzen.config.json ./
 COPY packages/types/package.json ./packages/types/
 COPY apps/api/package.json ./apps/api/
+COPY apps/web/package.json ./apps/web/
+COPY apps/agent/package.json ./apps/agent/
 
 RUN pnpm install --frozen-lockfile
 
-# Copy source
-COPY packages/types/ ./packages/types/
-COPY apps/api/ ./apps/api/
+COPY packages/types ./packages/types
+COPY apps/api ./apps/api
 
-# Generate Prisma client and build
 RUN pnpm --filter api db:generate
 RUN pnpm --filter api build
 
-# Stage 2: runner
 FROM node:20-slim AS runner
 
-# Chromium for Puppeteer
 RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium \
     fonts-freefont-ttf \
@@ -37,22 +33,25 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 
 WORKDIR /app
 
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.base.json rayzen.config.json ./
 COPY packages/types/package.json ./packages/types/
 COPY apps/api/package.json ./apps/api/
+COPY apps/web/package.json ./apps/web/
+COPY apps/agent/package.json ./apps/agent/
 
-RUN pnpm install --frozen-lockfile --prod
+RUN pnpm install --frozen-lockfile
 
-# Copy built output and Prisma client from builder
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
-COPY --from=builder /app/node_modules/.pnpm ./node_modules/.pnpm
-COPY --from=builder /app/apps/api/node_modules/.prisma ./apps/api/node_modules/.prisma
 
-EXPOSE 3001
+RUN pnpm --filter api db:generate
+
+ENV NODE_ENV=production
+
+EXPOSE 3101
 
 CMD ["node", "apps/api/dist/main"]

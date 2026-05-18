@@ -1,49 +1,46 @@
-FROM node:20-slim AS base
+FROM node:20-slim AS builder
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
-
-# ── Stage 1: deps ─────────────────────────────────────────────────────────────
-FROM base AS deps
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 
 WORKDIR /app
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY packages/types/package.json ./packages/types/
+
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.base.json ./
 COPY apps/web/package.json ./apps/web/
+COPY packages/types/package.json ./packages/types/
+COPY apps/api/package.json ./apps/api/
+COPY apps/agent/package.json ./apps/agent/
 
 RUN pnpm install --frozen-lockfile
 
-# ── Stage 2: builder ──────────────────────────────────────────────────────────
-FROM base AS builder
-
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
-COPY packages/types/ ./packages/types/
-COPY apps/web/ ./apps/web/
-COPY package.json pnpm-workspace.yaml ./
+COPY apps/web ./apps/web
+COPY packages ./packages
 
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV NEXT_PUBLIC_API_URL=http://<VPS_IP>:3101
 
 RUN pnpm --filter web build
 
-# ── Stage 3: runner ───────────────────────────────────────────────────────────
 FROM node:20-slim AS runner
+
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 
 WORKDIR /app
 
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.base.json ./
+COPY apps/web/package.json ./apps/web/
+COPY packages/types/package.json ./packages/types/
+COPY apps/api/package.json ./apps/api/
+COPY apps/agent/package.json ./apps/agent/
+
+RUN pnpm install --frozen-lockfile
+
+COPY --from=builder /app/apps/web/.next ./apps/web/.next
+COPY --from=builder /app/apps/web/public ./apps/web/public
+
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV NEXT_PUBLIC_API_URL=http://<VPS_IP>:3101
 
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 nextjs
-
-COPY --from=builder /app/apps/web/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
-
-USER nextjs
 EXPOSE 3000
-ENV PORT=3000
-ENV HOSTNAME=0.0.0.0
 
-CMD ["node", "apps/web/server.js"]
+CMD ["pnpm", "--filter", "web", "start"]

@@ -56,7 +56,7 @@ services:
     volumes:
       - ./storage/evidence:/app/storage/evidence
     ports:
-      - '3101:3101'
+      - '3101:3001'
     depends_on:
       postgres:
         condition: service_healthy
@@ -79,6 +79,19 @@ services:
       SERVER_API_CONTAINER: rayzen-ai-api-1
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - api
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: http://<VPS_IP>:3101
+      NEXT_TELEMETRY_DISABLED: "1"
+    ports:
+      - '3100:3000'
     depends_on:
       - api
 
