@@ -8,13 +8,13 @@ export class DocumentationController {
   constructor(private readonly svc: DocumentationService) {}
 
   @Post('generate/:projectId')
-  @ApiOperation({ summary: 'Gera ou atualiza todos os 4 documentos do projeto' })
+  @ApiOperation({ summary: 'Gera ou atualiza os documentos vivos do projeto' })
   generateAll(@Param('projectId') projectId: string, @Query('force') force?: string) {
     return this.svc.generateAll(projectId, { force: force === 'true' })
   }
 
   @Post('generate/:projectId/:type')
-  @ApiOperation({ summary: 'Gera um tipo específico: project_state | decisions_log | next_actions | work_journal' })
+  @ApiOperation({ summary: 'Gera um tipo específico: project_state | decisions_log | next_actions | work_journal | test_evidence' })
   generateOne(
     @Param('projectId') projectId: string,
     @Param('type') type: DocType,

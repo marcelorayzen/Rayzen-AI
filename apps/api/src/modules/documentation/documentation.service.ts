@@ -3,7 +3,15 @@ import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../../prisma/prisma.service'
 import OpenAI from 'openai'
 
-export type DocType = 'project_state' | 'decisions_log' | 'next_actions' | 'work_journal' | 'data_map' | 'ropa' | 'quality_report'
+export type DocType =
+  | 'project_state'
+  | 'decisions_log'
+  | 'next_actions'
+  | 'work_journal'
+  | 'test_evidence'
+  | 'data_map'
+  | 'ropa'
+  | 'quality_report'
 
 type LlmDocType = 'project_state' | 'decisions_log' | 'next_actions' | 'work_journal'
 
@@ -139,6 +147,10 @@ export class DocumentationService {
       eventLines && `## Eventos recentes\n${eventLines}`,
     ].filter(Boolean).join('\n\n')
 
+    if (type === 'test_evidence') {
+      return this.generateTestEvidence(projectId)
+    }
+
     const promptFn = DOC_PROMPTS[type as LlmDocType]
     if (!promptFn) throw new BadRequestException(`Tipo inválido: ${type}`)
 
@@ -175,7 +187,7 @@ export class DocumentationService {
   }
 
   async generateAll(projectId: string, opts: { force?: boolean } = {}) {
-    const types: DocType[] = ['project_state', 'decisions_log', 'next_actions', 'work_journal']
+    const types: DocType[] = ['project_state', 'decisions_log', 'next_actions', 'work_journal', 'test_evidence']
     const results = await Promise.allSettled(types.map(t => this.generate(projectId, t, opts)))
     return types.map((type, i) => {
       const r = results[i]
@@ -219,6 +231,56 @@ export class DocumentationService {
       where: { projectId_type: { projectId, type } },
       data: { reviewedAt: new Date() },
     })
+  }
+
+  async generateTestEvidence(projectId: string): Promise<{ id: string; type: string; content: string; generatedAt: string }> {
+    const project = await this.prisma.project.findUnique({ where: { id: projectId } })
+    if (!project) throw new NotFoundException('Projeto não encontrado')
+
+    const events = await this.prisma.event.findMany({
+      where: { projectId, source: 'execution', type: 'note' },
+      orderBy: { ts: 'desc' },
+      take: 100,
+    })
+
+    const evidence = events
+      .map((event) => ({ event, metadata: (event.metadata ?? {}) as Record<string, unknown> }))
+      .filter(({ metadata }) => metadata.kind === 'evidence' && metadata.evidenceType === 'screenshot')
+
+    const lines = evidence.map(({ event, metadata }) => {
+      const description =
+        typeof metadata.description === 'string' && metadata.description.trim()
+          ? metadata.description
+          : typeof metadata.prompt === 'string' && metadata.prompt.trim()
+            ? metadata.prompt
+            : 'Screenshot sem descrição'
+      const remotePath = typeof metadata.remotePath === 'string' ? metadata.remotePath.replace(/\\/g, '/') : null
+      const evidenceLink = remotePath ? `[Abrir screenshot](/evidence/file/${remotePath})` : '_arquivo ainda não sincronizado_'
+      const localPath = typeof metadata.path === 'string' ? metadata.path : null
+
+      return [
+        `## ${new Date(event.ts).toLocaleString('pt-BR')}`,
+        `**Descrição:** ${description}`,
+        `**Evidência:** ${evidenceLink}`,
+        localPath ? `**Arquivo local:** \`${localPath}\`` : null,
+      ].filter(Boolean).join('\n')
+    })
+
+    const content = [
+      `# Evidências de Teste — ${project.name}`,
+      `**Gerado em:** ${new Date().toLocaleString('pt-BR')}`,
+      `**Total de evidências:** ${evidence.length}`,
+      '',
+      evidence.length > 0 ? lines.join('\n\n---\n\n') : '_Nenhuma evidência visual registrada ainda._',
+    ].join('\n')
+
+    const doc = await this.prisma.projectDocument.upsert({
+      where: { projectId_type: { projectId, type: 'test_evidence' } },
+      create: { projectId, type: 'test_evidence', content },
+      update: { content, generatedAt: new Date(), reviewedAt: null },
+    })
+
+    return { id: doc.id, type: doc.type, content: doc.content, generatedAt: doc.generatedAt.toISOString() }
   }
 
   // ── LGPD / Compliance Documents ───────────────────────────────────────────

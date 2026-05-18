@@ -1520,6 +1520,7 @@ export default function Home() {
                 { type: 'decisions_log', label: 'Decisões' },
                 { type: 'next_actions', label: 'Próximas ações' },
                 { type: 'work_journal', label: 'Diário' },
+                { type: 'test_evidence', label: 'Evid?ncias de teste' },
               ]
               const activeDoc = projectDocs.find(d => d.type === activeDocType)
               return (

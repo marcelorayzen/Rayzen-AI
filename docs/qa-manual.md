@@ -208,6 +208,10 @@ indexe o relatório de testes do build no dashboard QA
 
 6. Identificar testes instáveis:
    → aba Resumo → seção "Testes Flaky"
+
+7. Consultar evidências manuais:
+   → na aba **Documentação**, abrir **Evidências de teste**
+   → o documento consolida screenshots manuais do projeto com descrição, data e link
 ```
 
 ---

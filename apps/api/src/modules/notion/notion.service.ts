@@ -85,6 +85,7 @@ const DOC_TYPE_LABELS: Record<string, string> = {
   decisions_log:  'Log de Decisões',
   next_actions:   'Próximas Ações',
   work_journal:   'Diário de Trabalho',
+  test_evidence:  'Evid?ncias de Teste',
   data_map:       'Mapeamento de Dados Pessoais',
   ropa:           'ROPA — Registro de Atividades de Tratamento',
   quality_report: 'Relatório de Qualidade de Dados',

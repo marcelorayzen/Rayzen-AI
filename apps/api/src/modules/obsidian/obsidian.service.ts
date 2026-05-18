@@ -10,6 +10,7 @@ const DOC_TYPE_FILENAMES: Record<string, string> = {
   decisions_log: 'decisoes.md',
   next_actions:  'proximas-acoes.md',
   work_journal:  'diario.md',
+  test_evidence: 'evidencias-de-teste.md',
 }
 
 export interface SyncResult {
