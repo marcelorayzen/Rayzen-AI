@@ -29,8 +29,8 @@ if "%NODE_MAJOR%"=="" (
     echo  ERRO: Node.js nao encontrado no PATH.
     goto :fail
 )
-if not "%NODE_MAJOR%"=="20" (
-    echo  ERRO: Node.js %NODE_MAJOR% detectado, mas este projeto espera Node.js 20 LTS.
+if %NODE_MAJOR% LSS 20 (
+    echo  ERRO: Node.js %NODE_MAJOR% detectado, mas o Agent precisa de Node.js 20 ou superior.
     node --version
     goto :fail
 )

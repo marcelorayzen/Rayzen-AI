@@ -415,3 +415,5 @@ AGENT_TOKEN=<agent-token>
 ```
 
 Inicie com `agent-start.bat`.
+
+O Agent aceita Node.js `20+` no PC de trabalho; isso não precisa coincidir com a versão exigida por cada projeto aberto no VS Code.

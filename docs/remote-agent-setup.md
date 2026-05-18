@@ -26,6 +26,7 @@
    - valida conectividade em `/tasks/pending`
    - compila o `agent`
    - inicia `node dist/index.js`
+5. O Agent aceita Node.js `20+` no PC de trabalho. Isso é independente da versão exigida pelo projeto que estiver aberto no VS Code.
 
 ## 3) Hook global e separação por projeto
 
