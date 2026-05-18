@@ -183,8 +183,8 @@ O hook envia cada ação do Claude (Edit, Write, Bash, Read) para a API do Rayze
 
 ```js
 export default {
-  apiUrl: 'https://<url-ngrok-atual>',  // atualizar quando ngrok reiniciar
-  apiToken: '<jwt-token>',              // expira 4 de junho de 2026
+  apiUrl: 'http://<VPS_IP>:3101', // API atual do Rayzen na VPS
+  apiToken: '<jwt-token>',              // gerar via POST /auth/login
   projectId: '<id-deste-projeto>',      // copiar da URL ou painel Rayzen
 }
 ```
@@ -195,7 +195,7 @@ Deixe `projectId` vazio — o hook detecta o projeto pelo nome do repositório g
 
 ```js
 export default {
-  apiUrl: 'https://<url-ngrok-atual>',
+  apiUrl: 'http://<VPS_IP>:3101',
   apiToken: '<jwt-token>',
   projectId: '',  // vazio = auto-detect pelo repoSlug do git remote
 }
@@ -219,8 +219,8 @@ O MCP permite que o Claude consulte estado, memória, eventos e wiki do projeto 
       "command": "node",
       "args": ["<caminho-para-rayzen-ai>/apps/agent/dist/mcp-server.js"],
       "env": {
-        "AGENT_API_URL": "https://<ngrok-url>",
-        "AGENT_TOKEN": "<jwt-token>",
+        "AGENT_API_URL": "http://<VPS_IP>:3101",
+        "AGENT_TOKEN": "<agent-token>",
         "PROJECT_ID": "<id-deste-projeto>"
       }
     }
@@ -245,7 +245,7 @@ O MCP permite que o Claude consulte estado, memória, eventos e wiki do projeto 
 |---|---|---|
 | Claude inventa coisas sobre o projeto | Brain não indexado ou repoSlug não bate | Indexar fontes no painel Brain; verificar se `repoSlug` do projeto bate com o nome do repo git |
 | Eventos vão para o projeto errado | repoSlug de outro projeto bateu antes (cache) | Aguardar 5 min (TTL do cache) ou deletar `%TEMP%\rayzen-slug-cache.json` |
-| Hook não envia eventos | ngrok URL expirou ou token inválido | Atualizar `apiUrl` e `apiToken` no `hook.config.mjs` |
+| Hook não envia eventos | API inacessível ou token inválido | Verificar a VPS e atualizar `apiUrl` / `apiToken` no `hook.config.mjs` |
 | Hook não detecta o projeto | Pasta sem git remote ou repoSlug não cadastrado | Verificar `git remote get-url origin`; corrigir `repoSlug` via `PATCH /projects/:id` |
 | MCP não conecta | `AGENT_API_URL` ou `PROJECT_ID` errado | Verificar `.claude/settings.json` com valores corretos |
 | `jarvis:restart_api` falha | API segurando DLL do Prisma | Parar API → `npx prisma generate` → reiniciar |

@@ -340,7 +340,7 @@ cp .env.example .env
 ### 8.2 Setup Rayzen AI
 
 > Siga esta seção para integrar o projeto ao Rayzen AI (hook, MCP, Brain).
-> Pré-requisito: notebook com Rayzen rodando (`start-rayzen-notebook.bat`) e ngrok ativo.
+> Pré-requisito: API do Rayzen acessível na VPS e projeto criado no painel.
 
 #### Passo 1 — Criar o projeto no Rayzen
 
@@ -354,8 +354,8 @@ Edite `apps/agent/src/hooks/hook.config.mjs` no repositório rayzen-ai:
 
 ```js
 export default {
-  apiUrl: 'https://<url-ngrok-atual>',  // copiar da janela do ngrok no notebook
-  apiToken: '<jwt-token>',              // GET /auth/login no notebook
+  apiUrl: 'http://<VPS_IP>:3101', // API atual do Rayzen na VPS
+  apiToken: '<jwt-token>',               // gerar via POST /auth/login
   projectId: '',  // vazio = detecção automática pelo nome do repo git
 }
 ```
@@ -375,8 +375,8 @@ Edite `.claude/settings.json` nesta pasta:
       "command": "node",
       "args": ["<CAMINHO_RAYZEN_AI>/apps/agent/dist/mcp-server.js"],
       "env": {
-        "AGENT_API_URL": "https://<ngrok-url>",
-        "AGENT_TOKEN": "<jwt-token>",
+        "AGENT_API_URL": "http://<VPS_IP>:3101",
+        "AGENT_TOKEN": "<agent-token>",
         "PROJECT_ID": "<id-do-projeto>"
       }
     }
@@ -399,16 +399,18 @@ Faça qualquer edição no VS Code e verifique se o evento aparece no painel **A
 
 | Sintoma | Verificar |
 |---|---|
-| Nenhum evento chega | `apiUrl` e `apiToken` no `hook.config.mjs` |
+| Nenhum evento chega | `apiUrl` e `apiToken` no `hook.config.mjs`; conectividade com a VPS |
 | Eventos de outro projeto | `projectId` errado no `hook.config.mjs` |
 | MCP não conecta | `AGENT_API_URL` e `PROJECT_ID` no `.claude/settings.json` |
 | Claude inventa sobre o projeto | Brain não indexado — refaça o Passo 4 |
 
-#### Agente no notebook (para ações como `restart_api`)
+#### Agent no PC de trabalho
 
-```powershell
-# No notebook, com AGENT_ROLE=notebook:
-.\start-agent-notebook.ps1
-# ou com auto-restart:
-.\start-agent-notebook.ps1 -Watchdog
+O Agent local continua no seu PC e deve apontar para a API da VPS:
+
+```env
+AGENT_API_URL=http://<VPS_IP>:3101
+AGENT_TOKEN=<agent-token>
 ```
+
+Inicie com `agent-start.bat`.
