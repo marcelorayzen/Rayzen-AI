@@ -63,6 +63,7 @@
       "docker_ps": true,
       "docker_start": true,
       "docker_stop": true,
+      "docker_logs": true,
       "read_emails": true,
       "send_email": true,
       "get_calendar": true
