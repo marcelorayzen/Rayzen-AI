@@ -6,33 +6,31 @@ Leia este arquivo antes de qualquer tarefa. É o ponto de entrada; detalhes est�
 
 ## O que é este projeto
 
-Plataforma pessoal de IA com automação, memória semântica, geração de documentos, QA, qualidade de dados e execução assistida entre notebook e máquina de trabalho. Monorepo TypeScript com pnpm workspaces.
+Plataforma pessoal de IA com automação, memória semântica, geração de documentos, QA, qualidade de dados e execução assistida entre a VPS central e o PC de trabalho. Monorepo TypeScript com pnpm workspaces.
 
 **Dono:** Marcelo Rayzen — QA Automation Engineer / Full-stack Developer
 **Repositório:** `github.com/marcelorayzen/rayzen-ai`
-**Branch de trabalho:** `local/marcelo` (notebook — não misturar com `main` VPS)
-**Web produção:** https://rayzen-web.vercel.app (deploy via `cd apps/web && npx vercel deploy --prod`)
+**Branch de trabalho temporária:** `local/marcelo` até consolidar a linha atual em `main`
+**Web atual:** `http://<VPS_IP>:3100`
+**API atual:** `http://<VPS_IP>:3101`
 **Notion:** https://www.notion.so/334c784498d6818e83a2f0439f5da8cd
 
 ---
 
 ## Uso diário — passo a passo
 
-### 1. Ligar o notebook primeiro
-```
-start-rayzen-notebook.bat
-```
-- Abre Docker Desktop automaticamente se não estiver rodando
-- Aguarda PostgreSQL + Redis
-- Roda migrations Prisma
-- Sobe API (:3101) em janela visível
-- Sobe ngrok em janela visível
-- Sobe agente com auto-restart em background (log: `apps/agent/agent.log`)
-
-Aguarde a janela da API mostrar `Application is running on: http://[::1]:3101` antes de usar.
+### 1. Confirmar que a VPS está ligada
+- A stack central roda na VPS Azure:
+  - PostgreSQL
+  - Redis
+  - LiteLLM
+  - API
+  - Web
+  - Agent server
+- A documentação operacional atual está em `docs/remote-agent-setup.md`.
 
 ### 2. Abrir a interface
-Acesse **https://rayzen-web.vercel.app** — a web está no Vercel, não precisa subir nada.
+Acesse **http://<VPS_IP>:3100**.
 
 ### 3. Selecionar ou criar projeto
 - O seletor de projetos fica no topo esquerdo da interface
@@ -48,7 +46,7 @@ apps/agent/src/hooks/hook.config.mjs   ← gitignored, não sobe para o reposit�
 ```
 ```js
 export default {
-  apiUrl: 'https://<url-ngrok-atual>',
+  apiUrl: 'http://<VPS_IP>:3101',
   apiToken: '<jwt-token>',
   projectId: '',  // ← vazio = detecção automática por repoSlug
 }
@@ -62,49 +60,43 @@ export default {
 
 **Token atual expira: 4 de junho de 2026.** Para renovar:
 ```bash
-# No notebook (API rodando):
-curl -X POST http://localhost:3101/auth/login -H "Content-Type: application/json" \
+# Pela API da VPS:
+curl -X POST http://<VPS_IP>:3101/auth/login -H "Content-Type: application/json" \
   -d '{"password":"<ADMIN_PASSWORD>"}' 
 # Copie o token retornado e atualize hook.config.mjs e AGENT_TOKEN no .env
 ```
 
 ### 5. Fluxo de trabalho normal
-1. Notebook ligado + bat rodando
-2. Abrir VS Code → Claude Code → eventos capturados automaticamente pelo hook
-3. Web aberta no projeto correto → painel de Atividade mostra ações em tempo real
-4. Usar chat para acionar o agente: `jarvis:screenshot`, `jarvis:get_system_info`, etc.
-5. Usar **checkpoint** periodicamente para sintetizar o que foi feito
-6. Painel **Brain** para indexar fontes de conhecimento do projeto
+1. VPS ligada com a stack central disponível
+2. No PC de trabalho, iniciar `agent-start.bat`
+3. Abrir VS Code → Claude Code → eventos capturados automaticamente pelo hook
+4. Web aberta no projeto correto → painel de Atividade mostra ações em tempo real
+5. Usar chat para acionar o agente: `jarvis:screenshot`, `jarvis:get_system_info`, etc.
+6. Usar **checkpoint** periodicamente para sintetizar o que foi feito
+7. Painel **Brain** para indexar fontes de conhecimento do projeto
 
 ### 6. Deploy da web após mudanças
 ```bash
 # No terminal do VS Code (desktop):
 git add .
 git commit -m "descrição"
-git push origin local/marcelo          # atualiza o repositório
-
-cd apps/web
-npx vercel deploy --prod               # publica no Vercel
+git push origin local/marcelo          # enquanto a consolidação para main não termina
 ```
 
-### 7. Restart da API (sem reiniciar tudo)
-No PowerShell do notebook:
-```powershell
-$env:API_PORT='3101'; $env:REDIS_URL='redis://localhost:56379'; pnpm --filter api start
-```
-Ou via chat: `jarvis:restart_api` (faz git pull + build + restart automático).
+### 7. Restart da API
+Na operação atual, a API roda na VPS. Use o Agent server ou o compose da VPS; no chat, `jarvis:restart_api` deve atingir o Agent `server`, não o desktop.
 
 ---
 
-## Setup atual (local/marcelo)
+## Setup atual
 
 | Componente | Onde roda | Como sobe |
 |---|---|---|
-| PostgreSQL + Redis + LiteLLM | Notebook (Docker) | `start-rayzen-notebook.bat` |
-| API NestJS | Notebook (`:3101`) | `start-rayzen-notebook.bat` |
-| Agente PC | Notebook (watchdog) | `start-rayzen-notebook.bat` |
-| Túnel ngrok | Notebook | `start-rayzen-notebook.bat` |
-| Web Next.js | Vercel | `cd apps/web && npx vercel deploy --prod` |
+| PostgreSQL + Redis + LiteLLM | VPS (Docker) | `docker compose up -d` |
+| API NestJS | VPS (`:3101`) | `docker compose up -d api` |
+| Web Next.js | VPS (`:3100`) | `docker compose up -d web` |
+| Agent server | VPS | `docker compose up -d agent-server` |
+| Agent desktop | PC de trabalho | `agent-start.bat` |
 | Hook Claude Code | Esta máquina | `.claude/settings.json` (automático) |
 
 ---
@@ -125,8 +117,7 @@ Ou via chat: `jarvis:restart_api` (faz git pull + build + restart automático).
 | Embeddings | Jina AI (vector 1024) |
 | Agente local | Node.js 20/22 LTS + TypeScript |
 | Infra | Docker Compose v2 |
-| CI/CD | GitHub Actions → SSH deploy (branch `main` → VPS) |
-| VPS | Oracle Ampere A1 — Ubuntu 24.04 (branch `main`) |
+| Infra | Azure VPS Ubuntu + Docker Compose |
 
 **Nota LiteLLM:** `gpt-4o` e `gpt-4o-mini` são aliases para `anthropic/claude-sonnet-4-20250514`.
 Claude não suporta `response_format: json_object` — usar extração robusta de JSON (strip de code fences + regex).
@@ -149,14 +140,16 @@ rayzen-ai/
 │       │   ├── executor.ts     # dispatcher de actions
 │       │   ├── security/whitelist.ts   # CRÍTICO — nunca bypassar
 │       │   └── actions/        # 27 actions implementadas
-│       └── watchdog.ps1        # auto-restart do agente
+│       └── watchdog.ps1        # legado do modo local
 ├── packages/types/src/index.ts # Task, Document, ChatMessage
 ├── scripts/
 │   └── restart-api.ps1         # git pull → build → restart API
 ├── infra/nginx/ + litellm/config.yaml
 ├── rayzen.config.json          # config runtime: obsidian.vaultPath, notion.rootPageId
-├── start-rayzen-notebook.bat   # master bat (Docker auto-start + tudo em background)
-├── notebook-api-tunnel.bat     # bat manual/debug
+├── agent-start.bat             # inicia o Agent desktop
+├── agent-server-start.sh        # alternativa fora do compose para o Agent server
+├── start-rayzen-notebook.bat    # legado da fase notebook
+├── notebook-api-tunnel.bat      # legado/debug da fase notebook
 └── CLAUDE.md
 ```
 
@@ -169,8 +162,8 @@ rayzen-ai/
 pnpm install
 cp .env.example .env
 
-# Notebook — subir tudo
-start-rayzen-notebook.bat
+# PC de trabalho — subir Agent desktop
+agent-start.bat
 
 # Desenvolvimento individual
 pnpm dev:api                    # API → :3101
@@ -178,7 +171,7 @@ pnpm dev:web                    # Web → :3100 (local)
 pnpm --filter agent dev         # Agent dev mode
 
 # Banco
-pnpm db:migrate                 # aplicar migrations (no notebook: cd apps/api && npx prisma migrate dev)
+pnpm db:migrate                 # aplicar migrations em ambiente de desenvolvimento
 pnpm --filter api db:generate   # gerar Prisma Client (obrigatório após schema changes)
 pnpm db:studio                  # Prisma Studio → :5555
 
@@ -191,11 +184,8 @@ pnpm test
 pnpm --filter api build
 pnpm --filter agent build
 
-# Deploy web (Vercel)
-cd apps/web && npx vercel deploy --prod
-
-# Deploy API/VPS
-git push origin main            # CI/CD automático via GitHub Actions
+# Deploy atual da VPS
+# aplicar build/restart via Docker Compose na VPS
 ```
 
 ---
@@ -315,9 +305,9 @@ que envia o evento para `POST /events/cli` com contexto git enriquecido e projec
 Config em `apps/agent/src/hooks/hook.config.mjs` (gitignored):
 ```js
 export default {
-  apiUrl: 'https://<ngrok-url>',    // atualizar quando ngrok reiniciar
+  apiUrl: 'http://<VPS_IP>:3101',
   apiToken: '<jwt-token>',           // expira 4 de junho de 2026
-  projectId: '<id-do-projeto>',      // mudar ao trocar de projeto ativo
+  projectId: '',                     // vazio = auto-detecção por repoSlug
 }
 ```
 
@@ -521,10 +511,10 @@ ProjectGoal (meta)  ←→  ProjectState (estado atual)
 | 004 | VPS ↔ Agente | Polling 3s + BullMQ Redis |
 | 005 | Documentos | Puppeteer (PDF) + docxtemplater (DOCX) |
 | 006 | Estrutura | Monorepo pnpm workspaces |
-| 007 | Branch local | `local/marcelo` separado do `main` VPS |
-| 008 | Agente no notebook | watchdog.ps1 + start-rayzen-notebook.bat sem janelas |
-| 009 | Reinício remoto | `jarvis:restart_api` → scripts/restart-api.ps1 |
-| 010 | Web deploy | Vercel (Hobby) — branch não configurável, deploy via CLI `vercel deploy --prod` |
+| 007 | Branch de transição | `local/marcelo` concentra a linha atual até consolidação em `main` |
+| 008 | Agentes por papel | `desktop` no PC e `server` na VPS |
+| 009 | Reinício remoto | `jarvis:restart_api` roteado para o Agent `server` |
+| 010 | Web atual | serviço `web` no Docker Compose da VPS |
 | 011 | JSON do LLM | Sem `response_format`, extração robusta: strip code fences + regex `{...}` |
 | 012 | Notion por projeto | Sub-páginas sob rootPageId, fire-and-forget na criação de projeto |
 | 013 | Goal Graph visual | `@xyflow/react` v12 via `next/dynamic + ssr: false` — Mermaid descartado (v11 ESM puro, não funciona como UMD global) |
@@ -571,8 +561,8 @@ ProjectGoal (meta)  ←→  ProjectState (estado atual)
 
 ## Links úteis
 
-- **Web (produção):** https://rayzen-web.vercel.app
-- Swagger local: http://localhost:3101/docs
+- **Web atual:** http://<VPS_IP>:3100
+- **Swagger/API atual:** http://<VPS_IP>:3101/docs
 - LiteLLM UI: http://localhost:4100/ui
 - Prisma Studio: http://localhost:5555 (após `pnpm db:studio`)
 - Web local (dev): http://localhost:3100
