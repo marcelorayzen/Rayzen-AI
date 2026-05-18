@@ -2274,7 +2274,21 @@ export default function Home() {
         }}
         className="flex-1 min-h-0 overflow-y-auto px-4 py-6 flex flex-col gap-4 max-w-3xl w-full mx-auto"
       >
-        {messages.length === 0 && (
+        {messages.length === 0 && !activeProjectId && (
+          <div className="mt-10 rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5 text-sm text-zinc-300">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">sem projeto ativo</p>
+            <h2 className="mt-2 text-base font-semibold text-zinc-100">Como criar e associar um novo projeto</h2>
+            <ol className="mt-3 space-y-2 text-zinc-400">
+              <li><span className="text-zinc-200">1.</span> Clique no <span className="text-zinc-200">+</span> ao lado do seletor de projetos.</li>
+              <li><span className="text-zinc-200">2.</span> Use como <span className="text-zinc-200">repoSlug</span> o nome real do repositório Git.</li>
+              <li><span className="text-zinc-200">3.</span> No projeto local, mantenha o hook global ativo e configure o MCP com o <span className="text-zinc-200">PROJECT_ID</span> do projeto.</li>
+            </ol>
+            <p className="mt-4 text-xs text-zinc-500">
+              Regra de separação: cada projeto precisa de um repoSlug próprio. Assim trocar de pasta no VS Code não mistura memórias entre projetos.
+            </p>
+          </div>
+        )}
+        {messages.length === 0 && activeProjectId && (
           <div className="hud-empty mt-20">AGUARDANDO INPUT</div>
         )}
         {messages.map((msg, i) => (
