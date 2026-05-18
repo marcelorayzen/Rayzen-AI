@@ -9,8 +9,8 @@
    - `API`
    - `Web`
 2. Endpoints atuais:
-   - Web: `http://<VPS_IP>:3100`
-   - API: `http://<VPS_IP>:3101`
+   - Web: `http://<VPS_PUBLIC_IP>:3100`
+   - API: `http://<VPS_PUBLIC_IP>:3101`
 3. O banco oficial fica na VPS. O PC de trabalho não precisa manter Postgres local para operar o Rayzen.
 
 ## 2) PC de trabalho (Agent desktop)
@@ -18,7 +18,7 @@
 1. Clone o repo.
 2. Configure o `.env` usado por `agent-start.bat`:
    - `AGENT_ROLE=desktop`
-   - `AGENT_API_URL=http://<VPS_IP>:3101`
+   - `AGENT_API_URL=http://<VPS_PUBLIC_IP>:3101`
    - `AGENT_TOKEN=<mesmo token configurado na VPS>`
 3. Inicie:
    - `agent-start.bat`
@@ -37,7 +37,7 @@
 
 ```js
 export default {
-  apiUrl: 'http://<VPS_IP>:3101',
+  apiUrl: 'http://<VPS_PUBLIC_IP>:3101',
   apiToken: '<jwt-token>',
   projectId: '',
 }
@@ -63,7 +63,7 @@ Exemplo:
       "command": "node",
       "args": ["<CAMINHO_RAYZEN_AI>/apps/agent/dist/mcp-server.js"],
       "env": {
-        "AGENT_API_URL": "http://<VPS_IP>:3101",
+        "AGENT_API_URL": "http://<VPS_PUBLIC_IP>:3101",
         "AGENT_TOKEN": "<agent-token>",
         "PROJECT_ID": "<id-do-projeto>"
       }

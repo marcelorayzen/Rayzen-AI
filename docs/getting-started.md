@@ -115,8 +115,8 @@ Acesse **http://localhost:3100** e faça login com sua `ADMIN_PASSWORD`.
 
 Na instalação atual:
 
-- Web: `http://<VPS_IP>:3100`
-- API: `http://<VPS_IP>:3101`
+- Web: `http://<VPS_PUBLIC_IP>:3100`
+- API: `http://<VPS_PUBLIC_IP>:3101`
 - Banco oficial: VPS
 - Agent desktop: PC de trabalho via `agent-start.bat`
 - Agent server: VPS via `docker compose up -d agent-server`

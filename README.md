@@ -294,7 +294,7 @@ Veja [docs/agent-runtime.md](docs/agent-runtime.md) para o modelo de segurança 
 
 **Pré-requisitos para desenvolvimento local:** Node.js 20+ no Agent Rayzen, pnpm 9.x e Docker Desktop.
 
-**Operação atual:** stack central em VPS, Web/API em `<VPS_IP>`, Agent desktop no PC de trabalho e Agent server na VPS. Veja `docs/remote-agent-setup.md`.
+**Operação atual:** stack central em uma VPS Ubuntu na Azure, Agent desktop no PC de trabalho e Agent server na VPS. URLs públicas e segredos ficam fora do README público; veja `docs/remote-agent-setup.md` para o modelo de operação.
 
 ```bash
 git clone https://github.com/marcelorayzen/rayzen-ai.git
@@ -329,15 +329,7 @@ NOTION_API_KEY=ntn_...            # Integração com Notion
 NOTION_DATABASE_ID=               # Database padrão para novas páginas
 ```
 
-**Opção A — Atalho Windows (recomendado):**
-
-```
-Duplo clique em dev-start.bat
-```
-
-Inicia a infra Docker, preserva todos os dados dos volumes, abre 3 janelas de terminal (API, Web, Agent).
-
-**Opção B — Manual:**
+**Execução local manual:**
 
 ```bash
 docker compose up -d postgres redis litellm
@@ -348,6 +340,8 @@ pnpm dev:api           # API  → http://localhost:3101
 pnpm dev:web           # Web  → http://localhost:3100
 pnpm dev:agent         # PC Agent (necessário para o módulo Execution)
 ```
+
+Para usar apenas o Agent desktop conectado à VPS, configure `.env.agent.local` a partir de `.env.agent.example` e execute `agent-start.bat`.
 
 Abra **http://localhost:3100** e faça login com a senha que você definiu em `ADMIN_PASSWORD` no arquivo `.env`.
 
@@ -365,7 +359,7 @@ pnpm test:cov        # Jest + relatório de coverage (functions ≥ 70%)
 pnpm db:migrate      # Aplicar migrations Prisma
 pnpm db:studio       # Prisma Studio em http://localhost:5555
 pnpm build           # Build de todos os apps
-git push origin main # Dispara CI → deploy SSH automático na Oracle VPS
+git push origin main # Branch principal do projeto
 ```
 
 ---
@@ -389,7 +383,7 @@ git push origin main # Dispara CI → deploy SSH automático na Oracle VPS
 | Agent | Node.js TypeScript | 20 LTS |
 | Container | Docker Compose | v2 |
 | CI/CD | GitHub Actions + deploy SSH | — |
-| VPS | Oracle Ampere A1 free tier | Ubuntu 24.04 |
+| VPS | Azure Ubuntu VM | Ubuntu |
 
 ---
 
@@ -405,6 +399,7 @@ git push origin main # Dispara CI → deploy SSH automático na Oracle VPS
 | [docs/getting-started.md](docs/getting-started.md) | Guia de setup detalhado |
 | [docs/personalization.md](docs/personalization.md) | Configuração de persona e comportamento do sistema |
 | [docs/roadmap.md](docs/roadmap.md) | Roadmap de fases e status atual |
+| [docs/presentations/](docs/presentations/) | Apresentações atualizadas e posts para LinkedIn |
 
 ---
 
@@ -421,6 +416,6 @@ git push origin main # Dispara CI → deploy SSH automático na Oracle VPS
 
 <div align="center">
 
-<sub>Desenvolvido por <a href="https://github.com/marcelorayzen">Marcelo Rayzen</a> · 100% TypeScript · monorepo NestJS + Next.js · Oracle VPS free tier</sub>
+<sub>Desenvolvido por <a href="https://github.com/marcelorayzen">Marcelo Rayzen</a> · 100% TypeScript · monorepo NestJS + Next.js · VPS Ubuntu</sub>
 
 </div>

@@ -166,7 +166,7 @@ Antes de mudar uma decisão arquitetural, registrar aqui:
 
 ## Backlog técnico
 
-- [ ] Deploy VPS Oracle (Fase 0)
+- [ ] Deploy VPS Ubuntu/Azure (concluido; revisar dominio/HTTPS)
 - [ ] Autenticação multi-usuário com Google OAuth (ADR-007 — se necessário)
 - [ ] Bull Board para monitorar filas (compatível com Fastify 5)
 - [ ] ElevenLabs TTS para voz PT-BR nativa

@@ -2,7 +2,7 @@
 
 **Atualizado:** 2026-05-10  
 **Status:** implementado — Fase 3 (KPI Tracking + Goal History + Alertas de Estagnação + Onboarding Wizard)  
-**Branch:** `local/marcelo`
+**Branch:** `main`
 
 ---
 
@@ -221,7 +221,7 @@ Passo 3 chama `POST /projects/:id/graph/goal`.
 - **Goal History:** painel "histórico de metas" lazy-load mostrando timeline completa por projeto
 - **Stagnation Alert:** Proactive Regra 7 — recomendação `goal_stagnant` quando progresso < 100% e sem atualização por 5+ dias
 - **Onboarding Wizard:** modal de novo projeto transformado em wizard 3 passos (projeto → fonte → meta)
-- **Scripts:** `start-rayzen-notebook.bat` e `notebook-api-tunnel.bat` corrigidos para iniciar LiteLLM junto com Postgres/Redis
+- **Nota histórica:** scripts antigos de notebook foram substituídos pelo modelo VPS + Agent desktop/server.
 
 ---
 
@@ -237,8 +237,6 @@ Passo 3 chama `POST /projects/:id/graph/goal`.
 | `apps/api/src/modules/project-state/project-state.service.ts` | `updatePlanning` com `blockers`/`nextSteps` |
 | `apps/web/app/components/GraphCanvas.tsx` | `onToggle` em criteria nodes; `goalId`/`onToggleCriteria` em GoalCanvas |
 | `apps/web/app/page.tsx` | KPI tracking, goal history, onboarding wizard, `saveKpi`, `loadGoalsHistory` |
-| `start-rayzen-notebook.bat` | LiteLLM adicionado ao startup |
-| `notebook-api-tunnel.bat` | LiteLLM adicionado; Node 22 permitido |
 
 ---
 

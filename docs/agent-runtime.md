@@ -5,7 +5,7 @@ The PC Agent is a Node.js 20 TypeScript process that runs locally on the user's 
 ## Architecture
 
 ```
-VPS (Oracle Ampere A1)           Local Machine (Windows)
+VPS Ubuntu           Local Machine (Windows)
 ┌─────────────────────┐          ┌────────────────────────────────┐
 │  NestJS API         │          │  PC Agent (Node.js)            │
 │  ExecutionModule    │          │                                │

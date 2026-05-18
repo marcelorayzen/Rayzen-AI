@@ -320,7 +320,7 @@ Cada fase tem escopo mínimo e critério de done explícito. Nada avança sem o 
 
 | Fase | O que é | Por que esperar |
 |---|---|---|
-| Deploy VPS Oracle | Colocar em produção | Login Oracle bloqueado — ver docs/deploy.md |
+| Deploy VPS Ubuntu/Azure | Colocar em produção | Ambiente atual em VPS Azure; proximo passo: dominio e HTTPS |
 | Fase 15 — Checkpoints inteligentes | Checkpoint detecta automaticamente o melhor momento para síntese | Requer Fase 14 estável + dados de padrão de uso |
 | Fase 16 — Knowledge graph leve | Relacionar projeto ↔ decisão ↔ doc ↔ arquivo ↔ conceito | Entidades precisam ter semântica estável (Fase 13) |
 | Revisão semanal automática | Rotina: o que avançou, travou, envelheceu, está incoerente | Requer health score (Fase 12) + memória hierárquica (Fase 13) |

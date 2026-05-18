@@ -52,3 +52,7 @@ storage/evidence/
 
 .vercel
 .env*.local
+
+# Materiais pessoais/editoriais não versionados
+docs/presentations/linkedin-post-*.md
+docs/presentations/*.zip

@@ -213,7 +213,7 @@ See [docs/agent-runtime.md](docs/agent-runtime.md) for the full security model a
 
 **Local development prerequisites:** Node.js 20+ for the Rayzen Agent, pnpm 9.x, Docker Desktop.
 
-**Current operation:** central stack on a VPS, Web/API on `<VPS_IP>`, desktop Agent on the workstation, and server Agent on the VPS. See `docs/remote-agent-setup.md`.
+**Current operation:** central stack on an Azure Ubuntu VPS, desktop Agent on the workstation, and server Agent on the VPS. Public URLs and secrets stay out of the public README; see `docs/remote-agent-setup.md` for the operating model.
 
 ```bash
 git clone https://github.com/marcelorayzen/rayzen-ai.git
@@ -248,15 +248,7 @@ NOTION_API_KEY=ntn_...            # Notion integration
 NOTION_DATABASE_ID=               # Default database for new pages
 ```
 
-**Option A — Windows shortcut (recommended):**
-
-```
-Double-click dev-start.bat
-```
-
-Starts Docker infra, preserves all volume data, opens 3 terminal windows (API, Web, Agent).
-
-**Option B — manual:**
+**Manual local run:**
 
 ```bash
 docker compose up -d postgres redis litellm
@@ -267,6 +259,8 @@ pnpm dev:api           # API  → http://localhost:3101
 pnpm dev:web           # Web  → http://localhost:3100
 pnpm dev:agent         # PC Agent (required for Execution module)
 ```
+
+To run only the desktop Agent connected to the VPS, configure `.env.agent.local` from `.env.agent.example` and run `agent-start.bat`.
 
 Open **http://localhost:3100** and log in with `ADMIN_PASSWORD`.
 
@@ -284,7 +278,7 @@ pnpm test:cov        # Jest + coverage report (functions ≥ 80%)
 pnpm db:migrate      # Apply Prisma migrations
 pnpm db:studio       # Prisma Studio at http://localhost:5555
 pnpm build           # Build all apps
-git push origin main # Triggers CI → automatic SSH deploy to Oracle VPS
+git push origin main # Main project branch
 ```
 
 ---
@@ -308,7 +302,7 @@ git push origin main # Triggers CI → automatic SSH deploy to Oracle VPS
 | Agent | Node.js TypeScript | 20 LTS |
 | Container | Docker Compose | v2 |
 | CI/CD | GitHub Actions + SSH deploy | — |
-| VPS | Oracle Ampere A1 free tier | Ubuntu 24.04 |
+| VPS | Azure Ubuntu VM | Ubuntu |
 
 ---
 
@@ -324,6 +318,7 @@ git push origin main # Triggers CI → automatic SSH deploy to Oracle VPS
 | [docs/getting-started.md](docs/getting-started.md) | Detailed setup guide |
 | [docs/personalization.md](docs/personalization.md) | System persona and behaviour configuration |
 | [docs/roadmap.md](docs/roadmap.md) | Phase roadmap and current status |
+| [docs/presentations/](docs/presentations/) | Updated presentations and LinkedIn post drafts |
 
 ---
 
@@ -340,6 +335,6 @@ git push origin main # Triggers CI → automatic SSH deploy to Oracle VPS
 
 <div align="center">
 
-<sub>Built by <a href="https://github.com/marcelorayzen">Marcelo Rayzen</a> · 100% TypeScript · NestJS + Next.js monorepo · Oracle VPS free tier</sub>
+<sub>Built by <a href="https://github.com/marcelorayzen">Marcelo Rayzen</a> · 100% TypeScript · NestJS + Next.js monorepo · Ubuntu VPS</sub>
 
 </div>
