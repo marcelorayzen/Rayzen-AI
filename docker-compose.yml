@@ -53,6 +53,8 @@ services:
       dockerfile: apps/api/Dockerfile
     restart: unless-stopped
     env_file: .env
+    volumes:
+      - ./storage/evidence:/app/storage/evidence
     ports:
       - '3101:3101'
     depends_on:

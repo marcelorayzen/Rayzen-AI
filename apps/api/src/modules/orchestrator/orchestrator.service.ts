@@ -266,7 +266,7 @@ export class OrchestratorService {
         }
 
         const pending = this.decodePendingAction(actionMatch[1])
-        return this.executeJarvisAction(pending.action, pending.payload, pending.prompt, sessionId)
+        return this.executeJarvisAction(pending.action, pending.payload, pending.prompt, sessionId, projectId)
       }
     }
 
@@ -312,7 +312,8 @@ export class OrchestratorService {
     // 3. Rotear para Jarvis se necessário
     if (classify.module === 'jarvis') {
       try {
-        const jarvisPayload = buildJarvisPayload(classify.action, prompt)
+        const baseJarvisPayload = buildJarvisPayload(classify.action, prompt)
+        const jarvisPayload = await this.enrichJarvisPayload(classify.action, baseJarvisPayload, projectId, prompt)
         if (this.requiresConfirmation(classify.action)) {
           const risk = this.actionRisk(classify.action) as 'medium' | 'high'
           const encoded = this.encodePendingAction({ action: classify.action, payload: jarvisPayload, prompt, risk })
@@ -560,6 +561,7 @@ Formato da resposta: { "module": "...", "action": "...", "confidence": 0.0-1.0 }
     payload: Record<string, unknown>,
     prompt: string,
     sessionId: string,
+    projectId?: string,
   ): Promise<OrchestrateResult> {
     const result = await this.execution.dispatch(action, payload)
     const synthesis = await this.llm.chat.completions.create({
@@ -587,6 +589,24 @@ Seja direto, claro e amigável. Português brasileiro. Sem JSON bruto.`,
       tokensUsed: synthesis.usage?.total_tokens ?? 0,
       sessionId,
     }
+  }
+
+  private async enrichJarvisPayload(
+    action: string,
+    payload: Record<string, unknown>,
+    projectId?: string,
+    prompt?: string,
+  ): Promise<Record<string, unknown>> {
+    if (action !== 'screenshot' || !projectId) return payload
+
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: { name: true },
+    })
+
+    return project?.name
+      ? { ...payload, projectId, projectName: project.name, prompt }
+      : { ...payload, projectId, prompt }
   }
 
   private isHowToQuestion(prompt: string): boolean {

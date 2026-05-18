@@ -47,5 +47,8 @@ apps/agent/src/hooks/hook.config.mjs
 # Coverage
 apps/api/coverage/
 
+# Evidências enviadas pelo Agent
+storage/evidence/
+
 .vercel
 .env*.local

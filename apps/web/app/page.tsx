@@ -40,6 +40,19 @@ interface ProjectDoc {
   reviewedAt: string | null
 }
 
+interface EvidenceItem {
+  id: string
+  projectId: string | null
+  type: string
+  content: string
+  localPath: string | null
+  remotePath: string | null
+  takenAt: string | null
+  prompt: string | null
+  projectName: string | null
+  createdAt: string
+}
+
 function memoryGroupFor(doc: MemoryDoc): { key: string; label: string } {
   const meta = doc.metadata ?? {}
   const metaKey = typeof meta.groupKey === 'string' ? meta.groupKey : null
@@ -398,6 +411,9 @@ export default function Home() {
   const [docsOpen, setDocsOpen] = useState(false)
   const [projectDocs, setProjectDocs] = useState<ProjectDoc[]>([])
   const [docsLoading, setDocsLoading] = useState(false)
+  const [evidenceOpen, setEvidenceOpen] = useState(false)
+  const [evidenceItems, setEvidenceItems] = useState<EvidenceItem[]>([])
+  const [evidenceLoading, setEvidenceLoading] = useState(false)
   const [generatingDocs, setGeneratingDocs] = useState(false)
   const [activeDocType, setActiveDocType] = useState<string>('project_state')
   const [syncing, setSyncing] = useState(false)
@@ -476,6 +492,20 @@ export default function Home() {
       setSynthesisArtifacts(await res.json() as SynthesisArtifact[])
     } catch { setSynthesisArtifacts([]) }
     finally { setSynthesisLoading(false) }
+  }, [activeProjectId])
+
+  const openEvidence = useCallback(async () => {
+    if (!activeProjectId) return
+    setEvidenceOpen(true)
+    setEvidenceLoading(true)
+    try {
+      const res = await fetch(`${API_URL}/evidence/projects/${activeProjectId}`, { headers: authHeaders() })
+      setEvidenceItems(await res.json() as EvidenceItem[])
+    } catch {
+      setEvidenceItems([])
+    } finally {
+      setEvidenceLoading(false)
+    }
   }, [activeProjectId])
 
   const synthesizeCurrent = useCallback(async () => {
@@ -1376,6 +1406,8 @@ export default function Home() {
               )}
               {activityEvents.map((ev) => {
                 const git = (ev.metadata as Record<string, unknown>)?.['git'] as Record<string, unknown> | null
+                const evidenceType = typeof ev.metadata?.['evidenceType'] === 'string' ? ev.metadata['evidenceType'] : null
+                const evidencePath = typeof ev.metadata?.['path'] === 'string' ? ev.metadata['path'] : null
                 return (
                   <div key={ev.id} className="flex gap-3 py-2 border-b border-zinc-800 last:border-0">
                     <div className="flex flex-col items-center gap-1 min-w-[56px]">
@@ -1389,7 +1421,10 @@ export default function Home() {
                       }`}>{ev.type}</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs text-zinc-300 truncate">{ev.content}</p>
+                      <p className="text-xs text-zinc-300 truncate">
+                        {evidenceType === 'screenshot' ? '📸 ' : ''}
+                        {ev.content}
+                      </p>
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         <span className="text-[10px] text-zinc-600">{new Date(ev.ts).toLocaleString('pt-BR')}</span>
                         {ev.project
@@ -1403,6 +1438,14 @@ export default function Home() {
                             ev.memoryClass === 'archive'      ? 'bg-zinc-700 text-zinc-500' :
                             'bg-zinc-800 text-zinc-500'
                           }`}>{ev.memoryClass}</span>
+                        )}
+                        {evidenceType === 'screenshot' && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-900 text-cyan-300 font-medium">evidência</span>
+                        )}
+                        {evidencePath && (
+                          <span className="text-[10px] font-mono text-zinc-600 truncate max-w-[320px]" title={evidencePath}>
+                            {evidencePath}
+                          </span>
                         )}
                         {typeof git?.['branch'] === 'string' && (
                           <span className="text-[10px] font-mono text-indigo-400">⎇ {git['branch']}</span>
@@ -2217,6 +2260,15 @@ export default function Home() {
               qa
             </button>
           )}
+          {activeProjectId && (
+            <button
+              onClick={openEvidence}
+              className="hud-nav"
+              title="Evidências visuais do projeto"
+            >
+              evidências
+            </button>
+          )}
           <button
             onClick={() => setAutoVoice((v) => !v)}
             className={`hud-nav ${autoVoice ? 'active' : ''}`}
@@ -2620,6 +2672,57 @@ export default function Home() {
                   })}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Evidence modal */}
+      {evidenceOpen && (
+        <div className="fixed inset-0 z-[55] flex items-center justify-center">
+          <div className="fixed inset-0 bg-black/80" onClick={() => setEvidenceOpen(false)} />
+          <div className="relative z-[55] w-full max-w-4xl bg-zinc-900 border border-zinc-800 rounded-2xl mx-4 max-h-[88vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
+              <div>
+                <h2 className="text-sm font-semibold">Evidências</h2>
+                <p className="text-xs text-zinc-500">Capturas visuais associadas ao projeto ativo.</p>
+              </div>
+              <button onClick={() => setEvidenceOpen(false)} className="text-zinc-500 hover:text-zinc-300 text-xs">fechar</button>
+            </div>
+            <div className="p-6 overflow-y-auto">
+              {evidenceLoading && <p className="text-zinc-500 text-xs text-center py-10">Carregando…</p>}
+              {!evidenceLoading && evidenceItems.length === 0 && (
+                <p className="text-zinc-500 text-xs text-center py-10">Nenhuma evidência registrada ainda.</p>
+              )}
+              <div className="grid gap-4 sm:grid-cols-2">
+                {evidenceItems.map((item) => (
+                  <div key={item.id} className="rounded-xl border border-zinc-800 bg-zinc-950/60 overflow-hidden">
+                    {item.remotePath ? (
+                      <img
+                        src={`${API_URL}/evidence/file/${item.remotePath.replace(/\\/g, '/')}`}
+                        alt={item.prompt ? `Evidência: ${item.prompt}` : 'Screenshot do projeto'}
+                        className="w-full h-48 object-cover border-b border-zinc-800"
+                      />
+                    ) : (
+                      <div className="h-48 flex items-center justify-center text-xs text-zinc-600 border-b border-zinc-800">
+                        arquivo local ainda não sincronizado
+                      </div>
+                    )}
+                    <div className="p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-900 text-cyan-300">screenshot</span>
+                        <span className="text-[10px] text-zinc-600">
+                          {new Date(item.takenAt ?? item.createdAt).toLocaleString('pt-BR')}
+                        </span>
+                      </div>
+                      {item.prompt && <p className="text-xs text-zinc-300 line-clamp-2">{item.prompt}</p>}
+                      {item.localPath && (
+                        <p className="text-[10px] font-mono text-zinc-600 truncate" title={item.localPath}>{item.localPath}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
