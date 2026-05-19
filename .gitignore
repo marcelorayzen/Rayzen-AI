@@ -57,3 +57,6 @@ storage/evidence/
 # Materiais pessoais/editoriais não versionados
 docs/presentations/linkedin-post-*.md
 docs/presentations/*.zip
+
+# Graphify — grafo gerado localmente (regenerado com `graphify update .`)
+graphify-out/
