@@ -1,11 +1,21 @@
 import { Controller, Get, Post, Patch, Delete, Param, Body } from '@nestjs/common'
 import { ApiTags, ApiOperation } from '@nestjs/swagger'
 import { GraphService, CreateGoalDto, UpdateGoalDto, Kpi } from './graph.service'
+import { KnowledgeGraphService } from './knowledge-graph.service'
 
 @ApiTags('graph')
 @Controller('projects/:id/graph')
 export class GraphController {
-  constructor(private readonly graph: GraphService) {}
+  constructor(
+    private readonly graph: GraphService,
+    private readonly knowledge: KnowledgeGraphService,
+  ) {}
+
+  @Get('knowledge')
+  @ApiOperation({ summary: 'Knowledge graph: decisões ↔ documentos ↔ wiki ↔ arquivos ↔ meta' })
+  getKnowledgeGraph(@Param('id') id: string) {
+    return this.knowledge.build(id)
+  }
 
   @Get()
   @ApiOperation({ summary: 'Mermaid do estado atual do projeto (milestones, blockers, next steps)' })
