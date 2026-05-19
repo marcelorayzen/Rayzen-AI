@@ -10,13 +10,24 @@ model_list:
       model: anthropic/claude-sonnet-4-20250514
       api_key: os.environ/ANTHROPIC_API_KEY
 
-  # Chamadas leves — Groq 8b (primário, quota muito maior) + Claude Haiku (fallback)
+  # Chamadas leves — Groq 8b (primário, quota maior) + Claude Haiku (fallback)
   - model_name: gpt-4o-mini
     litellm_params:
       model: groq/llama-3.1-8b-instant
       api_key: os.environ/GROQ_API_KEY
 
   - model_name: gpt-4o-mini
+    litellm_params:
+      model: anthropic/claude-haiku-4-5-20251001
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  # Aliases diretos para Claude — use quando quiser forçar melhor qualidade
+  - model_name: gpt-4o-premium
+    litellm_params:
+      model: anthropic/claude-sonnet-4-20250514
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  - model_name: gpt-4o-mini-premium
     litellm_params:
       model: anthropic/claude-haiku-4-5-20251001
       api_key: os.environ/ANTHROPIC_API_KEY
@@ -33,7 +44,7 @@ model_list:
       model: groq/playai-tts
       api_key: os.environ/GROQ_API_KEY
 
-  # Embeddings (mantém OpenAI pois Groq não tem)
+  # Embeddings (Jina via HTTP direto — não passa pelo LiteLLM)
   - model_name: embedding
     litellm_params:
       model: openai/text-embedding-3-small
@@ -46,9 +57,7 @@ router_settings:
   routing_strategy: least-busy
   allowed_fails: 2
   cooldown_time: 60
-  # Fallback automático: se Groq rate-limitar, usa Anthropic
+  # Fallback automático: se Groq rate-limitar ou falhar, cai no Claude
   fallbacks:
-    - gpt-4o:
-        - gpt-4o-anthropic
-    - gpt-4o-mini:
-        - gpt-4o-mini-anthropic
+    - {"gpt-4o": ["gpt-4o-premium"]}
+    - {"gpt-4o-mini": ["gpt-4o-mini-premium"]}
