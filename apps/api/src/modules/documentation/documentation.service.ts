@@ -16,11 +16,15 @@ export type DocType =
 type LlmDocType = 'project_state' | 'decisions_log' | 'next_actions' | 'work_journal'
 
 const DOC_PROMPTS: Record<LlmDocType, (ctx: string) => string> = {
-  project_state: (ctx) => `Com base no histórico abaixo, escreva um documento markdown "Estado do Projeto" com:
-- Status atual (o que está acontecendo agora)
-- O que foi concluído recentemente
-- Bloqueios ou riscos identificados
-- Próximos marcos
+  project_state: (ctx) => `Com base no contexto abaixo, escreva um documento markdown "Estado do Projeto".
+
+IMPORTANTE: A seção "## Estado atual do projeto" contém o estado mais recente e preciso — use-a como fonte primária. Os eventos recentes complementam com detalhes das últimas ações.
+
+Estrutura:
+- Status atual (fase e objetivo agora)
+- O que foi concluído recentemente (baseado nos eventos recentes)
+- Foco ativo e próximos marcos
+- Bloqueios ou riscos ativos
 
 ${ctx}
 
@@ -37,7 +41,10 @@ ${ctx}
 
 Liste apenas decisões reais identificadas no histórico. Se não houver data precisa, use "Recente".`,
 
-  next_actions: (ctx) => `Com base no histórico abaixo, escreva um documento markdown "Próximas Ações" consolidando todos os próximos passos pendentes identificados, agrupados por área:
+  next_actions: (ctx) => `Com base no contexto abaixo, escreva um documento markdown "Próximas Ações".
+
+IMPORTANTE: A seção "## Estado atual do projeto" é a fonte mais confiável do momento presente.
+Use os "Próximos passos" do estado atual como lista base. Sínteses antigas podem conter itens JÁ CONCLUÍDOS — só inclua itens de sínteses antigas se há evidência nos eventos recentes de que ainda estão pendentes.
 
 ${ctx}
 
@@ -45,13 +52,15 @@ Formato:
 ## Área
 - [ ] Ação pendente
 
-Remove duplicatas. Priorize por impacto.`,
+Máximo 10 ações no total. Remove duplicatas. Descarta itens que os eventos recentes mostram como concluídos. Prioriza por impacto real no momento atual.`,
 
-  work_journal: (ctx) => `Com base no histórico abaixo, escreva um documento markdown "Diário de Trabalho" — um log narrativo cronológico do que foi feito, decidido e aprendido.
+  work_journal: (ctx) => `Com base no contexto abaixo, escreva um documento markdown "Diário de Trabalho" — um log narrativo cronológico do que foi feito, decidido e aprendido.
+
+IMPORTANTE: Use os eventos recentes (seção "## Eventos recentes") como fonte principal — eles são ordenados do mais novo para o mais antigo. Foque nas últimas sessões de trabalho.
 
 ${ctx}
 
-Formato: entradas cronológicas com cabeçalho de data/sessão. Tom técnico e direto. Máximo 600 palavras.`,
+Formato: entradas cronológicas com cabeçalho de data/sessão (use as datas dos eventos recentes). Tom técnico e direto. Máximo 600 palavras.`,
 }
 
 // Diff simples linha a linha: retorna linhas adicionadas (+) e removidas (-)
