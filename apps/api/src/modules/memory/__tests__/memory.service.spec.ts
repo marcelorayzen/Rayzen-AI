@@ -347,16 +347,16 @@ describe('MemoryService', () => {
       expect(result.indexed).toBeGreaterThan(0)
     })
 
-    it('retorna 0 páginas quando API retorna lista vazia', async () => {
+    it('lança erro quando API retorna lista vazia (nenhuma página compartilhada)', async () => {
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
         status: 200,
         json: jest.fn().mockResolvedValue({ results: [] }),
       })
 
-      const result = await service.indexNotion('secret_token')
-      expect(result.pages).toBe(0)
-      expect(result.indexed).toBe(0)
+      await expect(service.indexNotion('secret_token')).rejects.toThrow(
+        'Notion: nenhuma página encontrada',
+      )
     })
   })
 

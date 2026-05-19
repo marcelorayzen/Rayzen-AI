@@ -108,7 +108,7 @@ describe('OrchestratorService', () => {
       expect(result.confidence).toBe(0.9)
     })
 
-    it('usa response_format json_object e temperature 0', async () => {
+    it('usa temperature 0 e não envia response_format (ADR 011)', async () => {
       mockLLM.chat.completions.create.mockResolvedValue({
         choices: [{ message: { content: '{"module":"system","action":"chat","confidence":0.8}' } }],
         usage: { total_tokens: 30 },
@@ -116,12 +116,9 @@ describe('OrchestratorService', () => {
 
       await service.classify('olá')
 
-      expect(mockLLM.chat.completions.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          response_format: { type: 'json_object' },
-          temperature: 0,
-        }),
-      )
+      const call = mockLLM.chat.completions.create.mock.calls[0][0]
+      expect(call.temperature).toBe(0)
+      expect(call.response_format).toBeUndefined()
     })
 
     it('mantém perguntas de orientação fora do Jarvis sem chamar o LLM', async () => {
