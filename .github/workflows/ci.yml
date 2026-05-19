@@ -97,7 +97,7 @@ jobs:
     name: Deploy VPS
     needs: [typecheck, lint, test]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && vars.DEPLOY_ENABLED == 'true'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
