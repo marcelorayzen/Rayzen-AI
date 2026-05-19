@@ -97,25 +97,21 @@ export class DocumentationService {
     }
 
     // Coletar contexto com IDs rastreáveis
-    const [artifacts, events] = await Promise.all([
+    const [artifacts, events, projectState] = await Promise.all([
       this.prisma.sessionArtifact.findMany({
         where: { projectId },
         orderBy: { createdAt: 'desc' },
-        take: 10,
+        take: 8,
       }),
       this.prisma.event.findMany({
         where: {
           projectId,
-          // Fase 13: priorizar consolidated + working; ignorar archive
           memoryClass: { in: ['consolidated', 'working', 'inbox'] },
         },
-        orderBy: [
-          // consolidated first, then working, then inbox
-          { memoryClass: 'asc' },
-          { ts: 'desc' },
-        ],
-        take: 40,
+        orderBy: { ts: 'desc' }, // recência primeiro — não deixa eventos antigos dominar
+        take: 50,
       }),
+      this.prisma.projectState.findUnique({ where: { projectId } }),
     ])
 
     const sourceIds = [
@@ -140,9 +136,23 @@ export class DocumentationService {
       .map(e => `- [${new Date(e.ts).toLocaleDateString('pt-BR')}] [${e.intent ?? e.source}/${e.type}] ${e.content}`)
       .join('\n')
 
+    // Estado atual do projeto (fonte mais confiável do que está acontecendo agora)
+    const stateLines = projectState ? [
+      `**Fase:** ${projectState.stage ?? ''}`,
+      `**Objetivo atual:** ${projectState.objective ?? ''}`,
+      projectState.activeFocus ? `**Foco ativo:** ${projectState.activeFocus}` : '',
+      (projectState.recentDecisions as string[] ?? []).length
+        ? `**Decisões recentes:** ${(projectState.recentDecisions as string[]).join('; ')}` : '',
+      (projectState.nextSteps as Array<{title:string}> ?? []).length
+        ? `**Próximos passos:** ${(projectState.nextSteps as Array<{title:string}>).map(s => s.title ?? s).join('; ')}` : '',
+      (projectState.blockers as Array<{title:string}> ?? []).length
+        ? `**Blockers:** ${(projectState.blockers as Array<{title:string}>).map(b => b.title ?? b).join('; ')}` : '',
+    ].filter(Boolean).join('\n') : ''
+
     const context = [
       `# Projeto: ${project.name}`,
       project.goals && `**Objetivos:** ${project.goals}`,
+      stateLines && `## Estado atual do projeto\n${stateLines}`,
       synthLines && `## Sínteses de sessão\n${synthLines}`,
       eventLines && `## Eventos recentes\n${eventLines}`,
     ].filter(Boolean).join('\n\n')
