@@ -16,7 +16,7 @@ Apenas a branch `main` recebe correções de segurança.
 
 **NÃO abra uma issue pública** para reportar vulnerabilidades de segurança.
 
-Envie um e-mail para **contato@rayzen.dev** com:
+Envie um e-mail para **marcelo.rayzen@live.com** com:
 
 1. Descrição da vulnerabilidade
 2. Passos para reproduzir
@@ -44,7 +44,7 @@ Envie um e-mail para **contato@rayzen.dev** com:
 
 ## O que NÃO está no escopo
 
-- A infraestrutura da VPS Oracle (servidor pessoal, fora do escopo deste repositório)
+- A infraestrutura da VPS Azure (servidor pessoal, fora do escopo deste repositório)
 - Credenciais pessoais armazenadas em `.env` (nunca devem ser commitadas)
 - Serviços de terceiros (OpenAI, Groq, Jina, Notion)
 - Issues de disponibilidade ou performance sem impacto de segurança

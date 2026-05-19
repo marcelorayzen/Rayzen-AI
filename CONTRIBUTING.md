@@ -37,8 +37,8 @@ cp .env.example .env  # preencha as chaves
 docker compose up -d postgres redis litellm
 pnpm db:migrate
 
-pnpm dev:api    # http://localhost:3001
-pnpm dev:web    # http://localhost:3000
+pnpm dev:api    # http://localhost:3101
+pnpm dev:web    # http://localhost:3100
 pnpm dev:agent  # PC Agent local
 ```
 
@@ -49,7 +49,7 @@ pnpm dev:agent  # PC Agent local
 - **TypeScript 100%** — sem arquivos `.js` na stack principal
 - **Sem `any` explícito** — use tipos de `packages/types/src/index.ts` ou crie tipos locais
 - **NestJS DI** — injete `PrismaService` via construtor, nunca `new PrismaClient()`
-- **LLM sempre via proxy** — `baseURL` aponta para LiteLLM (`:4000/v1`), nunca direto para OpenAI
+- **LLM sempre via proxy** — `baseURL` aponta para LiteLLM (`:4100/v1`), nunca direto para OpenAI/Anthropic
 - **Consulte `CLAUDE.md`** e `docs/engineering-standards.md` para padrões detalhados
 
 ---

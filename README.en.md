@@ -3,7 +3,7 @@
 <img src="https://img.shields.io/badge/Rayzen_AI-v0.1.0-6366f1?style=for-the-badge&logoColor=white" />
 <img src="https://img.shields.io/badge/TypeScript-100%25-3178c6?style=for-the-badge&logo=typescript&logoColor=white" />
 <img src="https://img.shields.io/badge/NestJS-10-e0234e?style=for-the-badge&logo=nestjs&logoColor=white" />
-<img src="https://img.shields.io/badge/Next.js-16-000000?style=for-the-badge&logo=next.js&logoColor=white" />
+<img src="https://img.shields.io/badge/Next.js-15-000000?style=for-the-badge&logo=next.js&logoColor=white" />
 <img src="https://img.shields.io/github/actions/workflow/status/marcelorayzen/rayzen-ai/ci.yml?branch=main&style=for-the-badge&label=CI" />
 
 <br /><br />
@@ -69,7 +69,7 @@ Jina      Redis      docxtempl.  Mermaid       Whisper
    │    ┌─────┴──────────────────────────┐
    │    │     PC Agent  (local Node.js)  │
    │    │  poll every 3s via BullMQ      │
-   │    │  26 whitelist-guarded actions  │
+   │    │  27 whitelist-guarded actions  │
    │    └────────────────────────────────┘
    │
    └──── Notion ── Project ── Health ── Proactive ── Event ── Git
@@ -113,11 +113,21 @@ See [docs/architecture.md](docs/architecture.md) for the full module catalogue a
 
 - **Mermaid diagrams** — content engine auto-infers diagram type from prompt keywords (flowchart, sequenceDiagram, erDiagram, classDiagram, gantt) and returns fenced `mermaid` blocks rendered in the frontend
 
+- **Agent role separation** — `desktop` Agent runs on the work PC (screenshots, clipboard, local tests, open tools); `server` Agent runs on the VPS (logs, Docker, service restarts); both share the same polling model and whitelist enforcement; `jarvis:restart_api` always routes to `server`
+
+- **Workspace Watcher** — polls configured Git repositories every 30 s via `git status --porcelain`; detects changed files, reads their content, and indexes them in Brain with the project's `projectId` — no tool-specific hooks required, works with any editor
+
+- **Template system with brief** — `create_project_folder template=rayzen brief="..."` calls LiteLLM to pre-fill the full project structure from a natural-language description: `CLAUDE.md`, `docs/project.md` (spec, personas, roadmap, diary), first ADR, `.gitignore`, `.env.example`, `.claude/settings.json`, git init with initial commit; the `brief` field is automatically extracted from the chat prompt
+
+- **Goal Graph** — visual canvas (`@xyflow/react`) for tracking project intention: milestones, blockers, next steps CRUD in-canvas; `ProjectGoal` with success criteria (progress bar), KPIs with inline editing and LLM auto-tracking from recent events; gap analysis (LLM) compares goal vs current state and surfaces `nextBestAction`
+
+- **Project context isolation** — each chat session is scoped to the selected project; history, Brain search, and knowledge extraction (`extractAndIndex`) all filter by `projectId`; system prompt is enriched with real-time state (stage, blockers, active goal, recent events) — the assistant answers from facts, not from guesses
+
 ---
 
 ## Reliability
 
-**48 tests across 6 modules**, enforced in CI:
+**103 tests across 6 modules**, enforced in CI:
 
 | Module | What is tested |
 |---|---|
@@ -159,17 +169,22 @@ apps/api/src/modules/
 ├── health/              # 6-dimension health score (0–100) + 30-day history
 ├── synthesis/           # Cross-project synthesis and summarization
 ├── documentation/       # Documentation generation and export
-├── proactive/           # 6 proactive rules: inactivity, doc_stale, blocker, next_step, consistency, drift
+├── proactive/           # 7 proactive rules: inactivity, doc_stale, blocker, next_step, consistency, drift, goal_stagnant
 ├── event/               # Event log with memory_class hierarchy (inbox → working → consolidated → archive)
 ├── obsidian/            # Obsidian vault sync
-└── git/                 # Git operations and repository insights
+├── git/                 # Git operations and repository insights
+├── wiki/                # Versioned knowledge base with source traceability
+├── data-quality/        # Data quality rules, results, score history, schema diff
+├── data-catalog/        # Data asset catalogue with lineage graph and impact analysis
+├── qa/                  # Test run ingestion (JUnit XML / Allure JSON)
+└── graph/               # Goal Graph: milestones, blockers, gap analysis, KPI auto-track
 ```
 
 **LLM model assignments:**
 
 | Module | Model | Temperature | Notes |
 |---|---|---|---|
-| Orchestrator — classify | gpt-4o-mini | 0 | `response_format: json_object` enforced |
+| Orchestrator — classify | gpt-4o-mini | 0 | robust JSON extraction via `parseLlmJson` (strip fences + regex) — Claude doesn't support `response_format` |
 | Orchestrator — chat | gpt-4o | 0.7 | Full conversation history included |
 | Memory — synthesis | gpt-4o-mini | 0.3 | Summarizes search results |
 | Document Processing | gpt-4o-mini | 0.2 | Structured, deterministic output |
@@ -191,9 +206,10 @@ The PC Agent runs locally (Windows, `apps/agent/`) and polls Redis every 3 secon
 | Files & Directories | `list_dir`, `file_search`, `organize_downloads`, `create_project_folder` |
 | System | `get_system_info`, `screenshot`, `notify`, `clipboard_read`, `clipboard_write` |
 | Git | `git_status`, `git_log`, `git_branch`, `git_commit` |
-| Terminal & Dev | `run_command`, `run_tests`, `inspect_schema` |
+| Terminal & Dev | `run_command`, `run_tests`, `inspect_schema`, `restart_api` |
 | Docker | `docker_ps`, `docker_start`, `docker_stop` |
 | Communication | `read_emails`, `send_email`, `get_calendar` |
+| Data | `get_data_quality` |
 
 **`run_tests`** — invokes Jest, Vitest, or Playwright in any project path; parses stdout for passed/failed/skipped/coverage and returns structured `{ passed, failed, skipped, coverage, failures[] }`. Handles non-zero exit codes (test failures) correctly.
 
@@ -211,7 +227,7 @@ See [docs/agent-runtime.md](docs/agent-runtime.md) for the full security model a
 
 ## Quick start
 
-**Local development prerequisites:** Node.js 20+ for the Rayzen Agent, pnpm 9.x, Docker Desktop.
+**Local development prerequisites:** Node.js 20+ for the Rayzen Agent, pnpm 10.x, Docker Desktop.
 
 **Current operation:** central stack on an Azure Ubuntu VPS, desktop Agent on the workstation, and server Agent on the VPS. Public URLs and secrets stay out of the public README; see `docs/remote-agent-setup.md` for the operating model.
 
