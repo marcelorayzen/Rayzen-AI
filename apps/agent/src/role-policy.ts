@@ -27,6 +27,7 @@ const DESKTOP_ACTIONS = new Set([
   'jarvis:get_qa_summary',
   'jarvis:get_data_quality',
   'jarvis:capture_test_failure',
+  'jarvis:run_graphify',
 ])
 
 const SERVER_ACTIONS = new Set([

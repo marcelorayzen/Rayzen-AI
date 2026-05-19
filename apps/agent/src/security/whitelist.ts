@@ -45,4 +45,7 @@ export const ALLOWED_ACTIONS = new Set([
   'jarvis:read_emails',
   'jarvis:send_email',
   'jarvis:get_calendar',
+
+  // Graphify — análise de grafo de código (desktop apenas)
+  'jarvis:run_graphify',
 ])

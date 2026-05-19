@@ -23,6 +23,7 @@ import { parseTestReport } from './actions/parse-test-report'
 import { getQaSummary } from './actions/get-qa-summary'
 import { getDataQuality } from './actions/get-data-quality'
 import { captureTestFailure } from './actions/capture-test-failure'
+import { runGraphify_action } from './actions/run-graphify'
 import { dockerLogs } from './actions/docker'
 import { isActionAllowedForRole } from './role-policy'
 import { AgentRole } from '@rayzen/types'
@@ -89,6 +90,9 @@ export async function executeTask(task: Task): Promise<unknown> {
 
     // Infraestrutura do servidor
     case 'jarvis:restart_api':  return restartApi(p as { dryRun?: boolean })
+
+    // Graphify
+    case 'jarvis:run_graphify': return runGraphify_action(p as { projectPath?: string; projectId?: string; dryRun?: boolean })
 
     default:
       throw new Error(`Handler não implementado: ${key}`)
