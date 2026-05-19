@@ -155,7 +155,7 @@ Regras:
 - Se não há dados suficientes para uma categoria, retorne array vazio ou string vazia`
 
     const res = await this.llm.chat.completions.create({
-      model: 'gpt-4o',
+      model: 'gpt-4o-premium',
       temperature: 0.2,
       messages: [{ role: 'user', content: prompt }],
     })
