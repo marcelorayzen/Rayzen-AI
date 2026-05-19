@@ -1,7 +1,8 @@
 # [NOME DO PROJETO] — Instruções para Claude Code
 
-> **Como usar este arquivo:** preencha cada seção antes de iniciar o projeto.
-> O Claude Code lê este arquivo antes de qualquer tarefa. Quanto mais preciso, menos retrabalho.
+> **Como usar este arquivo:** preencha cada seção antes de iniciar o projeto.  
+> O Claude Code lê este arquivo antes de qualquer tarefa. Quanto mais preciso, menos retrabalho.  
+> **Se existe `BRIEF.md` nesta pasta:** leia-o PRIMEIRO. Ele contém a ideia original do projeto — use-o para preencher `docs/project.md` (spec, stack, roadmap) antes de codar qualquer coisa.
 
 ---
 

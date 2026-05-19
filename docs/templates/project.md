@@ -2,7 +2,8 @@
 
 > **Doc viva.** Atualizada a cada decisão relevante.  
 > **Seções obrigatórias antes de codar:** Spec, Stack, Roadmap Fase 1.  
-> **Seções que crescem com o projeto:** Diary, Goal Graph, ADRs.
+> **Seções que crescem com o projeto:** Diary, Goal Graph, ADRs.  
+> **Se existe `BRIEF.md` nesta pasta:** leia-o primeiro — ele contém a ideia original. Use-o para preencher as seções em branco abaixo.
 
 ---
 
@@ -239,7 +240,24 @@ chore: [descrição curta]    # infra, deps, config
 ## 6. DIARY — Log de decisões e problemas
 
 > **Regra:** qualquer decisão não-óbvia ou problema resolvido entra aqui.  
-> **Formato:** data · contexto · decisão/solução · motivo · lição aprendida.
+> **Formato:** data · contexto · decisão/solução · motivo · lição aprendida.  
+> **Quando registrar:** ao fazer uma escolha técnica que não é óbvia, ao resolver um bug difícil, ao mudar de direção.
+
+---
+
+### [DATA-CRIACAO] — Projeto criado
+
+**Contexto:**  
+Projeto iniciado a partir de: [brief/ideia original em 1-2 frases].
+
+**Decisão:**  
+Stack escolhida: [stack]. Template: rayzen.
+
+**Motivo:**  
+[Por que esta stack e não outra]
+
+**Próximos passos:**  
+Preencher Spec, definir Fase 1, configurar Brain no Rayzen.
 
 ---
 

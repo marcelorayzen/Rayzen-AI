@@ -57,13 +57,17 @@ export function buildJarvisPayload(action: string, prompt: string): Record<strin
 
   if (action === 'create_project_folder') {
     const lower = prompt.toLowerCase()
-    const template = lower.includes('next') ? 'nextjs'
+    const template = lower.includes('rayzen') ? 'rayzen'
+      : lower.includes('next') ? 'nextjs'
       : lower.includes('node') || lower.includes('api') ? 'node'
       : lower.includes('python') ? 'python'
       : 'blank'
-    const nameMatch = prompt.match(/(?:chamado|projeto|project|criar|crie|novo)\s+([a-zA-Z0-9_\- ]+?)(?:\s+com|\s+usando|\s+em|$)/i)
+    const nameMatch = prompt.match(/(?:chamado|projeto|project|criar|crie|novo)\s+([a-zA-Z0-9_\- ]+?)(?:\s+com|\s+usando|\s+em|\s+brief|$)/i)
     const name = nameMatch ? nameMatch[1].trim() : 'novo-projeto'
-    return { name, template, openVscode: true, dryRun: false }
+    // Extrai brief se fornecido entre aspas ou após "brief:"
+    const briefMatch = prompt.match(/brief[:\s]+["']?(.+?)["']?$/is) ?? prompt.match(/ideia[:\s]+["']?(.+?)["']?$/is)
+    const brief = briefMatch ? briefMatch[1].trim() : undefined
+    return { name, template, brief, openVscode: true, dryRun: false }
   }
 
   if (action === 'read_emails') {
