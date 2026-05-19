@@ -525,6 +525,9 @@ Seja direto, claro e amigável. Português brasileiro. Sem JSON bruto.`,
   }
 
   async classify(prompt: string): Promise<ClassifyResult> {
+    const deterministic = this.classifyDeterministic(prompt)
+    if (deterministic) return deterministic
+
     if (this.isHowToQuestion(prompt)) {
       return { module: 'system', action: 'answer', confidence: 0.95 }
     }
@@ -542,7 +545,7 @@ Módulos disponíveis:
 
 Ações do jarvis disponíveis: open_app, open_url, open_vscode, create_project_folder, list_dir, file_search, organize_downloads, get_system_info, screenshot, notify, clipboard_read, clipboard_write, git_status, git_log, git_branch, git_commit, run_command, run_tests, inspect_schema, docker_ps, docker_start, docker_stop, docker_logs, read_emails, send_email, get_calendar, restart_api, parse_test_report, get_qa_summary, get_data_quality
 Ações do content disponíveis: post, thread, article, calendar, diagram
-Exemplos jarvis: "qual o status do PC", "abra o chrome", "liste os downloads", "coloca música no youtube", "leia meus emails", "manda email para X", "abre o vscode", "crie projeto meu-app nextjs", "tira um screenshot", "me notifica daqui 10 min", "lê minha área de transferência", "git status do projeto X", "quais commits recentes", "cria branch feature/Y", "roda os testes do projeto X", "lista containers docker", "mostra os logs do container rayzen-ai-api-1", "para o container redis", "minha agenda de hoje", "procura arquivo relatorio.pdf", "mostra o schema do banco", "inspeciona o schema prisma", "reinicia a API na VPS", "restart api", "atualiza e reinicia o servidor", "analisa o relatório de testes em C:/projetos/report.xml", "parseia o resultado dos testes junit", "lê o relatório allure e mostra as falhas", "como estão os testes?", "quais testes estão falhando mais?", "tem algum teste flaky?", "mostra a tendência de qualidade dos testes", "qual o status da suíte de testes?", "como está a qualidade dos dados?", "verifica qualidade da tabela clientes", "quais regras de qualidade estão falhando?", "score de qualidade do dataset pedidos", "tem dados nulos na tabela produtos?", "mostra histórico de qualidade dos dados"
+Exemplos jarvis: "qual o status do PC", "abra o chrome", "liste os downloads", "coloca música no youtube", "leia meus emails", "manda email para X", "abre o vscode", "crie projeto meu-app nextjs", "tira um screenshot", "tire um print da tela: teste de API 52", "captura de tela do erro", "me notifica daqui 10 min", "lê minha área de transferência", "git status do projeto X", "quais commits recentes", "cria branch feature/Y", "roda os testes do projeto X", "lista containers docker", "mostra os logs do container rayzen-ai-api-1", "para o container redis", "minha agenda de hoje", "procura arquivo relatorio.pdf", "mostra o schema do banco", "inspeciona o schema prisma", "reinicia a API na VPS", "restart api", "atualiza e reinicia o servidor", "analisa o relatório de testes em C:/projetos/report.xml", "parseia o resultado dos testes junit", "lê o relatório allure e mostra as falhas", "como estão os testes?", "quais testes estão falhando mais?", "tem algum teste flaky?", "mostra a tendência de qualidade dos testes", "qual o status da suíte de testes?", "como está a qualidade dos dados?", "verifica qualidade da tabela clientes", "quais regras de qualidade estão falhando?", "score de qualidade do dataset pedidos", "tem dados nulos na tabela produtos?", "mostra histórico de qualidade dos dados"
 Exemplos content: "crie um post sobre X", "escreva uma thread sobre Y", "faça um artigo sobre Z", "crie um calendário editorial", "gere um diagrama da arquitetura", "desenhe o fluxo entre API e Agent", "crie um sequence diagram do chat"
 Exemplos brain: "qual minha profissão?", "o que você sabe sobre mim?", "qual meu nome?", "o que eu te disse sobre X?", "me fale sobre meus projetos"
 Exemplos system: "quem é você", "o que você pode fazer", "olá", "como você funciona", "meu nome é X", "trabalho como Y", "sou Z", "me chamo X", afirmações e apresentações pessoais do usuário
@@ -554,6 +557,7 @@ Formato da resposta: { "module": "...", "action": "...", "confidence": 0.0-1.0 }
     const res = await this.llm.chat.completions.create({
       model: 'gpt-4o-mini',
       messages,
+      response_format: { type: 'json_object' },
       temperature: 0,
     })
     const parsed = this.parseLlmJson<ClassifyResult>(
@@ -654,6 +658,22 @@ Seja direto, claro e amigável. Português brasileiro. Sem JSON bruto.`,
       : { ...payload, projectId, prompt }
   }
 
+  private classifyDeterministic(prompt: string): ClassifyResult | null {
+    if (this.isHowToQuestion(prompt)) return null
+
+    const normalized = prompt.trim().toLowerCase()
+
+    const screenshotCommand =
+      /\b(tir[ae]|tirar|captur[ae]|capturar|capture|faz|fa\u00e7a|faca)\b.*\b(print|screenshot|captura de tela|foto da tela)\b/.test(normalized)
+      || /\b(print|screenshot|captura de tela|foto da tela)\b.*\b(tela|screen|erro|bug|teste|evid\u00eancia|evidencia|evidence)\b/.test(normalized)
+
+    if (screenshotCommand) {
+      return { module: 'jarvis', action: 'screenshot', confidence: 1 }
+    }
+
+    return null
+  }
+
   private isHowToQuestion(prompt: string): boolean {
     const normalized = prompt.trim().toLowerCase()
     if (!normalized.includes('?')) return false
@@ -666,8 +686,8 @@ Seja direto, claro e amigável. Português brasileiro. Sem JSON bruto.`,
     const normalized = prompt.trim().toLowerCase()
     if (this.isHowToQuestion(prompt)) return false
 
-    return /\b(abra|abre|abrir|liste|lista|listar|crie|cria|criar|rode|roda|rodar|execute|executa|tira|capture|captura|notifica|copie|copia|cole|cola|leia|lê|manda|envia|pare|para|inicia|start|stop|reinicia|reiniciar|reinicie|restart|procura|busca|encontra|organiza|inspeciona|atualiza|atualizar)\b/.test(normalized)
-      || /\b(git status|git log|git commit|branch|docker|screenshot|clipboard|restart[_ ]api|reiniciar[_ ]api)\b/.test(normalized)
+    return /\b(abra|abre|abrir|liste|lista|listar|crie|cria|criar|rode|roda|rodar|execute|executa|tira|tire|tirar|capture|captura|capturar|notifica|copie|copia|cole|cola|leia|lê|manda|envia|pare|para|inicia|start|stop|reinicia|reiniciar|reinicie|restart|procura|busca|encontra|organiza|inspeciona|atualiza|atualizar)\b/.test(normalized)
+      || /\b(git status|git log|git commit|branch|docker|screenshot|print da tela|captura de tela|clipboard|restart[_ ]api|reiniciar[_ ]api)\b/.test(normalized)
       || /\b(qual|quais|mostra|minha|meus|minhas)\b.*\b(status do pc|status do computador|info do sistema|commits recentes|agenda|emails|schema)\b/.test(normalized)
   }
 

@@ -52,6 +52,7 @@ describe('OrchestratorService', () => {
           provide: MemoryService,
           useValue: {
             searchAndSynthesize: jest.fn(),
+            search: jest.fn().mockResolvedValue([]),
             indexDocument: jest.fn(),
           },
         },
@@ -125,6 +126,23 @@ describe('OrchestratorService', () => {
 
     it('mantém perguntas de orientação fora do Jarvis sem chamar o LLM', async () => {
       const result = await service.classify('como devo adicionar um projeto novo?')
+
+      expect(result.module).toBe('system')
+      expect(result.action).toBe('answer')
+      expect(mockLLM.chat.completions.create).not.toHaveBeenCalled()
+    })
+
+    it('roteia pedido de print da tela diretamente para screenshot sem chamar o LLM', async () => {
+      const result = await service.classify('tire um print da tela: teste de vinculo evidence test run')
+
+      expect(result.module).toBe('jarvis')
+      expect(result.action).toBe('screenshot')
+      expect(result.confidence).toBe(1)
+      expect(mockLLM.chat.completions.create).not.toHaveBeenCalled()
+    })
+
+    it('mantem pergunta de como tirar print como orientacao, nao execucao', async () => {
+      const result = await service.classify('como faco para tirar print no Windows?')
 
       expect(result.module).toBe('system')
       expect(result.action).toBe('answer')
