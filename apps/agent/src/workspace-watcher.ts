@@ -3,6 +3,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { basename, extname, join, resolve } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { homedir } from 'node:os'
+import { runGraphify_action } from './actions/run-graphify'
 
 const INDEXABLE_EXTENSIONS = new Set([
   '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',
@@ -21,6 +22,8 @@ type GitContext = {
 
 type RepoState = {
   signature: string
+  lastChangedAt: number
+  lastGraphifyAt: number
 }
 
 const DEFAULT_INTERVAL_MS = 30_000
@@ -216,24 +219,38 @@ async function scanOnce(): Promise<void> {
     const state = states.get(repoPath)
 
     if (!state) {
-      states.set(repoPath, { signature: sig })
+      states.set(repoPath, { signature: sig, lastChangedAt: 0, lastGraphifyAt: 0 })
       continue
     }
 
-    if (!sig || sig === state.signature) {
+    if (sig && sig !== state.signature) {
       state.signature = sig
-      continue
+      state.lastChangedAt = Date.now()
+
+      try {
+        await emitWorkspaceEvent(repoPath, files)
+        console.log(`[watcher] atividade capturada: ${repoSlug(repoPath)} (${files.length} arquivo(s))`)
+      } catch (err) {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('[watcher] erro ao enviar evento:', (err as Error).message)
+        }
+      }
     }
 
-    state.signature = sig
+    // Dispara graphify após período de inatividade (debounce)
+    const graphifyEnabled = process.env.AGENT_GRAPHIFY_ENABLED !== 'false'
+    const debounceMs = Number(process.env.AGENT_GRAPHIFY_DEBOUNCE_MS ?? 60_000)
+    const idle = state.lastChangedAt > 0 && Date.now() - state.lastChangedAt >= debounceMs
+    const notRunYet = state.lastChangedAt > state.lastGraphifyAt
 
-    try {
-      await emitWorkspaceEvent(repoPath, files)
-      console.log(`[watcher] atividade capturada: ${repoSlug(repoPath)} (${files.length} arquivo(s))`)
-    } catch (err) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('[watcher] erro ao enviar evento:', (err as Error).message)
-      }
+    if (graphifyEnabled && idle && notRunYet) {
+      state.lastGraphifyAt = Date.now()
+      const slug = repoSlug(repoPath)
+      const projectId = await resolveProjectId(slug)
+      console.log(`[graphify] iniciando análise incremental: ${slug}`)
+      runGraphify_action({ projectPath: repoPath, projectId }).then((result) => {
+        console.log(`[graphify] concluído: ${slug}`, (result as { ok?: boolean }).ok ? 'ok' : 'erro')
+      }).catch(() => null)
     }
   }
 }
