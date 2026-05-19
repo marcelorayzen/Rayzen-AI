@@ -575,12 +575,12 @@ Formato da resposta: { "module": "...", "action": "...", "confidence": 0.0-1.0 }
       const category = this.asDisplayValue(payload.category)
       const label = this.asDisplayValue(payload.label)
       const lines = [
-        'Vou capturar a tela e registrar como evidencia do projeto.',
+        'Vou capturar a tela e registrar como evid\u00eancia do projeto.',
         '',
-        '**Acao:** Screenshot',
+        '**A\u00e7\u00e3o:** Screenshot',
       ]
       if (projectName) lines.push(`**Projeto:** ${projectName}`)
-      if (description) lines.push(`**Descricao:** ${description}`)
+      if (description) lines.push(`**Descri\u00e7\u00e3o:** ${description}`)
       if (category) lines.push(`**Categoria:** ${this.formatActionValue(category)}`)
       if (label) lines.push(`**Nome sugerido:** ${label}`)
       lines.push('', 'Confirme para executar ou cancele para abortar.', '', `[ACTION_PENDING:${encoded}]`)
@@ -588,9 +588,9 @@ Formato da resposta: { "module": "...", "action": "...", "confidence": 0.0-1.0 }
     }
 
     const lines = [
-      `Vou executar uma acao local (${risk === 'high' ? 'alto risco' : 'risco medio'}).`,
+      `Vou executar uma a\u00e7\u00e3o local (${risk === 'high' ? 'alto risco' : 'risco m\u00e9dio'}).`,
       '',
-      `**Acao:** ${this.formatActionValue(action)}`,
+      `**A\u00e7\u00e3o:** ${this.formatActionValue(action)}`,
       ...this.formatPayloadSummary(payload),
       '',
       'Confirme para executar ou cancele para abortar.',
