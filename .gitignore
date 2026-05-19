@@ -37,6 +37,7 @@ desktop.ini
 
 # Temp / cache
 tmp/
+.codex-tmp/
 *.tmp
 *.tsbuildinfo
 .cache/
