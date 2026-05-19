@@ -97,11 +97,16 @@ describe('ExecutionService', () => {
 
   describe('waitForResult', () => {
     it('lança timeout quando job não é encontrado na fila', async () => {
+      jest.useFakeTimers()
       mockQueue.getJobs.mockResolvedValue([])
 
-      await expect(service.waitForResult('job-inexistente')).rejects.toThrow(
-        'Timeout aguardando o PC Agent executar a tarefa',
-      )
-    }, 35_000)
+      const caught = service.waitForResult('job-inexistente').catch((e: Error) => e)
+      await jest.advanceTimersByTimeAsync(31_000)
+      const err = await caught
+
+      expect(err).toBeInstanceOf(Error)
+      expect((err as Error).message).toContain('Timeout aguardando o PC Agent executar a tarefa')
+      jest.useRealTimers()
+    })
   })
 })
