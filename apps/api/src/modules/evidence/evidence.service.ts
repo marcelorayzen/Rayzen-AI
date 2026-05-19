@@ -13,6 +13,8 @@ interface EvidenceMetadata {
   description?: string | null
   category?: string | null
   projectName?: string | null
+  testRunId?: string | null
+  testRunLinkReason?: string | null
 }
 
 interface CreateScreenshotEvidenceInput {
@@ -24,6 +26,7 @@ interface CreateScreenshotEvidenceInput {
   description?: string | null
   category?: string | null
   projectName?: string | null
+  testRunId?: string | null
 }
 
 @Injectable()
@@ -45,6 +48,11 @@ export class EvidenceService {
   }
 
   async createScreenshot(input: CreateScreenshotEvidenceInput) {
+    const linkedRun = input.testRunId
+      ? await this.findTestRun(input.projectId, input.testRunId)
+      : await this.findRecentTestRun(input.projectId)
+    const testRunId = linkedRun?.id ?? null
+
     return this.prisma.event.create({
       data: {
         projectId: input.projectId,
@@ -66,6 +74,36 @@ export class EvidenceService {
           description: input.description ?? null,
           category: input.category ?? 'general',
           projectName: input.projectName ?? null,
+          testRunId,
+          testRunLinkReason: input.testRunId
+            ? 'explicit'
+            : testRunId
+              ? 'auto_latest_recent_run'
+              : null,
+        } as object,
+      },
+    })
+  }
+
+  async linkToTestRun(evidenceId: string, testRunId: string | null) {
+    const event = await this.prisma.event.findUnique({ where: { id: evidenceId } })
+    if (!event) throw new Error('Evidence not found')
+
+    const metadata = (event.metadata ?? {}) as EvidenceMetadata
+    if (metadata.kind !== 'evidence') throw new Error('Event is not an evidence item')
+
+    if (testRunId) {
+      const run = await this.findTestRun(event.projectId ?? undefined, testRunId)
+      if (!run) throw new Error('Test run not found for this project')
+    }
+
+    return this.prisma.event.update({
+      where: { id: evidenceId },
+      data: {
+        metadata: {
+          ...metadata,
+          testRunId,
+          testRunLinkReason: testRunId ? 'manual' : null,
         } as object,
       },
     })
@@ -97,8 +135,32 @@ export class EvidenceService {
           description: metadata.description ?? null,
           category: metadata.category ?? 'general',
           projectName: metadata.projectName ?? null,
+          testRunId: metadata.testRunId ?? null,
+          testRunLinkReason: metadata.testRunLinkReason ?? null,
           createdAt: event.ts,
         }
       })
+  }
+
+  private async findTestRun(projectId: string | null | undefined, testRunId: string) {
+    return this.prisma.testRun.findFirst({
+      where: {
+        id: testRunId,
+        ...(projectId ? { projectId } : {}),
+      },
+      select: { id: true },
+    })
+  }
+
+  private async findRecentTestRun(projectId: string) {
+    const since = new Date(Date.now() - 4 * 60 * 60 * 1000)
+    return this.prisma.testRun.findFirst({
+      where: {
+        projectId,
+        executedAt: { gte: since },
+      },
+      orderBy: { executedAt: 'desc' },
+      select: { id: true },
+    })
   }
 }

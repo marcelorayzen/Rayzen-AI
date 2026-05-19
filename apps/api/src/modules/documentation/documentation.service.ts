@@ -274,11 +274,13 @@ export class DocumentationService {
       const remotePath = typeof metadata.remotePath === 'string' ? metadata.remotePath.replace(/\\/g, '/') : null
       const evidenceLink = remotePath ? `[Abrir screenshot](/evidence/file/${remotePath})` : '_arquivo ainda não sincronizado_'
       const localPath = typeof metadata.path === 'string' ? metadata.path : null
+      const testRunId = typeof metadata.testRunId === 'string' ? metadata.testRunId : null
 
       return [
         `### ${new Date(event.ts).toLocaleString('pt-BR')}`,
         `**Descrição:** ${description}`,
         `**Evidência:** ${evidenceLink}`,
+        testRunId ? `**TestRun vinculado:** \`${testRunId}\`` : null,
         localPath ? `**Arquivo local:** \`${localPath}\`` : null,
       ].filter(Boolean).join('\n')
       })

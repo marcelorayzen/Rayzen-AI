@@ -52,6 +52,8 @@ interface EvidenceItem {
   description: string | null
   category: string | null
   projectName: string | null
+  testRunId?: string | null
+  testRunLinkReason?: string | null
   createdAt: string
 }
 
@@ -2718,6 +2720,11 @@ export default function Home() {
                           {item.category && item.category !== 'general' && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300">
                               {item.category}
+                            </span>
+                          )}
+                          {item.testRunId && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-900 text-emerald-300" title={item.testRunId}>
+                              test run {item.testRunId.slice(0, 8)}
                             </span>
                           )}
                         </div>

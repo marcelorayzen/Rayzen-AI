@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Post, Req, Res } from '@nestjs/common'
+import { Body, Controller, Get, Param, Patch, Post, Req, Res } from '@nestjs/common'
 import { ApiTags } from '@nestjs/swagger'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import * as fs from 'node:fs'
@@ -40,6 +40,7 @@ export class EvidenceController {
       description: typeof fields.description?.value === 'string' ? fields.description.value : null,
       category: typeof fields.category?.value === 'string' ? fields.category.value : 'general',
       projectName: typeof fields.projectName?.value === 'string' ? fields.projectName.value : null,
+      testRunId: typeof fields.testRunId?.value === 'string' ? fields.testRunId.value : null,
     })
 
     return {
@@ -48,6 +49,15 @@ export class EvidenceController {
       remotePath: relativePath,
       url: `/evidence/file/${relativePath.replace(/\\/g, '/')}`,
     }
+  }
+
+
+  @Patch(':evidenceId/test-run')
+  linkToTestRun(
+    @Param('evidenceId') evidenceId: string,
+    @Body() body: { testRunId?: string | null },
+  ) {
+    return this.evidence.linkToTestRun(evidenceId, body.testRunId ?? null)
   }
 
   @Get('file/:projectId/:fileName')

@@ -214,6 +214,31 @@ indexe o relatório de testes do build no dashboard QA
    → o documento consolida screenshots manuais do projeto com descrição, data e link
 ```
 
+
+### Vinculo com TestRun
+
+As evidencias visuais agora podem carregar `testRunId` no metadata. Existem dois caminhos:
+
+- se o upload informar `testRunId`, a evidencia fica vinculada explicitamente ao run;
+- se nao informar, a API tenta vincular automaticamente ao TestRun mais recente do mesmo projeto nas ultimas 4 horas.
+
+Tambem e possivel ajustar manualmente via API:
+
+```http
+PATCH /evidence/{evidenceId}/test-run
+Content-Type: application/json
+
+{ "testRunId": "id-do-test-run" }
+```
+
+Para remover o vinculo:
+
+```json
+{ "testRunId": null }
+```
+
+Esse e o primeiro passo da rastreabilidade formal: evidencia -> TestRun. O proximo passo planejado e ligar evidencia a uma falha/caso especifico dentro do run.
+
 ### Categorias autom?ticas de evid?ncia
 
 Ao usar uma descri??o depois dos dois-pontos, o Rayzen classifica a captura para organizar melhor a documenta??o:
