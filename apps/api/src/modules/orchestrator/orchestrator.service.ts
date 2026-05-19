@@ -548,7 +548,6 @@ Formato da resposta: { "module": "...", "action": "...", "confidence": 0.0-1.0 }
     const res = await this.llm.chat.completions.create({
       model: 'gpt-4o-mini',
       messages,
-      response_format: { type: 'json_object' },
       temperature: 0,
     })
     const parsed = this.parseLlmJson<ClassifyResult>(
