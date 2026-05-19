@@ -17,7 +17,7 @@ export interface GapItem { area: string; description: string; severity: 'high' |
 export interface SuccessCriteria { id: string; text: string; done: boolean }
 export interface EventNode { id: string; content: string; intent: string | null; type: string; source: string; ts: string; milestoneId: string | null }
 
-type NodeType = 'milestone' | 'blocker' | 'next' | 'goal' | 'gap' | 'action' | 'decision' | 'problem' | 'idea' | 'event' | 'git' | 'voice' | 'notion' | 'cli' | 'execution' | 'brain'
+type NodeType = 'milestone' | 'blocker' | 'next' | 'goal' | 'gap' | 'action' | 'decision' | 'problem' | 'idea' | 'event' | 'git' | 'voice' | 'notion' | 'cli' | 'execution' | 'brain' | 'artifact' | 'document' | 'wiki' | 'file'
 
 interface NodeData extends Record<string, unknown> {
   label: string
@@ -50,6 +50,10 @@ const COLORS: Record<NodeType, { border: string; glow: string; bg: string; text:
   cli:       { border: '#4ade80', glow: '#4ade80', bg: '#010f03',  text: '#86efac', tag: 'hook'      },
   execution: { border: '#fb923c', glow: '#fb923c', bg: '#0f0400',  text: '#fdba74', tag: 'execução'  },
   brain:     { border: '#c084fc', glow: '#c084fc', bg: '#08020f',  text: '#e9d5ff', tag: 'brain'     },
+  artifact:  { border: '#0ea5e9', glow: '#0ea5e9', bg: '#00060f',  text: '#7dd3fc', tag: 'checkpoint'},
+  document:  { border: '#14b8a6', glow: '#14b8a6', bg: '#000f0d',  text: '#5eead4', tag: 'documento' },
+  wiki:      { border: '#f472b6', glow: '#f472b6', bg: '#0f0008',  text: '#f9a8d4', tag: 'wiki'      },
+  file:      { border: '#a3a3a3', glow: '#a3a3a3', bg: '#0a0a0a',  text: '#d4d4d4', tag: 'arquivo'   },
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -688,14 +692,116 @@ export function EventCanvas({ milestones, events }: EventCanvasProps) {
   )
 }
 
+/* ── Knowledge Graph canvas ─────────────────────────────── */
+export interface KnowledgeNode { id: string; type: string; label: string; data: Record<string, unknown> }
+export interface KnowledgeEdge { id: string; source: string; target: string; label: string }
+
+interface KnowledgeCanvasProps {
+  nodes: KnowledgeNode[]
+  edges: KnowledgeEdge[]
+}
+
+const KG_COLS: Record<string, number> = { goal: 40, decision: 280, problem: 280, idea: 280, artifact: 540, document: 780, wiki: 1020, file: 660 }
+const KG_ROW = 90
+
+export function KnowledgeCanvas({ nodes: kNodes, edges: kEdges }: KnowledgeCanvasProps) {
+  const buildGraph = useCallback(() => {
+    const colCounters: Record<string, number> = {}
+    const flowNodes: Node[] = kNodes.map(kn => {
+      const t = (kn.type in COLORS ? kn.type : 'event') as NodeType
+      const col = KG_COLS[kn.type] ?? 540
+      const row = colCounters[kn.type] ?? 0
+      colCounters[kn.type] = row + 1
+      return {
+        id: kn.id, type: 'project',
+        position: { x: col, y: row * KG_ROW + 40 },
+        data: {
+          label: kn.label,
+          type: t,
+          description: kn.data?.['autoTriggered'] ? '⚡ automático' : undefined,
+        },
+      }
+    })
+
+    const nodeSet = new Set(flowNodes.map(n => n.id))
+    const flowEdges: Edge[] = kEdges
+      .filter(e => nodeSet.has(e.source) && nodeSet.has(e.target))
+      .map(e => {
+        const srcType = kNodes.find(n => n.id === e.source)?.type ?? 'event'
+        const color = COLORS[(srcType in COLORS ? srcType : 'event') as NodeType]?.border ?? '#52525b'
+        return {
+          id: e.id, source: e.source, target: e.target,
+          label: e.label,
+          animated: srcType === 'goal' || srcType === 'artifact',
+          style: { stroke: color + '80' },
+          labelStyle: { fill: color, fontSize: 8 },
+          labelBgStyle: { fill: '#050508' },
+        }
+      })
+
+    if (flowNodes.length === 0) {
+      flowNodes.push({ id: 'empty', type: 'project', position: { x: 200, y: 80 },
+        data: { label: 'Nenhum dado ainda — registre decisões, checkpoints e documentos', type: 'event' as NodeType } })
+    }
+
+    return { nodes: flowNodes, edges: flowEdges }
+  }, [kNodes, kEdges])
+
+  const { nodes: initN, edges: initE } = buildGraph()
+  const [nodes, setNodes, onNodesChange] = useNodesState<AppNode>(initN as AppNode[])
+  const [edges, , onEdgesChange] = useEdgesState<Edge>(initE)
+
+  const prevKey = useRef('')
+  const nextKey = `${kNodes.length}-${kEdges.length}`
+  if (prevKey.current !== nextKey) {
+    prevKey.current = nextKey
+    const { nodes: n, edges: e } = buildGraph()
+    setTimeout(() => { setNodes(n as AppNode[]); }, 0)
+    void e
+  }
+
+  const knowledgeTypes: NodeType[] = ['goal', 'decision', 'problem', 'idea', 'artifact', 'document', 'wiki', 'file']
+  const activeTypes = new Set(kNodes.map(n => n.type as NodeType))
+  const legendItems = knowledgeTypes.filter(t => activeTypes.has(t))
+
+  return (
+    <div style={{ width: '100%', height: 420, position: 'relative' }}>
+      {legendItems.length > 0 && (
+        <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 10, background: '#09090b', border: '1px solid #27272a', borderRadius: 8, padding: '6px 10px', display: 'flex', flexWrap: 'wrap', gap: '6px 12px', maxWidth: 380 }}>
+          {legendItems.map(t => (
+            <span key={t} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: '#a1a1aa', letterSpacing: 0.5 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: COLORS[t].border, display: 'inline-block', boxShadow: `0 0 4px ${COLORS[t].border}` }} />
+              {COLORS[t].tag}
+            </span>
+          ))}
+        </div>
+      )}
+      <ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
+        nodeTypes={nodeTypes} fitView fitViewOptions={{ padding: 0.2 }}
+        colorMode="dark" proOptions={{ hideAttribution: true }}
+        style={{ background: '#050508', fontFamily: MONO_FONT }}
+      >
+        <Background color="#1c1c24" gap={24} size={1} />
+        <Controls showInteractive={false} style={{ background: '#0f0f14', border: '1px solid #27272a', borderRadius: 8 }} />
+        <MiniMap nodeColor={n => COLORS[(n.data as NodeData).type]?.border ?? '#52525b'} style={{ background: '#0f0f14', border: '1px solid #27272a' }} maskColor="#050508cc" />
+      </ReactFlow>
+      <div style={{ position: 'absolute', bottom: 8, left: 8, zIndex: 10, fontSize: 9, color: '#52525b', letterSpacing: 0.5 }}>
+        KNOWLEDGE GRAPH · decisões ↔ checkpoints ↔ docs ↔ wiki ↔ arquivos ↔ meta · somente leitura
+      </div>
+    </div>
+  )
+}
+
 /* ── default export (backwards compat) ─────────────────── */
 export default function GraphCanvas(props:
   | { mode: 'estado'; milestones: Milestone[]; blockers: Array<string | PlanningNode>; nextSteps: Array<string | PlanningNode>; graphLinks?: GraphLink[]; goal?: { id: string; title: string } | null; onSave?: StateCanvasProps['onSave'] }
   | { mode: 'goal'; goalTitle: string; targetDate?: string; criteria: SuccessCriteria[]; gaps: GapItem[]; nextBestAction?: string; goalProgress?: number; goalId?: string; onToggleCriteria?: (criteriaId: string, done: boolean) => void; onSaveCriteria?: (criteria: SuccessCriteria[]) => void }
   | { mode: 'eventos'; milestones: Array<{ id: string; title: string; status: string }>; events: EventNode[] }
+  | { mode: 'knowledge'; nodes: KnowledgeNode[]; edges: KnowledgeEdge[] }
 ) {
   if (props.mode === 'estado') return <StateCanvas {...props} />
   if (props.mode === 'eventos') return <EventCanvas milestones={props.milestones} events={props.events} />
+  if (props.mode === 'knowledge') return <KnowledgeCanvas nodes={props.nodes} edges={props.edges} />
   return <GoalCanvas {...props} />
 }
 

@@ -44,15 +44,21 @@ export interface EventGraphData {
   events: Array<{ id: string; content: string; intent: string | null; type: string; source: string; ts: string; milestoneId: string | null }>
 }
 
+export interface KnowledgeNode { id: string; type: string; label: string; data: Record<string, unknown> }
+export interface KnowledgeEdge { id: string; source: string; target: string; label: string }
+export interface KnowledgeGraphData { nodes: KnowledgeNode[]; edges: KnowledgeEdge[] }
+
 export function useGoalGraph(activeProjectId: string | null) {
   const [graphOpen, setGraphOpen] = useState(false)
-  const [graphSubMode, setGraphSubMode] = useState<'estado' | 'goal' | 'eventos'>('estado')
+  const [graphSubMode, setGraphSubMode] = useState<'estado' | 'goal' | 'eventos' | 'knowledge'>('estado')
   const [graphStateData, setGraphStateData] = useState<ProjectState | null>(null)
   const [graphGoalData, setGraphGoalData] = useState<GoalGraphData | null>(null)
   const [graphLoading, setGraphLoading] = useState(false)
   const [graphStateRefreshing, setGraphStateRefreshing] = useState(false)
   const [graphEventData, setGraphEventData] = useState<EventGraphData | null>(null)
   const [graphEventLoading, setGraphEventLoading] = useState(false)
+  const [knowledgeData, setKnowledgeData] = useState<KnowledgeGraphData | null>(null)
+  const [knowledgeLoading, setKnowledgeLoading] = useState(false)
   const [goalsHistory, setGoalsHistory] = useState<ProjectGoal[] | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(false)
@@ -68,7 +74,17 @@ export function useGoalGraph(activeProjectId: string | null) {
   const [goalKpis, setGoalKpis] = useState<Array<{ metric: string; target: string; current?: string; unit: string }>>([])
   const [savingGoal, setSavingGoal] = useState(false)
 
-  const openGraph = useCallback(async (sub: 'estado' | 'goal' | 'eventos' = 'estado') => {
+  const loadKnowledgeGraph = useCallback(async () => {
+    if (!activeProjectId) return
+    setKnowledgeLoading(true)
+    try {
+      const res = await fetch(`${API_URL}/projects/${activeProjectId}/graph/knowledge`, { headers: authHeaders() })
+      if (res.ok) setKnowledgeData(await res.json() as KnowledgeGraphData)
+    } catch { /* silencioso */ }
+    finally { setKnowledgeLoading(false) }
+  }, [activeProjectId])
+
+  const openGraph = useCallback(async (sub: 'estado' | 'goal' | 'eventos' | 'knowledge' = 'estado') => {
     if (!activeProjectId) return
     setGraphOpen(true)
     setGraphSubMode(sub)
@@ -96,7 +112,10 @@ export function useGoalGraph(activeProjectId: string | null) {
       } catch { /* silencioso */ }
       finally { setGraphEventLoading(false) }
     }
-  }, [activeProjectId])
+    if (sub === 'knowledge') {
+      await loadKnowledgeGraph()
+    }
+  }, [activeProjectId, loadKnowledgeGraph])
 
   const refreshGraphState = useCallback(async () => {
     if (!activeProjectId) return
@@ -264,6 +283,9 @@ export function useGoalGraph(activeProjectId: string | null) {
     graphStateRefreshing,
     graphEventData,
     graphEventLoading,
+    knowledgeData,
+    knowledgeLoading,
+    loadKnowledgeGraph,
     goalsHistory, setGoalsHistory,
     historyOpen, setHistoryOpen,
     historyLoading,
