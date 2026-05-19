@@ -286,6 +286,7 @@ export default function Home() {
     onboardProjectId,
     onboardSrcTab, setOnboardSrcTab,
     onboardIndexing,
+    onboardIndexResult,
     onboardGoalTitle, setOnboardGoalTitle,
     onboardGoalDate, setOnboardGoalDate,
     onboardGoalCriteria, setOnboardGoalCriteria,
@@ -969,6 +970,11 @@ export default function Home() {
                 >
                   {onboardIndexing ? 'Indexando…' : onboardSrcTab === 'skip' ? 'Pular →' : 'Indexar e continuar →'}
                 </button>
+                {onboardIndexResult && (
+                  <p className={`text-xs rounded-lg px-3 py-2 ${onboardIndexResult.startsWith('Erro') ? 'bg-red-950 text-red-400' : 'bg-zinc-800 text-zinc-300'}`}>
+                    {onboardIndexResult}
+                  </p>
+                )}
               </div>
             )}
 

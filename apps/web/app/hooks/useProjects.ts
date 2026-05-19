@@ -40,6 +40,7 @@ export function useProjects() {
   const [onboardProjectId, setOnboardProjectId] = useState<string | null>(null)
   const [onboardSrcTab, setOnboardSrcTab] = useState<'github' | 'notion' | 'skip'>('github')
   const [onboardIndexing, setOnboardIndexing] = useState(false)
+  const [onboardIndexResult, setOnboardIndexResult] = useState<string | null>(null)
   const [onboardGoalTitle, setOnboardGoalTitle] = useState('')
   const [onboardGoalDate, setOnboardGoalDate] = useState('')
   const [onboardGoalCriteria, setOnboardGoalCriteria] = useState<string[]>([''])
@@ -118,6 +119,7 @@ export function useProjects() {
   const onboardIndexSource = useCallback(async () => {
     if (!onboardProjectId) { setOnboardStep(3); return }
     setOnboardIndexing(true)
+    setOnboardIndexResult(null)
     try {
       if (onboardSrcTab === 'github' && githubUser.trim()) {
         const username = githubUser.trim().replace(/^https?:\/\/github\.com\//, '').replace(/\/$/, '')
@@ -126,21 +128,36 @@ export function useProjects() {
           headers: authHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({ username, repo: githubRepo.trim() || undefined, token: githubToken.trim() || undefined, projectId: onboardProjectId }),
         })
-        if (!res.ok) console.warn('Onboard GitHub index:', await res.text())
+        if (res.ok) {
+          const d = await res.json() as { indexed?: number; repos?: number }
+          setOnboardIndexResult(`${d.repos ?? 0} repos indexados (${d.indexed ?? 0} chunks)`)
+        } else {
+          const err = await res.json().catch(() => ({})) as { message?: string }
+          setOnboardIndexResult(`Erro: ${err.message ?? `HTTP ${res.status}`}`)
+          return
+        }
       } else if (onboardSrcTab === 'notion' && notionToken.trim()) {
         const res = await fetch(`${API_URL}/memory/index/notion`, {
           method: 'POST',
           headers: authHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({ integrationToken: notionToken.trim(), rootPageId: notionPageId.trim() || undefined, projectId: onboardProjectId }),
         })
-        if (!res.ok) console.warn('Onboard Notion index:', await res.text())
+        if (res.ok) {
+          const d = await res.json() as { indexed?: number; pages?: number }
+          setOnboardIndexResult(`${d.pages ?? 0} páginas indexadas (${d.indexed ?? 0} chunks)`)
+        } else {
+          const err = await res.json().catch(() => ({})) as { message?: string }
+          setOnboardIndexResult(`Erro: ${err.message ?? `HTTP ${res.status}`}`)
+          return
+        }
       }
     } catch (err) {
-      console.warn('Onboard index source falhou:', err)
+      setOnboardIndexResult(`Erro: ${err instanceof Error ? err.message : 'falhou'}`)
+      return
     } finally {
       setOnboardIndexing(false)
-      setOnboardStep(3)
     }
+    setOnboardStep(3)
   }, [onboardProjectId, onboardSrcTab, githubUser, githubRepo, githubToken, notionPageId, notionToken])
 
   const onboardCreateGoal = useCallback(async () => {
@@ -279,6 +296,7 @@ export function useProjects() {
     onboardProjectId,
     onboardSrcTab, setOnboardSrcTab,
     onboardIndexing,
+    onboardIndexResult,
     onboardGoalTitle, setOnboardGoalTitle,
     onboardGoalDate, setOnboardGoalDate,
     onboardGoalCriteria, setOnboardGoalCriteria,

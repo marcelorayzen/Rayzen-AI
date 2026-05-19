@@ -418,7 +418,8 @@ Língua: português brasileiro.`,
 
       const pageText = await this.fetchNotionBlocks(page.id, headers)
       const fullText = `${title}\n\n${pageText}`.trim()
-      if (!fullText || fullText.length < 20) continue
+      // Indexa mesmo que só tenha o título (blocos podem estar inacessíveis)
+      if (!fullText || fullText.length < 5) continue
 
       const chunks = this.chunkText(fullText)
       const groupKey = `notion/${page.id}`
@@ -433,6 +434,7 @@ Língua: português brasileiro.`,
       type: 'index',
       content: `Notion: ${pages.length} páginas`,
       metadata: { indexed, pages: pages.length },
+      projectId,
     }).catch(() => null)
 
     return { indexed, pages: pages.length }
@@ -446,7 +448,10 @@ Língua: português brasileiro.`,
     if (depth > 3) return '' // evita recursão excessiva
 
     const res = await fetch(`https://api.notion.com/v1/blocks/${blockId}/children?page_size=100`, { headers })
-    if (!res.ok) return ''
+    if (!res.ok) {
+      // 403 = integração sem permissão de leitura neste bloco; não é erro fatal
+      return ''
+    }
 
     const data = await res.json() as {
       results: Array<{
