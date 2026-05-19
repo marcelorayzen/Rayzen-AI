@@ -575,15 +575,23 @@ Formato da resposta: { "module": "...", "action": "...", "confidence": 0.0-1.0 }
       const category = this.asDisplayValue(payload.category)
       const label = this.asDisplayValue(payload.label)
       const lines = [
-        'Vou capturar a tela e registrar como evid\u00eancia do projeto.',
+        'Vou preparar uma evid\u00eancia de QA para este teste.',
         '',
+        '**Fluxo QA:** Captura de tela -> Evid\u00eancia -> Documenta\u00e7\u00e3o de testes',
         '**A\u00e7\u00e3o:** Screenshot',
       ]
       if (projectName) lines.push(`**Projeto:** ${projectName}`)
-      if (description) lines.push(`**Descri\u00e7\u00e3o:** ${description}`)
+      if (description) lines.push(`**Teste/descri\u00e7\u00e3o:** ${description}`)
       if (category) lines.push(`**Categoria:** ${this.formatActionValue(category)}`)
       if (label) lines.push(`**Nome sugerido:** ${label}`)
-      lines.push('', 'Confirme para executar ou cancele para abortar.', '', `[ACTION_PENDING:${encoded}]`)
+      lines.push(
+        '**V\u00ednculo TestRun:** ser\u00e1 associado automaticamente ao TestRun recente do projeto, quando existir.',
+        '**Ap\u00f3s confirmar:** a imagem deve ser salva, enviada para evid\u00eancias e aparecer na documenta\u00e7\u00e3o de testes.',
+        '',
+        'Confirme para executar ou cancele para abortar.',
+        '',
+        `[ACTION_PENDING:${encoded}]`,
+      )
       return lines.join('\n')
     }
 
