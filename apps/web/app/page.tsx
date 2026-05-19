@@ -3019,6 +3019,21 @@ export default function Home() {
                     />
                   </div>
                 </>
+              ) : graphSubMode === 'knowledge' ? (
+                <>
+                  <p className="text-xs text-zinc-500 mb-2">Grafo de conhecimento: decisões ↔ checkpoints ↔ docs ↔ wiki ↔ arquivos ↔ meta.</p>
+                  {knowledgeLoading ? (
+                    <div className="text-zinc-500 text-sm text-center py-8">Construindo grafo…</div>
+                  ) : knowledgeData ? (
+                    <div className="rounded-xl overflow-hidden border border-zinc-800">
+                      <GraphCanvas mode="knowledge" nodes={knowledgeData.nodes} edges={knowledgeData.edges} />
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <button onClick={loadKnowledgeGraph} className="text-xs text-blue-400 hover:text-blue-300 transition-colors">⟳ carregar knowledge graph</button>
+                    </div>
+                  )}
+                </>
               ) : graphGoalData ? (
                 <>
                   {graphGoalData.goal ? (
@@ -3287,21 +3302,6 @@ export default function Home() {
                         className="bg-blue-600 hover:bg-blue-500 text-white text-sm px-4 py-2 rounded-lg transition-colors">
                         Definir meta
                       </button>
-                    </div>
-                  )}
-                </>
-              ) : graphSubMode === 'knowledge' ? (
-                <>
-                  <p className="text-xs text-zinc-500 mb-2">Grafo de conhecimento: decisões ↔ checkpoints ↔ docs ↔ wiki ↔ arquivos ↔ meta.</p>
-                  {knowledgeLoading ? (
-                    <div className="text-zinc-500 text-sm text-center py-8">Construindo grafo…</div>
-                  ) : knowledgeData ? (
-                    <div className="rounded-xl overflow-hidden border border-zinc-800">
-                      <GraphCanvas mode="knowledge" nodes={knowledgeData.nodes} edges={knowledgeData.edges} />
-                    </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <button onClick={loadKnowledgeGraph} className="text-xs text-blue-400 hover:text-blue-300 transition-colors">⟳ carregar knowledge graph</button>
                     </div>
                   )}
                 </>
