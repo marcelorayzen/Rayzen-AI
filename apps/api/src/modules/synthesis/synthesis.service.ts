@@ -58,7 +58,12 @@ export class SynthesisService {
     return { id: artifact.id, sessionId, projectId, synthesis, createdAt: artifact.createdAt.toISOString() }
   }
 
-  async checkpoint(projectId: string, note?: string, workMode?: string): Promise<SessionArtifactResponse> {
+  async checkpoint(
+    projectId: string,
+    note?: string,
+    workMode?: string,
+    meta?: { autoTriggered?: boolean; reason?: string },
+  ): Promise<SessionArtifactResponse> {
     // Buscar eventos das últimas 2h ou desde o último checkpoint
     const lastCheckpoint = await this.prisma.sessionArtifact.findFirst({
       where: { projectId, type: 'checkpoint' },
@@ -100,7 +105,7 @@ export class SynthesisService {
         projectId,
         type: 'checkpoint',
         workMode: workMode ?? null,
-        content: synthesis as object,
+        content: { ...synthesis, ...(meta ?? {}) } as object,
         sourceIds: sourceIds as object,
       },
     })
