@@ -447,6 +447,7 @@ export default function Home() {
   const [quickCaptureSaving, setQuickCaptureSaving] = useState(false)
   const [healthOpen, setHealthOpen] = useState(false)
   const [healthData, setHealthData] = useState<HealthData | null>(null)
+  const [helpOpen, setHelpOpen] = useState(false)
 
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -2461,6 +2462,49 @@ export default function Home() {
 
       {/* Input */}
       <div className="hud-input-bar shrink-0 px-4 py-4">
+        {/* Help panel */}
+        {helpOpen && (
+          <div className="max-w-3xl mx-auto mb-3">
+            <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-4 text-xs">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-zinc-300 font-semibold text-[11px] uppercase tracking-wider">Comandos rápidos</span>
+                <button onClick={() => setHelpOpen(false)} className="text-zinc-600 hover:text-zinc-400 text-base leading-none">×</button>
+              </div>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-1">
+                {([
+                  { label: '📁 Novo projeto completo', cmd: 'crie o projeto |nome| brief:\n|descreva a ideia aqui|' },
+                  { label: '📁 Novo projeto simples', cmd: 'crie o projeto |nome|' },
+                  { label: '🧪 Rodar testes', cmd: 'rode os testes do projeto |nome|' },
+                  { label: '📸 Capturar falhas', cmd: 'capture as falhas do projeto |nome|' },
+                  { label: '🖥️ Info do sistema', cmd: 'qual o status do PC' },
+                  { label: '📸 Screenshot', cmd: 'tira um screenshot: |descrição do teste|' },
+                  { label: '📂 Git status', cmd: 'git status do projeto |nome|' },
+                  { label: '📋 Git log', cmd: 'quais os commits recentes do projeto |nome|' },
+                  { label: '🔄 Reiniciar API', cmd: 'restart api' },
+                  { label: '🐳 Status Docker', cmd: 'lista os containers docker' },
+                  { label: '📧 Ler emails', cmd: 'leia meus emails' },
+                  { label: '🗂️ Organizar downloads', cmd: 'organiza meus downloads' },
+                ] as { label: string; cmd: string }[]).map(({ label, cmd }) => (
+                  <button
+                    key={label}
+                    onClick={() => {
+                      setInput(cmd.replace(/\|/g, ''))
+                      setHelpOpen(false)
+                      requestAnimationFrame(() => inputRef.current?.focus())
+                    }}
+                    className="text-left text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 px-2 py-1.5 rounded-lg transition-colors truncate"
+                    title={cmd.replace(/\|/g, '')}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-zinc-600 text-[10px] mt-3 border-t border-zinc-800 pt-2">
+                Clique para preencher o input. Edite os campos antes de enviar.
+              </p>
+            </div>
+          </div>
+        )}
         <form onSubmit={handleSubmit} className="flex gap-2 max-w-3xl mx-auto">
           <textarea
             ref={inputRef}
@@ -2477,6 +2521,14 @@ export default function Home() {
             rows={1}
             className="hud-input flex-1 px-4 py-3 disabled:opacity-50"
           />
+          <button
+            type="button"
+            onClick={() => setHelpOpen(v => !v)}
+            title="Comandos rápidos"
+            className={`hud-btn px-3 py-3 text-sm font-bold transition-colors ${helpOpen ? 'text-zinc-100 bg-zinc-700' : 'text-zinc-500 hover:text-zinc-300'}`}
+          >
+            ?
+          </button>
           <button
             type="button"
             onClick={toggleRecording}
