@@ -13,9 +13,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v3
+      - uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 10
 
       - uses: actions/setup-node@v4
         with:
@@ -31,7 +31,33 @@ jobs:
         run: pnpm --filter api db:generate
 
       - name: Type check
-        run: pnpm --filter api typecheck && pnpm --filter agent typecheck && pnpm --filter web typecheck
+        run: pnpm typecheck
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: 'true'
+
+      - name: Generate Prisma client
+        run: pnpm --filter api db:generate
+
+      - name: Lint
+        run: pnpm lint
 
   test:
     name: Tests & Coverage
@@ -39,9 +65,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v3
+      - uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 10
 
       - uses: actions/setup-node@v4
         with:
@@ -69,7 +95,7 @@ jobs:
 
   deploy:
     name: Deploy VPS
-    needs: [typecheck, test]
+    needs: [typecheck, lint, test]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push' && vars.DEPLOY_ENABLED == 'true'
     steps:
@@ -81,9 +107,10 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             set -e
-            cd /opt/rayzen-ai
+            cd /home/azureuser/projects/rayzen-ai
             git pull origin main
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml build --no-cache api web
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T api npx prisma migrate deploy
+            docker compose up -d --build api web agent-server
+            docker compose exec -T api npx prisma generate
+            docker compose exec -T api npx prisma migrate deploy
             docker image prune -f
+            echo "Deploy concluído: $(date)"

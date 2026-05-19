@@ -250,7 +250,7 @@ apps/api/src/modules/
 
 | Módulo | Modelo | Temperature | Observações |
 |---|---|---|---|
-| Orchestrator — classify | gpt-4o-mini | 0 | `response_format: json_object` obrigatório |
+| Orchestrator — classify | gpt-4o-mini | 0 | extração JSON robusta via `parseLlmJson` (strip fences + regex) — Claude não suporta `response_format` |
 | Orchestrator — chat | gpt-4o | 0.7 | Histórico completo de conversa incluído |
 | Memory — synthesis | gpt-4o-mini | 0.3 | Resume resultados de busca |
 | Document Processing | gpt-4o-mini | 0.2 | Output estruturado e determinístico |
