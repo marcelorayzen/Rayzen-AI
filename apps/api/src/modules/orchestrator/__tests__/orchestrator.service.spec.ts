@@ -182,6 +182,20 @@ describe('OrchestratorService', () => {
       expect(result.reply).toBe('Você é Marcelo Rayzen, QA Engineer.')
     })
 
+    it('mostra confirmacao de screenshot sem JSON interno', async () => {
+      const result = await service.handleMessage('tire um print da tela: teste de vinculo evidence test run', 'sess-shot')
+
+      expect(executionService.dispatch).not.toHaveBeenCalled()
+      expect(result.module).toBe('jarvis')
+      expect(result.action).toBe('screenshot')
+      expect(result.reply).toContain('Vou capturar a tela')
+      expect(result.reply).toContain('**Acao:** Screenshot')
+      expect(result.reply).toContain('**Descricao:** teste de vinculo evidence test run')
+      expect(result.reply).toContain('[ACTION_PENDING:')
+      expect(result.reply).not.toContain('Par')
+      expect(result.reply).not.toContain('"projectId"')
+    })
+
     it('delega para ExecutionService quando módulo é jarvis', async () => {
       mockLLM.chat.completions.create
         .mockResolvedValueOnce({
@@ -196,7 +210,7 @@ describe('OrchestratorService', () => {
       expect(executionService.dispatch).not.toHaveBeenCalled()
       expect(result.module).toBe('jarvis')
       expect(result.reply).toContain('[ACTION_PENDING:')
-      expect(result.reply).toContain('open_app')
+      expect(result.reply).toContain('Open App')
     })
 
     it('executa acao jarvis pendente apos confirmacao', async () => {

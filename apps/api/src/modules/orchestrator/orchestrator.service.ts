@@ -317,16 +317,7 @@ export class OrchestratorService {
         if (this.requiresConfirmation(classify.action)) {
           const risk = this.actionRisk(classify.action) as 'medium' | 'high'
           const encoded = this.encodePendingAction({ action: classify.action, payload: jarvisPayload, prompt, risk })
-          const reply = [
-            `Vou executar uma ação local (${risk === 'high' ? 'alto risco' : 'risco médio'}).`,
-            '',
-            `**Ação:** \`${classify.action}\``,
-            `**Parâmetros:** \`${JSON.stringify(jarvisPayload)}\``,
-            '',
-            'Confirme para executar ou cancele para abortar.',
-            '',
-            `[ACTION_PENDING:${encoded}]`,
-          ].join('\n')
+          const reply = this.buildPendingActionReply(classify.action, jarvisPayload, risk, encoded)
           await this.prisma.conversationMessage.createMany({
             data: [
               { sessionId, module: 'jarvis', role: 'user', content: prompt, projectId, workMode: workMode ?? null },
@@ -569,6 +560,65 @@ Formato da resposta: { "module": "...", "action": "...", "confidence": 0.0-1.0 }
       return { module: 'system', action: 'answer', confidence: 0.9 }
     }
     return parsed
+  }
+
+
+  private buildPendingActionReply(
+    action: string,
+    payload: Record<string, unknown>,
+    risk: 'medium' | 'high',
+    encoded: string,
+  ): string {
+    if (action === 'screenshot') {
+      const description = this.asDisplayValue(payload.description)
+      const projectName = this.asDisplayValue(payload.projectName)
+      const category = this.asDisplayValue(payload.category)
+      const label = this.asDisplayValue(payload.label)
+      const lines = [
+        'Vou capturar a tela e registrar como evidencia do projeto.',
+        '',
+        '**Acao:** Screenshot',
+      ]
+      if (projectName) lines.push(`**Projeto:** ${projectName}`)
+      if (description) lines.push(`**Descricao:** ${description}`)
+      if (category) lines.push(`**Categoria:** ${this.formatActionValue(category)}`)
+      if (label) lines.push(`**Nome sugerido:** ${label}`)
+      lines.push('', 'Confirme para executar ou cancele para abortar.', '', `[ACTION_PENDING:${encoded}]`)
+      return lines.join('\n')
+    }
+
+    const lines = [
+      `Vou executar uma acao local (${risk === 'high' ? 'alto risco' : 'risco medio'}).`,
+      '',
+      `**Acao:** ${this.formatActionValue(action)}`,
+      ...this.formatPayloadSummary(payload),
+      '',
+      'Confirme para executar ou cancele para abortar.',
+      '',
+      `[ACTION_PENDING:${encoded}]`,
+    ]
+    return lines.join('\n')
+  }
+
+  private formatPayloadSummary(payload: Record<string, unknown>): string[] {
+    const hidden = new Set(['projectId', 'prompt'])
+    return Object.entries(payload)
+      .filter(([key, value]) => !hidden.has(key) && value !== undefined && value !== null && value !== '')
+      .slice(0, 6)
+      .map(([key, value]) => `**${this.formatActionValue(key)}:** ${this.asDisplayValue(value) ?? String(value)}`)
+  }
+
+  private asDisplayValue(value: unknown): string | null {
+    if (value === undefined || value === null) return null
+    if (typeof value === 'string') return value.trim() || null
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+    return JSON.stringify(value)
+  }
+
+  private formatActionValue(value: string): string {
+    return value
+      .replace(/[_-]+/g, ' ')
+      .replace(/\b\w/g, (char) => char.toUpperCase())
   }
 
   private async executeJarvisAction(
