@@ -109,6 +109,27 @@ export class EvidenceService {
     })
   }
 
+
+  async remove(evidenceId: string) {
+    const event = await this.prisma.event.findUnique({ where: { id: evidenceId } })
+    if (!event) throw new Error('Evidence not found')
+
+    const metadata = (event.metadata ?? {}) as EvidenceMetadata
+    if (metadata.kind !== 'evidence') throw new Error('Event is not an evidence item')
+
+    if (metadata.remotePath) {
+      const remotePath = metadata.remotePath.replace(/\\/g, '/')
+      const [projectId, fileName] = remotePath.split('/')
+      if (projectId && fileName && !projectId.includes('..') && !fileName.includes('..')) {
+        const filePath = path.join(this.rootDir, projectId, fileName)
+        await fs.promises.unlink(filePath).catch(() => undefined)
+      }
+    }
+
+    await this.prisma.event.delete({ where: { id: evidenceId } })
+    return { deleted: true, evidenceId }
+  }
+
   async list(projectId: string) {
     const events = await this.prisma.event.findMany({
       where: { projectId, source: 'execution', type: 'note' },

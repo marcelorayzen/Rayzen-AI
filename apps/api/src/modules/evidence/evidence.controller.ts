@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Req, Res } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, Patch, Post, Req, Res } from '@nestjs/common'
 import { ApiTags } from '@nestjs/swagger'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import * as fs from 'node:fs'
@@ -51,6 +51,12 @@ export class EvidenceController {
     }
   }
 
+
+
+  @Delete(':evidenceId')
+  remove(@Param('evidenceId') evidenceId: string) {
+    return this.evidence.remove(evidenceId)
+  }
 
   @Patch(':evidenceId/test-run')
   linkToTestRun(

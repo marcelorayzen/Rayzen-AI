@@ -1,4 +1,4 @@
-import { parseJUnitXML, parseAllureJSON } from '../qa.service'
+import { parseJUnitXML, parseAllureJSON, QaService } from '../qa.service'
 
 // ── parseJUnitXML ─────────────────────────────────────────
 describe('parseJUnitXML', () => {
@@ -145,5 +145,42 @@ describe('parseAllureJSON', () => {
     const result = parseAllureJSON(raw)
     expect(result.failed).toBe(1)
     expect(result.failedCases[0].message).toBe('broken')
+  })
+})
+
+
+describe('QaService.getRunDetail', () => {
+  it('returns a test run with linked evidence', async () => {
+    const executedAt = new Date('2026-05-18T22:00:00Z')
+    const evidenceAt = new Date('2026-05-18T22:05:00Z')
+    const prisma = {
+      testRun: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'run-1', projectId: 'project-1', tool: 'manual-smoke', branch: null, commitHash: null,
+          totalTests: 3, passed: 3, failed: 0, skipped: 0, durationMs: null, source: 'manual', executedAt,
+          suites: [], failedCases: [],
+        }),
+      },
+      event: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'ev-1', projectId: 'project-1', source: 'execution', type: 'note', content: 'Screenshot: fluxo QA', ts: evidenceAt,
+            metadata: { kind: 'evidence', evidenceType: 'screenshot', remotePath: 'project-1/a.png', description: 'fluxo QA', testRunId: 'run-1', category: 'manual_test' },
+          },
+          {
+            id: 'ev-2', projectId: 'project-1', source: 'execution', type: 'note', content: 'Screenshot: outro run', ts: evidenceAt,
+            metadata: { kind: 'evidence', evidenceType: 'screenshot', remotePath: 'project-1/b.png', testRunId: 'run-2' },
+          },
+        ]),
+      },
+    }
+    const service = new QaService(prisma as never, { indexDocument: jest.fn() } as never)
+
+    const detail = await service.getRunDetail('run-1')
+
+    expect(detail?.id).toBe('run-1')
+    expect(detail?.passRate).toBe(100)
+    expect(detail?.evidence).toHaveLength(1)
+    expect(detail?.evidence[0].id).toBe('ev-1')
   })
 })

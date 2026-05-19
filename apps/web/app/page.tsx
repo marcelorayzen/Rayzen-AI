@@ -396,11 +396,14 @@ export default function Home() {
     qaSummary,
     qaTrend,
     qaRuns,
+    qaRunDetail,
     qaLoading,
     qaTrendLoading,
     qaRunsLoading,
+    qaRunDetailLoading,
     openQA,
     switchTab: switchQATab,
+    selectRun: selectQARun,
   } = useQA(activeProjectId)
 
   // ── local state (panels not yet extracted) ───────────────────────────────────
@@ -418,6 +421,8 @@ export default function Home() {
   const [evidenceOpen, setEvidenceOpen] = useState(false)
   const [evidenceItems, setEvidenceItems] = useState<EvidenceItem[]>([])
   const [evidenceLoading, setEvidenceLoading] = useState(false)
+  const [evidenceFilter, setEvidenceFilter] = useState<'all' | 'with_run' | 'without_run'>('all')
+  const [deletingEvidenceId, setDeletingEvidenceId] = useState<string | null>(null)
   const [generatingDocs, setGeneratingDocs] = useState(false)
   const [activeDocType, setActiveDocType] = useState<string>('project_state')
   const [syncing, setSyncing] = useState(false)
@@ -498,9 +503,8 @@ export default function Home() {
     finally { setSynthesisLoading(false) }
   }, [activeProjectId])
 
-  const openEvidence = useCallback(async () => {
+  const loadEvidence = useCallback(async () => {
     if (!activeProjectId) return
-    setEvidenceOpen(true)
     setEvidenceLoading(true)
     try {
       const res = await fetch(`${API_URL}/evidence/projects/${activeProjectId}`, { headers: authHeaders() })
@@ -511,6 +515,27 @@ export default function Home() {
       setEvidenceLoading(false)
     }
   }, [activeProjectId])
+
+  const openEvidence = useCallback(async () => {
+    if (!activeProjectId) return
+    setEvidenceOpen(true)
+    setEvidenceFilter('all')
+    await loadEvidence()
+  }, [activeProjectId, loadEvidence])
+
+  const deleteEvidence = useCallback(async (evidenceId: string) => {
+    if (!confirm('Excluir esta evidencia? O registro e o arquivo sincronizado serao removidos.')) return
+    setDeletingEvidenceId(evidenceId)
+    try {
+      const res = await fetch(`${API_URL}/evidence/${evidenceId}`, { method: 'DELETE', headers: authHeaders() })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      setEvidenceItems(prev => prev.filter(item => item.id !== evidenceId))
+    } catch {
+      alert('N?o foi poss?vel excluir a evidencia.')
+    } finally {
+      setDeletingEvidenceId(null)
+    }
+  }, [])
 
   const synthesizeCurrent = useCallback(async () => {
     if (messages.length === 0) {
@@ -1523,7 +1548,7 @@ export default function Home() {
                 { type: 'decisions_log', label: 'Decisões' },
                 { type: 'next_actions', label: 'Próximas ações' },
                 { type: 'work_journal', label: 'Diário' },
-                { type: 'test_evidence', label: 'Evid?ncias de teste' },
+                { type: 'test_evidence', label: 'Evidencias de teste' },
               ]
               const activeDoc = projectDocs.find(d => d.type === activeDocType)
               return (
@@ -2650,7 +2675,7 @@ export default function Home() {
                   {qaRuns.map(run => {
                     const passRate = run.totalTests > 0 ? Math.round((run.passed / run.totalTests) * 100) : 0
                     return (
-                      <div key={run.id} className="bg-zinc-800/60 rounded-xl px-4 py-3">
+                      <div key={run.id} className={`bg-zinc-800/60 rounded-xl px-4 py-3 ${qaRunDetail?.id === run.id ? 'ring-1 ring-cyan-500/50' : ''}`}>
                         <div className="flex items-center justify-between mb-1.5">
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-mono text-zinc-300">{run.tool}</span>
@@ -2671,10 +2696,66 @@ export default function Home() {
                           </div>
                           <span className={`text-xs font-mono ${passRate >= 80 ? 'text-emerald-400' : passRate >= 60 ? 'text-amber-400' : 'text-red-400'}`}>{passRate}%</span>
                           {run.durationMs > 0 && <span className="text-[10px] text-zinc-600">{(run.durationMs / 1000).toFixed(1)}s</span>}
+                          <button onClick={() => void selectQARun(run)} className="text-[10px] text-cyan-400 hover:text-cyan-300">detalhes</button>
                         </div>
                       </div>
                     )
                   })}
+                  {qaRunDetailLoading && <p className="text-zinc-500 text-xs text-center py-4">Carregando detalhe do run...</p>}
+                  {qaRunDetail && (
+                    <div className="mt-4 rounded-xl border border-cyan-900/50 bg-cyan-950/10 p-4 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="text-xs font-semibold text-cyan-300">Detalhe do TestRun {qaRunDetail.id.slice(0, 8)}</h3>
+                          <p className="text-[10px] text-zinc-500">{qaRunDetail.tool} - {new Date(qaRunDetail.executedAt).toLocaleString('pt-BR')}</p>
+                        </div>
+                        <span className={`text-sm font-mono ${qaRunDetail.passRate >= 80 ? 'text-emerald-400' : qaRunDetail.passRate >= 60 ? 'text-amber-400' : 'text-red-400'}`}>{qaRunDetail.passRate}%</span>
+                      </div>
+
+                      <div>
+                        <h4 className="text-[10px] uppercase tracking-[0.16em] text-zinc-500 mb-2">Evidencias vinculadas</h4>
+                        {qaRunDetail.evidence.length === 0 ? (
+                          <p className="text-xs text-zinc-500">Nenhuma evidencia vinculada a este run.</p>
+                        ) : (
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            {qaRunDetail.evidence.map(item => (
+                              <a
+                                key={item.id}
+                                href={item.remotePath ? `${API_URL}/evidence/file/${item.remotePath.replace(/\\/g, '/')}` : "#"}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="rounded-lg border border-zinc-800 bg-zinc-950/60 overflow-hidden hover:border-cyan-800 transition-colors"
+                              >
+                                {item.remotePath && (
+                                  <img src={`${API_URL}/evidence/file/${item.remotePath.replace(/\\/g, '/')}`} alt={item.description ?? 'Evidencia do TestRun'} className="h-28 w-full object-cover border-b border-zinc-800" />
+                                )}
+                                <div className="p-2">
+                                  <p className="text-xs text-zinc-200 line-clamp-2">{item.description ?? item.content}</p>
+                                  <p className="text-[10px] text-zinc-600 mt-1">{new Date(item.takenAt ?? item.createdAt).toLocaleString('pt-BR')}</p>
+                                </div>
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div>
+                        <h4 className="text-[10px] uppercase tracking-[0.16em] text-zinc-500 mb-2">Falhas</h4>
+                        {qaRunDetail.failedCases.length === 0 ? (
+                          <p className="text-xs text-emerald-400">Nenhuma falha registrada neste run.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {qaRunDetail.failedCases.slice(0, 5).map((failure, i) => (
+                              <div key={i} className="rounded-lg bg-zinc-950/60 border border-zinc-800 p-3">
+                                <p className="text-xs text-zinc-200 font-mono">{failure.suite} &gt; {failure.name}</p>
+                                {failure.message && <p className="text-[10px] text-red-300 mt-1 line-clamp-2">{failure.message}</p>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -2689,59 +2770,115 @@ export default function Home() {
           <div className="relative z-[55] w-full max-w-4xl bg-zinc-900 border border-zinc-800 rounded-2xl mx-4 max-h-[88vh] flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
               <div>
-                <h2 className="text-sm font-semibold">Evidências</h2>
+                <h2 className="text-sm font-semibold">Evidencias</h2>
                 <p className="text-xs text-zinc-500">Capturas visuais associadas ao projeto ativo.</p>
               </div>
-              <button onClick={() => setEvidenceOpen(false)} className="text-zinc-500 hover:text-zinc-300 text-xs">fechar</button>
+              <div className="flex items-center gap-2">
+                {(['all', 'with_run', 'without_run'] as const).map(filter => (
+                  <button
+                    key={filter}
+                    onClick={() => setEvidenceFilter(filter)}
+                    className={`text-[10px] px-2 py-1 rounded-lg transition-colors ${evidenceFilter === filter ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  >
+                    {filter === 'all' ? 'todas' : filter === 'with_run' ? 'com TestRun' : 'sem TestRun'}
+                  </button>
+                ))}
+                <button onClick={() => void loadEvidence()} className="text-zinc-500 hover:text-zinc-300 text-xs">atualizar</button>
+                <button onClick={() => setEvidenceOpen(false)} className="text-zinc-500 hover:text-zinc-300 text-xs">fechar</button>
+              </div>
             </div>
             <div className="p-6 overflow-y-auto">
-              {evidenceLoading && <p className="text-zinc-500 text-xs text-center py-10">Carregando…</p>}
+              {evidenceLoading && <p className="text-zinc-500 text-xs text-center py-10">Carregando...</p>}
               {!evidenceLoading && evidenceItems.length === 0 && (
-                <p className="text-zinc-500 text-xs text-center py-10">Nenhuma evidência registrada ainda.</p>
+                <p className="text-zinc-500 text-xs text-center py-10">Nenhuma evidencia registrada ainda.</p>
               )}
-              <div className="grid gap-4 sm:grid-cols-2">
-                {evidenceItems.map((item) => (
-                  <div key={item.id} className="rounded-xl border border-zinc-800 bg-zinc-950/60 overflow-hidden">
-                    {item.remotePath ? (
-                      <img
-                        src={`${API_URL}/evidence/file/${item.remotePath.replace(/\\/g, '/')}`}
-                        alt={item.prompt ? `Evidência: ${item.prompt}` : 'Screenshot do projeto'}
-                        className="w-full h-48 object-cover border-b border-zinc-800"
-                      />
-                    ) : (
-                      <div className="h-48 flex items-center justify-center text-xs text-zinc-600 border-b border-zinc-800">
-                        arquivo local ainda não sincronizado
-                      </div>
-                    )}
-                    <div className="p-3 space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-900 text-cyan-300">screenshot</span>
-                          {item.category && item.category !== 'general' && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300">
-                              {item.category}
-                            </span>
-                          )}
-                          {item.testRunId && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-900 text-emerald-300" title={item.testRunId}>
-                              test run {item.testRunId.slice(0, 8)}
-                            </span>
-                          )}
+              {!evidenceLoading && evidenceItems.length > 0 && (() => {
+                const filtered = evidenceItems.filter(item =>
+                  evidenceFilter === 'all' ? true : evidenceFilter === 'with_run' ? Boolean(item.testRunId) : !item.testRunId,
+                )
+                const grouped = filtered.reduce<Record<string, EvidenceItem[]>>((acc, item) => {
+                  const key = item.testRunId ? `TestRun ${item.testRunId.slice(0, 8)}` : 'Sem TestRun vinculado'
+                  acc[key] = [...(acc[key] ?? []), item]
+                  return acc
+                }, {})
+                const entries = Object.entries(grouped)
+                return entries.length === 0 ? (
+                  <p className="text-zinc-500 text-xs text-center py-10">Nenhuma evidencia neste filtro.</p>
+                ) : (
+                  <div className="space-y-6">
+                    {entries.map(([group, items]) => (
+                      <section key={group} className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-xs font-semibold text-zinc-400">{group}</h3>
+                          <span className="text-[10px] text-zinc-600">{items.length} evidencia{items.length !== 1 ? 's' : ''}</span>
                         </div>
-                        <span className="text-[10px] text-zinc-600">
-                          {new Date(item.takenAt ?? item.createdAt).toLocaleString('pt-BR')}
-                        </span>
-                      </div>
-                      {item.description
-                        ? <p className="text-xs text-zinc-200 line-clamp-2">{item.description}</p>
-                        : item.prompt && <p className="text-xs text-zinc-300 line-clamp-2">{item.prompt}</p>}
-                      {item.localPath && (
-                        <p className="text-[10px] font-mono text-zinc-600 truncate" title={item.localPath}>{item.localPath}</p>
-                      )}
-                    </div>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          {items.map((item) => (
+                            <div key={item.id} className="rounded-xl border border-zinc-800 bg-zinc-950/60 overflow-hidden">
+                              {item.remotePath ? (
+                                <img
+                                  src={`${API_URL}/evidence/file/${item.remotePath.replace(/\\/g, '/')}`}
+                                  alt={item.prompt ? `Evidencia: ${item.prompt}` : 'Screenshot do projeto'}
+                                  className="w-full h-48 object-cover border-b border-zinc-800"
+                                />
+                              ) : (
+                                <div className="h-48 flex items-center justify-center text-xs text-zinc-600 border-b border-zinc-800">
+                                  arquivo local ainda n?o sincronizado
+                                </div>
+                              )}
+                              <div className="p-3 space-y-2">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-900 text-cyan-300">screenshot</span>
+                                    {item.category && item.category !== 'general' && (
+                                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300">
+                                        {item.category}
+                                      </span>
+                                    )}
+                                    {item.testRunId && (
+                                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-900 text-emerald-300" title={item.testRunId}>
+                                        test run {item.testRunId.slice(0, 8)}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className="text-[10px] text-zinc-600">
+                                    {new Date(item.takenAt ?? item.createdAt).toLocaleString('pt-BR')}
+                                  </span>
+                                </div>
+                                {item.description
+                                  ? <p className="text-xs text-zinc-200 line-clamp-2">{item.description}</p>
+                                  : item.prompt && <p className="text-xs text-zinc-300 line-clamp-2">{item.prompt}</p>}
+                                {item.localPath && (
+                                  <p className="text-[10px] font-mono text-zinc-600 truncate" title={item.localPath}>{item.localPath}</p>
+                                )}
+                                <div className="flex items-center justify-end gap-2 pt-1">
+                                  {item.remotePath && (
+                                    <a
+                                      href={`${API_URL}/evidence/file/${item.remotePath.replace(/\\/g, '/')}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-[10px] text-cyan-400 hover:text-cyan-300"
+                                    >
+                                      abrir
+                                    </a>
+                                  )}
+                                  <button
+                                    onClick={() => void deleteEvidence(item.id)}
+                                    disabled={deletingEvidenceId === item.id}
+                                    className="text-[10px] text-red-400 hover:text-red-300 disabled:opacity-40"
+                                  >
+                                    {deletingEvidenceId === item.id ? 'excluindo...' : 'excluir'}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                    ))}
                   </div>
-                ))}
-              </div>
+                )
+              })()}
             </div>
           </div>
         </div>

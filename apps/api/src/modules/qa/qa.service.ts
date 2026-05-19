@@ -217,6 +217,66 @@ export class QaService {
     })
   }
 
+
+  async getRunDetail(runId: string) {
+    const run = await this.prisma.testRun.findUnique({
+      where: { id: runId },
+      select: {
+        id: true, projectId: true, tool: true, branch: true, commitHash: true,
+        totalTests: true, passed: true, failed: true, skipped: true,
+        durationMs: true, source: true, executedAt: true, suites: true, failedCases: true,
+      },
+    })
+    if (!run) return null
+
+    const evidenceEvents = await this.prisma.event.findMany({
+      where: {
+        projectId: run.projectId,
+        source: 'execution',
+        type: 'note',
+      },
+      orderBy: { ts: 'desc' },
+      take: 100,
+    })
+
+    const evidence = evidenceEvents
+      .filter((event) => {
+        const metadata = (event.metadata ?? {}) as { kind?: string; testRunId?: string | null }
+        return metadata.kind === 'evidence' && metadata.testRunId === run.id
+      })
+      .map((event) => {
+        const metadata = (event.metadata ?? {}) as {
+          evidenceType?: string
+          remotePath?: string | null
+          path?: string | null
+          takenAt?: string | null
+          description?: string | null
+          category?: string | null
+          testRunLinkReason?: string | null
+        }
+        return {
+          id: event.id,
+          type: metadata.evidenceType ?? 'unknown',
+          content: event.content,
+          remotePath: metadata.remotePath ?? null,
+          localPath: metadata.path ?? null,
+          takenAt: metadata.takenAt ?? null,
+          description: metadata.description ?? null,
+          category: metadata.category ?? 'general',
+          testRunLinkReason: metadata.testRunLinkReason ?? null,
+          createdAt: event.ts,
+        }
+      })
+
+    return {
+      ...run,
+      passRate: run.totalTests > 0 ? Math.round((run.passed / run.totalTests) * 100) : 0,
+      suites: run.suites as unknown[],
+      failedCases: run.failedCases as unknown[],
+      evidence,
+    }
+  }
+
   async getFailurePatterns(projectId?: string, lastNRuns = 10) {
     const runs = await this.prisma.testRun.findMany({
       where: projectId ? { projectId } : {},

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Query, UseGuards, Headers, UnauthorizedException } from '@nestjs/common'
+import { Controller, Get, Post, Body, Query, Param, UseGuards, UnauthorizedException } from '@nestjs/common'
 import { ApiTags, ApiOperation } from '@nestjs/swagger'
 import { QaService, SaveTestRunDto } from './qa.service'
 import { AgentTokenGuard } from '../agent-bridge/agent-token.guard'
@@ -22,6 +22,13 @@ export class QaController {
     @Query('limit') limit?: string,
   ) {
     return this.qa.getRuns(projectId, limit ? parseInt(limit) : 20)
+  }
+
+
+  @Get('reports/:runId')
+  @ApiOperation({ summary: 'Detalhe de um test run com falhas e evid?ncias vinculadas' })
+  getRunDetail(@Param('runId') runId: string) {
+    return this.qa.getRunDetail(runId)
   }
 
   @Get('patterns')

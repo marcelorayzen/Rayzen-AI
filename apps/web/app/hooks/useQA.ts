@@ -18,6 +18,27 @@ export interface QARun {
   executedAt: string
 }
 
+export interface QARunEvidence {
+  id: string
+  type: string
+  content: string
+  remotePath: string | null
+  localPath: string | null
+  takenAt: string | null
+  description: string | null
+  category: string | null
+  testRunLinkReason: string | null
+  createdAt: string
+}
+
+export interface QARunDetail extends QARun {
+  projectId: string | null
+  passRate: number
+  suites: unknown[]
+  failedCases: Array<{ suite?: string; name?: string; message?: string; stacktrace?: string }>
+  evidence: QARunEvidence[]
+}
+
 export interface QAFailurePattern {
   test: string
   count: number
@@ -61,9 +82,11 @@ export function useQA(activeProjectId: string | null) {
   const [qaSummary, setQaSummary] = useState<QASummary | null>(null)
   const [qaTrend, setQaTrend]     = useState<QATrendPoint[]>([])
   const [qaRuns, setQaRuns]       = useState<QARun[]>([])
+  const [qaRunDetail, setQaRunDetail] = useState<QARunDetail | null>(null)
   const [qaLoading, setQaLoading] = useState(false)
   const [qaTrendLoading, setQATrendLoading] = useState(false)
   const [qaRunsLoading, setQARunsLoading]   = useState(false)
+  const [qaRunDetailLoading, setQARunDetailLoading] = useState(false)
 
   const qs = activeProjectId ? `?project_id=${activeProjectId}` : ''
 
@@ -94,6 +117,15 @@ export function useQA(activeProjectId: string | null) {
     finally { setQARunsLoading(false) }
   }, [qs])
 
+  const loadRunDetail = useCallback(async (runId: string) => {
+    setQARunDetailLoading(true)
+    try {
+      const res = await fetch(`${API_URL}/qa/reports/${runId}`, { headers: authHeaders() })
+      if (res.ok) setQaRunDetail(await res.json() as QARunDetail)
+    } catch { /* silencioso */ }
+    finally { setQARunDetailLoading(false) }
+  }, [])
+
   const openQA = useCallback(async () => {
     setQaOpen(true)
     setQaTab('resumo')
@@ -106,19 +138,28 @@ export function useQA(activeProjectId: string | null) {
     if (tab === 'historico' && qaRuns.length === 0)  await loadRuns()
   }, [qaTrend.length, qaRuns.length, loadTrend, loadRuns])
 
+  const selectRun = useCallback(async (run: QARun) => {
+    setQaRunDetail(null)
+    await loadRunDetail(run.id)
+  }, [loadRunDetail])
+
   return {
     qaOpen, setQaOpen,
     qaTab, setQaTab,
     qaSummary,
     qaTrend,
     qaRuns,
+    qaRunDetail,
     qaLoading,
     qaTrendLoading,
     qaRunsLoading,
+    qaRunDetailLoading,
     openQA,
     switchTab,
     loadSummary,
     loadTrend,
     loadRuns,
+    loadRunDetail,
+    selectRun,
   }
 }
