@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadGatewayException } from '@nestjs/common'
+import { Injectable, NotFoundException, BadGatewayException, BadRequestException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../../prisma/prisma.service'
 import OpenAI from 'openai'
@@ -356,9 +356,9 @@ Língua: português brasileiro.`,
     })
 
     if (!searchRes.ok) {
-      if (searchRes.status === 401) throw new Error('Token do Notion inválido ou sem permissão — verifique a Integration Token')
+      if (searchRes.status === 401) throw new BadRequestException('Token do Notion inválido ou sem permissão — verifique a Integration Token')
       const err = await searchRes.json() as { message?: string }
-      throw new Error(`Notion API erro (HTTP ${searchRes.status}): ${err.message ?? 'desconhecido'}`)
+      throw new BadRequestException(`Notion API erro (HTTP ${searchRes.status}): ${err.message ?? 'desconhecido'}`)
     }
 
     const searchData = await searchRes.json() as {
@@ -392,11 +392,11 @@ Língua: português brasileiro.`,
           const hint = pageRes.status === 404
             ? 'Página não encontrada — verifique se a integração foi compartilhada com esta página no Notion (Share → Connect to integration)'
             : errBody.message ?? `HTTP ${pageRes.status}`
-          throw new Error(`Notion: ${hint}`)
+          throw new BadRequestException(`Notion: ${hint}`)
         }
       }
     } else if (pages.length === 0) {
-      throw new Error('Notion: nenhuma página encontrada. Compartilhe pelo menos uma página com a integração (Share → Connect to integration)')
+      throw new BadRequestException('Notion: nenhuma página encontrada. Compartilhe pelo menos uma página com a integração (Share → Connect to integration)')
     }
 
     let indexed = 0
