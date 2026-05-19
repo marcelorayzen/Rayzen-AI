@@ -1,8 +1,15 @@
 import axios from 'axios'
-import { existsSync, readdirSync } from 'node:fs'
-import { basename, join, resolve } from 'node:path'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { basename, extname, join, resolve } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { homedir } from 'node:os'
+
+const INDEXABLE_EXTENSIONS = new Set([
+  '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',
+  '.md', '.mdx', '.txt', '.json', '.yaml', '.yml',
+  '.sql', '.prisma', '.css', '.html', '.py', '.sh', '.bat', '.ps1', '.java',
+])
+const MAX_FILE_BYTES = 8000
 
 type GitContext = {
   branch?: string
@@ -153,6 +160,31 @@ async function resolveProjectId(slug: string): Promise<string | undefined> {
   }
 }
 
+function readFileContent(filePath: string): string | null {
+  try {
+    if (!INDEXABLE_EXTENSIONS.has(extname(filePath).toLowerCase())) return null
+    if (!existsSync(filePath)) return null
+    return readFileSync(filePath, 'utf8').slice(0, MAX_FILE_BYTES)
+  } catch { return null }
+}
+
+async function indexChangedFiles(repoPath: string, files: string[], projectId: string | undefined): Promise<void> {
+  for (const file of files.slice(0, 8)) {
+    const fullPath = join(repoPath, file)
+    const content = readFileContent(fullPath)
+    if (!content) continue
+
+    try {
+      await api.post('/memory/index', {
+        content,
+        sourcePath: file,
+        projectId,
+        metadata: { source: 'workspace-watcher', repoPath, file },
+      })
+    } catch { /* silencioso — não bloqueia o evento */ }
+  }
+}
+
 async function emitWorkspaceEvent(repoPath: string, files: string[]): Promise<void> {
   const slug = repoSlug(repoPath)
   const projectId = await resolveProjectId(slug)
@@ -161,20 +193,18 @@ async function emitWorkspaceEvent(repoPath: string, files: string[]): Promise<vo
   const fileList = files.slice(0, 5).join(', ')
   const more = files.length > 5 ? ` +${files.length - 5}` : ''
 
+  // Envia evento de atividade
   await api.post('/events', {
     projectId,
     source: 'cli',
     type: 'note',
     intent: 'reference',
     content: `Workspace alterado: ${slug}${suffix} — ${fileList}${more}`,
-    metadata: {
-      source: 'workspace-watcher',
-      repoSlug: slug,
-      repoPath,
-      git,
-      changedFiles: files,
-    },
+    metadata: { source: 'workspace-watcher', repoSlug: slug, repoPath, git, changedFiles: files },
   })
+
+  // Indexa conteúdo dos arquivos modificados no Brain (igual ao Claude Code hook)
+  await indexChangedFiles(repoPath, files, projectId)
 }
 
 async function scanOnce(): Promise<void> {
