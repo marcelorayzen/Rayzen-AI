@@ -106,9 +106,6 @@ export class ProjectStateService {
 
     const docTypes = docs.map(d => d.type).join(', ')
 
-    // Preserve existing planning fields to avoid overwriting manual edits
-    const existingMilestones = existing ? JSON.stringify(existing.milestones) : '[]'
-    const existingBacklog = JSON.stringify(existing?.backlog ?? '[]')
     const existingFocus = existing?.activeFocus ?? ''
     const existingDod = existing?.definitionOfDone ?? ''
 
@@ -126,13 +123,10 @@ ${artifactsText || 'nenhuma síntese disponível'}
 
 Documentos gerados: ${docTypes || 'nenhum'}
 
-Estado de planejamento atual (preserve se já existe e é válido):
-- Milestones: ${existingMilestones}
-- Backlog: ${existingBacklog}
-- Foco ativo: ${existingFocus || 'não definido'}
-- Critério de done: ${existingDod || 'não definido'}
+Foco ativo atual: ${existingFocus || 'não definido'}
+Critério de done atual: ${existingDod || 'não definido'}
 
-Retorne APENAS JSON válido neste formato:
+Retorne APENAS JSON válido neste formato (sem markdown, sem texto extra):
 {
   "objective": "objetivo atual em uma frase clara e específica",
   "stage": "discovery|building|stabilizing|maintaining|paused",
@@ -149,26 +143,30 @@ Retorne APENAS JSON válido neste formato:
 }
 
 Regras:
-- objective: o que o projeto está tentando alcançar AGORA (não o objetivo final geral)
+- objective: o que o projeto está tentando alcançar AGORA baseado nos eventos mais recentes
 - stage: fase atual real com base na atividade observada
-- blockers: impedimentos concretos identificados nos eventos/sínteses
-- riskLevel: "high" se há blockers críticos ou projeto parado há muito tempo, "medium" se há riscos mas progresso, "low" se tudo flui
-- milestones: derive dos goals e next steps, máximo 5; preserve os existentes se forem válidos
-- backlog: itens pendentes em ordem de prioridade, máximo 10; preserve os existentes se forem válidos
-- activeFocus: preserve o existente se ainda faz sentido, caso contrário derive do next step mais urgente
+- blockers: apenas impedimentos ATIVOS identificados nos eventos recentes
+- nextSteps: derive EXCLUSIVAMENTE dos eventos e sínteses mais recentes — não repita itens antigos já concluídos
+- riskLevel: "high" se há blockers críticos, "medium" se há riscos mas progresso, "low" se tudo flui
+- milestones: derive dos eventos e goals, máximo 5; marque como "done" os que aparecem concluídos nos eventos
+- backlog: itens pendentes derivados dos eventos recentes, máximo 10
+- activeFocus: o que está sendo trabalhado AGORA com base nos eventos mais recentes
 - Máximo 5 itens por array (exceto backlog)
 - Se não há dados suficientes para uma categoria, retorne array vazio ou string vazia`
 
     const res = await this.llm.chat.completions.create({
       model: 'gpt-4o',
       temperature: 0.2,
-      response_format: { type: 'json_object' },
       messages: [{ role: 'user', content: prompt }],
     })
 
+    const raw = res.choices[0].message.content ?? '{}'
     let derived: ProjectStateData
     try {
-      derived = JSON.parse(res.choices[0].message.content ?? '{}') as ProjectStateData
+      // Extração robusta: strip code fences + regex para encontrar o JSON
+      const stripped = raw.replace(/```(?:json)?\n?/g, '').replace(/```/g, '').trim()
+      const match = stripped.match(/\{[\s\S]*\}/)
+      derived = JSON.parse(match ? match[0] : stripped) as ProjectStateData
     } catch {
       derived = {
         objective: '',
