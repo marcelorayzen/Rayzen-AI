@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import {
   ReactFlow, Background, Controls, MiniMap,
   useNodesState, useEdgesState, addEdge,
@@ -297,15 +297,11 @@ export function StateCanvas({ milestones: initMilestones, blockers: initBlockers
     setDirty(true)
   }, [setEdges])
 
-  // rebuild when state changes — use ref to avoid render-phase setState
-  const prevKey = useRef('')
-  const nextKey = `${goal?.id ?? ''}-${milestones.length}-${blockers.length}-${nextSteps.length}-${graphLinks.length}-${milestones.map(m => m.id + m.status + m.title + (m.description ?? '')).join()}-${blockers.map(b => b.id + b.title + (b.description ?? '')).join()}-${nextSteps.map(s => s.id + s.title + (s.description ?? '')).join()}-${graphLinks.map(l => l.id + l.sourceId + l.targetId).join()}`
-  if (prevKey.current !== nextKey) {
-    prevKey.current = nextKey
+  useEffect(() => {
     const { nodes: n, edges: e } = buildGraph()
-    // schedule outside render cycle
-    setTimeout(() => { setNodes(n as AppNode[]); setEdges(e) }, 0)
-  }
+    setNodes(n as AppNode[])
+    setEdges(e)
+  }, [buildGraph, setNodes, setEdges])
 
   const addNode = () => {
     if (!addText.trim() || !addType) return
@@ -450,13 +446,11 @@ export function GoalCanvas({ goalTitle, targetDate, criteria: initCriteria, gaps
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initE)
   const onConnect = useCallback((c: Connection) => setEdges(e => addEdge(c, e)), [setEdges])
 
-  const prevKey = useRef('')
-  const nextKey = `${criteria.length}-${criteria.map(c => c.text + c.done).join()}`
-  if (prevKey.current !== nextKey) {
-    prevKey.current = nextKey
+  useEffect(() => {
     const { nodes: n, edges: e } = buildGraph()
-    setTimeout(() => { setNodes(n as AppNode[]); setEdges(e) }, 0)
-  }
+    setNodes(n as AppNode[])
+    setEdges(e)
+  }, [buildGraph, setNodes, setEdges])
 
   const addCriteria = () => {
     if (!addText.trim()) return
@@ -644,13 +638,11 @@ export function EventCanvas({ milestones, events }: EventCanvasProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<AppNode>(initN as AppNode[])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initE)
 
-  const prevKey = useRef('')
-  const nextKey = `${milestones.length}-${events.length}-${events.map(e => e.id + e.milestoneId).join()}`
-  if (prevKey.current !== nextKey) {
-    prevKey.current = nextKey
+  useEffect(() => {
     const { nodes: n, edges: e } = buildGraph()
-    setTimeout(() => { setNodes(n as AppNode[]); setEdges(e) }, 0)
-  }
+    setNodes(n as AppNode[])
+    setEdges(e)
+  }, [buildGraph, setNodes, setEdges])
 
   // Only show legend entries that exist in current events
   const activeSources = new Set(events.map(e => resolveType(e.source, e.intent)))
@@ -751,14 +743,10 @@ export function KnowledgeCanvas({ nodes: kNodes, edges: kEdges }: KnowledgeCanva
   const [nodes, setNodes, onNodesChange] = useNodesState<AppNode>(initN as AppNode[])
   const [edges, , onEdgesChange] = useEdgesState<Edge>(initE)
 
-  const prevKey = useRef('')
-  const nextKey = `${kNodes.length}-${kEdges.length}`
-  if (prevKey.current !== nextKey) {
-    prevKey.current = nextKey
-    const { nodes: n, edges: e } = buildGraph()
-    setTimeout(() => { setNodes(n as AppNode[]); }, 0)
-    void e
-  }
+  useEffect(() => {
+    const { nodes: n } = buildGraph()
+    setNodes(n as AppNode[])
+  }, [buildGraph, setNodes])
 
   const knowledgeTypes: NodeType[] = ['goal', 'decision', 'problem', 'idea', 'artifact', 'document', 'wiki', 'file']
   const activeTypes = new Set(kNodes.map(n => n.type as NodeType))
