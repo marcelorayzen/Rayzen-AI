@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../../prisma/prisma.service'
+import { ProjectStateService } from '../project-state/project-state.service'
 import OpenAI from 'openai'
 
 export type DocType =
@@ -79,7 +80,11 @@ function computeDiff(oldText: string, newText: string): string {
 export class DocumentationService {
   private llm: OpenAI
 
-  constructor(private readonly prisma: PrismaService, private config: ConfigService) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private config: ConfigService,
+    private readonly projectStateService: ProjectStateService,
+  ) {
     this.llm = new OpenAI({
       baseURL: this.config.get('LITELLM_BASE_URL', 'http://localhost:4000/v1'),
       apiKey: this.config.get('LITELLM_MASTER_KEY'),
@@ -105,10 +110,17 @@ export class DocumentationService {
       )
     }
 
+    // Auto-refresh do estado do projeto antes de gerar docs — garante contexto atual
+    await this.projectStateService.refresh(projectId).catch(() => {
+      // falha silenciosa: segue com o estado existente se o refresh falhar
+    })
+
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+
     // Coletar contexto com IDs rastreáveis
     const [artifacts, events, projectState] = await Promise.all([
       this.prisma.sessionArtifact.findMany({
-        where: { projectId },
+        where: { projectId, createdAt: { gte: thirtyDaysAgo } },
         orderBy: { createdAt: 'desc' },
         take: 8,
       }),
