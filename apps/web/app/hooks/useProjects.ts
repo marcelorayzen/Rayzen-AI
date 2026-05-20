@@ -30,7 +30,10 @@ export type ImportTab = 'github' | 'file' | 'url' | 'notion'
 
 export function useProjects() {
   const [projects, setProjects] = useState<Project[]>([])
-  const [activeProjectId, setActiveProjectIdState] = useState<string | null>(null)
+  const [activeProjectId, setActiveProjectIdState] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null
+    return localStorage.getItem('rayzen_active_project_id')
+  })
   const [newProjectOpen, setNewProjectOpen] = useState(false)
   const [newProjectName, setNewProjectName] = useState('')
   const [newProjectDesc, setNewProjectDesc] = useState('')
@@ -75,9 +78,13 @@ export function useProjects() {
     if (projects.length === 0 || projectSelectionInitializedRef.current) return
     projectSelectionInitializedRef.current = true
     const savedId = localStorage.getItem('rayzen_active_project_id')
-    const saved = savedId ? projects.find(p => p.id === savedId) : null
-    const first = projects.find(p => p.status === 'active') ?? projects[0]
-    setActiveProjectId(saved?.id ?? first.id)
+    const savedExists = savedId ? projects.some(p => p.id === savedId) : false
+    if (!savedExists) {
+      // Projeto salvo não existe mais — cair no primeiro ativo
+      const first = projects.find(p => p.status === 'active') ?? projects[0]
+      setActiveProjectId(first?.id ?? null)
+    }
+    // Se savedExists, o useState já inicializou com o valor correto — não precisa fazer nada
   }, [projects, setActiveProjectId])
 
   const createProject = useCallback(async () => {
