@@ -64,12 +64,16 @@ interface UniverseNodeData extends Record<string, unknown> {
 
 function UniverseNodeComponent({ id, data, selected }: NodeProps<Node<UniverseNodeData>>) {
   const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(data.label)
+  const [draft, setDraft] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const colors = getColors(data.nodeType)
 
-  useEffect(() => { setDraft(data.label) }, [data.label])
   useEffect(() => { if (editing) inputRef.current?.focus() }, [editing])
+
+  const startEdit = () => {
+    setDraft(data.label)
+    setEditing(true)
+  }
 
   const commitEdit = () => {
     setEditing(false)
@@ -91,7 +95,7 @@ function UniverseNodeComponent({ id, data, selected }: NodeProps<Node<UniverseNo
         position: 'relative',
         cursor: 'default',
       }}
-      onDoubleClick={() => setEditing(true)}
+      onDoubleClick={startEdit}
     >
       <Handle type="target" position={Position.Left} style={{ background: colors.border, width: 8, height: 8 }} />
 
@@ -256,7 +260,7 @@ export function UniverseCanvas({ projectId: _projectId, initialNodes, initialEdg
         label: n.data.label,
         nodeType: n.data.nodeType,
         color: n.data.color,
-        originalId: n.data.originalId,
+        originalId: typeof n.data.originalId === 'string' ? n.data.originalId : undefined,
       },
     }))
     const rawEdges: UniverseEdge[] = edges.map(e => ({
@@ -357,7 +361,7 @@ export function UniverseCanvas({ projectId: _projectId, initialNodes, initialEdg
         }}>
           <div style={{ fontSize: 13, color: '#475569', textAlign: 'center' }}>
             Canvas vazio — comece importando dados do projeto<br />
-            <span style={{ fontSize: 11, color: '#1e293b' }}>ou clique em "+ nó" para criar manualmente</span>
+            <span style={{ fontSize: 11, color: '#1e293b' }}>ou clique em &quot;+ nó&quot; para criar manualmente</span>
           </div>
         </div>
       )}

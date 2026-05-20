@@ -39,7 +39,7 @@ export class UniverseService {
   async get(projectId: string): Promise<UniverseMap> {
     const map = await this.prisma.projectKnowledgeMap.findUnique({ where: { projectId } })
     if (!map) return { nodes: [], edges: [] }
-    return { nodes: map.nodes as UniverseNode[], edges: map.edges as UniverseEdge[] }
+    return { nodes: (map.nodes as unknown) as UniverseNode[], edges: (map.edges as unknown) as UniverseEdge[] }
   }
 
   async save(projectId: string, nodes: UniverseNode[], edges: UniverseEdge[]): Promise<UniverseMap> {
@@ -48,7 +48,7 @@ export class UniverseService {
       create: { projectId, nodes: nodes as object[], edges: edges as object[] },
       update: { nodes: nodes as object[], edges: edges as object[] },
     })
-    return { nodes: map.nodes as UniverseNode[], edges: map.edges as UniverseEdge[] }
+    return { nodes: (map.nodes as unknown) as UniverseNode[], edges: (map.edges as unknown) as UniverseEdge[] }
   }
 
   async importFromProject(projectId: string): Promise<UniverseMap> {
