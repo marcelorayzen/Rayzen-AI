@@ -58,6 +58,12 @@ export function useProjects() {
 
   const projectSelectionInitializedRef = useRef(false)
 
+  const setActiveProjectId = useCallback((id: string | null) => {
+    setActiveProjectIdState(id)
+    if (id) localStorage.setItem('rayzen_active_project_id', id)
+    else localStorage.removeItem('rayzen_active_project_id')
+  }, [])
+
   useEffect(() => {
     fetch(`${API_URL}/projects`, { headers: authHeaders() })
       .then(r => r.json())
@@ -73,12 +79,6 @@ export function useProjects() {
     const first = projects.find(p => p.status === 'active') ?? projects[0]
     setActiveProjectId(saved?.id ?? first.id)
   }, [projects, setActiveProjectId])
-
-  const setActiveProjectId = useCallback((id: string | null) => {
-    setActiveProjectIdState(id)
-    if (id) localStorage.setItem('rayzen_active_project_id', id)
-    else localStorage.removeItem('rayzen_active_project_id')
-  }, [])
 
   const createProject = useCallback(async () => {
     if (!newProjectName.trim()) return
