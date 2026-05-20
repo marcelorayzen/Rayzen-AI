@@ -907,7 +907,7 @@ export default function Home() {
                       title="Selecionar pasta"
                       onClick={async () => {
                         try {
-                          // @ts-ignore — API disponível em Chrome/Edge
+                          // @ts-expect-error — API disponível em Chrome/Edge
                           const dir = await window.showDirectoryPicker({ mode: 'read' })
                           const folderName = dir.name.toLowerCase().replace(/[^a-z0-9-_]/g, '-')
                           setNewProjectSlug(folderName)
