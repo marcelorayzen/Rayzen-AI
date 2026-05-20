@@ -4,9 +4,10 @@ import { SynthesisService } from './synthesis.service'
 import { SmartCheckpointService } from './smart-checkpoint.service'
 import { DocumentationModule } from '../documentation/documentation.module'
 import { ProjectStateModule } from '../project-state/project-state.module'
+import { GraphModule } from '../graph/graph.module'
 
 @Module({
-  imports: [forwardRef(() => DocumentationModule), forwardRef(() => ProjectStateModule)],
+  imports: [forwardRef(() => DocumentationModule), forwardRef(() => ProjectStateModule), GraphModule],
   controllers: [SynthesisController],
   providers: [SynthesisService, SmartCheckpointService],
   exports: [SynthesisService, SmartCheckpointService],

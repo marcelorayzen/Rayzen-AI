@@ -272,6 +272,8 @@ async function main() {
   } else {
     const name = getProjectName()
     if (name) payload.projectName = name
+    // Aviso visível no output do Claude Code quando a resolução falha
+    process.stderr.write(`[rayzen-hook] projectId não resolvido para slug "${name ?? '?'}". Eventos registrados sem projeto. Verifique hook.config.mjs ou defina repoSlug no projeto via API.\n`)
   }
 
   // Enriquecer com contexto git (não bloqueia se falhar)

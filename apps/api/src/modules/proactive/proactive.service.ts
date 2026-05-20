@@ -83,6 +83,7 @@ export class ProactiveService {
         where: { projectId },
         orderBy: { ts: 'desc' },
         take: 100,
+        select: { id: true, content: true, type: true, source: true, ts: true, intent: true, metadata: true },
       }),
       this.prisma.sessionArtifact.findMany({
         where: { projectId },
@@ -94,6 +95,26 @@ export class ProactiveService {
       }),
       this.prisma.projectState.findUnique({ where: { projectId } }),
     ])
+
+    // Extrair módulos mais ativos dos últimos 30 eventos CLI
+    const moduleHits: Record<string, number> = {}
+    for (const ev of events.slice(0, 30)) {
+      const meta = ev.metadata as Record<string, unknown> | null
+      const modules = (meta?.['graphify'] as Record<string, unknown> | null)?.['modules'] as string[] | null
+      if (modules) {
+        for (const m of modules) {
+          moduleHits[m] = (moduleHits[m] ?? 0) + 1
+        }
+      }
+    }
+    const topModules = Object.entries(moduleHits)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([m]) => m)
+
+    const modulesCtx = topModules.length > 0
+      ? ` Módulos mais ativos: ${topModules.join(', ')}.`
+      : ''
 
     const newRecs: Array<{
       projectId: string
@@ -161,7 +182,7 @@ export class ProactiveService {
           projectId,
           type: 'blocker_stuck',
           title: `${stuck.length} próximo(s) passo(s) repetido(s) em 3 sessões`,
-          description: `Itens como "${stuck[0][0].slice(0, 80)}…" aparecem como pendente em 3 sínteses consecutivas sem progresso.`,
+          description: `Itens como "${stuck[0][0].slice(0, 80)}…" aparecem como pendente em 3 sínteses consecutivas sem progresso.${modulesCtx}`,
           priority: 'high',
           action: 'Revise se esses itens estão realmente bloqueados ou precisam ser redefinidos.',
         })
@@ -239,7 +260,7 @@ export class ProactiveService {
           projectId,
           type: 'goal_stagnant',
           title: `Meta "${activeGoal.title.slice(0, 45)}" sem progresso há ${daysSinceUpdate} dias`,
-          description: `${done}/${total} critérios concluídos (${progress}%). Nenhuma atualização registrada nos últimos ${daysSinceUpdate} dias.`,
+          description: `${done}/${total} critérios concluídos (${progress}%). Nenhuma atualização registrada nos últimos ${daysSinceUpdate} dias.${modulesCtx}`,
           priority: daysSinceUpdate >= 14 ? 'high' : 'medium',
           action: 'Marque critérios cumpridos no Goal Graph ou redefina a meta para refletir a realidade atual.',
         })
