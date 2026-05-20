@@ -30,10 +30,7 @@ export type ImportTab = 'github' | 'file' | 'url' | 'notion'
 
 export function useProjects() {
   const [projects, setProjects] = useState<Project[]>([])
-  const [activeProjectId, setActiveProjectIdState] = useState<string | null>(() => {
-    if (typeof window === 'undefined') return null
-    return localStorage.getItem('rayzen_active_project_id')
-  })
+  const [activeProjectId, setActiveProjectIdState] = useState<string | null>(null)
   const [newProjectOpen, setNewProjectOpen] = useState(false)
   const [newProjectName, setNewProjectName] = useState('')
   const [newProjectDesc, setNewProjectDesc] = useState('')
@@ -67,6 +64,12 @@ export function useProjects() {
     else localStorage.removeItem('rayzen_active_project_id')
   }, [])
 
+  // Restaura do localStorage logo após hidratação (antes dos projetos carregarem)
+  useEffect(() => {
+    const savedId = localStorage.getItem('rayzen_active_project_id')
+    if (savedId) setActiveProjectIdState(savedId)
+  }, [])
+
   useEffect(() => {
     fetch(`${API_URL}/projects`, { headers: authHeaders() })
       .then(r => r.json())
@@ -79,12 +82,14 @@ export function useProjects() {
     projectSelectionInitializedRef.current = true
     const savedId = localStorage.getItem('rayzen_active_project_id')
     const savedExists = savedId ? projects.some(p => p.id === savedId) : false
-    if (!savedExists) {
+    if (savedExists) {
+      // Garantir que o estado tem o valor do localStorage (pode ter sido perdido no SSR)
+      setActiveProjectId(savedId!)
+    } else {
       // Projeto salvo não existe mais — cair no primeiro ativo
       const first = projects.find(p => p.status === 'active') ?? projects[0]
       setActiveProjectId(first?.id ?? null)
     }
-    // Se savedExists, o useState já inicializou com o valor correto — não precisa fazer nada
   }, [projects, setActiveProjectId])
 
   const createProject = useCallback(async () => {
