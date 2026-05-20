@@ -12,6 +12,7 @@ import { useGoalGraph, type ProjectGoal, type ProjectState, type GoalGraphData, 
 import { useChatStream, type Message, type Session, type WorkMode } from './hooks/useChatStream'
 import { useQA } from './hooks/useQA'
 const GraphCanvas = dynamic(() => import('./components/GraphCanvas'), { ssr: false })
+const UniverseCanvas = dynamic(() => import('./components/UniverseCanvas').then(m => ({ default: m.UniverseCanvas })), { ssr: false })
 
 const MODULE_LABELS: Record<string, string> = {
   brain:   'memory',
@@ -331,6 +332,13 @@ export default function Home() {
     knowledgeData,
     knowledgeLoading,
     loadKnowledgeGraph,
+    universeData,
+    universeLoading,
+    universeSaving,
+    universeImporting,
+    loadUniverse,
+    saveUniverse,
+    importUniverse,
     goalsHistory, setGoalsHistory,
     historyOpen,
     historyLoading,
@@ -2985,14 +2993,14 @@ export default function Home() {
               <div className="flex items-center gap-4">
                 <span className="hud-title text-sm">GOAL GRAPH</span>
                 <div className="flex gap-1">
-                  {(['estado', 'goal', 'eventos', 'knowledge'] as const).map(m => (
+                  {(['estado', 'goal', 'eventos', 'universe'] as const).map(m => (
                     <button key={m} onClick={() => {
                       setGraphSubMode(m)
                       if (m === 'eventos' && !graphEventData) loadEventGraph()
-                      if (m === 'knowledge' && !knowledgeData) loadKnowledgeGraph()
+                      if (m === 'universe' && !universeData) loadUniverse()
                     }}
                       className={`hud-nav ${graphSubMode === m ? 'active' : ''}`}>
-                      {m === 'goal' ? 'Goal Graph' : m === 'eventos' ? 'Eventos' : m === 'knowledge' ? 'Knowledge' : 'Estado atual'}
+                      {m === 'goal' ? 'Goal Graph' : m === 'eventos' ? 'Eventos' : m === 'universe' ? 'Universe' : 'Estado atual'}
                     </button>
                   ))}
                 </div>
@@ -3050,20 +3058,22 @@ export default function Home() {
                     />
                   </div>
                 </>
-              ) : graphSubMode === 'knowledge' ? (
+              ) : graphSubMode === 'universe' ? (
                 <>
-                  <p className="text-xs text-zinc-500 mb-2">Grafo de conhecimento: decisões ↔ checkpoints ↔ docs ↔ wiki ↔ arquivos ↔ meta.</p>
-                  {knowledgeLoading ? (
-                    <div className="text-zinc-500 text-sm text-center py-8">Construindo grafo…</div>
-                  ) : knowledgeData ? (
-                    <div className="rounded-xl overflow-hidden border border-zinc-800">
-                      <GraphCanvas mode="knowledge" nodes={knowledgeData.nodes} edges={knowledgeData.edges} />
-                    </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <button onClick={loadKnowledgeGraph} className="text-xs text-blue-400 hover:text-blue-300 transition-colors">⟳ carregar knowledge graph</button>
-                    </div>
-                  )}
+                  <p className="text-xs text-zinc-500 mb-2">Universe — canvas livre: crie, conecte e organize o conhecimento do projeto.</p>
+                  {universeLoading ? (
+                    <div className="text-zinc-500 text-sm text-center py-8">Carregando universe…</div>
+                  ) : activeProjectId ? (
+                    <UniverseCanvas
+                      projectId={activeProjectId}
+                      initialNodes={universeData?.nodes ?? []}
+                      initialEdges={universeData?.edges ?? []}
+                      onSave={saveUniverse}
+                      onImport={importUniverse}
+                      saving={universeSaving}
+                      importing={universeImporting}
+                    />
+                  ) : null}
                 </>
               ) : graphGoalData ? (
                 <>

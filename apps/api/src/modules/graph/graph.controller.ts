@@ -1,7 +1,8 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body } from '@nestjs/common'
+import { Controller, Get, Post, Put, Patch, Delete, Param, Body } from '@nestjs/common'
 import { ApiTags, ApiOperation } from '@nestjs/swagger'
 import { GraphService, CreateGoalDto, UpdateGoalDto, Kpi } from './graph.service'
 import { KnowledgeGraphService } from './knowledge-graph.service'
+import { UniverseService, UniverseNode, UniverseEdge } from './universe.service'
 
 @ApiTags('graph')
 @Controller('projects/:id/graph')
@@ -9,12 +10,34 @@ export class GraphController {
   constructor(
     private readonly graph: GraphService,
     private readonly knowledge: KnowledgeGraphService,
+    private readonly universe: UniverseService,
   ) {}
 
   @Get('knowledge')
-  @ApiOperation({ summary: 'Knowledge graph: decisões ↔ documentos ↔ wiki ↔ arquivos ↔ meta' })
+  @ApiOperation({ summary: 'Knowledge graph legado (somente leitura)' })
   getKnowledgeGraph(@Param('id') id: string) {
     return this.knowledge.build(id)
+  }
+
+  @Get('universe')
+  @ApiOperation({ summary: 'Universe: canvas livre de conhecimento do projeto' })
+  getUniverse(@Param('id') id: string) {
+    return this.universe.get(id)
+  }
+
+  @Put('universe')
+  @ApiOperation({ summary: 'Salvar estado completo do Universe (nodes + edges)' })
+  saveUniverse(
+    @Param('id') id: string,
+    @Body() body: { nodes: UniverseNode[]; edges: UniverseEdge[] },
+  ) {
+    return this.universe.save(id, body.nodes ?? [], body.edges ?? [])
+  }
+
+  @Post('universe/import')
+  @ApiOperation({ summary: 'Importar dados do projeto para o Universe como ponto de partida' })
+  importUniverse(@Param('id') id: string) {
+    return this.universe.importFromProject(id)
   }
 
   @Get()

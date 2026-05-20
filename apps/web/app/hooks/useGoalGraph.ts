@@ -48,9 +48,14 @@ export interface KnowledgeNode { id: string; type: string; label: string; data: 
 export interface KnowledgeEdge { id: string; source: string; target: string; label: string }
 export interface KnowledgeGraphData { nodes: KnowledgeNode[]; edges: KnowledgeEdge[] }
 
+export interface UniverseNodeData { label: string; nodeType: string; color?: string; originalId?: string; [key: string]: unknown }
+export interface UniverseNode { id: string; type: string; position: { x: number; y: number }; data: UniverseNodeData }
+export interface UniverseEdge { id: string; source: string; target: string; label?: string; animated?: boolean; style?: Record<string, unknown> }
+export interface UniverseMap { nodes: UniverseNode[]; edges: UniverseEdge[] }
+
 export function useGoalGraph(activeProjectId: string | null) {
   const [graphOpen, setGraphOpen] = useState(false)
-  const [graphSubMode, setGraphSubMode] = useState<'estado' | 'goal' | 'eventos' | 'knowledge'>('estado')
+  const [graphSubMode, setGraphSubMode] = useState<'estado' | 'goal' | 'eventos' | 'universe'>('estado')
   const [graphStateData, setGraphStateData] = useState<ProjectState | null>(null)
   const [graphGoalData, setGraphGoalData] = useState<GoalGraphData | null>(null)
   const [graphLoading, setGraphLoading] = useState(false)
@@ -59,6 +64,10 @@ export function useGoalGraph(activeProjectId: string | null) {
   const [graphEventLoading, setGraphEventLoading] = useState(false)
   const [knowledgeData, setKnowledgeData] = useState<KnowledgeGraphData | null>(null)
   const [knowledgeLoading, setKnowledgeLoading] = useState(false)
+  const [universeData, setUniverseData] = useState<UniverseMap | null>(null)
+  const [universeLoading, setUniverseLoading] = useState(false)
+  const [universeSaving, setUniverseSaving] = useState(false)
+  const [universeImporting, setUniverseImporting] = useState(false)
   const [goalsHistory, setGoalsHistory] = useState<ProjectGoal[] | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(false)
@@ -84,7 +93,44 @@ export function useGoalGraph(activeProjectId: string | null) {
     finally { setKnowledgeLoading(false) }
   }, [activeProjectId])
 
-  const openGraph = useCallback(async (sub: 'estado' | 'goal' | 'eventos' | 'knowledge' = 'estado') => {
+  const loadUniverse = useCallback(async () => {
+    if (!activeProjectId) return
+    setUniverseLoading(true)
+    try {
+      const res = await fetch(`${API_URL}/projects/${activeProjectId}/graph/universe`, { headers: authHeaders() })
+      if (res.ok) setUniverseData(await res.json() as UniverseMap)
+    } catch { /* silencioso */ }
+    finally { setUniverseLoading(false) }
+  }, [activeProjectId])
+
+  const saveUniverse = useCallback(async (nodes: UniverseNode[], edges: UniverseEdge[]) => {
+    if (!activeProjectId) return
+    setUniverseSaving(true)
+    try {
+      const res = await fetch(`${API_URL}/projects/${activeProjectId}/graph/universe`, {
+        method: 'PUT',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ nodes, edges }),
+      })
+      if (res.ok) setUniverseData(await res.json() as UniverseMap)
+    } catch { /* silencioso */ }
+    finally { setUniverseSaving(false) }
+  }, [activeProjectId])
+
+  const importUniverse = useCallback(async () => {
+    if (!activeProjectId) return
+    setUniverseImporting(true)
+    try {
+      const res = await fetch(`${API_URL}/projects/${activeProjectId}/graph/universe/import`, {
+        method: 'POST',
+        headers: authHeaders(),
+      })
+      if (res.ok) setUniverseData(await res.json() as UniverseMap)
+    } catch { /* silencioso */ }
+    finally { setUniverseImporting(false) }
+  }, [activeProjectId])
+
+  const openGraph = useCallback(async (sub: 'estado' | 'goal' | 'eventos' | 'universe' = 'estado') => {
     if (!activeProjectId) return
     setGraphOpen(true)
     setGraphSubMode(sub)
@@ -112,10 +158,10 @@ export function useGoalGraph(activeProjectId: string | null) {
       } catch { /* silencioso */ }
       finally { setGraphEventLoading(false) }
     }
-    if (sub === 'knowledge') {
-      await loadKnowledgeGraph()
+    if (sub === 'universe') {
+      await loadUniverse()
     }
-  }, [activeProjectId, loadKnowledgeGraph])
+  }, [activeProjectId, loadKnowledgeGraph, loadUniverse])
 
   const refreshGraphState = useCallback(async () => {
     if (!activeProjectId) return
@@ -286,6 +332,13 @@ export function useGoalGraph(activeProjectId: string | null) {
     knowledgeData,
     knowledgeLoading,
     loadKnowledgeGraph,
+    universeData,
+    universeLoading,
+    universeSaving,
+    universeImporting,
+    loadUniverse,
+    saveUniverse,
+    importUniverse,
     goalsHistory, setGoalsHistory,
     historyOpen, setHistoryOpen,
     historyLoading,
