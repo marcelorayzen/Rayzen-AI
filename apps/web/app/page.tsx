@@ -2369,14 +2369,27 @@ export default function Home() {
         {messages.length === 0 && !activeProjectId && (
           <div className="mt-10 rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5 text-sm text-zinc-300">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">sem projeto ativo</p>
-            <h2 className="mt-2 text-base font-semibold text-zinc-100">Como criar e associar um novo projeto</h2>
-            <ol className="mt-3 space-y-2 text-zinc-400">
-              <li><span className="text-zinc-200">1.</span> Clique no <span className="text-zinc-200">+</span> ao lado do seletor de projetos.</li>
-              <li><span className="text-zinc-200">2.</span> Use como <span className="text-zinc-200">repoSlug</span> o nome real do repositório Git.</li>
-              <li><span className="text-zinc-200">3.</span> No projeto local, mantenha o hook global ativo e configure o MCP com o <span className="text-zinc-200">PROJECT_ID</span> do projeto.</li>
+            <h2 className="mt-2 text-base font-semibold text-zinc-100">Recomendação para o primeiro dia</h2>
+            <ol className="mt-3 space-y-3 text-zinc-400">
+              <li className="flex gap-2">
+                <span className="text-cyan-400 font-semibold shrink-0">1.</span>
+                <span>Crie o projeto aqui no Rayzen clicando no <span className="text-zinc-200">+</span> — uma página é criada automaticamente no Notion.</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="text-cyan-400 font-semibold shrink-0">2.</span>
+                <span>Abra a pasta do projeto no VS Code — o hook vincula automaticamente pelo nome do repositório Git, sem configuração manual.</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="text-cyan-400 font-semibold shrink-0">3.</span>
+                <span>Faça um <span className="text-zinc-200">checkpoint manual</span> com uma nota descrevendo o escopo inicial — isso ancora o estado do projeto antes de ter eventos.</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="text-cyan-400 font-semibold shrink-0">4.</span>
+                <span>No <span className="text-zinc-200">Goal Graph</span>, crie a primeira meta com critérios de sucesso — é o que vai medir progresso real ao longo do tempo.</span>
+              </li>
             </ol>
             <p className="mt-4 text-xs text-zinc-500">
-              Regra de separação: cada projeto precisa de um repoSlug próprio. Assim trocar de pasta no VS Code não mistura memórias entre projetos.
+              Cada VS Code aberto em uma pasta diferente envia eventos para o projeto correto automaticamente. Dois projetos em paralelo funcionam sem configuração extra.
             </p>
           </div>
         )}
