@@ -80,11 +80,22 @@ curl -X POST http://<VPS_IP>:3101/auth/login -H "Content-Type: application/json"
 # No terminal do VS Code (desktop):
 git add .
 git commit -m "descrição"
-git push origin local/marcelo          # enquanto a consolidação para main não termina
+git push origin main
 ```
 
 ### 7. Restart da API
-Na operação atual, a API roda na VPS. Use o Agent server ou o compose da VPS; no chat, `jarvis:restart_api` deve atingir o Agent `server`, não o desktop.
+Na operação atual, a API roda na VPS. Via SSH:
+```powershell
+ssh -i C:\Users\marce\.ssh\rayzen-vm-temp_key.pem azureuser@<VPS_IP> "cd /home/azureuser/projects/rayzen-ai && git pull && docker compose up -d --build api"
+```
+O projeto fica em `/home/azureuser/projects/rayzen-ai` (não `/opt`).
+
+### 8. Pipeline de estado + docs (automático)
+O sistema atualiza estado e documentação automaticamente após cada checkpoint.
+- **Checkpoint manual:** botão CHECKPOINT na interface
+- **Checkpoint automático:** Smart Checkpoint dispara a cada 2h ou 15+ eventos
+- Após qualquer checkpoint: ProjectState (Claude Sonnet) + todos os 5 docs regenerados em background
+- **Não é necessário** clicar em "⟳ gerar estado" ou "Regenerar" manualmente
 
 ---
 
@@ -119,8 +130,7 @@ Na operação atual, a API roda na VPS. Use o Agent server ou o compose da VPS; 
 | Infra | Docker Compose v2 |
 | Infra | Azure VPS Ubuntu + Docker Compose |
 
-**Nota LiteLLM:** `gpt-4o` e `gpt-4o-mini` são aliases para `anthropic/claude-sonnet-4-20250514`.
-Claude não suporta `response_format: json_object` — usar extração robusta de JSON (strip de code fences + regex).
+**Nota LiteLLM:** `gpt-4o` → Groq llama-3.3-70b (primário) com fallback automático para Claude Sonnet. `gpt-4o-premium` → Claude Sonnet direto (sem Groq). Claude não suporta `response_format: json_object` — usar extração robusta de JSON (strip de code fences + regex).
 
 ---
 
@@ -285,6 +295,8 @@ Toda nova ação **deve** ser adicionada a `apps/agent/src/security/whitelist.ts
 | `jarvis:get_calendar` | `outlook-calendar.ts` | |
 | `jarvis:restart_api` | `restart-api.ts` | git pull + build + restart |
 | `jarvis:get_data_quality` | `get-data-quality.ts` | summary/score/history/rules/results |
+| `jarvis:run_graphify` | `run-graphify.ts` | roda graphify update + envia relatório para API |
+| `jarvis:graphify_sync` | `graphify-sync.ts` | roda graphify update + gera sumário de módulos por arquivos tocados |
 
 ### Adicionar nova ação
 
@@ -527,6 +539,11 @@ ProjectGoal (meta)  ←→  ProjectState (estado atual)
 | 020 | LiteLLM startup | Scripts `.bat` agora sobem LiteLLM junto com Postgres/Redis no `docker compose up`; aguardam porta 4100 antes de compilar a API |
 | 021 | Goal achieved | `PATCH /goal/:goalId/status` com `{status:'achieved'}` arquiva a meta — sem deleção, status serve como filtro no histórico |
 | 022 | KPI auto-track | `POST /goal/:goalId/kpi/auto-track` — LLM analisa últimos 30 eventos, retorna `{metric, current}[]` para KPIs com evidência e salva diretamente no JSON `kpis` do goal |
+| 023 | Checkpoint pipeline | Checkpoint (manual ou automático) dispara em background: refresh do ProjectState (Claude Sonnet) + regeneração de todos os docs. Elimina intervenção manual. |
+| 024 | ProjectState model | ProjectState refresh usa `gpt-4o-premium` (Claude Sonnet direto) — qualidade crítica; demais módulos continuam no Groq para economizar crédito |
+| 025 | Docs auto-refresh | `generateAll` faz um único refresh de ProjectState antes de gerar os 5 docs em paralelo. `generate` individual também auto-refresca se chamado isoladamente |
+| 026 | Sínteses no contexto | Apenas sínteses dos últimos 30 dias entram no contexto de geração de docs — evita next_steps de meses atrás poluírem "Próximas Ações" |
+| 027 | Graphify → eventos | Hook enriquece cada evento com módulos inferidos do path dos arquivos tocados (`api:X`, `web:components`, etc.). ProjectState refresh inclui "módulos mais ativos" derivado desse metadata |
 
 ---
 
@@ -538,10 +555,17 @@ ProjectGoal (meta)  ←→  ProjectState (estado atual)
 | Orquestrador (chat) | gpt-4o | 0.7 | com histórico de sessão |
 | Jarvis | gpt-4o | 0.3 | tarefas práticas |
 | Content Studio | gpt-4o | 0.8 | criatividade maior |
-| Doc Engine | gpt-4o-mini | 0.2 | estruturado |
-| Síntese | gpt-4o | 0.3 | extração JSON robusta (3 estratégias) |
+| Doc Engine | gpt-4o | 0.3 | usa ProjectState como contexto primário |
+| ProjectState refresh | gpt-4o-premium | 0.2 | Claude Sonnet direto — análise estruturada crítica |
+| Síntese / Checkpoint | gpt-4o | 0.3 | extração JSON robusta (3 estratégias) |
 | Brain (síntese) | gpt-4o-mini | 0.3 | resumir resultados |
 | Embeddings | Jina AI | — | vector(1024) |
+
+**Aliases LiteLLM:**
+- `gpt-4o` → Groq llama-3.3-70b (primário) + Claude Sonnet (fallback automático)
+- `gpt-4o-mini` → Groq llama-3.1-8b (primário) + Claude Haiku (fallback automático)
+- `gpt-4o-premium` → Claude Sonnet direto (sem Groq) — usar para operações críticas de qualidade
+- `gpt-4o-mini-premium` → Claude Haiku direto
 
 ---
 
@@ -577,3 +601,14 @@ Rules:
 - If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
 - Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
 - After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+
+### Integração graphify → Rayzen AI (ADR 027)
+
+O hook enriquece cada evento com os módulos inferidos do path dos arquivos modificados:
+- `apps/api/src/modules/X/` → `api:X`
+- `apps/web/app/components/` → `web:components`
+- `apps/agent/src/actions/` → `agent:actions`
+
+O ProjectState refresh inclui "módulos mais ativos recentemente" derivado desse metadata — o LLM sabe onde a energia de desenvolvimento está sendo gasta.
+
+Para sincronizar o grafo completo: `jarvis:graphify_sync` (roda `graphify update .` + gera sumário de arquitetura por módulo).
