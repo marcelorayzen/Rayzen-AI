@@ -71,8 +71,8 @@ export function useProjects() {
     const savedId = localStorage.getItem('rayzen_active_project_id')
     const saved = savedId ? projects.find(p => p.id === savedId) : null
     const first = projects.find(p => p.status === 'active') ?? projects[0]
-    setActiveProjectIdState(saved?.id ?? first.id)
-  }, [projects])
+    setActiveProjectId(saved?.id ?? first.id)
+  }, [projects, setActiveProjectId])
 
   const setActiveProjectId = useCallback((id: string | null) => {
     setActiveProjectIdState(id)
