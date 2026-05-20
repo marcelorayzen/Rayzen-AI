@@ -45,24 +45,35 @@ Liste apenas decisões reais identificadas no histórico. Se não houver data pr
 
   next_actions: (ctx) => `Com base no contexto abaixo, escreva um documento markdown "Próximas Ações".
 
-IMPORTANTE: A seção "## Estado atual do projeto" é a fonte mais confiável do momento presente.
-Use os "Próximos passos" do estado atual como lista base. Sínteses antigas podem conter itens JÁ CONCLUÍDOS — só inclua itens de sínteses antigas se há evidência nos eventos recentes de que ainda estão pendentes.
+REGRAS ESTRITAS:
+1. A seção "## Estado atual do projeto" é a fonte primária e mais confiável — use seus "Próximos passos" como lista base.
+2. Sínteses de sessão contêm itens frequentemente JÁ CONCLUÍDOS. Só reutilize um item de síntese se ele TAMBÉM aparece no estado atual ou há evidência nos eventos recentes de que ainda está pendente.
+3. Se um tema aparece nos eventos recentes como algo feito (ex: "Edit: synthesis.service.ts", "Bash: deploy"), trate como concluído — não coloque na lista.
+4. Não inclua itens genéricos ou vagas como "Testar integração" sem evidência de que está pendente agora.
 
 ${ctx}
 
 Formato:
 ## Área
-- [ ] Ação pendente
+- [ ] Ação específica e acionável
 
-Máximo 10 ações no total. Remove duplicatas. Descarta itens que os eventos recentes mostram como concluídos. Prioriza por impacto real no momento atual.`,
+Máximo 8 ações. Remove duplicatas. Ordena por impacto real no momento atual.`,
 
-  work_journal: (ctx) => `Com base no contexto abaixo, escreva um documento markdown "Diário de Trabalho" — um log narrativo cronológico do que foi feito, decidido e aprendido.
+  work_journal: (ctx) => `Com base no contexto abaixo, escreva um documento markdown "Diário de Trabalho".
 
-IMPORTANTE: Use os eventos recentes (seção "## Eventos recentes") como fonte principal — eles são ordenados do mais novo para o mais antigo. Foque nas últimas sessões de trabalho.
+IMPORTANTE:
+- Ordene as entradas do MAIS RECENTE para o MAIS ANTIGO (ordem cronológica inversa — último trabalho no topo).
+- Use os eventos recentes (seção "## Eventos recentes") como fonte principal — eles já estão ordenados do mais novo para o mais antigo.
+- Cada entrada deve ter cabeçalho com a data real dos eventos (ex: "## 20/05/2026"). Não invente datas.
+- Não misture datas: uma entrada por data/sessão distinta.
 
 ${ctx}
 
-Formato: entradas cronológicas com cabeçalho de data/sessão (use as datas dos eventos recentes). Tom técnico e direto. Máximo 600 palavras.`,
+Formato:
+## DD/MM/AAAA — [tema da sessão]
+Narrativa técnica do que foi feito, decidido e aprendido nessa data.
+
+Tom técnico e direto. Máximo 600 palavras.`,
 }
 
 // Diff simples linha a linha: retorna linhas adicionadas (+) e removidas (-)
