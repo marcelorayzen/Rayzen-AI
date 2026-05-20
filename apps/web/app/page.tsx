@@ -895,13 +895,31 @@ export default function Home() {
                     Pasta / repo slug
                     <span className="text-zinc-600 ml-1">— deve bater com o nome da pasta no VS Code</span>
                   </label>
-                  <input
-                    value={newProjectSlug}
-                    onChange={(e) => setNewProjectSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                    placeholder="ex: rayzen-pdv"
-                    className="w-full bg-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none focus:ring-1 focus:ring-zinc-600 font-mono"
-                  />
-                  <p className="text-[10px] text-zinc-600 mt-1">O hook do Claude detecta automaticamente o projeto por este nome</p>
+                  <div className="flex gap-2">
+                    <input
+                      value={newProjectSlug}
+                      onChange={(e) => setNewProjectSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, ''))}
+                      placeholder="ex: rayzen-pdv"
+                      className="flex-1 bg-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none focus:ring-1 focus:ring-zinc-600 font-mono"
+                    />
+                    <button
+                      type="button"
+                      title="Selecionar pasta"
+                      onClick={async () => {
+                        try {
+                          // @ts-ignore — API disponível em Chrome/Edge
+                          const dir = await window.showDirectoryPicker({ mode: 'read' })
+                          const folderName = dir.name.toLowerCase().replace(/[^a-z0-9-_]/g, '-')
+                          setNewProjectSlug(folderName)
+                          if (!newProjectName.trim()) setNewProjectName(dir.name)
+                        } catch { /* usuário cancelou */ }
+                      }}
+                      className="px-3 py-2 bg-zinc-700 hover:bg-zinc-600 rounded-lg text-zinc-300 hover:text-zinc-100 transition-colors text-sm"
+                    >
+                      📁
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-zinc-600 mt-1">O hook do Claude detecta automaticamente o projeto por este nome · ou clique em 📁 para selecionar a pasta</p>
                 </div>
                 <div>
                   <label className="text-xs text-zinc-500 mb-1 block">Descrição (opcional)</label>
