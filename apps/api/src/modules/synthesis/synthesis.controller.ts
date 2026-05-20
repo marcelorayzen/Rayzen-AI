@@ -1,8 +1,7 @@
-import { Controller, Post, Get, Body, Query, Param, Inject, forwardRef } from '@nestjs/common'
+import { Controller, Post, Get, Body, Query, Param } from '@nestjs/common'
 import { ApiTags, ApiOperation } from '@nestjs/swagger'
 import { SynthesisService } from './synthesis.service'
 import { SmartCheckpointService } from './smart-checkpoint.service'
-import { DocumentationService } from '../documentation/documentation.service'
 import { UniverseService } from '../graph/universe.service'
 
 @ApiTags('synthesis')
@@ -11,8 +10,6 @@ export class SynthesisController {
   constructor(
     private readonly svc: SynthesisService,
     private readonly smartCheckpoint: SmartCheckpointService,
-    @Inject(forwardRef(() => DocumentationService))
-    private readonly docSvc: DocumentationService,
     private readonly universe: UniverseService,
   ) {}
 
@@ -26,8 +23,6 @@ export class SynthesisController {
   @ApiOperation({ summary: 'Checkpoint manual: sintetiza atividade desde o último checkpoint ou últimas 2h' })
   async checkpoint(@Body() body: { projectId: string; note?: string; workMode?: string }) {
     const result = await this.svc.checkpoint(body.projectId, body.note, body.workMode)
-    // Pipeline automático em background: state refresh + regeneração de todos os docs
-    this.docSvc.generateAll(body.projectId, { force: true }).catch(() => {})
     // Auto-rebuild Universe se ainda estiver vazio (primeira vez ou projeto novo)
     this.universe.get(body.projectId).then(u => {
       if (u.nodes.length === 0) {

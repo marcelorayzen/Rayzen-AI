@@ -27,6 +27,7 @@ interface ActivityEvent {
   source: string
   type: string
   content: string
+  intent?: string | null
   metadata: Record<string, unknown>
   ts: string
   memoryClass?: string
@@ -423,6 +424,7 @@ export default function Home() {
   const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([])
   const [activityLoading, setActivityLoading] = useState(false)
   const [memoryClassFilter, setMemoryClassFilter] = useState<MemoryClassFilter>('all')
+  const [highSignalOnly, setHighSignalOnly] = useState(true)
   const [synthesisOpen, setSynthesisOpen] = useState(false)
   const [synthesisArtifacts, setSynthesisArtifacts] = useState<SynthesisArtifact[]>([])
   const [synthesisLoading, setSynthesisLoading] = useState(false)
@@ -1444,7 +1446,7 @@ export default function Home() {
               </h2>
               <button onClick={() => setActivityOpen(false)} className="text-zinc-500 hover:text-zinc-300 text-xs">fechar</button>
             </div>
-            <div className="flex gap-1 mb-3 flex-wrap">
+            <div className="flex gap-1 mb-3 flex-wrap items-center">
               {(['all', 'global', 'consolidated', 'working', 'inbox', 'archive'] as MemoryClassFilter[]).map((cls) => (
                 <button
                   key={cls}
@@ -1463,13 +1465,28 @@ export default function Home() {
                   {cls}
                 </button>
               ))}
+              <button
+                onClick={() => setHighSignalOnly(v => !v)}
+                title="Filtrar apenas eventos com sinal semântico"
+                className={`ml-auto text-[10px] px-2 py-1 rounded-lg font-medium transition-colors ${
+                  highSignalOnly ? 'bg-violet-700 text-white' : 'bg-zinc-800 text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                ✦ sinal
+              </button>
             </div>
             <div className="overflow-y-auto flex-1 space-y-2">
               {activityLoading && <p className="text-zinc-500 text-xs text-center py-4">Carregando…</p>}
               {!activityLoading && activityEvents.length === 0 && (
                 <p className="text-zinc-500 text-xs text-center py-4">Nenhum evento registrado ainda.</p>
               )}
-              {activityEvents.map((ev) => {
+              {activityEvents.filter(ev => {
+                if (!highSignalOnly) return true
+                // Remove eventos de baixo sinal: leituras MCP, tool calls sem intent de source cli
+                if (ev.content.startsWith('Read:')) return false
+                if (ev.source === 'cli' && !ev.intent && ev.type === 'execution') return false
+                return true
+              }).map((ev) => {
                 const git = (ev.metadata as Record<string, unknown>)?.['git'] as Record<string, unknown> | null
                 const evidenceType = typeof ev.metadata?.['evidenceType'] === 'string' ? ev.metadata['evidenceType'] : null
                 const evidencePath = typeof ev.metadata?.['path'] === 'string' ? ev.metadata['path'] : null
@@ -1484,6 +1501,15 @@ export default function Home() {
                         ev.type === 'decision'  ? 'bg-purple-900 text-purple-300' :
                         'bg-zinc-800 text-zinc-400'
                       }`}>{ev.type}</span>
+                      {ev.intent && (
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${
+                          ev.intent === 'decision'   ? 'bg-purple-900 text-purple-300' :
+                          ev.intent === 'problem'    ? 'bg-red-900 text-red-300' :
+                          ev.intent === 'checkpoint' ? 'bg-emerald-900 text-emerald-300' :
+                          ev.intent === 'idea'       ? 'bg-yellow-900 text-yellow-300' :
+                          'bg-zinc-800 text-zinc-500'
+                        }`}>{ev.intent}</span>
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-zinc-300 truncate">

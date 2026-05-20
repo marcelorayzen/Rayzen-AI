@@ -569,6 +569,40 @@ ProjectGoal (meta)  ←→  ProjectState (estado atual)
 
 ---
 
+## Protocolo de sessão Claude Code ↔ Rayzen
+
+**Este protocolo é obrigatório. Não pode ser quebrado entre sessões.**
+
+### Ao iniciar trabalho neste projeto
+Antes da primeira ação técnica, ler contexto do Rayzen via MCP:
+```
+rayzen_get_resume()   → o que mudou desde a última sessão, blockers ativos
+rayzen_get_goal()     → meta ativa, progresso, next best action
+```
+Isso garante que a sessão começa alinhada com o estado real — sem repetir trabalho já feito nem ignorar blockers conhecidos.
+
+### Durante a sessão
+Ao tomar uma decisão significativa ou concluir uma entrega, registrar **intenção**, não apenas execução:
+```
+rayzen_add_event(type:'decision', content:'Implementado X para resolver Y — motivo: Z')
+```
+O hook do Claude Code captura mecanicamente o que foi executado. Cabe ao Claude registrar o **porquê** e o **resultado**.
+
+### Ao fim de sessão com código real modificado
+Se a sessão modificou arquivos de código (Edit/Write em `.ts`, `.tsx`, `.prisma`, etc.):
+```
+rayzen_checkpoint()         → sintetiza a sessão, atualiza ProjectState, reconstrói docs e Universe
+rayzen_update_planning()    → fecha milestones concluídos, adiciona novas tasks ao backlog
+```
+Sem checkpoint, a próxima sessão começa com estado desatualizado e o loop não fecha.
+
+### Contrato de qualidade de sinal
+- **Não registrar ruído**: tool calls de leitura (Read, ToolSearch, MCP queries) não devem virar eventos
+- **Bash/PowerShell**: o campo `description` é o sinal; o `command` completo é ruído
+- **Checkpoint ≠ síntese de sessão**: síntese é parcial; checkpoint fecha o loop completo (state + docs + Universe)
+
+---
+
 ## Regras de desenvolvimento
 
 - TypeScript 100% — sem `any` explícito, sem `.js` puro

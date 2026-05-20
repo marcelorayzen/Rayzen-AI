@@ -265,6 +265,21 @@ async function main() {
     process.exit(0)
   }
 
+  // Ferramentas sem sinal semântico — ignorar completamente
+  const tool = payload.tool_name ?? ''
+  const IGNORED_TOOLS = new Set([
+    'TodoWrite', 'TodoRead', 'ListMcpResourcesTool',
+    'ToolSearch', 'Agent', 'ScheduleWakeup',
+    'EnterPlanMode', 'ExitPlanMode', 'AskUserQuestion',
+    'Read',  // exploração, não mudança — quase sempre ruído
+  ])
+  // Ignorar leituras do Rayzen (não criar evento ao consultar estado)
+  if (IGNORED_TOOLS.has(tool) ||
+      tool.startsWith('mcp__rayzen__rayzen_get') ||
+      tool.startsWith('mcp__rayzen__rayzen_search')) {
+    process.exit(0)
+  }
+
   // Detecta projectId automaticamente por repoSlug, com fallback para config fixo
   const projectId = await resolveProjectId(cfg)
   if (projectId) {
@@ -272,22 +287,20 @@ async function main() {
   } else {
     const name = getProjectName()
     if (name) payload.projectName = name
-    // Aviso visível no output do Claude Code quando a resolução falha
-    process.stderr.write(`[rayzen-hook] projectId não resolvido para slug "${name ?? '?'}". Eventos registrados sem projeto. Verifique hook.config.mjs ou defina repoSlug no projeto via API.\n`)
+    process.stderr.write(`[rayzen-hook] projectId não resolvido para slug "${name ?? '?'}". Verifique hook.config.mjs.\n`)
   }
 
   // Enriquecer com contexto git (não bloqueia se falhar)
   const git = getGitContext()
   if (git) {
     payload.git = git
-    // Inferir módulos tocados a partir dos arquivos modificados
     if (git.changedFiles?.length) {
       const modules = inferModulesFromPaths(git.changedFiles)
       if (modules.length) payload.graphify = { modules }
     }
   }
 
-  // Contexto do graphify (estatísticas do grafo, se disponível)
+  // Contexto do graphify
   try {
     const repoRoot = execSync('git rev-parse --show-toplevel', {
       encoding: 'utf8', timeout: 2000, stdio: ['pipe', 'pipe', 'ignore'],
@@ -296,8 +309,13 @@ async function main() {
     if (graphifyCtx) payload.graphifyStats = graphifyCtx
   } catch { /* ignora */ }
 
-  // Anexar conteúdo do arquivo para indexação semântica (Edit/Write)
-  const tool = payload.tool_name
+  // Bash/PowerShell: substituir command completo (ruído) por description (sinal)
+  if (tool === 'Bash' || tool === 'PowerShell') {
+    const desc = payload.tool_input?.description
+    if (desc) payload.tool_input = { ...payload.tool_input, _useDescription: true }
+  }
+
+  // Edit/Write: anexar conteúdo para indexação semântica
   if (tool === 'Edit' || tool === 'Write') {
     const filePath = payload.tool_input?.file_path ?? payload.tool_input?.path
     const content = readFileContent(filePath)

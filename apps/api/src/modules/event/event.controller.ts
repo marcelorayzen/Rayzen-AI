@@ -5,6 +5,12 @@ import { SynthesisService } from '../synthesis/synthesis.service'
 import { PrismaService } from '../../prisma/prisma.service'
 import { MemoryService } from '../memory/memory.service'
 
+function inferIntent(tool: string, filePath?: string): CreateEventDto['intent'] | undefined {
+  if (filePath && /CLAUDE\.md|AGENTS\.md|ADR|decisions/i.test(filePath)) return 'decision'
+  if (tool === 'Stop') return 'checkpoint'
+  return undefined
+}
+
 interface GitContext {
   branch?: string
   commitHash?: string
@@ -59,25 +65,44 @@ export class EventController {
 
     const hookEvent = payload.hook_event_name ?? 'PostToolUse'
 
-    // Hook Stop — registra encerramento e dispara síntese em background
+    // Hook Stop — registra encerramento e fecha o loop
     if (hookEvent === 'Stop') {
       const messageCount = payload.transcript?.length ?? 0
 
-      // Só registra se houve mensagens — sessões vazias são ruído
-      if (messageCount > 0) {
+      if (messageCount > 0 && projectId) {
         await this.events.create({
           projectId,
           source: 'cli',
           type: 'note',
+          intent: 'checkpoint',
           content: `Sessão encerrada (${messageCount} mensagens)${payload.git?.branch ? ` [${payload.git.branch}]` : ''}`,
           metadata: { sessionId: payload.session_id, messageCount, git: payload.git ?? null },
         })
       }
 
-      // Síntese assíncrona — não bloqueia o hook
-      if (payload.session_id) {
-        this.synthesis.synthesizeSession(payload.session_id, projectId)
-          .catch(() => null)
+      if (payload.session_id && projectId) {
+        // Contar edições de código desta sessão para decidir profundidade
+        const codeEdits = await this.prisma.event.count({
+          where: {
+            projectId,
+            type: 'note',
+            source: 'cli',
+            metadata: { path: ['sessionId'], equals: payload.session_id },
+          },
+        })
+
+        if (codeEdits >= 3) {
+          // Sessão substancial → checkpoint completo (state + docs + Universe)
+          this.synthesis.checkpoint(
+            projectId,
+            `Auto-checkpoint: sessão com ${codeEdits} edições de código`,
+          ).catch(() => null)
+        } else {
+          // Sessão leve → apenas síntese
+          this.synthesis.synthesizeSession(payload.session_id, projectId).catch(() => null)
+        }
+      } else if (payload.session_id) {
+        this.synthesis.synthesizeSession(payload.session_id, projectId).catch(() => null)
       }
 
       return { ok: true }
@@ -112,23 +137,25 @@ export class EventController {
           projectId,
         ).catch(() => null)
       }
-    } else if (tool === 'Bash') {
-      const cmd = String(input['command'] ?? '').slice(0, 200)
-      content = `Bash: ${cmd}${gitSuffix}`
+    } else if (tool === 'Bash' || tool === 'PowerShell') {
+      const desc = input['_useDescription'] ? String(input['description'] ?? '').slice(0, 200) : ''
+      const cmd  = String(input['command'] ?? '').slice(0, 200)
+      content = `${tool}: ${desc || cmd}${gitSuffix}`
       type = 'execution'
-    } else if (tool === 'Read') {
-      const filePath = (input['file_path'] as string) ?? 'arquivo'
-      content = `Read: ${filePath}${gitSuffix}`
-      type = 'note'
     } else {
       content = `${tool}: ${JSON.stringify(input).slice(0, 150)}${gitSuffix}`
     }
+
+    const filePath = tool === 'Edit' || tool === 'Write'
+      ? ((input['file_path'] as string) ?? (input['path'] as string))
+      : undefined
 
     return this.events.create({
       projectId,
       source: 'cli',
       type,
       content,
+      intent: inferIntent(tool, filePath),
       metadata: { tool, input, sessionId: payload.session_id, git: payload.git ?? null },
     })
   }

@@ -1,8 +1,9 @@
-import { Injectable, BadRequestException, Logger } from '@nestjs/common'
+import { Injectable, BadRequestException, Logger, Inject, forwardRef } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../../prisma/prisma.service'
 import OpenAI from 'openai'
 import { getWorkModeConfig } from '../orchestrator/work-modes'
+import { DocumentationService } from '../documentation/documentation.service'
 
 export interface SynthesisResult {
   summary: string
@@ -17,7 +18,11 @@ export class SynthesisService {
   private readonly logger = new Logger(SynthesisService.name)
   private llm: OpenAI
 
-  constructor(private readonly prisma: PrismaService, private config: ConfigService) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private config: ConfigService,
+    @Inject(forwardRef(() => DocumentationService)) private readonly docSvc: DocumentationService,
+  ) {
     this.llm = new OpenAI({
       baseURL: this.config.get('LITELLM_BASE_URL', 'http://localhost:4000/v1'),
       apiKey: this.config.get('LITELLM_MASTER_KEY'),
@@ -109,6 +114,9 @@ export class SynthesisService {
         sourceIds: sourceIds as object,
       },
     })
+
+    // Full pipeline: state refresh + docs regeneration in background
+    this.docSvc.generateAll(projectId, { force: true }).catch(() => null)
 
     return {
       id: artifact.id,
