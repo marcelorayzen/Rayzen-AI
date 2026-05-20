@@ -56,6 +56,49 @@ async function loadConfig() {
   }
 }
 
+function inferModulesFromPaths(filePaths) {
+  const modules = new Set()
+  for (const fp of filePaths) {
+    const normalized = fp.replace(/\\/g, '/')
+    // apps/api/src/modules/X/... → api:X
+    const apiModule = normalized.match(/apps\/api\/src\/modules\/([^/]+)/)
+    if (apiModule) { modules.add(`api:${apiModule[1]}`); continue }
+    // apps/web/app/components/X... → web:components
+    if (/apps\/web\/app\/components/.test(normalized)) { modules.add('web:components'); continue }
+    // apps/web/app/hooks/... → web:hooks
+    if (/apps\/web\/app\/hooks/.test(normalized)) { modules.add('web:hooks'); continue }
+    // apps/web/app/... → web:pages
+    if (/apps\/web\/app/.test(normalized)) { modules.add('web:pages'); continue }
+    // apps/agent/src/actions/... → agent:actions
+    if (/apps\/agent\/src\/actions/.test(normalized)) { modules.add('agent:actions'); continue }
+    // apps/agent/src/hooks/... → agent:hooks
+    if (/apps\/agent\/src\/hooks/.test(normalized)) { modules.add('agent:hooks'); continue }
+    // infra/... → infra
+    if (/^infra\//.test(normalized)) { modules.add('infra'); continue }
+    // prisma/schema.prisma → api:schema
+    if (/prisma\/schema\.prisma/.test(normalized)) { modules.add('api:schema'); continue }
+  }
+  return [...modules]
+}
+
+function getGraphifyContext(repoRoot) {
+  try {
+    const graphPath = join(repoRoot, 'graphify-out', 'graph.json')
+    if (!existsSync(graphPath)) return null
+    const raw = readFileSync(graphPath, 'utf8')
+    const graph = JSON.parse(raw)
+    const fileCounts = {}
+    for (const node of (graph.nodes ?? [])) {
+      const src = node.source_file
+      if (src) fileCounts[src] = (fileCounts[src] ?? 0) + 1
+    }
+    const totalFiles = Object.keys(fileCounts).length
+    const totalNodes = (graph.nodes ?? []).length
+    const totalEdges = (graph.edges ?? []).length
+    return { totalFiles, totalNodes, totalEdges, updatedAt: new Date().toISOString() }
+  } catch { return null }
+}
+
 function getGitContext() {
   try {
     const branch = execSync('git rev-parse --abbrev-ref HEAD', {
@@ -233,7 +276,23 @@ async function main() {
 
   // Enriquecer com contexto git (não bloqueia se falhar)
   const git = getGitContext()
-  if (git) payload.git = git
+  if (git) {
+    payload.git = git
+    // Inferir módulos tocados a partir dos arquivos modificados
+    if (git.changedFiles?.length) {
+      const modules = inferModulesFromPaths(git.changedFiles)
+      if (modules.length) payload.graphify = { modules }
+    }
+  }
+
+  // Contexto do graphify (estatísticas do grafo, se disponível)
+  try {
+    const repoRoot = execSync('git rev-parse --show-toplevel', {
+      encoding: 'utf8', timeout: 2000, stdio: ['pipe', 'pipe', 'ignore'],
+    }).trim()
+    const graphifyCtx = getGraphifyContext(repoRoot)
+    if (graphifyCtx) payload.graphifyStats = graphifyCtx
+  } catch { /* ignora */ }
 
   // Anexar conteúdo do arquivo para indexação semântica (Edit/Write)
   const tool = payload.tool_name

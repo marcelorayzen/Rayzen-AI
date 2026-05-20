@@ -92,8 +92,26 @@ export class ProjectStateService {
     ])
 
     const eventsText = events
-      .map(e => `[${e.ts.toISOString().slice(0, 16)}] [${e.intent ?? e.type}] ${e.content}`)
+      .map(e => {
+        const meta = e.metadata as Record<string, unknown> | null
+        const modules = (meta?.['graphify'] as { modules?: string[] } | null)?.modules
+        const modulePart = modules?.length ? ` [módulos:${modules.join(',')}]` : ''
+        return `[${e.ts.toISOString().slice(0, 16)}] [${e.intent ?? e.type}]${modulePart} ${e.content}`
+      })
       .join('\n')
+
+    // Módulos mais ativos recentemente (derivado do metadata graphify dos eventos)
+    const moduleCounts: Record<string, number> = {}
+    for (const e of events) {
+      const meta = e.metadata as Record<string, unknown> | null
+      const modules = (meta?.['graphify'] as { modules?: string[] } | null)?.modules ?? []
+      for (const m of modules) moduleCounts[m] = (moduleCounts[m] ?? 0) + 1
+    }
+    const activeModules = Object.entries(moduleCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([m, n]) => `${m} (${n} eventos)`)
+      .join(', ')
 
     const artifactsText = artifacts
       .map(a => {
@@ -115,7 +133,8 @@ Projeto: ${project.name}
 Descrição: ${project.description ?? 'não informada'}
 Goals: ${project.goals ?? 'não informados'}
 
-Eventos recentes (mais novo primeiro):
+${activeModules ? `Módulos mais ativos recentemente (por nº de eventos):\n${activeModules}\n` : ''}
+Eventos recentes (mais novo primeiro, com módulos de código tocados quando disponível):
 ${eventsText || 'nenhum evento registrado'}
 
 Sínteses de sessões anteriores:
