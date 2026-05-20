@@ -590,13 +590,15 @@ export default function Home() {
     if (!activeProjectId) return
     setGeneratingDocs(true)
     try {
-      await fetch(`${API_URL}/documentation/generate/${activeProjectId}`, {
+      await fetch(`${API_URL}/documentation/generate/${activeProjectId}?force=true`, {
         method: 'POST',
         headers: authHeaders(),
       })
       const res = await fetch(`${API_URL}/documentation/${activeProjectId}`, { headers: authHeaders() })
       setProjectDocs(await res.json() as ProjectDoc[])
-    } catch { /* silencioso */ }
+    } catch (e) {
+      console.error('Erro ao regenerar docs:', e)
+    }
     finally { setGeneratingDocs(false) }
   }, [activeProjectId])
 
