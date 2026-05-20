@@ -1,6 +1,7 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
+import { Injectable, Logger, OnModuleInit, Inject, forwardRef } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { SynthesisService } from './synthesis.service'
+import { DocumentationService } from '../documentation/documentation.service'
 
 const INTERVAL_MS   = 10 * 60 * 1000  // checar a cada 10min
 const MIN_EVENTS    = 5                // mínimo de eventos para qualquer trigger
@@ -14,6 +15,8 @@ export class SmartCheckpointService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly synthesis: SynthesisService,
+    @Inject(forwardRef(() => DocumentationService))
+    private readonly docSvc: DocumentationService,
   ) {}
 
   onModuleInit() {
@@ -65,6 +68,8 @@ export class SmartCheckpointService implements OnModuleInit {
     this.logger.log(`auto-checkpoint: projeto ${projectId} — ${reason} (${events.length} eventos desde último)`)
 
     await this.synthesis.checkpoint(projectId, undefined, undefined, { autoTriggered: true, reason })
+    // Pipeline automático: atualiza estado e docs em background
+    this.docSvc.generateAll(projectId, { force: true }).catch(() => {})
 
     return { triggered: true, reason }
   }

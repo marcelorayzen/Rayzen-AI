@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../../prisma/prisma.service'
 import { ProjectStateService } from '../project-state/project-state.service'
+import { ProjectState } from '@prisma/client'
 import OpenAI from 'openai'
 
 export type DocType =
@@ -94,7 +95,7 @@ export class DocumentationService {
   async generate(
     projectId: string,
     type: DocType,
-    opts: { force?: boolean } = {},
+    opts: { force?: boolean; _preloadedState?: ProjectState | null } = {},
   ): Promise<{ id: string; type: string; content: string; generatedAt: string }> {
     const project = await this.prisma.project.findUnique({ where: { id: projectId } })
     if (!project) throw new NotFoundException('Projeto não encontrado')
@@ -110,10 +111,10 @@ export class DocumentationService {
       )
     }
 
-    // Auto-refresh do estado do projeto antes de gerar docs — garante contexto atual
-    await this.projectStateService.refresh(projectId).catch(() => {
-      // falha silenciosa: segue com o estado existente se o refresh falhar
-    })
+    // Se não foi chamado pelo generateAll (que já fez um refresh único), auto-refresh aqui
+    if (!opts._preloadedState) {
+      await this.projectStateService.refresh(projectId).catch(() => {})
+    }
 
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
 
@@ -129,10 +130,12 @@ export class DocumentationService {
           projectId,
           memoryClass: { in: ['consolidated', 'working', 'inbox'] },
         },
-        orderBy: { ts: 'desc' }, // recência primeiro — não deixa eventos antigos dominar
+        orderBy: { ts: 'desc' },
         take: 50,
       }),
-      this.prisma.projectState.findUnique({ where: { projectId } }),
+      opts._preloadedState !== undefined
+        ? Promise.resolve(opts._preloadedState)
+        : this.prisma.projectState.findUnique({ where: { projectId } }),
     ])
 
     const sourceIds = [
@@ -218,8 +221,14 @@ export class DocumentationService {
   }
 
   async generateAll(projectId: string, opts: { force?: boolean } = {}) {
+    // Refresh único do ProjectState antes de gerar todos os docs em paralelo
+    await this.projectStateService.refresh(projectId).catch(() => {})
+    const freshState = await this.prisma.projectState.findUnique({ where: { projectId } })
+
     const types: DocType[] = ['project_state', 'decisions_log', 'next_actions', 'work_journal', 'test_evidence']
-    const results = await Promise.allSettled(types.map(t => this.generate(projectId, t, opts)))
+    const results = await Promise.allSettled(
+      types.map(t => this.generate(projectId, t, { ...opts, _preloadedState: freshState })),
+    )
     return types.map((type, i) => {
       const r = results[i]
       return r.status === 'fulfilled'
