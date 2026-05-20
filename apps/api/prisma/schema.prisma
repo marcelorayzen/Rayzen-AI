@@ -32,6 +32,7 @@ model Project {
   testRuns             TestRun[]
   dataQualityRules     DataQualityRule[]
   projectGoals         ProjectGoal[]
+  knowledgeMap         ProjectKnowledgeMap?
 
   @@map("projects")
 }
@@ -355,6 +356,18 @@ model ProjectGoal {
 
   @@index([projectId, status])
   @@map("project_goals")
+}
+
+model ProjectKnowledgeMap {
+  id        String   @id @default(uuid())
+  projectId String   @unique @map("project_id")
+  nodes     Json     @default("[]")
+  edges     Json     @default("[]")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("project_knowledge_maps")
 }
 
 model ConversationMessage {
