@@ -462,6 +462,8 @@ export default function Home() {
   const [healthOpen, setHealthOpen] = useState(false)
   const [healthData, setHealthData] = useState<HealthData | null>(null)
   const [helpOpen, setHelpOpen] = useState(false)
+  const [blueprintOpen, setBlueprintOpen] = useState(false)
+  const [blueprintCopied, setBlueprintCopied] = useState<string | null>(null)
 
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -2538,6 +2540,188 @@ export default function Home() {
 
       {/* Input */}
       <div className="hud-input-bar shrink-0 px-4 py-4">
+        {/* Blueprint modal */}
+        {blueprintOpen && (() => {
+          const PROMPT_FULL = `Estruture esta ideia no modelo Rayzen Blueprint.
+
+Quero um Blueprint em Markdown pronto para importar no Rayzen AI usando \`rayzen_blueprint_import_markdown\`.
+
+Use esta estrutura:
+
+# [Nome da Ideia / Feature / Projeto]
+
+## 1. Resumo executivo
+Explique em poucas linhas o que é a ideia e por que ela existe.
+
+## 2. Problema
+Descreva o problema real que isso resolve.
+
+## 3. Objetivo
+Explique o objetivo principal da implementação.
+
+## 4. Contexto atual
+Descreva o que já existe no projeto, o que não existe e quais partes serão aproveitadas.
+
+## 5. Solução proposta
+Explique a solução de forma prática e técnica.
+
+## 6. Arquitetura
+Descreva os módulos, fluxo, camadas e integrações.
+
+## 7. Endpoints / Interfaces
+Liste endpoints, comandos, tools MCP, telas ou funções necessárias.
+
+## 8. DTOs / Dados necessários
+Liste os campos, payloads, estruturas JSON ou tipos TypeScript necessários.
+
+## 9. Regras de negócio
+Liste regras, validações e comportamentos esperados.
+
+## 10. Decisões técnicas
+Liste decisões no formato:
+- Decidimos usar X porque Y.
+
+## 11. Problemas / riscos
+Liste riscos, blockers e pontos de atenção no formato:
+- Problema: ...
+
+## 12. Tarefas de implementação
+Liste tarefas acionáveis começando com verbos:
+- Implementar ...
+- Criar ...
+- Adicionar ...
+- Validar ...
+- Testar ...
+
+## 13. Checklist de validação
+Liste como validar que está funcionando.
+
+## 14. Próximos passos
+Liste a sequência recomendada de execução.
+
+Ideia bruta:
+[COLE AQUI]`
+
+          const PROMPT_SHORT = `Transforme a ideia abaixo em um Rayzen Blueprint pronto para importar com \`rayzen_blueprint_import_markdown\`.
+
+Preciso que venha em Markdown com:
+Resumo, Problema, Objetivo, Contexto atual, Solução, Arquitetura, Endpoints/Interfaces, Dados/DTOs, Regras, Decisões, Problemas, Tarefas, Checklist e Próximos passos.
+
+Use frases detectáveis pelo parser:
+- Decidimos ...
+- Problema: ...
+- Implementar ...
+- Criar ...
+- Adicionar ...
+- Testar ...
+
+Ideia:
+[COLE AQUI]`
+
+          const copy = (key: string, text: string) => {
+            navigator.clipboard.writeText(text)
+            setBlueprintCopied(key)
+            setTimeout(() => setBlueprintCopied(null), 2000)
+          }
+
+          return (
+            <>
+              <div className="fixed inset-0 bg-black/70 z-40" onClick={() => setBlueprintOpen(false)} />
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+                <div className="bg-zinc-900 border border-zinc-700 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto pointer-events-auto shadow-2xl">
+                  <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800 sticky top-0 bg-zinc-900">
+                    <div>
+                      <span className="text-zinc-100 font-semibold text-sm">Rayzen Blueprint</span>
+                      <span className="text-zinc-500 text-xs ml-2">— templates para estruturar ideias</span>
+                    </div>
+                    <button onClick={() => setBlueprintOpen(false)} className="text-zinc-500 hover:text-zinc-300 text-lg leading-none">×</button>
+                  </div>
+
+                  <div className="px-5 py-4 space-y-5">
+                    {/* Fluxo */}
+                    <div className="bg-zinc-800/50 rounded-lg px-4 py-3 text-xs text-zinc-400 leading-relaxed font-mono">
+                      Ideia bruta → ChatGPT/Claude <span className="text-zinc-600 mx-1">→</span> Blueprint Markdown <span className="text-zinc-600 mx-1">→</span> <span className="text-emerald-400">rayzen_blueprint_preview</span> <span className="text-zinc-600 mx-1">→</span> <span className="text-sky-400">rayzen_blueprint_import_markdown</span>
+                    </div>
+
+                    {/* Template completo */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-zinc-300 text-xs font-semibold uppercase tracking-wider">Prompt completo (14 seções)</span>
+                        <button
+                          onClick={() => copy('full', PROMPT_FULL)}
+                          className="text-xs px-3 py-1 rounded-md border border-zinc-700 hover:border-sky-500 hover:text-sky-400 text-zinc-400 transition-colors"
+                        >
+                          {blueprintCopied === 'full' ? '✓ copiado' : 'copiar'}
+                        </button>
+                      </div>
+                      <pre className="bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-3 text-[11px] text-zinc-500 overflow-x-auto whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
+                        {PROMPT_FULL}
+                      </pre>
+                    </div>
+
+                    {/* Template curto */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-zinc-300 text-xs font-semibold uppercase tracking-wider">Prompt curto (uso diário)</span>
+                        <button
+                          onClick={() => copy('short', PROMPT_SHORT)}
+                          className="text-xs px-3 py-1 rounded-md border border-zinc-700 hover:border-sky-500 hover:text-sky-400 text-zinc-400 transition-colors"
+                        >
+                          {blueprintCopied === 'short' ? '✓ copiado' : 'copiar'}
+                        </button>
+                      </div>
+                      <pre className="bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-3 text-[11px] text-zinc-500 overflow-x-auto whitespace-pre-wrap leading-relaxed max-h-32 overflow-y-auto">
+                        {PROMPT_SHORT}
+                      </pre>
+                    </div>
+
+                    {/* O que o parser detecta */}
+                    <div>
+                      <span className="text-zinc-300 text-xs font-semibold uppercase tracking-wider block mb-2">O que o parser detecta</span>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
+                        {[
+                          ['- Implementar / Criar / Adicionar ...', 'nextSteps + backlog'],
+                          ['- Decidimos / Optamos / Aprovado ...', 'evento decision'],
+                          ['- Problema: / Blocker: / Issue: ...', 'evento problem'],
+                          ['## Seção / ### Subseção', 'página Wiki separada'],
+                        ].map(([pattern, result]) => (
+                          <div key={pattern} className="flex gap-2 items-start">
+                            <span className="text-zinc-600 font-mono shrink-0">{pattern}</span>
+                            <span className="text-zinc-500">→ {result}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Comando Claude Code */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-zinc-300 text-xs font-semibold uppercase tracking-wider">Comando para o Claude Code</span>
+                        <button
+                          onClick={() => copy('cmd', 'Use rayzen_blueprint_preview com este Markdown e me mostre o que será criado antes de importar.\n\ntitle: "[TÍTULO]"\nmarkdown: """\n[MARKDOWN AQUI]\n"""')}
+                          className="text-xs px-3 py-1 rounded-md border border-zinc-700 hover:border-sky-500 hover:text-sky-400 text-zinc-400 transition-colors"
+                        >
+                          {blueprintCopied === 'cmd' ? '✓ copiado' : 'copiar'}
+                        </button>
+                      </div>
+                      <pre className="bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-3 text-[11px] text-zinc-500 whitespace-pre-wrap leading-relaxed">
+{`Use rayzen_blueprint_preview com este Markdown e me mostre o que será criado antes de importar.
+
+title: "[TÍTULO]"
+markdown: """
+[MARKDOWN AQUI]
+"""
+
+→ Se correto: Use rayzen_blueprint_import_markdown para importar.`}
+                      </pre>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
+          )
+        })()}
+
         {/* Help panel */}
         {helpOpen && (
           <div className="max-w-3xl mx-auto mb-3">
@@ -2597,6 +2781,14 @@ export default function Home() {
             rows={1}
             className="hud-input flex-1 px-4 py-3 disabled:opacity-50"
           />
+          <button
+            type="button"
+            onClick={() => setBlueprintOpen(v => !v)}
+            title="Blueprint — templates de planejamento"
+            className={`hud-btn px-3 py-3 text-xs font-bold transition-colors ${blueprintOpen ? 'text-sky-300 bg-zinc-700' : 'text-zinc-500 hover:text-sky-400'}`}
+          >
+            BP
+          </button>
           <button
             type="button"
             onClick={() => setHelpOpen(v => !v)}
