@@ -32,6 +32,7 @@ import { DataQualityModule } from './modules/data-quality/data-quality.module'
 import { DataCatalogModule } from './modules/data-catalog/data-catalog.module'
 import { GraphModule } from './modules/graph/graph.module'
 import { EvidenceModule } from './modules/evidence/evidence.module'
+import { BlueprintModule } from './modules/blueprint/blueprint.module'
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { EvidenceModule } from './modules/evidence/evidence.module'
     DataCatalogModule,
     GraphModule,
     EvidenceModule,
+    BlueprintModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

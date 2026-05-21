@@ -148,6 +148,60 @@ const TOOLS = [
       },
     },
   },
+  {
+    name: 'rayzen_blueprint_preview',
+    description:
+      'Analisa um Blueprint em Markdown ou JSON e retorna o que seria criado sem salvar nada. Use antes do import para validar.',
+    inputSchema: {
+      type: 'object',
+      required: ['title', 'content', 'format'],
+      properties: {
+        projectId: { type: 'string' },
+        title: { type: 'string', description: 'Título do blueprint' },
+        content: { type: 'string', description: 'Conteúdo em Markdown ou JSON' },
+        format: { type: 'string', enum: ['markdown', 'json'], description: 'Formato do conteúdo' },
+      },
+    },
+  },
+  {
+    name: 'rayzen_blueprint_import',
+    description:
+      'Importa um Blueprint completo para o projeto: cria páginas Wiki, indexa no Brain, registra eventos e atualiza o planejamento.',
+    inputSchema: {
+      type: 'object',
+      required: ['title', 'content', 'format', 'source'],
+      properties: {
+        projectId: { type: 'string' },
+        title: { type: 'string' },
+        content: { type: 'string' },
+        format: { type: 'string', enum: ['markdown', 'json'] },
+        source: { type: 'string', enum: ['chatgpt', 'claude', 'manual', 'github', 'notion'] },
+        mode: { type: 'string', enum: ['architecture', 'implementation', 'debugging', 'review', 'study'] },
+        saveToWiki: { type: 'boolean' },
+        indexInBrain: { type: 'boolean' },
+        updateProjectState: { type: 'boolean' },
+        createEvents: { type: 'boolean' },
+        generateNextSteps: { type: 'boolean' },
+        overwriteWiki: { type: 'boolean' },
+      },
+    },
+  },
+  {
+    name: 'rayzen_blueprint_import_markdown',
+    description:
+      'Atalho para importar um planejamento Markdown diretamente para o projeto atual com todas as opções ativas.',
+    inputSchema: {
+      type: 'object',
+      required: ['title', 'markdown'],
+      properties: {
+        projectId: { type: 'string' },
+        title: { type: 'string', description: 'Título do plano' },
+        markdown: { type: 'string', description: 'Conteúdo em Markdown' },
+        source: { type: 'string', enum: ['chatgpt', 'claude', 'manual', 'github', 'notion'] },
+        overwriteWiki: { type: 'boolean' },
+      },
+    },
+  },
 ]
 
 const server = new Server(
@@ -221,6 +275,52 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         result = await api('PATCH', `/projects/${pid}/state/planning`, patch)
         break
       }
+
+      case 'rayzen_blueprint_preview':
+        result = await api('POST', '/blueprint/preview', {
+          projectId: pid,
+          title: args.title,
+          content: args.content,
+          format: args.format ?? 'markdown',
+        })
+        break
+
+      case 'rayzen_blueprint_import':
+        result = await api('POST', '/blueprint/import', {
+          projectId: pid,
+          title: args.title,
+          content: args.content,
+          format: args.format ?? 'markdown',
+          source: args.source ?? 'claude',
+          mode: args.mode,
+          options: {
+            saveToWiki: args.saveToWiki ?? true,
+            indexInBrain: args.indexInBrain ?? true,
+            updateProjectState: args.updateProjectState ?? true,
+            createEvents: args.createEvents ?? true,
+            generateNextSteps: args.generateNextSteps ?? true,
+            overwriteWiki: args.overwriteWiki ?? false,
+          },
+        })
+        break
+
+      case 'rayzen_blueprint_import_markdown':
+        result = await api('POST', '/blueprint/import', {
+          projectId: pid,
+          title: args.title,
+          content: args.markdown,
+          format: 'markdown',
+          source: args.source ?? 'claude',
+          options: {
+            saveToWiki: true,
+            indexInBrain: true,
+            updateProjectState: true,
+            createEvents: true,
+            generateNextSteps: true,
+            overwriteWiki: args.overwriteWiki ?? false,
+          },
+        })
+        break
 
       default:
         throw new Error(`Tool desconhecida: ${name}`)
