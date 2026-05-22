@@ -445,6 +445,8 @@ export default function Home() {
   const [activeDocType, setActiveDocType] = useState<string>('project_state')
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState<{ synced: number; conflicts: Array<{type: string; vaultModifiedAt: string}> } | null>(null)
+  const [notionSyncing, setNotionSyncing] = useState(false)
+  const [notionSyncResult, setNotionSyncResult] = useState<{ synced: Array<{type:string;url:string;status:string}>; skipped: string[]; projectPageId: string } | null>(null)
   const [versionsOpen, setVersionsOpen] = useState(false)
   const [versions, setVersions] = useState<DocVersion[]>([])
   const [versionsLoading, setVersionsLoading] = useState(false)
@@ -630,6 +632,20 @@ export default function Home() {
       setSyncResult({ synced: data.synced?.length ?? 0, conflicts: data.conflicts ?? [] })
     } catch { /* silencioso */ }
     finally { setSyncing(false) }
+  }, [activeProjectId])
+
+  const syncNotion = useCallback(async () => {
+    if (!activeProjectId) return
+    setNotionSyncing(true)
+    setNotionSyncResult(null)
+    try {
+      const res = await fetch(`${API_URL}/notion/sync/${activeProjectId}`, {
+        method: 'POST',
+        headers: authHeaders(),
+      })
+      if (res.ok) setNotionSyncResult(await res.json())
+    } catch { /* silencioso */ }
+    finally { setNotionSyncing(false) }
   }, [activeProjectId])
 
   const openVersions = useCallback(async (type: string) => {
@@ -1594,9 +1610,44 @@ export default function Home() {
                 >
                   {syncing ? 'Sincronizando…' : '⬡ Obsidian'}
                 </button>
-                <button onClick={() => { setDocsOpen(false); setSyncResult(null) }} className="text-zinc-500 hover:text-zinc-300 text-xs">fechar</button>
+                <button
+                  onClick={syncNotion}
+                  disabled={notionSyncing || !activeProjectId}
+                  className="text-xs bg-orange-700 hover:bg-orange-600 disabled:opacity-40 text-white px-3 py-1.5 rounded-lg transition-colors"
+                  title="Publicar documentação no Notion"
+                >
+                  {notionSyncing ? 'Publicando…' : 'N Notion'}
+                </button>
+                <button onClick={() => { setDocsOpen(false); setSyncResult(null); setNotionSyncResult(null) }} className="text-zinc-500 hover:text-zinc-300 text-xs">fechar</button>
               </div>
             </div>
+            {/* Notion sync result */}
+            {notionSyncResult && (
+              <div className="px-6 py-3 text-xs border-b border-zinc-800 bg-orange-950/30">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="space-y-1">
+                    {notionSyncResult.synced.length > 0 ? (
+                      <>
+                        <p className="text-orange-300 font-medium">{notionSyncResult.synced.length} doc(s) publicado(s) no Notion</p>
+                        {notionSyncResult.synced.map(s => (
+                          <div key={s.type} className="flex items-center gap-2">
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${s.status === 'created' ? 'bg-emerald-900/50 text-emerald-400' : 'bg-zinc-700 text-zinc-400'}`}>{s.status}</span>
+                            <span className="text-zinc-400">{s.type}</span>
+                            <a href={s.url} target="_blank" rel="noreferrer" className="text-orange-400 hover:text-orange-300 underline text-[10px]">abrir ↗</a>
+                          </div>
+                        ))}
+                      </>
+                    ) : (
+                      <p className="text-zinc-500">Nenhum documento sincronizado. Gere a documentação primeiro.</p>
+                    )}
+                    {notionSyncResult.skipped.length > 0 && (
+                      <p className="text-amber-400 mt-1">Ignorados: {notionSyncResult.skipped.join(', ')}</p>
+                    )}
+                  </div>
+                  <button onClick={() => setNotionSyncResult(null)} className="text-zinc-600 hover:text-zinc-400 shrink-0">×</button>
+                </div>
+              </div>
+            )}
             {/* Sync result / conflicts */}
             {syncResult && (
               <div className={`px-6 py-3 text-xs border-b border-zinc-800 ${syncResult.conflicts.length > 0 ? 'bg-amber-950/40' : 'bg-emerald-950/40'}`}>
