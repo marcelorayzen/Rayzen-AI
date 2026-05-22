@@ -46,7 +46,7 @@ export class SynthesisService {
       throw new BadRequestException('Sessão sem conteúdo para sintetizar')
     }
 
-    const synthesis = await this.runSynthesis({ messages, events, label: 'sessão', workMode })
+    const synthesis = await this.runSynthesis({ messages, events, label: 'sessão', workMode, logContext: { sessionId, projectId } })
     const sourceIds = events.map(e => e.id)
 
     const artifact = await this.prisma.sessionArtifact.create({
@@ -100,10 +100,9 @@ export class SynthesisService {
       throw new BadRequestException('Nenhuma atividade desde o último checkpoint')
     }
 
-    const synthesis = await this.runSynthesis({ messages, events, label: 'checkpoint', note, workMode })
-    const sourceIds = events.map(e => e.id)
-
     const checkpointId = `checkpoint-${Date.now()}`
+    const synthesis = await this.runSynthesis({ messages, events, label: 'checkpoint', note, workMode, logContext: { sessionId: checkpointId, projectId } })
+    const sourceIds = events.map(e => e.id)
     const artifact = await this.prisma.sessionArtifact.create({
       data: {
         sessionId: checkpointId,
@@ -168,6 +167,7 @@ export class SynthesisService {
     label: string
     note?: string
     workMode?: string
+    logContext?: { sessionId: string; projectId?: string }
   }): Promise<SynthesisResult> {
     const chatLines = opts.messages
       .map(m => `${m.role === 'user' ? 'Usuário' : 'Assistente'}: ${m.content.slice(0, 300)}`)
@@ -227,7 +227,21 @@ Regras:
     })
 
     const rawContent = res.choices[0].message.content ?? ''
+    const tokensUsed = res.usage?.total_tokens ?? 0
     this.logger.log(`Síntese LLM raw (${rawContent.length} chars): ${rawContent.slice(0, 300)}`)
+
+    if (opts.logContext) {
+      this.prisma.conversationMessage.create({
+        data: {
+          sessionId: opts.logContext.sessionId,
+          module: 'synthesis',
+          projectId: opts.logContext.projectId ?? null,
+          role: 'assistant',
+          content: rawContent.slice(0, 1000),
+          tokensUsed,
+        },
+      }).catch(() => null)
+    }
 
     try {
       const parsed = this.extractJson(rawContent) as SynthesisResult

@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 import { ProjectStateService } from '../project-state/project-state.service'
 import { ProjectState } from '@prisma/client'
 import OpenAI from 'openai'
+import { randomUUID } from 'crypto'
 
 export type DocType =
   | 'project_state'
@@ -206,6 +207,16 @@ export class DocumentationService {
     })
 
     const newContent = res.choices[0].message.content ?? ''
+    this.prisma.conversationMessage.create({
+      data: {
+        sessionId: `doc-${randomUUID().slice(0, 8)}`,
+        module: 'documentation',
+        projectId,
+        role: 'assistant',
+        content: newContent.slice(0, 1000),
+        tokensUsed: res.usage?.total_tokens ?? 0,
+      },
+    }).catch(() => null)
 
     // Salvar versão anterior antes de sobrescrever
     if (existing) {

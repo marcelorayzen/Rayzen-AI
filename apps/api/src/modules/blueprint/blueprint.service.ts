@@ -1,4 +1,4 @@
-import { createHash } from 'crypto'
+import { createHash, randomUUID } from 'crypto'
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import OpenAI from 'openai'
@@ -187,6 +187,16 @@ Regras:
     })
 
     const markdown = (res.choices[0]?.message?.content ?? '').trim()
+    this.prisma.conversationMessage.create({
+      data: {
+        sessionId: `bp-${randomUUID().slice(0, 8)}`,
+        module: 'blueprint',
+        projectId: dto.projectId ?? null,
+        role: 'assistant',
+        content: markdown.slice(0, 1000),
+        tokensUsed: res.usage?.total_tokens ?? 0,
+      },
+    }).catch(() => null)
     const titleMatch = markdown.match(/^#\s+(.+)/m)
     const title = titleMatch?.[1]?.trim() ?? dto.feature.slice(0, 80)
 

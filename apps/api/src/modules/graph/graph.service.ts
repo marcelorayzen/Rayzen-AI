@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 import { ProjectStateService, ProjectStateData } from '../project-state/project-state.service'
 import { HealthScoreService } from '../health/health.service'
 import OpenAI from 'openai'
+import { randomUUID } from 'crypto'
 
 export interface SuccessCriteria {
   id: string
@@ -390,6 +391,16 @@ Regras:
         messages: [{ role: 'user', content: prompt }],
       })
       const raw = res.choices[0]?.message?.content ?? ''
+      this.prisma.conversationMessage.create({
+        data: {
+          sessionId: `graph-${randomUUID().slice(0, 8)}`,
+          module: 'graph',
+          projectId,
+          role: 'assistant',
+          content: raw.slice(0, 500),
+          tokensUsed: res.usage?.total_tokens ?? 0,
+        },
+      }).catch(() => null)
       const parsed = this.extractJson(raw) as { kpis: Array<{ metric: string; current: string }> }
 
       if (!parsed?.kpis?.length) return {}
@@ -455,6 +466,15 @@ Inclua todos os eventos. Use os ids exatos. milestoneId="none" quando sem relaç
         messages: [{ role: 'user', content: prompt }],
       })
       const raw = res.choices[0]?.message?.content ?? ''
+      this.prisma.conversationMessage.create({
+        data: {
+          sessionId: `graph-${randomUUID().slice(0, 8)}`,
+          module: 'graph',
+          role: 'assistant',
+          content: raw.slice(0, 500),
+          tokensUsed: res.usage?.total_tokens ?? 0,
+        },
+      }).catch(() => null)
       const parsed = this.extractJson(raw) as { mappings: Array<{ eventId: string; milestoneId: string }> }
       return parsed?.mappings ?? []
     } catch (err) {
@@ -562,6 +582,15 @@ Priorize gaps de alta severidade primeiro. nextBestAction deve ser em 1 frase cu
       })
       const raw = res.choices[0]?.message?.content ?? ''
       this.logger.log(`Gap analysis raw: ${raw.slice(0, 200)}`)
+      this.prisma.conversationMessage.create({
+        data: {
+          sessionId: `graph-${randomUUID().slice(0, 8)}`,
+          module: 'graph',
+          role: 'assistant',
+          content: raw.slice(0, 500),
+          tokensUsed: res.usage?.total_tokens ?? 0,
+        },
+      }).catch(() => null)
       const parsed = this.extractJson(raw) as GapAnalysis
       parsed.goalProgress = parsed.goalProgress ?? localProgress
       return parsed

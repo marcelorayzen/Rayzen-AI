@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../../prisma/prisma.service'
 import OpenAI from 'openai'
+import { randomUUID } from 'crypto'
 import { HealthScoreService } from '../health/health.service'
 import { EventService } from '../event/event.service'
 import { CacheService } from '../cache/cache.service'
@@ -189,6 +190,16 @@ Regras:
     })
 
     const raw = res.choices[0].message.content ?? '{}'
+    this.prisma.conversationMessage.create({
+      data: {
+        sessionId: `ps-${randomUUID().slice(0, 8)}`,
+        module: 'project-state',
+        projectId,
+        role: 'assistant',
+        content: raw.slice(0, 1000),
+        tokensUsed: res.usage?.total_tokens ?? 0,
+      },
+    }).catch(() => null)
     let derived: ProjectStateData
     try {
       // Extração robusta: strip code fences + regex para encontrar o JSON
