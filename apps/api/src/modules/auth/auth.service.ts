@@ -12,9 +12,16 @@ export class AuthService {
     const adminPassword = this.config.get<string>('ADMIN_PASSWORD') ?? ''
     if (!adminPassword) throw new UnauthorizedException('Senha incorreta')
 
-    const valid = adminPassword.startsWith('$argon2')
-      ? await argon2.verify(adminPassword, password)
-      : timingSafeEqual(Buffer.from(password), Buffer.from(adminPassword))
+    const allowPlaintext = this.config.get('ALLOW_PLAINTEXT_ADMIN_PASSWORD', 'true') !== 'false'
+
+    let valid: boolean
+    if (adminPassword.startsWith('$argon2')) {
+      valid = await argon2.verify(adminPassword, password)
+    } else if (allowPlaintext) {
+      valid = timingSafeEqual(Buffer.from(password), Buffer.from(adminPassword))
+    } else {
+      throw new UnauthorizedException('Senha incorreta')
+    }
 
     if (!valid) throw new UnauthorizedException('Senha incorreta')
 

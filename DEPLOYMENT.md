@@ -16,9 +16,9 @@ Guia operacional para subir e manter a stack em produção na VPS Azure.
 | Agent server | VPS (Docker) | — (poll interno) |
 | Agent desktop | PC de trabalho | — (poll para VPS) |
 
-**VPS:** Azure Ubuntu, IP `<VPS_IP>`  
-**Acesso SSH:** `ssh -i ~/.ssh/rayzen-vm-temp_key.pem azureuser@<VPS_IP>`  
-**Diretório:** `/home/azureuser/projects/rayzen-ai`
+**VPS:** Ubuntu (Azure, GCP, AWS, etc.)  
+**Acesso SSH:** `ssh -i ~/.ssh/<SUA_CHAVE>.pem <USUARIO>@<IP_DA_VPS>`  
+**Diretório:** `/home/<USUARIO>/projects/rayzen-ai`
 
 ---
 
@@ -49,15 +49,15 @@ docker compose up -d
 ## Atualizar após push para main
 
 ```bash
-ssh -i ~/.ssh/rayzen-vm-temp_key.pem azureuser@<VPS_IP> \
-  "cd /home/azureuser/projects/rayzen-ai && git pull && docker compose up -d --build api web"
+ssh -i ~/.ssh/<SUA_CHAVE>.pem <USUARIO>@<IP_DA_VPS> \
+  "cd /home/<USUARIO>/projects/rayzen-ai && git pull && docker compose up -d --build api web"
 ```
 
 Para rebuild completo (ex: mudança em schema Prisma ou Dockerfile):
 
 ```bash
-ssh -i ~/.ssh/rayzen-vm-temp_key.pem azureuser@<VPS_IP> \
-  "cd /home/azureuser/projects/rayzen-ai && git pull && docker compose down --remove-orphans && docker compose up -d"
+ssh -i ~/.ssh/<SUA_CHAVE>.pem <USUARIO>@<IP_DA_VPS> \
+  "cd /home/<USUARIO>/projects/rayzen-ai && git pull && docker compose down --remove-orphans && docker compose up -d"
 ```
 
 ---
@@ -77,6 +77,7 @@ ssh -i ~/.ssh/rayzen-vm-temp_key.pem azureuser@<VPS_IP> \
 | `ADMIN_PASSWORD` | Senha do painel web |
 | `AGENT_TOKEN` | Token do Agent server — gerar via `POST /auth/login` |
 | `NEXT_PUBLIC_API_URL` | URL pública da API: `http://<IP>:3101` |
+| `CORS_ORIGINS` | Origens permitidas (vírgula): `http://<IP>:3100,https://<DOMINIO>` |
 
 > **Atenção:** `ADMIN_PASSWORD` com `$` no valor é interpolado pelo Docker Compose `env_file`.  
 > Use uma senha sem `$` ou escape como `$$` no arquivo `.env`.

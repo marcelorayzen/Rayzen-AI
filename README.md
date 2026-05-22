@@ -201,23 +201,26 @@ Veja [docs/architecture.md](docs/architecture.md) para o catálogo completo de m
 
 ## Confiabilidade
 
-**103 testes em 11 suites**, aplicados no CI:
+**154 testes em 15 suites**, aplicados no CI:
 
 | Módulo | O que é testado |
 |---|---|
 | `ValidationService` | Padrões de prompt injection, vazamento de schema, guard de classificação, níveis de severidade |
 | `SessionService` | Stats agregadas de tokens, groupBy de sessão, truncamento de título em 50 chars, título fallback |
-| `VoiceService` | Remoção de markdown antes do TTS, limite de 800 chars, limpeza de arquivo temp no finally |
-| `MemoryService` | Deduplicação por checksum, Jina embed, search pgvector, indexGithub (404/403/sucesso), indexNotion (401/sucesso), indexFile (txt/md), listDocuments com filtro, deleteDocument |
-| `BrainService` | Embed Jina 1024-dim, chunkText, indexDocument (created/updated), search com score numérico |
+| `VoiceService` | Remoção de markdown antes do TTS, limite de 800 chars, ext mp4/wav, limpeza de arquivo temp no finally |
+| `MemoryService` | Deduplicação por checksum, erro Jina API, search pgvector (com/sem projectId), indexGithub (404/403/sucesso), indexNotion (401/sucesso), indexFile (txt/md), listDocuments com filtro, deleteDocument |
+| `BrainService` | Embed Jina 1024-dim, chunkText, indexDocument (created/updated), search com score numérico, invalidação de cache |
 | `WikiService` | Controller CRUD, compilação LLM, merge/diff, versionamento, proteção human_edited/locked |
 | `ExecutionService` | Parâmetros do `queue.add`: jobId, attempts=3, backoff=5000 |
 | `OrchestratorService` | Roteamento de classificação para módulo correto, `assertValidPrompt` chamado, estrutura de resposta |
+| `BlueprintService` | import/preview com todas as opções, warnings de wiki existente, fallback de Brain falho |
+| `DataQualityService` | CRUD de regras e resultados, score, histórico, schema-diff |
+| `QAService` | Ingestão JUnit XML, Allure JSON, métricas de flakiness |
 
 Todos os specs usam `{ provide: PrismaService, useValue: mockPrisma }` — sem `new PrismaClient()` nos testes.
 
 ```bash
-pnpm test:cov    # jest --coverage  (thresholds: functions ≥ 70%, branches ≥ 25%, lines ≥ 50%)
+pnpm test:cov    # jest --coverage  (thresholds: functions ≥ 65%, branches ≥ 45%, lines ≥ 67%)
 ```
 
 Veja [docs/validation.md](docs/validation.md) para a filosofia de validação e metas de cobertura.
@@ -378,7 +381,7 @@ Abra **http://localhost:3100** e faça login com a senha que você definiu em `A
 pnpm typecheck       # TypeScript zero erros (todos os workspaces)
 pnpm lint            # ESLint em todos os apps
 pnpm test            # Jest
-pnpm test:cov        # Jest + relatório de coverage (functions ≥ 70%)
+pnpm test:cov        # Jest + relatório de coverage (functions ≥ 65%, branches ≥ 45%, lines ≥ 67%)
 pnpm db:migrate      # Aplicar migrations Prisma
 pnpm db:studio       # Prisma Studio em http://localhost:5555
 pnpm build           # Build de todos os apps

@@ -14,10 +14,8 @@ async function bootstrap() {
 
   await app.register(multipart, { limits: { fileSize: 25 * 1024 * 1024 } })
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }))
-  const allowedOrigins = [
-    'http://localhost:3100',
-    'http://<VPS_IP>:3100',
-  ]
+  const corsEnv = process.env.CORS_ORIGINS ?? 'http://localhost:3100'
+  const allowedOrigins = corsEnv.split(',').map((o) => o.trim()).filter(Boolean)
   app.enableCors({
     origin: (origin, callback) => {
       if (!origin || allowedOrigins.includes(origin)) {

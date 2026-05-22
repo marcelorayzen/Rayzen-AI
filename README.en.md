@@ -148,7 +148,7 @@ See [docs/architecture.md](docs/architecture.md) for the full module catalogue a
 All specs use `{ provide: PrismaService, useValue: mockPrisma }` — no `new PrismaClient()` in tests, consistent with the DI model.
 
 ```bash
-pnpm test:cov    # jest --coverage  (thresholds: functions ≥ 70%, branches ≥ 25%, lines ≥ 50%)
+pnpm test:cov    # jest --coverage  (thresholds: functions ≥ 65%, branches ≥ 45%, lines ≥ 67%)
 ```
 
 See [docs/validation.md](docs/validation.md) for the full validation philosophy and coverage targets.
