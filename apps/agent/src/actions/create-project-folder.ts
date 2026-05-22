@@ -782,7 +782,15 @@ export async function createProjectFolder(payload: {
     )
     filesGenerated.push('.claude/settings.json')
 
-    // 12. RAYZEN-SETUP.md
+    // 12. docs/templates/blueprint-intake.md — prompt estruturado para importação de planos externos
+    const blueprintIntake = readTemplateFile('blueprint-intake.md')
+    if (blueprintIntake) {
+      await mkdir(join(projectPath, 'docs', 'templates'), { recursive: true })
+      await writeFile(join(projectPath, 'docs', 'templates', 'blueprint-intake.md'), blueprintIntake)
+      filesGenerated.push('docs/templates/blueprint-intake.md')
+    }
+
+    // 13. RAYZEN-SETUP.md
     const setupStatus = projectId
       ? `Projeto registrado automaticamente no Rayzen!\n**projectId:** \`${projectId}\`\n**repoSlug:** \`${repoSlug}\``
       : `Não foi possível registrar automaticamente (API offline?).\nAcesse http://<VPS_IP>:3100 e crie o projeto com o nome **${name}**.`

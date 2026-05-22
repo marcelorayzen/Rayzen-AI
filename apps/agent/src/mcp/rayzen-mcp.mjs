@@ -17,6 +17,16 @@ function headers(extra = {}) {
   return { Authorization: `Bearer ${apiToken}`, 'Content-Type': 'application/json', ...extra }
 }
 
+function resolveProjectId(args) {
+  const pid = args.projectId ?? defaultProjectId
+  if (!pid || !String(pid).trim()) {
+    throw new Error(
+      'projectId não definido. Configure projectId no hook.config.mjs ou informe projectId na tool MCP.',
+    )
+  }
+  return pid
+}
+
 async function api(method, path, body) {
   const res = await fetch(`${apiUrl}${path}`, {
     method,
@@ -213,37 +223,38 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }))
 
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
   const { name, arguments: args = {} } = req.params
-  const pid = args.projectId ?? defaultProjectId
 
   try {
+    // pid resolvido por cada case que precisa — tools sem projectId (wiki, brain search) usam args direto
+    const pid = () => resolveProjectId(args)
     let result
 
     switch (name) {
       case 'rayzen_get_state':
-        result = await api('GET', `/projects/${pid}/state`)
+        result = await api('GET', `/projects/${pid()}/state`)
         break
 
       case 'rayzen_get_resume':
-        result = await api('POST', `/projects/${pid}/resume`)
+        result = await api('POST', `/projects/${pid()}/resume`)
         break
 
       case 'rayzen_get_events': {
         const limit = args.limit ?? 20
         const intent = args.intent ? `&intent=${args.intent}` : ''
-        result = await api('GET', `/events?project_id=${pid}&limit=${limit}${intent}`)
+        result = await api('GET', `/events?project_id=${pid()}&limit=${limit}${intent}`)
         break
       }
 
       case 'rayzen_search_memory':
         result = await api('POST', '/brain/search', {
           query: args.query,
-          projectId: pid,
+          projectId: pid(),
           limit: args.limit ?? 5,
         })
         break
 
       case 'rayzen_get_goal':
-        result = await api('GET', `/projects/${pid}/graph/goal`)
+        result = await api('GET', `/projects/${pid()}/graph/goal`)
         break
 
       case 'rayzen_get_wiki':
@@ -254,7 +265,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         result = await api('POST', '/events/cli', {
           content: args.content,
           intent: args.intent,
-          projectId: pid,
+          projectId: pid(),
           source: 'claude-mcp',
           type: 'note',
         })
@@ -262,7 +273,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
 
       case 'rayzen_checkpoint':
         result = await api('POST', '/synthesis/checkpoint', {
-          projectId: pid,
+          projectId: pid(),
           sessionId: args.sessionId,
         })
         break
@@ -272,13 +283,13 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         if (args.milestones) patch.milestones = args.milestones
         if (args.blockers) patch.blockers = args.blockers
         if (args.nextSteps) patch.nextSteps = args.nextSteps
-        result = await api('PATCH', `/projects/${pid}/state/planning`, patch)
+        result = await api('PATCH', `/projects/${pid()}/state/planning`, patch)
         break
       }
 
       case 'rayzen_blueprint_preview':
         result = await api('POST', '/blueprint/preview', {
-          projectId: pid,
+          projectId: pid(),
           title: args.title,
           content: args.content,
           format: args.format ?? 'markdown',
@@ -287,7 +298,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
 
       case 'rayzen_blueprint_import':
         result = await api('POST', '/blueprint/import', {
-          projectId: pid,
+          projectId: pid(),
           title: args.title,
           content: args.content,
           format: args.format ?? 'markdown',
@@ -306,7 +317,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
 
       case 'rayzen_blueprint_import_markdown':
         result = await api('POST', '/blueprint/import', {
-          projectId: pid,
+          projectId: pid(),
           title: args.title,
           content: args.markdown,
           format: 'markdown',
