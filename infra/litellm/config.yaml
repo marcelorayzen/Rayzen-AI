@@ -50,6 +50,15 @@ model_list:
       model: openai/text-embedding-3-small
       api_key: os.environ/OPENAI_API_KEY
 
+litellm_settings:
+  cache: true
+  cache_params:
+    type: redis
+    host: redis
+    port: 6379
+    ttl: 300            # 5 min — respostas idênticas reutilizadas
+    similarity_threshold: 0.95   # cache semântico: > 95% similaridade = hit
+
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY
 

@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../../prisma/prisma.service'
 import { EventService } from '../event/event.service'
 import { createHash } from 'crypto'
+import { CacheService } from '../cache/cache.service'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,6 +29,7 @@ export class BrainService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly eventService: EventService,
+    private readonly cache: CacheService,
   ) {}
 
   // ─── Embedding ──────────────────────────────────────────────────────────────
@@ -172,7 +174,11 @@ export class BrainService {
 
   // ─── Search ──────────────────────────────────────────────────────────────────
 
-  async search(query: string, limit = 5): Promise<BrainSearchResult[]> {
+  async search(query: string, limit = 5, projectId?: string): Promise<BrainSearchResult[]> {
+    const cacheKey = `brain-search:${createHash('sha256').update(`${query}|${limit}|${projectId ?? ''}`).digest('hex').slice(0, 16)}`
+    const cached = await this.cache.get<BrainSearchResult[]>(cacheKey)
+    if (cached) return cached
+
     const vector = await this.embed(query)
 
     const results = await this.prisma.$queryRaw<Array<{
@@ -190,13 +196,15 @@ export class BrainService {
       LIMIT ${limit}
     `
 
-    return results.map((r) => ({
+    const mapped = results.map((r) => ({
       id: r.id,
       content: r.content,
       sourcePath: r.source_path,
       metadata: r.metadata as Record<string, unknown>,
       score: Number(r.score),
     }))
+    await this.cache.set(cacheKey, mapped, 300)  // 5 min
+    return mapped
   }
 
   async getDocumentsByIds(ids: string[]): Promise<BrainSearchResult[]> {

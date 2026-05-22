@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 import OpenAI from 'openai'
 import { HealthScoreService } from '../health/health.service'
 import { EventService } from '../event/event.service'
+import { CacheService } from '../cache/cache.service'
 
 export interface Milestone {
   id: string
@@ -56,6 +57,7 @@ export class ProjectStateService {
     private config: ConfigService,
     private healthScore: HealthScoreService,
     private eventService: EventService,
+    private cache: CacheService,
   ) {
     this.llm = new OpenAI({
       baseURL: this.config.get('LITELLM_BASE_URL', 'http://localhost:4000/v1'),
@@ -63,10 +65,17 @@ export class ProjectStateService {
     })
   }
 
-  async get(projectId: string) {
+  async get(projectId: string): Promise<ProjectStateData & { id: string; projectId: string; updatedAt: string } | null> {
+    type Serialized = ReturnType<ProjectStateService['serialize']>
+    const cacheKey = `project-state:${projectId}`
+    const cached = await this.cache.get<Serialized>(cacheKey)
+    if (cached) return cached
+
     const state = await this.prisma.projectState.findUnique({ where: { projectId } })
     if (!state) return null
-    return this.serialize(state)
+    const result = this.serialize(state)
+    await this.cache.set(cacheKey, result, 600)  // 10 min
+    return result
   }
 
   async refresh(projectId: string) {
@@ -243,7 +252,9 @@ Regras:
     this.healthScore.compute(projectId).catch(() => null)
     this.eventService.promoteStaleEvents(projectId).catch(() => null)
 
-    return this.serialize(state)
+    const result = this.serialize(state)
+    await this.cache.set(`project-state:${projectId}`, result, 600)
+    return result
   }
 
   async resume(projectId: string): Promise<{
@@ -341,6 +352,7 @@ Regras:
       },
     })
 
+    await this.cache.del(`project-state:${projectId}`)
     return this.serialize(updated)
   }
 

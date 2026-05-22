@@ -6,6 +6,7 @@ import { WikiCompilationService } from './wiki-compilation.service'
 import { WikiMergeService, EditStatus } from './wiki-merge.service'
 import { WikiVersioningService } from './wiki-versioning.service'
 import { WikiPage, WikiPageVersion, WikiSourceReference } from '@prisma/client'
+import { CacheService } from '../cache/cache.service'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -39,6 +40,7 @@ export class WikiService {
     private readonly merge: WikiMergeService,
     private readonly versioning: WikiVersioningService,
     private readonly eventService: EventService,
+    private readonly cache: CacheService,
   ) {}
 
   // ─── Slug uniqueness ────────────────────────────────────────────────────────
@@ -209,6 +211,10 @@ export class WikiService {
   // ─── Get by slug ─────────────────────────────────────────────────────────────
 
   async getBySlug(slug: string): Promise<WikiPageDetail> {
+    const cacheKey = `wiki:${slug}`
+    const cached = await this.cache.get<WikiPageDetail>(cacheKey)
+    if (cached) return cached
+
     const page = await this.prisma.wikiPage.findUnique({
       where: { slug },
       include: {
@@ -220,6 +226,7 @@ export class WikiService {
       },
     })
     if (!page) throw new NotFoundException(`Nota não encontrada: ${slug}`)
+    await this.cache.set(cacheKey, page, 900)  // 15 min
     return page
   }
 
@@ -261,6 +268,7 @@ export class WikiService {
       metadata: { slug, diff },
     }).catch(() => null)
 
+    await this.cache.del(`wiki:${slug}`)
     return updated
   }
 
@@ -270,6 +278,7 @@ export class WikiService {
     const page = await this.prisma.wikiPage.findUnique({ where: { slug } })
     if (!page) throw new NotFoundException(`Nota não encontrada: ${slug}`)
     await this.prisma.wikiPage.delete({ where: { slug } })
+    await this.cache.del(`wiki:${slug}`)
     return { deleted: true }
   }
 

@@ -44,7 +44,8 @@
     "openai": "^4.0.0",
     "pdf-parse": "1.1.1",
     "pizzip": "^3.0.0",
-    "puppeteer": "^22.0.0"
+    "puppeteer": "^22.0.0",
+    "redis": "^5.12.1"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.0.0",

@@ -33,6 +33,8 @@ import { DataCatalogModule } from './modules/data-catalog/data-catalog.module'
 import { GraphModule } from './modules/graph/graph.module'
 import { EvidenceModule } from './modules/evidence/evidence.module'
 import { BlueprintModule } from './modules/blueprint/blueprint.module'
+import { CacheModule } from './modules/cache/cache.module'
+import { CostsModule } from './modules/costs/costs.module'
 
 @Module({
   imports: [
@@ -69,6 +71,8 @@ import { BlueprintModule } from './modules/blueprint/blueprint.module'
     GraphModule,
     EvidenceModule,
     BlueprintModule,
+    CacheModule,
+    CostsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
