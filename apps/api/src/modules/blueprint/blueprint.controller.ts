@@ -3,6 +3,7 @@ import { ApiTags } from '@nestjs/swagger'
 import { BlueprintService } from './blueprint.service'
 import { ImportBlueprintDto } from './dto/import-blueprint.dto'
 import { PreviewBlueprintDto } from './dto/preview-blueprint.dto'
+import { CreateBlueprintPlanDto } from './dto/create-blueprint-plan.dto'
 
 @ApiTags('blueprint')
 @Controller('blueprint')
@@ -17,6 +18,11 @@ export class BlueprintController {
   @Post('import')
   import(@Body() dto: ImportBlueprintDto) {
     return this.blueprintService.import(dto)
+  }
+
+  @Post('plan')
+  createPlan(@Body() dto: CreateBlueprintPlanDto) {
+    return this.blueprintService.createPlan(dto)
   }
 }
 

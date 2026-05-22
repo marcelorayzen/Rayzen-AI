@@ -1,5 +1,7 @@
 import { createHash } from 'crypto'
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
+import OpenAI from 'openai'
 import { PrismaService } from '../../prisma/prisma.service'
 import { WikiService } from '../wiki/wiki.service'
 import { BrainService } from '../brain/brain.service'
@@ -7,6 +9,7 @@ import { EventService } from '../event/event.service'
 import { ProjectStateService } from '../project-state/project-state.service'
 import { ImportBlueprintDto, BlueprintFormat } from './dto/import-blueprint.dto'
 import { PreviewBlueprintDto } from './dto/preview-blueprint.dto'
+import { CreateBlueprintPlanDto, BlueprintPlanResult } from './dto/create-blueprint-plan.dto'
 import {
   BlueprintImportResult,
   BlueprintPreviewResult,
@@ -19,13 +22,21 @@ const CONTENT_MAX_CHARS = 60_000
 
 @Injectable()
 export class BlueprintService {
+  private readonly llm: OpenAI
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly wiki: WikiService,
     private readonly brain: BrainService,
     private readonly eventService: EventService,
     private readonly stateService: ProjectStateService,
-  ) {}
+    private readonly config: ConfigService,
+  ) {
+    this.llm = new OpenAI({
+      apiKey: this.config.get('LITELLM_MASTER_KEY') ?? 'sk-rayzen',
+      baseURL: this.config.get('LITELLM_BASE_URL') ?? 'http://localhost:4100/v1',
+    })
+  }
 
   // ─── Preview ─────────────────────────────────────────────────────────────────
 
@@ -109,6 +120,81 @@ export class BlueprintService {
         wikiPages: true, eventCount: true, nextSteps: true, warnings: true, createdAt: true,
       },
     })
+  }
+
+  // ─── Plan (LLM) ──────────────────────────────────────────────────────────────
+
+  async createPlan(dto: CreateBlueprintPlanDto): Promise<BlueprintPlanResult> {
+    let stateContext = ''
+    if (dto.projectId) {
+      const state = await this.stateService.get(dto.projectId).catch(() => null)
+      if (state) {
+        const milestones = (state.milestones as Array<{title:string;status:string}>|undefined ?? [])
+          .map(m => `- [${m.status}] ${m.title}`).join('\n')
+        const blockers = (state.blockers as Array<{title:string}>|undefined ?? [])
+          .map(b => `- ${b.title}`).join('\n')
+        const nextSteps = (state.nextSteps as Array<{title:string}>|undefined ?? [])
+          .slice(0, 5).map(s => `- ${s.title}`).join('\n')
+        stateContext = `\n\n## Contexto do projeto\nObjetivo: ${state.objective ?? 'não definido'}\nStage: ${state.stage ?? '-'}\n${milestones ? `Milestones:\n${milestones}` : ''}\n${blockers ? `Blockers:\n${blockers}` : ''}\n${nextSteps ? `Próximos passos em andamento:\n${nextSteps}` : ''}`
+      }
+    }
+
+    const modeHint = dto.mode ? ` Foco no modo **${dto.mode}**.` : ''
+    const extraContext = dto.context ? `\n\nContexto adicional fornecido:\n${dto.context}` : ''
+
+    const prompt = `Você é um arquiteto de software especialista em planejamento técnico ágil. Gere um Rayzen Blueprint completo em Markdown para a feature descrita abaixo.${modeHint}${stateContext}${extraContext}
+
+## Feature a planejar
+${dto.feature}
+
+## Instruções de formato
+
+Gere o Blueprint em Markdown com EXATAMENTE estas seções numeradas:
+
+# [Título conciso da feature]
+
+## 1. Resumo executivo
+## 2. Problema
+## 3. Objetivo
+## 4. Contexto atual
+## 5. Solução proposta
+## 6. Arquitetura
+## 7. Endpoints / Interfaces
+## 8. DTOs / Dados necessários
+## 9. Regras de negócio
+## 10. Decisões técnicas
+Use o formato: "- Decidimos X porque Y."
+
+## 11. Problemas / riscos
+Use o formato: "- Problema: ..."
+
+## 12. Tarefas de implementação
+Use verbos de ação: Implementar, Criar, Adicionar, Validar, Testar.
+
+## 13. Checklist de validação
+## 14. Próximos passos
+
+Regras:
+- Escreva em português
+- Seja específico e técnico
+- Nas seções 10, 11 e 12 use os prefixos exatos para que o parser do Rayzen detecte automaticamente
+- Retorne APENAS o Markdown, sem explicações antes ou depois`
+
+    const res = await this.llm.chat.completions.create({
+      model: 'gpt-4o',
+      temperature: 0.3,
+      messages: [{ role: 'user', content: prompt }],
+    })
+
+    const markdown = (res.choices[0]?.message?.content ?? '').trim()
+    const titleMatch = markdown.match(/^#\s+(.+)/m)
+    const title = titleMatch?.[1]?.trim() ?? dto.feature.slice(0, 80)
+
+    // Count sections and tasks for quick summary
+    const sectionCount = (markdown.match(/^##\s+\d+\./gm) ?? []).length
+    const taskCount = (markdown.match(/^-\s+(Implementar|Criar|Adicionar|Validar|Testar)\s/gm) ?? []).length
+
+    return { title, markdown, estimatedSections: sectionCount, estimatedTasks: taskCount }
   }
 
   // ─── Wiki ─────────────────────────────────────────────────────────────────────

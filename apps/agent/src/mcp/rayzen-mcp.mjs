@@ -212,6 +212,29 @@ const TOOLS = [
       },
     },
   },
+  {
+    name: 'rayzen_blueprint_create_feature_plan',
+    description:
+      'Gera um Blueprint Markdown estruturado para uma feature usando o contexto do ProjectState do projeto. Use ANTES de implementar uma feature nova para planejar e depois importar com rayzen_blueprint_import_markdown.',
+    inputSchema: {
+      type: 'object',
+      required: ['feature'],
+      properties: {
+        feature: { type: 'string', description: 'Descrição da feature ou ideia a planejar (pode ser bruta ou detalhada)' },
+        projectId: { type: 'string', description: 'ID do projeto (opcional, usa o padrão do hook.config)' },
+        context: { type: 'string', description: 'Contexto adicional: stack, restrições, integrações existentes' },
+        mode: {
+          type: 'string',
+          enum: ['architecture', 'implementation', 'debugging', 'review', 'study'],
+          description: 'Modo do Blueprint (padrão: implementation)',
+        },
+        autoImport: {
+          type: 'boolean',
+          description: 'Se true, importa automaticamente após gerar o plano (padrão: false — mostra o plano primeiro)',
+        },
+      },
+    },
+  },
 ]
 
 const server = new Server(
@@ -332,6 +355,38 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
           },
         })
         break
+
+      case 'rayzen_blueprint_create_feature_plan': {
+        const plan = await api('POST', '/blueprint/plan', {
+          feature: args.feature,
+          projectId: args.projectId ?? defaultProjectId ?? undefined,
+          context: args.context,
+          mode: args.mode ?? 'implementation',
+        })
+
+        if (args.autoImport && plan?.markdown) {
+          const importResult = await api('POST', '/blueprint/import', {
+            projectId: pid(),
+            title: plan.title,
+            content: plan.markdown,
+            format: 'markdown',
+            source: 'claude',
+            mode: args.mode ?? 'implementation',
+            options: {
+              saveToWiki: true,
+              indexInBrain: true,
+              updateProjectState: true,
+              createEvents: true,
+              generateNextSteps: true,
+              overwriteWiki: false,
+            },
+          })
+          result = { plan, import: importResult }
+        } else {
+          result = plan
+        }
+        break
+      }
 
       default:
         throw new Error(`Tool desconhecida: ${name}`)
