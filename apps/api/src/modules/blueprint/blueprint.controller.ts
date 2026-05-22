@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param } from '@nestjs/common'
+import { Controller, Post, Get, Body, Param } from '@nestjs/common'
 import { ApiTags } from '@nestjs/swagger'
 import { BlueprintService } from './blueprint.service'
 import { ImportBlueprintDto } from './dto/import-blueprint.dto'
@@ -24,6 +24,11 @@ export class BlueprintController {
 @Controller('projects/:projectId/blueprint')
 export class BlueprintProjectController {
   constructor(private readonly blueprintService: BlueprintService) {}
+
+  @Get('imports')
+  listImports(@Param('projectId') projectId: string) {
+    return this.blueprintService.listByProject(projectId)
+  }
 
   @Post('import')
   importForProject(

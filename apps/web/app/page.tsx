@@ -464,6 +464,9 @@ export default function Home() {
   const [helpOpen, setHelpOpen] = useState(false)
   const [blueprintOpen, setBlueprintOpen] = useState(false)
   const [blueprintCopied, setBlueprintCopied] = useState<string | null>(null)
+  const [blueprintTab, setBlueprintTab] = useState<'templates' | 'history'>('templates')
+  const [blueprintHistory, setBlueprintHistory] = useState<{id:string;title:string;source:string;format:string;mode:string|null;wikiPages:string[];eventCount:number;nextSteps:string[];warnings:string[];createdAt:string}[]>([])
+  const [blueprintHistoryLoading, setBlueprintHistoryLoading] = useState(false)
 
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -2542,6 +2545,17 @@ export default function Home() {
       <div className="hud-input-bar shrink-0 px-4 py-4">
         {/* Blueprint modal */}
         {blueprintOpen && (() => {
+          const loadHistory = async () => {
+            if (!activeProjectId) return
+            setBlueprintHistoryLoading(true)
+            try {
+              const res = await fetch(`${API_URL}/projects/${activeProjectId}/blueprint/imports`, { headers: authHeaders() })
+              if (res.ok) setBlueprintHistory(await res.json())
+            } finally {
+              setBlueprintHistoryLoading(false)
+            }
+          }
+
           const PROMPT_FULL = `Estruture esta ideia no modelo Rayzen Blueprint.
 
 Quero um Blueprint em Markdown pronto para importar no Rayzen AI usando \`rayzen_blueprint_import_markdown\`.
@@ -2630,14 +2644,57 @@ Ideia:
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
                 <div className="bg-zinc-900 border border-zinc-700 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto pointer-events-auto shadow-2xl">
                   <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800 sticky top-0 bg-zinc-900">
-                    <div>
+                    <div className="flex items-center gap-4">
                       <span className="text-zinc-100 font-semibold text-sm">Rayzen Blueprint</span>
-                      <span className="text-zinc-500 text-xs ml-2">— templates para estruturar ideias</span>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => setBlueprintTab('templates')}
+                          className={`text-xs px-3 py-1 rounded-md transition-colors ${blueprintTab === 'templates' ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'}`}
+                        >Templates</button>
+                        <button
+                          onClick={() => { setBlueprintTab('history'); loadHistory() }}
+                          className={`text-xs px-3 py-1 rounded-md transition-colors ${blueprintTab === 'history' ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'}`}
+                        >Histórico</button>
+                      </div>
                     </div>
                     <button onClick={() => setBlueprintOpen(false)} className="text-zinc-500 hover:text-zinc-300 text-lg leading-none">×</button>
                   </div>
 
                   <div className="px-5 py-4 space-y-5">
+                  {blueprintTab === 'history' && (
+                    <div>
+                      {!activeProjectId && (
+                        <p className="text-zinc-500 text-xs text-center py-6">Selecione um projeto para ver o histórico.</p>
+                      )}
+                      {activeProjectId && blueprintHistoryLoading && (
+                        <p className="text-zinc-500 text-xs text-center py-6 animate-pulse">Carregando...</p>
+                      )}
+                      {activeProjectId && !blueprintHistoryLoading && blueprintHistory.length === 0 && (
+                        <p className="text-zinc-500 text-xs text-center py-6">Nenhum blueprint importado ainda.</p>
+                      )}
+                      {activeProjectId && !blueprintHistoryLoading && blueprintHistory.length > 0 && (
+                        <div className="space-y-2">
+                          {blueprintHistory.map((bp) => (
+                            <div key={bp.id} className="bg-zinc-800/60 border border-zinc-700 rounded-lg px-4 py-3">
+                              <div className="flex items-start justify-between gap-2">
+                                <span className="text-zinc-200 text-xs font-medium leading-snug">{bp.title}</span>
+                                <span className="text-zinc-600 text-[10px] shrink-0">{new Date(bp.createdAt).toLocaleDateString('pt-BR')}</span>
+                              </div>
+                              <div className="flex gap-2 mt-1.5 flex-wrap">
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-700 text-zinc-400">{bp.source}</span>
+                                {bp.mode && <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-700 text-zinc-400">{bp.mode}</span>}
+                                {bp.wikiPages.length > 0 && <span className="text-[10px] text-emerald-500">{bp.wikiPages.length} wiki</span>}
+                                {bp.eventCount > 0 && <span className="text-[10px] text-sky-500">{bp.eventCount} eventos</span>}
+                                {bp.nextSteps.length > 0 && <span className="text-[10px] text-violet-400">{bp.nextSteps.length} próx. passos</span>}
+                                {bp.warnings.length > 0 && <span className="text-[10px] text-amber-400">{bp.warnings.length} avisos</span>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {blueprintTab === 'templates' && <>
                     {/* Fluxo */}
                     <div className="bg-zinc-800/50 rounded-lg px-4 py-3 text-xs text-zinc-400 leading-relaxed font-mono">
                       Ideia bruta → ChatGPT/Claude <span className="text-zinc-600 mx-1">→</span> Blueprint Markdown <span className="text-zinc-600 mx-1">→</span> <span className="text-emerald-400">rayzen_blueprint_preview</span> <span className="text-zinc-600 mx-1">→</span> <span className="text-sky-400">rayzen_blueprint_import_markdown</span>
@@ -2715,6 +2772,7 @@ markdown: """
 → Se correto: Use rayzen_blueprint_import_markdown para importar.`}
                       </pre>
                     </div>
+                  </>}
                   </div>
                 </div>
               </div>

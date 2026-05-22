@@ -33,6 +33,7 @@ model Project {
   dataQualityRules     DataQualityRule[]
   projectGoals         ProjectGoal[]
   knowledgeMap         ProjectKnowledgeMap?
+  blueprintImports     BlueprintImport[]
 
   @@map("projects")
 }
@@ -368,6 +369,26 @@ model ProjectKnowledgeMap {
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@map("project_knowledge_maps")
+}
+
+model BlueprintImport {
+  id          String   @id @default(uuid())
+  projectId   String   @map("project_id")
+  title       String
+  source      String   // chatgpt | claude | manual | github | notion
+  format      String   // markdown | json
+  mode        String?  // architecture | implementation | debugging | review | study
+  wikiPages   String[] @map("wiki_pages")
+  eventCount  Int      @default(0) @map("event_count")
+  nextSteps   String[] @map("next_steps")
+  warnings    String[]
+  contentHash String   @map("content_hash")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt(sort: Desc)])
+  @@map("blueprint_imports")
 }
 
 model ConversationMessage {

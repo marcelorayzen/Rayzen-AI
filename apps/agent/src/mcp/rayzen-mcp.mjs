@@ -235,7 +235,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         break
 
       case 'rayzen_get_resume':
-        result = await api('POST', `/projects/${pid()}/resume`)
+        result = await api('POST', `/projects/${pid()}/resume`, {})
         break
 
       case 'rayzen_get_events': {

@@ -80,7 +80,35 @@ export class BlueprintService {
     }
 
     result.warnings = [...warnings]
+
+    const contentHash = createHash('sha256').update(dto.content).digest('hex').slice(0, 16)
+    await this.prisma.blueprintImport.create({
+      data: {
+        projectId:   dto.projectId,
+        title:       dto.title,
+        source:      dto.source ?? 'manual',
+        format:      dto.format ?? 'markdown',
+        mode:        dto.mode ?? null,
+        wikiPages:   result.created.wikiPages,
+        eventCount:  result.created.events.length,
+        nextSteps:   result.created.nextSteps,
+        warnings:    result.warnings,
+        contentHash,
+      },
+    }).catch(() => {/* non-critical — log silencioso */})
+
     return result
+  }
+
+  async listByProject(projectId: string) {
+    return this.prisma.blueprintImport.findMany({
+      where: { projectId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true, title: true, source: true, format: true, mode: true,
+        wikiPages: true, eventCount: true, nextSteps: true, warnings: true, createdAt: true,
+      },
+    })
   }
 
   // ─── Wiki ─────────────────────────────────────────────────────────────────────
