@@ -464,9 +464,15 @@ export default function Home() {
   const [helpOpen, setHelpOpen] = useState(false)
   const [blueprintOpen, setBlueprintOpen] = useState(false)
   const [blueprintCopied, setBlueprintCopied] = useState<string | null>(null)
-  const [blueprintTab, setBlueprintTab] = useState<'templates' | 'history'>('templates')
+  const [blueprintTab, setBlueprintTab] = useState<'templates' | 'history' | 'upload'>('templates')
   const [blueprintHistory, setBlueprintHistory] = useState<{id:string;title:string;source:string;format:string;mode:string|null;wikiPages:string[];eventCount:number;nextSteps:string[];warnings:string[];createdAt:string}[]>([])
   const [blueprintHistoryLoading, setBlueprintHistoryLoading] = useState(false)
+  const [blueprintUploadTitle, setBlueprintUploadTitle] = useState('')
+  const [blueprintUploadContent, setBlueprintUploadContent] = useState('')
+  const [blueprintUploadFileName, setBlueprintUploadFileName] = useState('')
+  const [blueprintUploadPreview, setBlueprintUploadPreview] = useState<{detectedSections:string[];suggestedWikiPages:string[];suggestedNextSteps:string[];risks:string[]} | null>(null)
+  const [blueprintUploadResult, setBlueprintUploadResult] = useState<{ok:boolean;created:{wikiPages:string[];events:string[];nextSteps:string[]};warnings:string[]} | null>(null)
+  const [blueprintUploadLoading, setBlueprintUploadLoading] = useState(false)
 
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -2655,6 +2661,10 @@ Ideia:
                           onClick={() => { setBlueprintTab('history'); loadHistory() }}
                           className={`text-xs px-3 py-1 rounded-md transition-colors ${blueprintTab === 'history' ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'}`}
                         >Histórico</button>
+                        <button
+                          onClick={() => { setBlueprintTab('upload'); setBlueprintUploadPreview(null); setBlueprintUploadResult(null) }}
+                          className={`text-xs px-3 py-1 rounded-md transition-colors ${blueprintTab === 'upload' ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'}`}
+                        >Upload</button>
                       </div>
                     </div>
                     <button onClick={() => setBlueprintOpen(false)} className="text-zinc-500 hover:text-zinc-300 text-lg leading-none">×</button>
@@ -2691,6 +2701,155 @@ Ideia:
                             </div>
                           ))}
                         </div>
+                      )}
+                    </div>
+                  )}
+                  {blueprintTab === 'upload' && (
+                    <div className="space-y-4">
+                      {/* Drop zone */}
+                      <label className="block cursor-pointer">
+                        <div
+                          className="border-2 border-dashed border-zinc-700 hover:border-sky-500 rounded-xl p-8 text-center transition-colors"
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={(e) => {
+                            e.preventDefault()
+                            const file = e.dataTransfer.files[0]
+                            if (!file) return
+                            setBlueprintUploadFileName(file.name)
+                            setBlueprintUploadTitle(file.name.replace(/\.md$/i, '').replace(/[-_]/g, ' '))
+                            setBlueprintUploadPreview(null)
+                            setBlueprintUploadResult(null)
+                            const reader = new FileReader()
+                            reader.onload = (ev) => setBlueprintUploadContent(ev.target?.result as string ?? '')
+                            reader.readAsText(file)
+                          }}
+                        >
+                          {blueprintUploadFileName ? (
+                            <div>
+                              <p className="text-emerald-400 text-xs font-medium">{blueprintUploadFileName}</p>
+                              <p className="text-zinc-600 text-[11px] mt-1">{blueprintUploadContent.length.toLocaleString()} chars</p>
+                            </div>
+                          ) : (
+                            <div>
+                              <p className="text-zinc-400 text-xs">Arraste um arquivo <span className="text-sky-400 font-mono">.md</span> aqui</p>
+                              <p className="text-zinc-600 text-[11px] mt-1">ou clique para selecionar</p>
+                            </div>
+                          )}
+                        </div>
+                        <input
+                          type="file"
+                          accept=".md,text/markdown"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (!file) return
+                            setBlueprintUploadFileName(file.name)
+                            setBlueprintUploadTitle(file.name.replace(/\.md$/i, '').replace(/[-_]/g, ' '))
+                            setBlueprintUploadPreview(null)
+                            setBlueprintUploadResult(null)
+                            const reader = new FileReader()
+                            reader.onload = (ev) => setBlueprintUploadContent(ev.target?.result as string ?? '')
+                            reader.readAsText(file)
+                          }}
+                        />
+                      </label>
+
+                      {/* Title input */}
+                      {blueprintUploadContent && (
+                        <div>
+                          <label className="text-zinc-400 text-[11px] uppercase tracking-wider block mb-1">Título</label>
+                          <input
+                            type="text"
+                            value={blueprintUploadTitle}
+                            onChange={(e) => setBlueprintUploadTitle(e.target.value)}
+                            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-sky-500"
+                            placeholder="Título do blueprint"
+                          />
+                        </div>
+                      )}
+
+                      {/* Preview result */}
+                      {blueprintUploadPreview && !blueprintUploadResult && (
+                        <div className="bg-zinc-800/60 border border-zinc-700 rounded-lg px-4 py-3 space-y-2">
+                          <p className="text-zinc-300 text-[11px] font-semibold uppercase tracking-wider">Preview</p>
+                          <div className="text-[11px] text-zinc-400 space-y-1">
+                            <p><span className="text-zinc-500">Seções detectadas:</span> {blueprintUploadPreview.detectedSections.join(', ') || '—'}</p>
+                            <p><span className="text-zinc-500">Wiki pages:</span> {blueprintUploadPreview.suggestedWikiPages.length}</p>
+                            <p><span className="text-zinc-500">Próx. passos:</span> {blueprintUploadPreview.suggestedNextSteps.length}</p>
+                            {blueprintUploadPreview.risks.length > 0 && (
+                              <p className="text-amber-400">⚠ {blueprintUploadPreview.risks.join(' · ')}</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Import result */}
+                      {blueprintUploadResult && (
+                        <div className={`border rounded-lg px-4 py-3 space-y-1 ${blueprintUploadResult.ok ? 'bg-emerald-950/40 border-emerald-800' : 'bg-red-950/40 border-red-800'}`}>
+                          <p className={`text-[11px] font-semibold ${blueprintUploadResult.ok ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {blueprintUploadResult.ok ? '✓ Blueprint importado!' : '✗ Erro ao importar'}
+                          </p>
+                          {blueprintUploadResult.ok && (
+                            <div className="text-[11px] text-zinc-400 flex gap-3 flex-wrap">
+                              {blueprintUploadResult.created.wikiPages.length > 0 && <span className="text-emerald-500">{blueprintUploadResult.created.wikiPages.length} wiki</span>}
+                              {blueprintUploadResult.created.events.length > 0 && <span className="text-sky-400">{blueprintUploadResult.created.events.length} eventos</span>}
+                              {blueprintUploadResult.created.nextSteps.length > 0 && <span className="text-violet-400">{blueprintUploadResult.created.nextSteps.length} próx. passos</span>}
+                            </div>
+                          )}
+                          {blueprintUploadResult.warnings.length > 0 && (
+                            <p className="text-amber-400 text-[10px]">{blueprintUploadResult.warnings.join(' · ')}</p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Actions */}
+                      {blueprintUploadContent && !blueprintUploadResult && (
+                        <div className="flex gap-2">
+                          <button
+                            disabled={blueprintUploadLoading || !blueprintUploadTitle.trim()}
+                            onClick={async () => {
+                              if (!activeProjectId) return
+                              setBlueprintUploadLoading(true)
+                              try {
+                                const res = await fetch(`${API_URL}/blueprint/preview`, {
+                                  method: 'POST',
+                                  headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ projectId: activeProjectId, title: blueprintUploadTitle, content: blueprintUploadContent, format: 'markdown' }),
+                                })
+                                if (res.ok) setBlueprintUploadPreview(await res.json())
+                              } finally {
+                                setBlueprintUploadLoading(false)
+                              }
+                            }}
+                            className="flex-1 text-xs px-3 py-2 rounded-lg border border-zinc-700 hover:border-emerald-500 hover:text-emerald-400 text-zinc-400 transition-colors disabled:opacity-40"
+                          >
+                            {blueprintUploadLoading ? 'Analisando...' : 'Preview'}
+                          </button>
+                          <button
+                            disabled={blueprintUploadLoading || !blueprintUploadTitle.trim() || !activeProjectId}
+                            onClick={async () => {
+                              if (!activeProjectId) return
+                              setBlueprintUploadLoading(true)
+                              try {
+                                const res = await fetch(`${API_URL}/blueprint/import`, {
+                                  method: 'POST',
+                                  headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ projectId: activeProjectId, title: blueprintUploadTitle, content: blueprintUploadContent, format: 'markdown', source: 'manual' }),
+                                })
+                                if (res.ok) setBlueprintUploadResult(await res.json())
+                              } finally {
+                                setBlueprintUploadLoading(false)
+                              }
+                            }}
+                            className="flex-1 text-xs px-3 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-medium transition-colors disabled:opacity-40"
+                          >
+                            {blueprintUploadLoading ? 'Importando...' : 'Importar'}
+                          </button>
+                        </div>
+                      )}
+
+                      {!activeProjectId && (
+                        <p className="text-amber-400 text-[11px] text-center">Selecione um projeto antes de importar.</p>
                       )}
                     </div>
                   )}
