@@ -31,6 +31,11 @@ interface CliHookPayload {
   projectName?: string       // nome do projeto para auto-resolução (fallback)
   git?: GitContext           // enriquecido pelo hook
   fileContent?: string       // conteúdo do arquivo para indexação semântica (Edit/Write)
+  // Campos de evento direto (MCP rayzen_add_event)
+  content?: string
+  source?: string
+  type?: string
+  intent?: string
 }
 
 @ApiTags('events')
@@ -61,6 +66,17 @@ export class EventController {
         select: { id: true },
       })
       if (found) projectId = found.id
+    }
+
+    // Evento direto via MCP (rayzen_add_event): tem content mas não tem hook_event_name/tool_name
+    if (payload.content && !payload.hook_event_name && !payload.tool_name) {
+      return this.events.create({
+        projectId,
+        source: 'manual',
+        type: (payload.type as CreateEventDto['type']) ?? 'note',
+        intent: payload.intent as CreateEventDto['intent'],
+        content: payload.content,
+      })
     }
 
     const hookEvent = payload.hook_event_name ?? 'PostToolUse'
