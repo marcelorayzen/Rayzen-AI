@@ -321,6 +321,30 @@ Cada fase tem escopo mínimo e critério de done explícito. Nada avança sem o 
 
 ---
 
+## Fase Polimento & Estabilização (pós Fase 14)
+
+**Objetivo:** consolidar segurança, performance e observabilidade antes da próxima fase de features.
+
+### O que foi implementado
+
+- [x] **SEC-1 a SEC-10** — auditoria completa: throttle no login, JWT 8h, CORS whitelist, `timingSafeEqual`, `path.relative()`, pnpm 10.33.2, README de segurança
+- [x] **CacheModule Redis @Global** — TTL por tipo (ProjectState 10 min, Wiki 15 min, Brain search 5 min), invalidação por `delPattern`, graceful degradation sem Redis
+- [x] **LiteLLM cache Redis** — exact-match cache de respostas LLM (TTL 5 min) ativo no sidecar
+- [x] **CostsModule** — `GET /costs/summary` agrega `ConversationMessage` por módulo e projeto; estimativa USD via tabela de preços; modal `◈ costs` na UI
+- [x] **ConversationMessage logging** — todos os módulos que chamam LLM (synthesis, project-state, documentation, blueprint, graph) agora registram tokens e custo; custo real não é mais subestimado
+- [x] **BlueprintModule** — importação de planos externos (ChatGPT, Claude, Notion, GitHub) para wiki + brain + estado + eventos em um único comando MCP (`rayzen_blueprint_import`)
+- [x] **GraphModule / Goal Graph** — canvas `@xyflow/react` para CRUD de milestones/blockers/next-steps; `ProjectGoal` com critérios de sucesso (barra de progresso), KPIs com edição inline e auto-track via LLM; gap analysis (gpt-4o-mini) compara goal vs estado atual
+- [x] **Proactive Regra 7** — `goal_stagnant`: detecta goal ativo sem progresso há 5+ dias
+- [x] **Fix rayzen_add_event MCP** — payload direto (content + intent) agora é roteado corretamente em `/events/cli`, sem gerar `'unknown: {}'`
+- [x] **Fix Brain cache invalidation** — `indexDocument()` invalida `brain-search:*` em created e updated
+- [x] **ADR 023 a 027** — checkpoint pipeline, gpt-4o-premium para ProjectState, docs auto-refresh, sínteses dos últimos 30 dias, graphify → eventos
+
+### Critério de done
+
+> Plataforma auditada em segurança, com custo real visível por módulo, cache em múltiplas camadas e todos os bugs de sinal MCP resolvidos.
+
+---
+
 ## Fases futuras (não agora)
 
 | Fase | O que é | Por que esperar |
@@ -354,6 +378,7 @@ Cada fase tem escopo mínimo e critério de done explícito. Nada avança sem o 
 | Fase 12 — Health score | ✅ Concluído |
 | Fase 13 — Memória hierárquica | ✅ Concluído |
 | Fase 14 — Work modes | ✅ Concluído |
+| Fase Polimento & Estabilização | ✅ Concluído |
 
 ---
 

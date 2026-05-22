@@ -1,9 +1,10 @@
 <div align="center">
 
-<img src="https://img.shields.io/badge/Rayzen_AI-v0.1.0-6366f1?style=for-the-badge&logoColor=white" />
+<img src="https://img.shields.io/badge/Rayzen_AI-v1.0.0-6366f1?style=for-the-badge&logoColor=white" />
 <img src="https://img.shields.io/badge/TypeScript-100%25-3178c6?style=for-the-badge&logo=typescript&logoColor=white" />
 <img src="https://img.shields.io/badge/NestJS-10-e0234e?style=for-the-badge&logo=nestjs&logoColor=white" />
 <img src="https://img.shields.io/badge/Next.js-16.2.2-000000?style=for-the-badge&logo=next.js&logoColor=white" />
+<img src="https://img.shields.io/badge/pnpm-10.33.2-f69220?style=for-the-badge&logo=pnpm&logoColor=white" />
 <img src="https://img.shields.io/github/actions/workflow/status/marcelorayzen/rayzen-ai/ci.yml?branch=main&style=for-the-badge&label=CI" />
 
 <br /><br />
@@ -168,7 +169,7 @@ Veja [docs/architecture.md](docs/architecture.md) para o catálogo completo de m
 
 - **Proxy LiteLLM** — camada LLM agnóstica de provider; troque OpenAI ↔ Groq ↔ Anthropic via config, zero alterações de código; controle de budget por `virtual_key`
 
-- **PC Agent com whitelist** — 26 ações explicitamente permitidas em `whitelist.ts`; qualquer ação desconhecida é rejeitada silenciosamente; path traversal bloqueado; ações de risco médio/alto executam `dryRun: true` antes da operação real
+- **PC Agent com whitelist** — 29 ações explicitamente permitidas em `whitelist.ts`; qualquer ação desconhecida é rejeitada silenciosamente; path traversal bloqueado via `path.relative()` (nunca `startsWith()`); ações de risco médio/alto executam `dryRun: true` antes da operação real
 
 - **Camada de validação** — `ValidationModule` na entrada de cada requisição: detecta padrões de prompt injection, aplica limite de tamanho, verifica vazamento de system prompt na saída, valida que módulos classificados existem
 
@@ -178,7 +179,13 @@ Veja [docs/architecture.md](docs/architecture.md) para o catálogo completo de m
 
 - **Confirmação de documento em 2 etapas** — pedidos de doc mostram preview com estimativa antes de gerar; prompt original embutido como `[DOC_PENDING:base64]`, confirmação dispara geração e retorna link de download clicável
 
-- **`PrismaService` global** — único módulo `@Global()` NestJS, um pool de conexão compartilhado entre todos os 20+ módulos; elimina o anti-pattern `new PrismaClient()`
+- **`PrismaService` global** — único módulo `@Global()` NestJS, um pool de conexão compartilhado entre todos os 28+ módulos; elimina o anti-pattern `new PrismaClient()`
+
+- **CacheModule Redis** — cache de aplicação `@Global()` com graceful degradation (TTL configurável por tipo): estado do projeto 10 min, wiki 15 min, brain search 5 min; invalidação automática por `delPattern` em escrita
+
+- **Audit de segurança (SEC-1 a SEC-10)** — throttle em `POST /auth/login`, JWT com expiry 8h, CORS whitelist por origin, `timingSafeEqual` para comparação de token/senha, path validation via `path.relative()`, pnpm 10.33.2
+
+- **Análise de custos LLM** — `GET /costs/summary?period=&project_id=` agrega `ConversationMessage` por módulo e projeto; modal `◈ costs` na UI mostra tokens, mensagens, custo estimado USD e breakdown por módulo; todos os módulos que chamam LLM registram em `conversationMessages`
 
 - **Health score** — score ponderado em 6 dimensões (0–100): atividade, atualidade da documentação, consistência interna, próximos passos, bloqueadores, foco; histórico de 30 dias persistido e exibido em gráfico
 
@@ -240,25 +247,40 @@ apps/api/src/modules/
 ├── health/              # Health score 6 dimensões (0–100) + histórico 30 dias
 ├── synthesis/           # Síntese e sumarização cross-projeto
 ├── documentation/       # Geração e exportação de documentação
-├── proactive/           # 6 regras proativas: inatividade, doc_stale, bloqueador, next_step, consistência, drift
+├── proactive/           # 7 regras proativas: inatividade, doc_stale, bloqueador, next_step, consistência, drift, goal_stagnant
 ├── event/               # Log de eventos com hierarquia memory_class (inbox → working → consolidated → archive)
 ├── obsidian/            # Sync com vault Obsidian
-└── git/                 # Operações git e insights de repositório
+├── git/                 # Operações git e insights de repositório
+├── cache/               # CacheModule Redis @Global — TTL por tipo, delPattern, graceful degradation
+├── costs/               # GET /costs/summary — breakdown por módulo/projeto, estimativa USD
+├── blueprint/           # Importação de planos externos: wiki + brain + state + events em um comando
+└── graph/               # Goal Graph: milestones, blockers, gap analysis (LLM), KPI auto-track
 ```
 
 **Modelos LLM por módulo:**
 
-| Módulo | Modelo | Temperature | Observações |
+| Módulo | Modelo (alias) | Temperature | Observações |
 |---|---|---|---|
-| Orchestrator — classify | gpt-4o-mini | 0 | extração JSON robusta via `parseLlmJson` (strip fences + regex) — Claude não suporta `response_format` |
-| Orchestrator — chat | gpt-4o | 0.7 | Histórico completo de conversa incluído |
-| Memory — synthesis | gpt-4o-mini | 0.3 | Resume resultados de busca |
-| Document Processing | gpt-4o-mini | 0.2 | Output estruturado e determinístico |
-| Content Engine | gpt-4o | 0.8 | Criatividade em primeiro lugar |
-| Execution (Jarvis) | gpt-4o | 0.3 | Respostas de tarefas práticas |
-| Embeddings | jina-embeddings-v3 | — | 1024-dim, via Jina AI API |
-| Voice TTS | Groq PlayAI Astra | — | Markdown removido, chunks de 800 chars |
-| Voice STT | Groq Whisper | — | Arquivo de áudio → texto |
+| Orchestrator — classify | gpt-4o-mini | 0 | extração JSON robusta — Claude não suporta `response_format` |
+| Orchestrator — chat | gpt-4o | 0.7 | histórico completo de conversa incluído |
+| ProjectState refresh | gpt-4o-premium | 0.2 | Claude Sonnet direto — análise crítica de qualidade |
+| Synthesis / Checkpoint | gpt-4o | 0.3 | extração JSON com 3 estratégias de fallback |
+| Documentation | gpt-4o | 0.3 | usa ProjectState como contexto primário |
+| Blueprint (plan) | gpt-4o | 0.3 | gera plano Markdown estruturado |
+| Graph — gap analysis | gpt-4o-mini | 0.2 | compara ProjectGoal vs ProjectState |
+| Graph — KPI auto-track | gpt-4o-mini | 0.1 | evidência em eventos → valor atual do KPI |
+| Memory — synthesis | gpt-4o-mini | 0.3 | resume resultados de busca |
+| Document Processing | gpt-4o-mini | 0.2 | output estruturado e determinístico |
+| Content Engine | gpt-4o | 0.8 | criatividade em primeiro lugar |
+| Execution (Jarvis) | gpt-4o | 0.3 | respostas de tarefas práticas |
+| Embeddings | jina-embeddings-v3 | — | 1024-dim, via Jina AI API (não passa pelo LiteLLM) |
+| Voice TTS | Groq PlayAI Astra | — | markdown removido, chunks de 800 chars |
+| Voice STT | Groq Whisper | — | arquivo de áudio → texto |
+
+**Aliases LiteLLM:**
+- `gpt-4o` → Groq llama-3.3-70b (primário) + Claude Sonnet (fallback automático)
+- `gpt-4o-mini` → Groq llama-3.1-8b (primário) + Claude Haiku (fallback automático)
+- `gpt-4o-premium` → Claude Sonnet direto (sem Groq) — operações críticas
 
 ---
 
@@ -272,9 +294,10 @@ O PC Agent roda localmente (Windows, `apps/agent/`) e faz polling no Redis a cad
 | Arquivos e Diretórios | `list_dir`, `file_search`, `organize_downloads`, `create_project_folder` |
 | Sistema | `get_system_info`, `screenshot`, `notify`, `clipboard_read`, `clipboard_write` |
 | Git | `git_status`, `git_log`, `git_branch`, `git_commit` |
-| Terminal e Dev | `run_command`, `run_tests`, `inspect_schema` |
+| Terminal e Dev | `run_command`, `run_tests`, `inspect_schema`, `restart_api` |
 | Docker | `docker_ps`, `docker_start`, `docker_stop` |
 | Comunicação | `read_emails`, `send_email`, `get_calendar` |
+| Dados e Grafo | `get_data_quality`, `run_graphify`, `graphify_sync` |
 
 **`run_tests`** — invoca Jest, Vitest ou Playwright em qualquer caminho de projeto; parseia stdout para passed/failed/skipped/coverage e retorna `{ passed, failed, skipped, coverage, failures[] }`. Trata corretamente exit code != 0 (falhas de teste).
 
@@ -317,7 +340,7 @@ LITELLM_BASE_URL=http://localhost:4100/v1
 LITELLM_MASTER_KEY=sk-rayzen-qualquer-coisa
 
 # Infraestrutura
-DATABASE_URL=postgresql://rayzen:senha@localhost:55432/rayzen_app
+DATABASE_URL=postgresql://rayzen:senha@localhost:55432/rayzen_ai
 REDIS_URL=redis://localhost:56379
 
 # Auth

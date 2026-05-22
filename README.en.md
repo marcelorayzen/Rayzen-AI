@@ -1,9 +1,10 @@
 <div align="center">
 
-<img src="https://img.shields.io/badge/Rayzen_AI-v0.1.0-6366f1?style=for-the-badge&logoColor=white" />
+<img src="https://img.shields.io/badge/Rayzen_AI-v1.0.0-6366f1?style=for-the-badge&logoColor=white" />
 <img src="https://img.shields.io/badge/TypeScript-100%25-3178c6?style=for-the-badge&logo=typescript&logoColor=white" />
 <img src="https://img.shields.io/badge/NestJS-10-e0234e?style=for-the-badge&logo=nestjs&logoColor=white" />
-<img src="https://img.shields.io/badge/Next.js-15-000000?style=for-the-badge&logo=next.js&logoColor=white" />
+<img src="https://img.shields.io/badge/Next.js-16.2.2-000000?style=for-the-badge&logo=next.js&logoColor=white" />
+<img src="https://img.shields.io/badge/pnpm-10.33.2-f69220?style=for-the-badge&logo=pnpm&logoColor=white" />
 <img src="https://img.shields.io/github/actions/workflow/status/marcelorayzen/rayzen-ai/ci.yml?branch=main&style=for-the-badge&label=CI" />
 
 <br /><br />
@@ -91,7 +92,7 @@ See [docs/architecture.md](docs/architecture.md) for the full module catalogue a
 
 - **LiteLLM proxy** — provider-agnostic LLM layer; swap OpenAI ↔ Groq ↔ Anthropic via config, zero code changes; per-`virtual_key` budget enforcement
 
-- **Whitelist-enforced PC Agent** — 26 actions explicitly allow-listed in `whitelist.ts`; any unknown action silently rejected; path traversal blocked at `list_dir` and `file_search`; medium/high-risk actions run `dryRun: true` before the real operation
+- **Whitelist-enforced PC Agent** — 29 actions explicitly allow-listed in `whitelist.ts`; any unknown action silently rejected; path traversal blocked via `path.relative()` (never `startsWith()`); medium/high-risk actions run `dryRun: true` before the real operation
 
 - **Validation layer** — `ValidationModule` sits at the entry point of every request: detects prompt injection patterns, enforces prompt length, checks output for system-prompt leakage, and validates that classified modules are in the known set
 
@@ -101,7 +102,13 @@ See [docs/architecture.md](docs/architecture.md) for the full module catalogue a
 
 - **Two-step document confirmation** — doc requests show a preview with size/page estimate before generating; original prompt embedded as `[DOC_PENDING:base64]` in assistant message, confirmation triggers generation and returns a clickable download link
 
-- **Global `PrismaService`** — single `@Global()` NestJS module, one database connection pool shared across all 20+ modules; eliminates the `new PrismaClient()` anti-pattern
+- **Global `PrismaService`** — single `@Global()` NestJS module, one database connection pool shared across all 28+ modules; eliminates the `new PrismaClient()` anti-pattern
+
+- **Redis application cache** — global `CacheModule` with graceful degradation; TTL per data type (project state 10 min, wiki 15 min, brain search 5 min); automatic pattern invalidation on write
+
+- **Security audit (SEC-1 to SEC-10)** — rate limiting on `POST /auth/login`, JWT 8h expiry, CORS origin whitelist, `timingSafeEqual` for token/password comparison, `path.relative()` path validation, pnpm 10.33.2
+
+- **LLM cost analysis** — `GET /costs/summary?period=&project_id=` aggregates `ConversationMessage` by module and project; `◈ costs` modal in UI shows tokens, messages, estimated USD and module breakdown; every LLM-calling module logs to `conversationMessages`
 
 - **Health score** — 6-dimension weighted score (0–100): activity, documentation freshness, internal consistency, next steps, blockers, focus; 30-day history persisted and charted in UI
 
@@ -177,22 +184,36 @@ apps/api/src/modules/
 ├── data-quality/        # Data quality rules, results, score history, schema diff
 ├── data-catalog/        # Data asset catalogue with lineage graph and impact analysis
 ├── qa/                  # Test run ingestion (JUnit XML / Allure JSON)
-└── graph/               # Goal Graph: milestones, blockers, gap analysis, KPI auto-track
+├── cache/               # Redis @Global cache — TTL per type, delPattern, graceful degradation
+├── costs/               # GET /costs/summary — breakdown by module/project, USD estimate
+├── blueprint/           # External plan import: wiki + brain + state + events in one command
+└── graph/               # Goal Graph: milestones, blockers, gap analysis (LLM), KPI auto-track
 ```
 
 **LLM model assignments:**
 
-| Module | Model | Temperature | Notes |
+| Module | Model (alias) | Temperature | Notes |
 |---|---|---|---|
-| Orchestrator — classify | gpt-4o-mini | 0 | robust JSON extraction via `parseLlmJson` (strip fences + regex) — Claude doesn't support `response_format` |
-| Orchestrator — chat | gpt-4o | 0.7 | Full conversation history included |
-| Memory — synthesis | gpt-4o-mini | 0.3 | Summarizes search results |
-| Document Processing | gpt-4o-mini | 0.2 | Structured, deterministic output |
-| Content Engine | gpt-4o | 0.8 | Creativity-first, no intro preamble |
-| Execution (Jarvis) | gpt-4o | 0.3 | Practical task responses |
-| Embeddings | jina-embeddings-v3 | — | 1024-dim, via Jina AI API |
-| Voice TTS | Groq PlayAI Astra | — | Markdown-stripped, 800-char chunks |
-| Voice STT | Groq Whisper | — | Audio file → text |
+| Orchestrator — classify | gpt-4o-mini | 0 | robust JSON extraction — Claude doesn't support `response_format` |
+| Orchestrator — chat | gpt-4o | 0.7 | full conversation history included |
+| ProjectState refresh | gpt-4o-premium | 0.2 | Claude Sonnet direct — critical quality analysis |
+| Synthesis / Checkpoint | gpt-4o | 0.3 | JSON extraction with 3 fallback strategies |
+| Documentation | gpt-4o | 0.3 | uses ProjectState as primary context |
+| Blueprint (plan) | gpt-4o | 0.3 | generates structured Markdown plan |
+| Graph — gap analysis | gpt-4o-mini | 0.2 | compares ProjectGoal vs ProjectState |
+| Graph — KPI auto-track | gpt-4o-mini | 0.1 | event evidence → current KPI value |
+| Memory — synthesis | gpt-4o-mini | 0.3 | summarizes search results |
+| Document Processing | gpt-4o-mini | 0.2 | structured, deterministic output |
+| Content Engine | gpt-4o | 0.8 | creativity-first |
+| Execution (Jarvis) | gpt-4o | 0.3 | practical task responses |
+| Embeddings | jina-embeddings-v3 | — | 1024-dim, via Jina AI API (bypasses LiteLLM) |
+| Voice TTS | Groq PlayAI Astra | — | markdown-stripped, 800-char chunks |
+| Voice STT | Groq Whisper | — | audio file → text |
+
+**LiteLLM aliases:**
+- `gpt-4o` → Groq llama-3.3-70b (primary) + Claude Sonnet (automatic fallback)
+- `gpt-4o-mini` → Groq llama-3.1-8b (primary) + Claude Haiku (automatic fallback)
+- `gpt-4o-premium` → Claude Sonnet direct (no Groq) — critical operations
 
 ---
 
@@ -209,7 +230,7 @@ The PC Agent runs locally (Windows, `apps/agent/`) and polls Redis every 3 secon
 | Terminal & Dev | `run_command`, `run_tests`, `inspect_schema`, `restart_api` |
 | Docker | `docker_ps`, `docker_start`, `docker_stop` |
 | Communication | `read_emails`, `send_email`, `get_calendar` |
-| Data | `get_data_quality` |
+| Data & Graph | `get_data_quality`, `run_graphify`, `graphify_sync` |
 
 **`run_tests`** — invokes Jest, Vitest, or Playwright in any project path; parses stdout for passed/failed/skipped/coverage and returns structured `{ passed, failed, skipped, coverage, failures[] }`. Handles non-zero exit codes (test failures) correctly.
 
@@ -252,7 +273,7 @@ LITELLM_BASE_URL=http://localhost:4100/v1
 LITELLM_MASTER_KEY=sk-rayzen-anything
 
 # Infrastructure
-DATABASE_URL=postgresql://rayzen:password@localhost:55432/rayzen_app
+DATABASE_URL=postgresql://rayzen:password@localhost:55432/rayzen_ai
 REDIS_URL=redis://localhost:56379
 
 # Auth
