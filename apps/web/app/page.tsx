@@ -414,6 +414,10 @@ export default function Home() {
     qaTrendLoading,
     qaRunsLoading,
     qaRunDetailLoading,
+    dqSummary,
+    dqLoading,
+    catalogAssets,
+    catalogLoading,
     openQA,
     switchTab: switchQATab,
     selectRun: selectQARun,
@@ -3048,13 +3052,19 @@ markdown: """
               <div className="flex items-center gap-4">
                 <h2 className="text-sm font-semibold">QA Dashboard</h2>
                 <div className="flex gap-1">
-                  {(['resumo', 'tendencia', 'historico'] as const).map(t => (
+                  {([
+                    ['resumo', 'resumo'],
+                    ['tendencia', 'tendência'],
+                    ['historico', 'histórico'],
+                    ['qualidade', 'qualidade'],
+                    ['catalogo', 'catálogo'],
+                  ] as const).map(([t, label]) => (
                     <button
                       key={t}
                       onClick={() => switchQATab(t)}
                       className={`text-xs px-2.5 py-1 rounded-lg transition-colors ${qaTab === t ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'}`}
                     >
-                      {t === 'resumo' ? 'resumo' : t === 'tendencia' ? 'tendência' : 'histórico'}
+                      {label}
                     </button>
                   ))}
                 </div>
@@ -3293,6 +3303,104 @@ markdown: """
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* ── Aba: Qualidade de Dados ────────────────────────────── */}
+              {qaTab === 'qualidade' && (
+                <div className="space-y-4">
+                  {dqLoading && <p className="text-zinc-500 text-xs text-center py-10">Carregando…</p>}
+                  {!dqLoading && !dqSummary && (
+                    <p className="text-zinc-500 text-xs text-center py-10">Nenhuma regra de qualidade cadastrada.</p>
+                  )}
+                  {dqSummary && (
+                    <>
+                      {/* Totais */}
+                      <div className="grid grid-cols-4 gap-3">
+                        {[
+                          { label: 'score médio', value: dqSummary.avgScore !== null ? `${dqSummary.avgScore}%` : '—', color: dqSummary.avgScore !== null ? (dqSummary.avgScore >= 80 ? 'text-emerald-400' : dqSummary.avgScore >= 60 ? 'text-amber-400' : 'text-red-400') : 'text-zinc-500' },
+                          { label: 'regras ativas', value: dqSummary.totalRules, color: 'text-zinc-200' },
+                          { label: 'falhando', value: dqSummary.totalFailing, color: dqSummary.totalFailing > 0 ? 'text-red-400' : 'text-zinc-500' },
+                          { label: 'sem execução', value: dqSummary.totalNotRun, color: dqSummary.totalNotRun > 0 ? 'text-amber-400' : 'text-zinc-500' },
+                        ].map(({ label, value, color }) => (
+                          <div key={label} className="bg-zinc-800 rounded-xl p-3 text-center">
+                            <div className={`text-xl font-bold ${color}`}>{value}</div>
+                            <div className="text-[10px] text-zinc-500 mt-0.5">{label}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Por dataset */}
+                      {dqSummary.datasets.length === 0 && (
+                        <p className="text-zinc-500 text-xs text-center py-4">Nenhum dataset com regras.</p>
+                      )}
+                      {dqSummary.datasets.map((ds) => (
+                        <div key={ds.dataset} className="bg-zinc-800/60 border border-zinc-700 rounded-xl p-4 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-medium text-zinc-200 font-mono">{ds.dataset}</span>
+                            <div className="flex items-center gap-2">
+                              {ds.failing > 0 && <span className="text-[10px] text-red-400">{ds.failing} falha{ds.failing !== 1 ? 's' : ''}</span>}
+                              {ds.notRun > 0 && <span className="text-[10px] text-amber-400">{ds.notRun} sem run</span>}
+                              <span className={`text-sm font-bold ${ds.score !== null ? (ds.score >= 80 ? 'text-emerald-400' : ds.score >= 60 ? 'text-amber-400' : 'text-red-400') : 'text-zinc-500'}`}>
+                                {ds.score !== null ? `${ds.score}%` : '—'}
+                              </span>
+                            </div>
+                          </div>
+                          {ds.score !== null && (
+                            <div className="h-1.5 bg-zinc-700 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full ${ds.score >= 80 ? 'bg-emerald-500' : ds.score >= 60 ? 'bg-amber-500' : 'bg-red-500'}`}
+                                style={{ width: `${ds.score}%` }}
+                              />
+                            </div>
+                          )}
+                          <div className="flex flex-wrap gap-1.5 pt-1">
+                            {ds.detail.map((r) => (
+                              <span
+                                key={r.ruleId}
+                                title={`${r.ruleType}${r.field ? ` · ${r.field}` : ''} · ${r.severity}`}
+                                className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${r.status === 'passed' ? 'bg-emerald-900/50 text-emerald-400' : r.status === 'failed' ? 'bg-red-900/50 text-red-400' : 'bg-zinc-700 text-zinc-500'}`}
+                              >
+                                {r.ruleType}{r.field ? `:${r.field}` : ''}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* ── Aba: Catálogo de Dados ──────────────────────────────── */}
+              {qaTab === 'catalogo' && (
+                <div className="space-y-3">
+                  {catalogLoading && <p className="text-zinc-500 text-xs text-center py-10">Carregando…</p>}
+                  {!catalogLoading && catalogAssets.length === 0 && (
+                    <p className="text-zinc-500 text-xs text-center py-10">Nenhum data asset cadastrado.</p>
+                  )}
+                  {catalogAssets.map((asset) => (
+                    <div key={asset.id} className="bg-zinc-800/60 border border-zinc-700 rounded-xl px-4 py-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <span className="text-xs font-medium text-zinc-200">{asset.name}</span>
+                          {asset.description && (
+                            <p className="text-[11px] text-zinc-500 mt-0.5">{asset.description}</p>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-zinc-600 shrink-0">{new Date(asset.createdAt).toLocaleDateString('pt-BR')}</span>
+                      </div>
+                      <div className="flex gap-1.5 mt-2 flex-wrap">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-700 text-zinc-400 font-mono">{asset.type}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded ${asset.sensitivity === 'critical' ? 'bg-red-900/50 text-red-400' : asset.sensitivity === 'high' ? 'bg-orange-900/50 text-orange-400' : asset.sensitivity === 'medium' ? 'bg-amber-900/50 text-amber-400' : 'bg-zinc-700 text-zinc-500'}`}>
+                          {asset.sensitivity}
+                        </span>
+                        {asset.containsPII && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-900/50 text-purple-400">PII</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

@@ -74,7 +74,43 @@ export interface QATrendPoint {
   failed: number
 }
 
-export type QATab = 'resumo' | 'tendencia' | 'historico'
+export interface DataQualityDataset {
+  dataset: string
+  score: number | null
+  rules: number
+  failing: number
+  notRun: number
+  detail: Array<{
+    ruleId: string
+    field: string | null
+    ruleType: string
+    severity: string
+    score: number | null
+    passed: boolean | null
+    status: 'passed' | 'failed' | 'not_run'
+  }>
+}
+
+export interface DataQualitySummary {
+  datasets: DataQualityDataset[]
+  totalRules: number
+  totalFailing: number
+  totalNotRun: number
+  avgScore: number | null
+}
+
+export interface DataAsset {
+  id: string
+  name: string
+  type: string
+  description: string | null
+  sensitivity: string
+  containsPII: boolean
+  projectId: string | null
+  createdAt: string
+}
+
+export type QATab = 'resumo' | 'tendencia' | 'historico' | 'qualidade' | 'catalogo'
 
 export function useQA(activeProjectId: string | null) {
   const [qaOpen, setQaOpen]       = useState(false)
@@ -87,6 +123,11 @@ export function useQA(activeProjectId: string | null) {
   const [qaTrendLoading, setQATrendLoading] = useState(false)
   const [qaRunsLoading, setQARunsLoading]   = useState(false)
   const [qaRunDetailLoading, setQARunDetailLoading] = useState(false)
+
+  const [dqSummary, setDqSummary] = useState<DataQualitySummary | null>(null)
+  const [dqLoading, setDqLoading] = useState(false)
+  const [catalogAssets, setCatalogAssets] = useState<DataAsset[]>([])
+  const [catalogLoading, setCatalogLoading] = useState(false)
 
   const qs = activeProjectId ? `?project_id=${activeProjectId}` : ''
 
@@ -126,6 +167,24 @@ export function useQA(activeProjectId: string | null) {
     finally { setQARunDetailLoading(false) }
   }, [])
 
+  const loadDataQuality = useCallback(async () => {
+    setDqLoading(true)
+    try {
+      const res = await fetch(`${API_URL}/data-quality/summary${qs}`, { headers: authHeaders() })
+      if (res.ok) setDqSummary(await res.json() as DataQualitySummary)
+    } catch { /* silencioso */ }
+    finally { setDqLoading(false) }
+  }, [qs])
+
+  const loadCatalog = useCallback(async () => {
+    setCatalogLoading(true)
+    try {
+      const res = await fetch(`${API_URL}/data-catalog/assets${qs}`, { headers: authHeaders() })
+      if (res.ok) setCatalogAssets(await res.json() as DataAsset[])
+    } catch { /* silencioso */ }
+    finally { setCatalogLoading(false) }
+  }, [qs])
+
   const openQA = useCallback(async () => {
     setQaOpen(true)
     setQaTab('resumo')
@@ -134,9 +193,11 @@ export function useQA(activeProjectId: string | null) {
 
   const switchTab = useCallback(async (tab: QATab) => {
     setQaTab(tab)
-    if (tab === 'tendencia' && qaTrend.length === 0) await loadTrend()
-    if (tab === 'historico' && qaRuns.length === 0)  await loadRuns()
-  }, [qaTrend.length, qaRuns.length, loadTrend, loadRuns])
+    if (tab === 'tendencia' && qaTrend.length === 0)    await loadTrend()
+    if (tab === 'historico' && qaRuns.length === 0)     await loadRuns()
+    if (tab === 'qualidade' && !dqSummary)              await loadDataQuality()
+    if (tab === 'catalogo'  && catalogAssets.length === 0) await loadCatalog()
+  }, [qaTrend.length, qaRuns.length, dqSummary, catalogAssets.length, loadTrend, loadRuns, loadDataQuality, loadCatalog])
 
   const selectRun = useCallback(async (run: QARun) => {
     setQaRunDetail(null)
@@ -154,6 +215,10 @@ export function useQA(activeProjectId: string | null) {
     qaTrendLoading,
     qaRunsLoading,
     qaRunDetailLoading,
+    dqSummary,
+    dqLoading,
+    catalogAssets,
+    catalogLoading,
     openQA,
     switchTab,
     loadSummary,
