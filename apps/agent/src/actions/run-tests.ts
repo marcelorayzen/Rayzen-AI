@@ -1,14 +1,7 @@
 'use strict'
 import { execSync } from 'child_process'
 import { resolve } from 'path'
-
-const HOME = process.env.USERPROFILE ?? process.env.HOME ?? ''
-const SAFE_ROOTS = [
-  HOME + '\\Projects',
-  HOME + '\\Desktop',
-  'C:\\Projects',
-  'D:\\Projects',
-]
+import { isUnderSafeRoot } from '../utils/path-guard'
 
 export type TestRunner = 'jest' | 'vitest' | 'playwright' | 'maven' | 'gradle' | 'pytest' | 'newman'
 
@@ -179,7 +172,7 @@ export async function runTests(payload: {
   const projectPath = payload.projectPath ?? 'C:\\Projects\\rayzen-ai'
   const resolved = resolve(projectPath)
 
-  if (!SAFE_ROOTS.some(r => resolved.startsWith(r))) {
+  if (!isUnderSafeRoot(resolved)) {
     throw new Error(`Caminho não permitido: ${resolved}`)
   }
 

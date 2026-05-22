@@ -3,9 +3,7 @@ import * as path from 'path'
 import * as https from 'https'
 import * as http from 'http'
 import { resolve } from 'path'
-
-const HOME = process.env.USERPROFILE ?? process.env.HOME ?? ''
-const SAFE_ROOTS = [HOME + '\\Projects', 'C:\\Projects', 'D:\\Projects']
+import { isUnderSafeRoot } from '../utils/path-guard'
 
 const SCHEMA_CANDIDATES = [
   'prisma/schema.prisma',
@@ -131,7 +129,7 @@ export async function inspectSchema(payload: { projectPath?: string; projectId?:
 
   if (payload.projectPath) {
     const resolved = resolve(payload.projectPath)
-    if (!SAFE_ROOTS.some((r) => resolved.startsWith(r))) {
+    if (!isUnderSafeRoot(resolved)) {
       throw new Error(`Caminho não permitido: ${resolved}`)
     }
     const candidate = path.join(resolved, 'prisma/schema.prisma')

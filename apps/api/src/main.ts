@@ -14,8 +14,18 @@ async function bootstrap() {
 
   await app.register(multipart, { limits: { fileSize: 25 * 1024 * 1024 } })
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }))
+  const allowedOrigins = [
+    'http://localhost:3100',
+    'http://<VPS_IP>:3100',
+  ]
   app.enableCors({
-    origin: true,
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true)
+      } else {
+        callback(new Error(`CORS: origin not allowed — ${origin}`), false)
+      }
+    },
     credentials: true,
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: [

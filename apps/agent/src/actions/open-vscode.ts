@@ -1,17 +1,7 @@
 import { execSync } from 'child_process'
 import { resolve } from 'path'
 import { existsSync } from 'fs'
-
-const HOME = process.env.USERPROFILE ?? process.env.HOME ?? ''
-
-const SAFE_ROOTS = [
-  HOME + '\\Projects',
-  HOME + '\\Desktop',
-  HOME + '\\Documents',
-  HOME + '\\OneDrive\\Área de Trabalho',
-  'C:\\Projects',
-  'D:\\Projects',
-]
+import { isUnderSafeRoot } from '../utils/path-guard'
 
 export async function openVscode(payload: { path?: string }): Promise<{ opened: string }> {
   if (!payload.path) {
@@ -21,8 +11,7 @@ export async function openVscode(payload: { path?: string }): Promise<{ opened: 
 
   const resolved = resolve(payload.path)
 
-  const allowed = SAFE_ROOTS.some((r) => resolved.startsWith(r))
-  if (!allowed) {
+  if (!isUnderSafeRoot(resolved)) {
     throw new Error(`Caminho não permitido: ${resolved}`)
   }
 

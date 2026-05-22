@@ -23,9 +23,12 @@
       "@nestjs/core",
       "@prisma/client",
       "@prisma/engines",
+      "argon2",
       "msgpackr-extract",
       "prisma",
-      "puppeteer"
+      "puppeteer",
+      "sharp",
+      "unrs-resolver"
     ]
   }
 }

@@ -1,9 +1,7 @@
 import { execSync } from 'child_process'
 import { resolve } from 'path'
 import { existsSync } from 'fs'
-
-const HOME = process.env.USERPROFILE ?? process.env.HOME ?? ''
-const SAFE_ROOTS = [HOME + '\\Projects', HOME + '\\Desktop', HOME + '\\Documents', 'C:\\Projects', 'D:\\Projects']
+import { isUnderSafeRoot } from '../utils/path-guard'
 
 function safeExec(cmd: string, cwd: string): string {
   return execSync(cmd, { encoding: 'utf-8', cwd, timeout: 15000 }).trim()
@@ -11,7 +9,7 @@ function safeExec(cmd: string, cwd: string): string {
 
 function validatePath(path: string): string {
   const resolved = resolve(path)
-  if (!SAFE_ROOTS.some((r) => resolved.startsWith(r))) throw new Error(`Caminho não permitido: ${resolved}`)
+  if (!isUnderSafeRoot(resolved)) throw new Error(`Caminho não permitido: ${resolved}`)
   if (!existsSync(resolved)) throw new Error(`Pasta não encontrada: ${resolved}`)
   return resolved
 }

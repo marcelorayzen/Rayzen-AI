@@ -1,6 +1,8 @@
+ARG API_URL=http://<VPS_IP>:3101
+
 FROM node:20-slim AS builder
 
-RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
+RUN corepack enable && corepack prepare pnpm@10.33.2 --activate
 
 WORKDIR /app
 
@@ -15,14 +17,15 @@ RUN pnpm install --frozen-lockfile
 COPY apps/web ./apps/web
 COPY packages ./packages
 
+ARG API_URL
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV NEXT_PUBLIC_API_URL=http://<VPS_IP>:3101
+ENV NEXT_PUBLIC_API_URL=${API_URL}
 
 RUN pnpm --filter web build
 
 FROM node:20-slim AS runner
 
-RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
+RUN corepack enable && corepack prepare pnpm@10.33.2 --activate
 
 WORKDIR /app
 
@@ -39,7 +42,6 @@ COPY --from=builder /app/apps/web/public ./apps/web/public
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV NEXT_PUBLIC_API_URL=http://<VPS_IP>:3101
 
 EXPOSE 3000
 

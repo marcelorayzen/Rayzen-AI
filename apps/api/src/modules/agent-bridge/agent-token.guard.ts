@@ -1,4 +1,5 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common'
+import { timingSafeEqual } from 'crypto'
 
 @Injectable()
 export class AgentTokenGuard implements CanActivate {
@@ -13,7 +14,13 @@ export class AgentTokenGuard implements CanActivate {
     const auth = req.headers?.authorization ?? ''
     const [scheme, token] = auth.split(' ')
 
-    if (scheme !== 'Bearer' || !token || token !== configuredToken) {
+    if (scheme !== 'Bearer' || !token) {
+      throw new UnauthorizedException('Token do agent invalido')
+    }
+
+    const a = Buffer.from(token.padEnd(configuredToken.length))
+    const b = Buffer.from(configuredToken)
+    if (a.length !== b.length || !timingSafeEqual(a, b)) {
       throw new UnauthorizedException('Token do agent invalido')
     }
 

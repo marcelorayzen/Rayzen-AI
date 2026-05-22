@@ -1,8 +1,6 @@
 import { execSync } from 'child_process'
 import { resolve } from 'path'
-
-const HOME = process.env.USERPROFILE ?? process.env.HOME ?? ''
-const SAFE_ROOTS = [HOME + '\\Projects', HOME + '\\Desktop', 'C:\\Projects', 'D:\\Projects']
+import { isUnderSafeRoot } from '../utils/path-guard'
 
 // Comandos permitidos — adicione aqui para expandir
 const ALLOWED_COMMANDS: Record<string, string> = {
@@ -34,7 +32,7 @@ export async function runCommand(payload: { command: string; path?: string }): P
   let cwd: string | undefined
   if (payload.path) {
     const resolved = resolve(payload.path)
-    if (!SAFE_ROOTS.some((r) => resolved.startsWith(r))) {
+    if (!isUnderSafeRoot(resolved)) {
       throw new Error(`Caminho não permitido: ${resolved}`)
     }
     cwd = resolved

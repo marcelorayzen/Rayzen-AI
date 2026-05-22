@@ -3,7 +3,7 @@
 <img src="https://img.shields.io/badge/Rayzen_AI-v0.1.0-6366f1?style=for-the-badge&logoColor=white" />
 <img src="https://img.shields.io/badge/TypeScript-100%25-3178c6?style=for-the-badge&logo=typescript&logoColor=white" />
 <img src="https://img.shields.io/badge/NestJS-10-e0234e?style=for-the-badge&logo=nestjs&logoColor=white" />
-<img src="https://img.shields.io/badge/Next.js-15-000000?style=for-the-badge&logo=next.js&logoColor=white" />
+<img src="https://img.shields.io/badge/Next.js-16.2.2-000000?style=for-the-badge&logo=next.js&logoColor=white" />
 <img src="https://img.shields.io/github/actions/workflow/status/marcelorayzen/rayzen-ai/ci.yml?branch=main&style=for-the-badge&label=CI" />
 
 <br /><br />
@@ -126,7 +126,7 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│                    Browser  (Next.js 15 App Router)                  │
+│                    Browser  (Next.js 16.2.2 App Router)              │
 │  ReactMarkdown + <a> customizado renderiza links PDF + blocos Mermaid│
 └────────────────────────────┬─────────────────────────────────────────┘
                              │ HTTP / SSE stream
@@ -292,7 +292,7 @@ Veja [docs/agent-runtime.md](docs/agent-runtime.md) para o modelo de segurança 
 
 ## Quick start
 
-**Pré-requisitos para desenvolvimento local:** Node.js 20+ no Agent Rayzen, pnpm 9.x e Docker Desktop.
+**Pré-requisitos para desenvolvimento local:** Node.js 20+ no Agent Rayzen, pnpm 10.33.2 e Docker Desktop.
 
 **Operação atual:** stack central em uma VPS Ubuntu na Azure, Agent desktop no PC de trabalho e Agent server na VPS. URLs públicas e segredos ficam fora do README público; veja `docs/remote-agent-setup.md` para o modelo de operação.
 
@@ -368,7 +368,7 @@ git push origin main # Branch principal do projeto
 
 | Camada | Tecnologia | Versão |
 |---|---|---|
-| Frontend | Next.js App Router | 15.x |
+| Frontend | Next.js App Router | 16.2.2 |
 | Backend | NestJS + Fastify | 10.x |
 | Proxy LLM | LiteLLM | latest |
 | Embeddings | Jina AI (jina-embeddings-v3) | 1024-dim |
