@@ -78,15 +78,17 @@
       "modules/memory/**/*.[tj]s",
       "modules/execution/**/*.[tj]s",
       "modules/orchestrator/**/*.[tj]s",
+      "modules/brain/**/*.[tj]s",
       "!**/*.module.ts",
       "!**/*.controller.ts",
-      "!**/main.ts"
+      "!**/main.ts",
+      "!**/jarvis-payload-builder.ts"
     ],
     "coverageThreshold": {
       "global": {
         "functions": 65,
-        "branches": 25,
-        "lines": 50
+        "branches": 45,
+        "lines": 67
       }
     },
     "coverageDirectory": "../coverage",

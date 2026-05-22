@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config'
 import { BrainService } from '../brain.service'
 import { PrismaService } from '../../../prisma/prisma.service'
 import { EventService } from '../../event/event.service'
+import { CacheService } from '../../cache/cache.service'
 
 const mockPrisma = {
   document: { findFirst: jest.fn(), findMany: jest.fn() },
@@ -12,6 +13,12 @@ const mockPrisma = {
 
 const mockConfig = {
   get: (key: string, fallback?: string) => ({ JINA_API_KEY: 'jina-test' }[key] ?? fallback ?? ''),
+}
+
+const mockCache = {
+  delPattern: jest.fn().mockResolvedValue(undefined),
+  get: jest.fn().mockResolvedValue(null),
+  set: jest.fn().mockResolvedValue(undefined),
 }
 
 describe('BrainService', () => {
@@ -25,6 +32,7 @@ describe('BrainService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: EventService, useValue: { create: jest.fn().mockResolvedValue(undefined) } },
         { provide: ConfigService, useValue: mockConfig },
+        { provide: CacheService, useValue: mockCache },
       ],
     }).compile()
     service = module.get<BrainService>(BrainService)

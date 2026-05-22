@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { NotFoundException, BadRequestException } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
 import { BlueprintService } from '../blueprint.service'
 import { WikiService } from '../../wiki/wiki.service'
 import { BrainService } from '../../brain/brain.service'
@@ -13,6 +14,7 @@ const PROJECT_ID = 'proj-test-123'
 const mockPrisma = {
   project: { findUnique: jest.fn() },
   wikiPage: { findFirst: jest.fn() },
+  blueprintImport: { create: jest.fn().mockResolvedValue({ id: 'bp-1' }) },
 }
 
 const mockWiki = { create: jest.fn() }
@@ -41,6 +43,7 @@ describe('BlueprintService', () => {
         { provide: BrainService, useValue: mockBrain },
         { provide: EventService, useValue: mockEvent },
         { provide: ProjectStateService, useValue: mockState },
+        { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('') } },
       ],
     }).compile()
 

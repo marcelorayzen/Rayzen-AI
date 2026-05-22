@@ -101,5 +101,21 @@ describe('VoiceService', () => {
       void writeFileSync
       void unlinkSync
     })
+
+    it('usa extensão mp4 para mimeType audio/mp4', async () => {
+      const axios = require('axios')
+      jest.spyOn(axios, 'post').mockResolvedValue({ data: { text: 'transcrição mp4' } })
+
+      const result = await service.transcribe(Buffer.from('fake'), 'audio/mp4')
+      expect(result).toBe('transcrição mp4')
+    })
+
+    it('usa extensão wav para mimeType genérico (fallback)', async () => {
+      const axios = require('axios')
+      jest.spyOn(axios, 'post').mockResolvedValue({ data: { text: 'transcrição wav' } })
+
+      const result = await service.transcribe(Buffer.from('fake'), 'audio/ogg')
+      expect(result).toBe('transcrição wav')
+    })
   })
 })

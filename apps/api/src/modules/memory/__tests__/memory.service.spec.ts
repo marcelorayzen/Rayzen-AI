@@ -9,6 +9,8 @@ const mockPrisma = {
     findFirst: jest.fn(),
     findMany: jest.fn(),
     delete: jest.fn(),
+    update: jest.fn(),
+    count: jest.fn().mockResolvedValue(0),
   },
   conversationMessage: {
     createMany: jest.fn(),
@@ -65,6 +67,20 @@ describe('MemoryService', () => {
       expect(result.id).toBe('existing-id')
     })
 
+    it('atualiza projectId quando documento já existe e projectId é fornecido', async () => {
+      mockPrisma.document.findFirst.mockResolvedValue({ id: 'existing-id', checksum: 'abc' })
+      mockPrisma.$executeRaw.mockResolvedValue(1)
+      mockPrisma.document.update.mockResolvedValue({})
+
+      const result = await service.indexDocument('Conteúdo duplicado', undefined, undefined, 'proj-123')
+
+      expect(result.status).toBe('updated')
+      expect(mockPrisma.document.update).toHaveBeenCalledWith({
+        where: { id: 'existing-id' },
+        data: { projectId: 'proj-123' },
+      })
+    })
+
     it('chama a API Jina para gerar embedding', async () => {
       mockPrisma.document.findFirst.mockResolvedValue(null)
       mockPrisma.$executeRaw.mockResolvedValue(1)
@@ -75,6 +91,16 @@ describe('MemoryService', () => {
         'https://api.jina.ai/v1/embeddings',
         expect.objectContaining({ method: 'POST' }),
       )
+    })
+
+    it('lança erro quando API Jina retorna status não-ok', async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: jest.fn().mockResolvedValue({ detail: 'Unauthorized' }),
+      })
+
+      await expect(service.indexDocument('texto')).rejects.toThrow('Jina API erro')
     })
   })
 
@@ -118,6 +144,15 @@ describe('MemoryService', () => {
       const result = await service.search('query')
 
       expect(result[0].sourcePath).toBe('github/user/repo')
+    })
+
+    it('filtra por projectId quando fornecido', async () => {
+      mockPrisma.$queryRaw.mockResolvedValue([])
+
+      const result = await service.search('query', 5, 'proj-123')
+
+      expect(result).toEqual([])
+      expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(1)
     })
   })
 

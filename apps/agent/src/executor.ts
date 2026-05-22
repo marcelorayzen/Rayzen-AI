@@ -68,7 +68,7 @@ export async function executeTask(task: Task): Promise<unknown> {
     case 'jarvis:git_commit':  return gitCommit(p as { path: string; message: string; dryRun?: boolean })
 
     // Terminal
-    case 'jarvis:run_command':    return runCommand(p as { command: string; path?: string })
+    case 'jarvis:run_command':    return runCommand(p as { command: string; path?: string; dryRun?: boolean })
     case 'jarvis:run_tests':      return runTests(p as { projectPath?: string; runner?: 'jest' | 'vitest' | 'playwright' | 'maven' | 'gradle' | 'pytest' | 'newman'; coverage?: boolean; filter?: string; collectionPath?: string; environment?: string })
     case 'jarvis:inspect_schema': return inspectSchema(p as { projectPath?: string })
 
