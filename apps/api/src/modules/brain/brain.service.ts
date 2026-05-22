@@ -94,6 +94,7 @@ export class BrainService {
             updated_at = NOW()
         WHERE id = ${existing.id}
       `
+      await this.cache.delPattern('brain-search:*')
       return { id: existing.id, status: 'updated', sourcePath: path }
     }
 
@@ -111,6 +112,7 @@ export class BrainService {
         NOW()
       )
     `
+    await this.cache.delPattern('brain-search:*')
     return { id, status: 'created', sourcePath: path }
   }
 
