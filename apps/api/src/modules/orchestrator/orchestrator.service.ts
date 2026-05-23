@@ -12,6 +12,7 @@ import { RayzenConfigService } from '../configuration/configuration.service'
 import { ValidationService } from '../validation/validation.service'
 import { EventService } from '../event/event.service'
 import { buildJarvisPayload } from '../execution/jarvis-payload-builder'
+import { MetricsService } from '../metrics/metrics.service'
 
 
 export interface ClassifyResult {
@@ -92,6 +93,7 @@ export class OrchestratorService {
     private rayzenConfig: RayzenConfigService,
     private validation: ValidationService,
     private eventService: EventService,
+    private metrics: MetricsService,
   ) {
     this.llm = new OpenAI({
       baseURL: this.config.get('LITELLM_BASE_URL', 'http://localhost:4000/v1'),
@@ -339,6 +341,7 @@ export class OrchestratorService {
           }
         }
         // Sintetiza resposta natural a partir do resultado
+        const jarvisSynthStart = Date.now()
         const synthesis = await this.llm.chat.completions.create({
           model: 'gpt-4o-mini',
           messages: [
@@ -355,12 +358,15 @@ Seja direto, claro e amigável. Português brasileiro. Sem JSON bruto.`,
           ],
           temperature: 0.4,
         })
+        const jarvisTokens = synthesis.usage?.total_tokens ?? 0
+        this.metrics.llmTokensTotal.inc({ module: 'orchestrator', model: 'gpt-4o-mini' }, jarvisTokens)
+        this.metrics.llmRequestDuration.observe({ module: 'orchestrator', model: 'gpt-4o-mini' }, (Date.now() - jarvisSynthStart) / 1000)
         return {
           reply: synthesis.choices[0].message.content ?? JSON.stringify(result),
           module: classify.module,
           action: classify.action,
           confidence: classify.confidence,
-          tokensUsed: synthesis.usage?.total_tokens ?? 0,
+          tokensUsed: jarvisTokens,
           sessionId,
         }
       } catch (err) {
@@ -476,6 +482,7 @@ Seja direto, claro e amigável. Português brasileiro. Sem JSON bruto.`,
 
     const messages: ChatMessage[] = [...historyMessages, { role: 'user', content: prompt }]
 
+    const chatStart = Date.now()
     const res = await this.llm.chat.completions.create({
       model: 'gpt-4o',
       messages: [{ role: 'system', content: systemPrompt }, ...messages],
@@ -484,6 +491,8 @@ Seja direto, claro e amigável. Português brasileiro. Sem JSON bruto.`,
 
     const reply = res.choices[0].message.content ?? ''
     const tokensUsed = res.usage?.total_tokens ?? 0
+    this.metrics.llmTokensTotal.inc({ module: 'orchestrator', model: 'gpt-4o' }, tokensUsed)
+    this.metrics.llmRequestDuration.observe({ module: 'orchestrator', model: 'gpt-4o' }, (Date.now() - chatStart) / 1000)
 
     // 4. Salvar mensagens no banco
     await this.prisma.conversationMessage.createMany({
@@ -545,11 +554,14 @@ Formato da resposta: { "module": "...", "action": "...", "confidence": 0.0-1.0 }
       },
       { role: 'user', content: prompt },
     ]
+    const classifyStart = Date.now()
     const res = await this.llm.chat.completions.create({
       model: 'gpt-4o-mini',
       messages,
       temperature: 0,
     })
+    this.metrics.llmTokensTotal.inc({ module: 'orchestrator', model: 'gpt-4o-mini' }, res.usage?.total_tokens ?? 0)
+    this.metrics.llmRequestDuration.observe({ module: 'orchestrator', model: 'gpt-4o-mini' }, (Date.now() - classifyStart) / 1000)
     const parsed = this.parseLlmJson<ClassifyResult>(
       res.choices[0].message.content,
       { module: 'system', action: 'answer', confidence: 0.1 },

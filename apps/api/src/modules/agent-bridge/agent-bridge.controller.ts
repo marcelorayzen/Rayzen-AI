@@ -4,6 +4,7 @@ import { SkipThrottle } from '@nestjs/throttler'
 import { AgentBridgeService } from './agent-bridge.service'
 import { AuditLogService } from './audit-log.service'
 import { AgentTokenGuard } from './agent-token.guard'
+import { MetricsService } from '../metrics/metrics.service'
 import { AgentRole, TaskStatus } from '@rayzen/types'
 import { IsString, IsOptional, IsBoolean, IsNumber, IsIn } from 'class-validator'
 import { Transform } from 'class-transformer'
@@ -34,6 +35,7 @@ export class AgentBridgeController {
   constructor(
     private readonly svc: AgentBridgeService,
     private readonly audit: AuditLogService,
+    private readonly metrics: MetricsService,
   ) {}
 
   @Get('pending')
@@ -43,24 +45,40 @@ export class AgentBridgeController {
   async update(@Param('id') id: string, @Body() dto: UpdateTaskDto) {
     await this.svc.updateStatus(id, dto.status, dto.result, dto.error)
 
-    // Grava audit entry quando a execução termina
-    if ((dto.status === 'done' || dto.status === 'failed') && dto.module && dto.action) {
-      await this.audit.create({
-        taskId: id,
-        actor: dto.actor,
-        module: dto.module,
-        action: dto.action,
-        command: dto.command,
-        risk: dto.risk,
-        dryRun: dto.dryRun,
-        durationMs: dto.durationMs,
-        status: dto.status === 'done' ? 'success' : 'error',
-        result: dto.result,
-        error: dto.error,
-        workspace: dto.workspace,
-        hostname: dto.hostname,
-        targetRole: dto.targetRole,
-      }).catch(() => null) // audit nunca deve quebrar o fluxo principal
+    // Grava audit entry + incrementa métricas quando a execução termina
+    if (dto.status === 'done' || dto.status === 'failed') {
+      const taskStatus = dto.status === 'done' ? 'success' : 'error'
+
+      if (dto.module && dto.action) {
+        await this.audit.create({
+          taskId: id,
+          actor: dto.actor,
+          module: dto.module,
+          action: dto.action,
+          command: dto.command,
+          risk: dto.risk,
+          dryRun: dto.dryRun,
+          durationMs: dto.durationMs,
+          status: taskStatus,
+          result: dto.result,
+          error: dto.error,
+          workspace: dto.workspace,
+          hostname: dto.hostname,
+          targetRole: dto.targetRole,
+        }).catch(() => null) // audit nunca deve quebrar o fluxo principal
+      }
+
+      this.metrics.agentTasksTotal.inc({
+        action: dto.action ?? 'unknown',
+        status: taskStatus,
+        role: dto.targetRole ?? 'unknown',
+      })
+      if (dto.durationMs) {
+        this.metrics.agentTaskDuration.observe(
+          { action: dto.action ?? 'unknown', risk: dto.risk ?? 'unknown' },
+          dto.durationMs / 1000,
+        )
+      }
     }
 
     return { ok: true }

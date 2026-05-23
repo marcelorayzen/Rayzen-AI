@@ -9,6 +9,7 @@ import { RayzenConfigService } from '../../configuration/configuration.service'
 import { ValidationService } from '../../validation/validation.service'
 import { PrismaService } from '../../../prisma/prisma.service'
 import { EventService } from '../../event/event.service'
+import { MetricsService } from '../../metrics/metrics.service'
 
 const mockLLM = {
   chat: {
@@ -84,6 +85,13 @@ describe('OrchestratorService', () => {
         },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: EventService, useValue: { create: jest.fn().mockResolvedValue(undefined) } },
+        {
+          provide: MetricsService,
+          useValue: {
+            llmTokensTotal: { inc: jest.fn() },
+            llmRequestDuration: { observe: jest.fn() },
+          },
+        },
       ],
     }).compile()
 

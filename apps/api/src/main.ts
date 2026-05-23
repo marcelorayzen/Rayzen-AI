@@ -3,6 +3,7 @@ import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger'
 import { ValidationPipe } from '@nestjs/common'
 import { AppModule } from './app.module'
+import { MetricsService } from './modules/metrics/metrics.service'
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const multipart = require('@fastify/multipart')
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -62,6 +63,31 @@ async function bootstrap() {
     .addBearerAuth()
     .build()
   SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, config))
+
+  // HTTP request duration hook — precisa ser registrado antes do listen
+  const metricsService = app.get(MetricsService)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const fi = app.getHttpAdapter().getInstance() as any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  fi.addHook('onRequest', (req: any, _reply: any, done: () => void) => {
+    req.rayzenStart = process.hrtime()
+    done()
+  })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  fi.addHook('onResponse', (req: any, reply: any, done: () => void) => {
+    if (req.rayzenStart) {
+      const [s, ns] = process.hrtime(req.rayzenStart as [number, number])
+      metricsService.httpRequestDuration.observe(
+        {
+          method: req.method as string,
+          route: (req.routerPath ?? req.url) as string,
+          status_code: String(reply.statusCode as number),
+        },
+        s + ns / 1e9,
+      )
+    }
+    done()
+  })
 
   const port = process.env.API_PORT ?? 3001
   await app.listen(port, '0.0.0.0')

@@ -8,9 +8,10 @@ import { ContentEngineModule } from '../content-engine/content-engine.module'
 import { ConfigurationModule } from '../configuration/configuration.module'
 import { ValidationModule } from '../validation/validation.module'
 import { EventModule } from '../event/event.module'
+import { MetricsModule } from '../metrics/metrics.module'
 
 @Module({
-  imports: [MemoryModule, DocumentProcessingModule, ExecutionModule, ContentEngineModule, ConfigurationModule, ValidationModule, EventModule],
+  imports: [MemoryModule, DocumentProcessingModule, ExecutionModule, ContentEngineModule, ConfigurationModule, ValidationModule, EventModule, MetricsModule],
   controllers: [OrchestratorController],
   providers: [OrchestratorService],
   exports: [OrchestratorService],
