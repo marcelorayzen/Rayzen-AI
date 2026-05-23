@@ -92,6 +92,8 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      args:
+        API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3101}
     restart: unless-stopped
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3101}
