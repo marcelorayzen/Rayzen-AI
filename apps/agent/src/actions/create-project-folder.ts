@@ -598,7 +598,7 @@ cp .env.example .env
 
 ---
 
-*Projeto gerenciado com [Rayzen AI](http://<VPS_IP>:3100)*
+*Projeto gerenciado com Rayzen AI*
 `
 }
 
@@ -793,7 +793,7 @@ export async function createProjectFolder(payload: {
     // 13. RAYZEN-SETUP.md
     const setupStatus = projectId
       ? `Projeto registrado automaticamente no Rayzen!\n**projectId:** \`${projectId}\`\n**repoSlug:** \`${repoSlug}\``
-      : `Não foi possível registrar automaticamente (API offline?).\nAcesse http://<VPS_IP>:3100 e crie o projeto com o nome **${name}**.`
+      : `Não foi possível registrar automaticamente (API offline?).\nAcesse o painel do Rayzen e crie o projeto com o nome **${name}**.`
 
     await writeFile(
       join(projectPath, 'RAYZEN-SETUP.md'),

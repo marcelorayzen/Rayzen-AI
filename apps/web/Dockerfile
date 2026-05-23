@@ -1,4 +1,4 @@
-ARG API_URL=http://<VPS_IP>:3101
+ARG API_URL=http://localhost:3101
 
 FROM node:20-slim AS builder
 
