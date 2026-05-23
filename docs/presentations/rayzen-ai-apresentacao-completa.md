@@ -345,14 +345,18 @@ Permite retomar um projeto com muito menos fricção, mesmo após pausas ou troc
 - Agents separados por papel;
 - projetos isolados por identidade própria;
 - evidências integradas à documentação de QA;
-- operação mais estável, retomável e auditável.
+- operação mais estável, retomável e auditável;
+- observabilidade Prometheus — `/metrics` com duração HTTP por rota, tokens LLM por módulo/modelo, tasks do Agent, queue size e runtime do Node.js;
+- Agent Audit Log — toda execução registrada com actor, módulo, ação, risco, dryRun, duração e status;
+- GitHub Actions CI — typecheck, lint, 198 testes (unitários + E2E) em 3 jobs paralelos;
+- hardening de segurança: Helmet v11 (CSP, HSTS), argon2id, timingSafeEqual, CORS por whitelist.
 
 ---
 
 ## Slide 19 — Como foi desenvolvido e aprendizados
 ### Monorepo TypeScript com arquitetura modular
 
-Next.js · NestJS · Fastify · Node.js Agent · PostgreSQL · Prisma · pgvector · Redis · BullMQ · LiteLLM · Puppeteer · DOCX · Notion · Obsidian · Git Hooks
+Next.js · NestJS · Fastify · Node.js Agent · PostgreSQL · Prisma · pgvector · Redis · BullMQ · LiteLLM · Puppeteer · DOCX · Notion · Obsidian · Git Hooks · prom-client · @fastify/helmet · GitHub Actions
 
 **Aprendizado central**
 O maior desafio não é chamar um modelo.  

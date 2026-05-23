@@ -283,7 +283,11 @@ Como o sistema executa ações reais, segurança é parte da arquitetura.
 - separação por diretórios seguros;
 - confirmação para ações de maior risco;
 - divisão entre Agent desktop e Agent server;
-- ausência de execução livre de comandos arbitrários como padrão.
+- ausência de execução livre de comandos arbitrários como padrão;
+- headers HTTP via Helmet v11 (CSP, HSTS 1 ano, X-Frame-Options, noSniff);
+- senha com argon2id e comparação em tempo constante (`timingSafeEqual`);
+- CORS restrito por whitelist de origens via `CORS_ORIGINS`;
+- Agent Audit Log — toda execução registrada em `agent_audit_logs` com actor, módulo, ação, risco, dryRun, duração e status; consultável via `GET /tasks/audit`.
 
 **Por que isso importa para produto:**  
 a automação precisa ser útil sem virar risco operacional. O usuário mantém controle sobre ações sensíveis.
@@ -408,6 +412,12 @@ O Rayzen já possui uma base para apoiar QA:
 - Agents em Node.js;
 - geração de documentos com Puppeteer/DOCX.
 
+**Observabilidade e qualidade**
+- prom-client (Prometheus);
+- @fastify/helmet;
+- GitHub Actions CI;
+- 198 testes automatizados (unitários + E2E).
+
 ---
 
 ## Slide 16 — Decisões técnicas relevantes
@@ -444,7 +454,11 @@ Garante organização técnica consistente mesmo quando o nome visual do projeto
 - screenshots salvos por projeto;
 - upload de evidências para API;
 - visualização de evidências no web;
-- documento de evidências de teste gerado.
+- documento de evidências de teste gerado;
+- observabilidade Prometheus ativa — HTTP, LLM tokens por módulo/modelo, Agent tasks, queue size;
+- Agent Audit Log registrando toda execução;
+- 198 testes automatizados com GitHub Actions CI (typecheck, lint, unit, E2E);
+- hardening de segurança: Helmet, argon2id, timingSafeEqual, CORS, audit log.
 
 **Leitura técnica:**  
 o projeto saiu de um ambiente local/notebook e evoluiu para uma arquitetura operacional mais estável.
@@ -535,9 +549,8 @@ sem arquitetura, IA vira apenas chat. Com arquitetura, vira uma camada operacion
 - melhorar dashboard de histórico e cobertura.
 
 **Operação**
-- configurar domínio e HTTPS;
-- reduzir exposição direta de portas;
-- melhorar monitoramento e logs.
+- configurar domínio e HTTPS (próximo passo prioritário);
+- Prometheus já ativo — evoluir para dashboard Grafana.
 
 **Produto**
 - melhorar onboarding de novos projetos;
@@ -547,7 +560,7 @@ sem arquitetura, IA vira apenas chat. Com arquitetura, vira uma camada operacion
 **Arquitetura**
 - continuar separando responsabilidades;
 - evoluir contratos entre módulos;
-- ampliar testes automatizados dos fluxos críticos.
+- conectar Prometheus a um dashboard Grafana.
 
 ---
 

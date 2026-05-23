@@ -138,10 +138,14 @@ retomar um projeto passa a exigir leitura de contexto, não reconstrução menta
 - restart de serviços.
 
 **Proteções**
-- whitelist;
+- whitelist de ações permitidas;
 - bloqueio de path traversal;
 - diretórios sensíveis protegidos;
-- confirmação em ações de maior risco.
+- confirmação em ações de maior risco;
+- headers HTTP de segurança (Helmet: CSP, HSTS, X-Frame-Options);
+- senha com argon2id e comparação em tempo constante;
+- Agent Audit Log — toda execução rastreada com módulo, ação, risco e duração;
+- CI automatizado com typecheck, lint e 198 testes em 3 jobs paralelos.
 
 ---
 
@@ -175,7 +179,10 @@ retomar um projeto passa a exigir leitura de contexto, não reconstrução menta
 - Agents separados por papel;
 - projetos isolados;
 - evidências integradas ao fluxo de QA;
-- operação mais estável e auditável.
+- operação mais estável e auditável;
+- observabilidade com Prometheus (`/metrics`: HTTP, LLM tokens, Agent tasks);
+- CI com GitHub Actions (198 testes, typecheck e lint);
+- hardening de segurança (Helmet, argon2id, audit log, CORS).
 
 ---
 

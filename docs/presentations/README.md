@@ -33,4 +33,8 @@ Materiais pessoais/editoriais, como rascunhos de posts para LinkedIn e arquivos 
 - memória e organização por projeto;
 - evidências visuais associadas ao projeto correto;
 - documentação de testes alimentada por screenshots;
-- foco maior em rastreabilidade, retomada e maturidade operacional.
+- foco maior em rastreabilidade, retomada e maturidade operacional;
+- observabilidade Prometheus com `/metrics` cobrindo HTTP, LLM tokens, Agent tasks e runtime;
+- Agent Audit Log rastreando cada execução com risco, duração e status;
+- GitHub Actions CI com typecheck, lint e 198 testes automatizados (unitários + E2E);
+- hardening de segurança: Helmet v11, argon2id, timingSafeEqual, CORS por whitelist.
