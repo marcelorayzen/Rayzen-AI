@@ -30,6 +30,69 @@ Envie um e-mail para **marcelo.rayzen@live.com** com:
 
 ---
 
+## Arquitetura de segurança
+
+### Autenticação
+
+- Modelo single-admin: uma variável `ADMIN_PASSWORD` por instância
+- Senhas armazenadas como **argon2id** (produção) ou plaintext (dev)
+- Plaintext desabilitado em produção via `ALLOW_PLAINTEXT_ADMIN_PASSWORD=false`
+- Comparação em tempo constante (`timingSafeEqual`) — previne enumeração via timing
+- JWT HS256 com expiração configurável; verificado em todas as rotas protegidas
+
+### Agent Bridge
+
+- Requisições do agente autenticadas via `AGENT_TOKEN` (Bearer)
+- Tasks despachadas via fila BullMQ — sem execução direta a partir do HTTP
+- Cada task carrega `targetRole` (`desktop` | `server`); agentes consomem apenas seu próprio role
+
+### PC Agent — sandbox de execução
+
+- **`security/whitelist.ts`** — única fonte de verdade; ações fora são rejeitadas silenciosamente
+- **`utils/path-guard.ts`** — acesso ao filesystem restrito a `SAFE_ROOTS`
+  - Paths absolutos e traversal `../` bloqueados
+  - Escapes cross-drive do Windows (`isAbsolute(rel)`) bloqueados
+- **`actions/terminal.ts`** — comandos whitelistados com `risk` (`low/medium/high`) e modo `dryRun`
+
+### Rede
+
+- Postgres, Redis e LiteLLM ligados a `127.0.0.1` no Docker Compose (não expostos externamente)
+- API e Web expostas em `0.0.0.0` (atrás do Nginx em produção)
+- CORS restrito aos domínios listados em `CORS_ORIGINS` (variável de ambiente)
+- TLS terminado pelo Nginx com certificado Let's Encrypt (certbot)
+
+### Gerenciamento de segredos
+
+- Todos os segredos via variáveis de ambiente — nunca hardcoded
+- Arquivos `.env` no `.gitignore`; `.env.example` contém apenas placeholders
+- `hook.config.mjs` (hook Claude Code com JWT) no `.gitignore`
+- `DEPLOYMENT.md` usa `<placeholders>` — sem IPs reais, chaves ou usuários no repositório
+
+---
+
+## Limitações conhecidas
+
+| Área | Limitação | Mitigação |
+|------|-----------|-----------|
+| Docker socket | `agent-server` acessa o socket Docker para gerenciar containers | Restrito a `docker ps/start/stop` pela whitelist; socket proxy é melhoria planejada |
+| Admin único | Sem RBAC por usuário; um JWT cobre todas as operações | Aceitável para plataforma de uso pessoal |
+| Argon2 nativo | Requer build nativo; imagem `node:20-slim` depende de stage de build | Verificado no build; imagem de produção inclui dependências de compilação |
+
+---
+
+## Checklist de hardening para produção
+
+- [ ] `ADMIN_PASSWORD` definido como hash argon2 (`node -e "require('argon2').hash('pwd').then(console.log)"`)
+- [ ] `ALLOW_PLAINTEXT_ADMIN_PASSWORD=false`
+- [ ] `JWT_SECRET` gerado com `openssl rand -hex 32`
+- [ ] `CORS_ORIGINS` definido com domínio exato (sem wildcards)
+- [ ] `NODE_ENV=production`
+- [ ] Nginx com HTTPS ativo e certificado válido
+- [ ] Portas 55432, 56379 e 4100 **não expostas** (garantido por `ports: []` no `docker-compose.prod.yml`)
+- [ ] `AGENT_TOKEN` rotacionado e armazenado apenas em `.env` e `hook.config.mjs`
+
+---
+
 ## O que está no escopo
 
 - Injeção de prompt no `OrchestratorService` ou `ValidationService`
@@ -51,10 +114,14 @@ Envie um e-mail para **marcelo.rayzen@live.com** com:
 
 ---
 
-## Boas práticas do projeto
+## Dependências
 
-- Variáveis de ambiente nunca são commitadas (`.env` está no `.gitignore`)
-- O arquivo `.env.example` contém apenas placeholders, sem valores reais
-- Toda ação do PC Agent passa pela `whitelist.ts` antes de ser executada
-- Ações de risco médio/alto usam `dryRun: true` por padrão
-- Todas as chamadas LLM passam pelo `ValidationService` antes do processamento
+Executar periodicamente:
+
+```bash
+pnpm audit
+pnpm --filter api audit
+pnpm --filter agent audit
+```
+
+Advisories críticos ou altos em dependências de produção devem ser corrigidos antes do próximo deploy.

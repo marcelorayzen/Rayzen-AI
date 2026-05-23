@@ -79,6 +79,8 @@
       "modules/execution/**/*.[tj]s",
       "modules/orchestrator/**/*.[tj]s",
       "modules/brain/**/*.[tj]s",
+      "modules/auth/**/*.[tj]s",
+      "modules/agent-bridge/**/*.[tj]s",
       "!**/*.module.ts",
       "!**/*.controller.ts",
       "!**/main.ts",

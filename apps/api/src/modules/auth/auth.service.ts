@@ -18,7 +18,13 @@ export class AuthService {
     if (adminPassword.startsWith('$argon2')) {
       valid = await argon2.verify(adminPassword, password)
     } else if (allowPlaintext) {
-      valid = timingSafeEqual(Buffer.from(password), Buffer.from(adminPassword))
+      // pad to same length so timingSafeEqual never throws; length mismatch → false
+      const maxLen = Math.max(password.length, adminPassword.length)
+      const a = Buffer.alloc(maxLen, 0)
+      const b = Buffer.alloc(maxLen, 0)
+      Buffer.from(password).copy(a)
+      Buffer.from(adminPassword).copy(b)
+      valid = timingSafeEqual(a, b)
     } else {
       throw new UnauthorizedException('Senha incorreta')
     }

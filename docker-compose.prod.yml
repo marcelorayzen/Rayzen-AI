@@ -1,45 +1,92 @@
-version: '3.9'
-
-# Production override — extends docker-compose.yml
-# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# docker-compose.prod.yml — sobrescreve docker-compose.yml para produção
+# Uso: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Diferenças em relação ao compose de dev:
+#  - Portas internas não publicadas (Nginx como reverse proxy)
+#  - restart: always
+#  - Limites de memória por serviço
+#  - Log rotation (json-file)
+#  - Nginx + Certbot para HTTPS
 
 services:
   postgres:
-    ports: []  # not exposed publicly
+    restart: always
+    ports: []
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   redis:
-    ports: []  # not exposed publicly
+    restart: always
+    ports: []
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
 
   litellm:
-    ports: []  # not exposed publicly
     restart: always
+    ports: []
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   api:
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
     restart: always
-    ports: []  # exposed via nginx only
+    ports: []
     env_file: .env.production
-    environment:
-      NODE_ENV: production
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  agent-server:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   web:
-    build:
-      context: .
-      dockerfile: apps/web/Dockerfile
     restart: always
-    ports: []  # exposed via nginx only
+    ports: []
     env_file: .env.production
-    environment:
-      NODE_ENV: production
-    depends_on:
-      - api
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   nginx:
     image: nginx:1.25-alpine
@@ -54,13 +101,18 @@ services:
     depends_on:
       - api
       - web
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   certbot:
     image: certbot/certbot:latest
     volumes:
       - certbot_www:/var/www/certbot
       - certbot_conf:/etc/letsencrypt
-    # Run manually: docker compose run certbot certonly --webroot -w /var/www/certbot -d YOUR_DOMAIN
+    # Executar manualmente: docker compose run certbot certonly --webroot -w /var/www/certbot -d SEU_DOMINIO
     entrypoint: /bin/sh -c "trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done"
 
 volumes:
