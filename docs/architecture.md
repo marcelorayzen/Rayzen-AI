@@ -80,6 +80,7 @@
 | `CostsModule` | `/costs` | LLM cost summary by module/project with USD estimates |
 | `BlueprintModule` | `/blueprint` | External plan import: wiki + brain + state + events in one command |
 | `GraphModule` | `/projects/:id/graph` | Goal Graph: milestones, blockers, gap analysis (LLM), KPI auto-track |
+| `MetricsModule` | `/metrics` | Prometheus metrics endpoint (JWT-protected): HTTP duration, LLM tokens, Agent tasks, queue size, Node.js runtime |
 
 ## Data Stores
 
@@ -105,6 +106,7 @@
 | `data_quality_results` | Rule execution results |
 | `data_assets` | Data catalogue entries with embedding |
 | `test_runs` | QA test results (JUnit / Allure) |
+| `agent_audit_logs` | Agent execution audit trail: taskId, actor, module, action, command, risk, dryRun, durationMs, status, hostname, workspace, targetRole |
 
 ### Redis 7
 
@@ -171,11 +173,13 @@ Key invariants:
 | SEC-1 | `@Throttle` on `POST /auth/login` — 10 req/60s |
 | SEC-2 | argon2 password hashing with `timingSafeEqual` fallback |
 | SEC-3 | JWT expiry reduced from 30d to 8h |
-| SEC-4 | CORS whitelist callback (origin allowlist, not `origin: true`) |
+| SEC-4 | CORS whitelist callback via `CORS_ORIGINS` env var (origin allowlist, not `origin: true`) |
 | SEC-5 | `timingSafeEqual` for agent token comparison (constant-time) |
 | SEC-6 | `path.relative()` for all path validation in agent actions |
 | SEC-7 | pnpm 10.33.2 across all Dockerfiles |
 | SEC-8–10 | README security section, shared path-guard utility, `onlyBuiltDependencies` |
+| SEC-11 | `@fastify/helmet` v11 — CSP, HSTS (31536000s), X-Frame-Options, XSS protection, noSniff (disabled in dev) |
+| SEC-12 | Agent Audit Log — every Agent execution stored in `agent_audit_logs`; `GET /tasks/audit` with filters |
 
 ## Checkpoint Pipeline
 

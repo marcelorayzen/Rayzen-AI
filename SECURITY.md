@@ -45,6 +45,7 @@ Envie um e-mail para **marcelo.rayzen@live.com** com:
 - Requisições do agente autenticadas via `AGENT_TOKEN` (Bearer)
 - Tasks despachadas via fila BullMQ — sem execução direta a partir do HTTP
 - Cada task carrega `targetRole` (`desktop` | `server`); agentes consomem apenas seu próprio role
+- **Agent Audit Log** — toda execução gera entrada rastreável em `agent_audit_logs`: actor, taskId, module, action, command, risk, dryRun, durationMs, status, hostname, workspace; consultável via `GET /tasks/audit`
 
 ### PC Agent — sandbox de execução
 
@@ -59,7 +60,8 @@ Envie um e-mail para **marcelo.rayzen@live.com** com:
 - Postgres, Redis e LiteLLM ligados a `127.0.0.1` no Docker Compose (não expostos externamente)
 - API e Web expostas em `0.0.0.0` (atrás do Nginx em produção)
 - CORS restrito aos domínios listados em `CORS_ORIGINS` (variável de ambiente)
-- TLS terminado pelo Nginx com certificado Let's Encrypt (certbot)
+- Security headers via `@fastify/helmet` v11: CSP, HSTS, X-Frame-Options, XSS protection, noSniff
+- **HTTPS pendente** — requer domínio pago; Nginx + certbot estão preparados, aguardando aquisição de domínio
 
 ### Gerenciamento de segredos
 
@@ -87,7 +89,7 @@ Envie um e-mail para **marcelo.rayzen@live.com** com:
 - [ ] `JWT_SECRET` gerado com `openssl rand -hex 32`
 - [ ] `CORS_ORIGINS` definido com domínio exato (sem wildcards)
 - [ ] `NODE_ENV=production`
-- [ ] Nginx com HTTPS ativo e certificado válido
+- [ ] Nginx com HTTPS ativo e certificado válido (requer domínio — pendente)
 - [ ] Portas 55432, 56379 e 4100 **não expostas** (garantido por `ports: []` no `docker-compose.prod.yml`)
 - [ ] `AGENT_TOKEN` rotacionado e armazenado apenas em `.env` e `hook.config.mjs`
 

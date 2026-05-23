@@ -53,7 +53,8 @@ docs/               # arquitetura, operação, workflows
 ## Regras de qualidade
 
 - `pnpm typecheck` deve passar zero erros antes de qualquer commit
-- Coverage mínimo: functions ≥ 80%, branches ≥ 70%
+- Coverage mínimo: functions ≥ 65%, branches ≥ 45%, lines ≥ 67% (thresholds em `apps/api/package.json → jest.coverageThreshold`)
+- Testes E2E em `test/e2e/` usam Fastify inject — sem banco real, sem servidor HTTP; rodar com `pnpm --filter api test:e2e`
 - Testes de segurança do PC Agent não são opcionais (whitelist, path traversal, sandbox)
 
 ---

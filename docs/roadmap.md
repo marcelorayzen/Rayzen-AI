@@ -338,10 +338,15 @@ Cada fase tem escopo mínimo e critério de done explícito. Nada avança sem o 
 - [x] **Fix rayzen_add_event MCP** — payload direto (content + intent) agora é roteado corretamente em `/events/cli`, sem gerar `'unknown: {}'`
 - [x] **Fix Brain cache invalidation** — `indexDocument()` invalida `brain-search:*` em created e updated
 - [x] **ADR 023 a 027** — checkpoint pipeline, gpt-4o-premium para ProjectState, docs auto-refresh, sínteses dos últimos 30 dias, graphify → eventos
+- [x] **Security headers (Helmet)** — `@fastify/helmet` v11 registrado em `main.ts`: CSP, HSTS 31536000s, XSS protection, noSniff, X-Frame-Options; desabilitado em dev para não quebrar Swagger
+- [x] **Agent Audit Log** — model `AgentAuditLog` no Prisma, migration aplicada, `AuditLogService`, `GET /tasks/audit` com filtros; Agent envia campos completos (actor, hostname, durationMs, risk, dryRun, workspace) em todo PATCH de conclusão
+- [x] **19 testes E2E com Fastify inject** — `auth.e2e.spec.ts` (5), `tasks.e2e.spec.ts` (8), `projects.e2e.spec.ts` (6); `jest.e2e.json` + script `test:e2e`; total agora: 198 testes, 20 suites
+- [x] **Prometheus `/metrics`** — `MetricsModule` com `prom-client`: HTTP duration (Fastify hooks em `main.ts`), LLM tokens por módulo/modelo (hookup no `OrchestratorService`), Agent tasks por action/status/role (hookup no `AgentBridgeController`), queue size, totais DB, `collectDefaultMetrics` (heap, GC, event loop); protegido por JWT
+- [x] **GitHub Actions CI** — `.github/workflows/ci.yml`: typecheck, lint, unit tests + cobertura, E2E (3 jobs paralelos); deploy manual via SSH (Azure NSG bloqueia IPs dinâmicos do GitHub Actions)
 
 ### Critério de done
 
-> Plataforma auditada em segurança, com custo real visível por módulo, cache em múltiplas camadas e todos os bugs de sinal MCP resolvidos.
+> Plataforma auditada em segurança, com custo real visível por módulo, cache em múltiplas camadas, observabilidade Prometheus ativa e CI cobrindo typecheck + lint + 198 testes.
 
 ---
 

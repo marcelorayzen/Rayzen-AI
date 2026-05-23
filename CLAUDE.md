@@ -214,7 +214,8 @@ pnpm --filter agent build
 | **synthesis** | `POST /synthesis/session`, `POST /synthesis/checkpoint`, `GET /synthesis/artifacts` |
 | **documentation** | `POST /documentation/generate/:projectId`, `POST /documentation/generate/:projectId/:type`, `GET /documentation/:projectId`, `GET /documentation/:projectId/:type/versions`, `PATCH /documentation/:projectId/:type/reviewed` |
 | **wiki** | `POST /wiki/index`, `GET /wiki`, `GET /wiki/:slug`, `PUT /wiki/:slug`, `DELETE /wiki/:slug`, `GET /wiki/:slug/versions`, `GET /wiki/:slug/sources` |
-| **agent-bridge** | `GET /tasks/pending`, `PATCH /tasks/:id` |
+| **agent-bridge** | `GET /tasks/pending`, `PATCH /tasks/:id`, `GET /tasks/audit` |
+| **metrics** | `GET /metrics` (JWT — formato Prometheus) |
 | **session** | `GET /sessions/tokens`, `GET /sessions`, `GET /sessions/:sessionId/messages`, `DELETE /sessions/:sessionId` |
 | **execution** | `POST /execution/dispatch` |
 | **git** | `POST /events/git` (webhook), `GET /projects/:id/git` |
@@ -259,6 +260,7 @@ pnpm --filter agent build
 | `DataAsset` | Catálogo de ativos de dados com embedding |
 | `DataLineageEdge` | Grafo de linhagem: source → target |
 | `ProjectGoal` | Meta do projeto: title, successCriteria (JSON), kpis (JSON), targetDate, status, hierarquia pai/filho |
+| `AgentAuditLog` | Auditoria de execução do Agent: taskId, actor, module, action, command, risk, dryRun, durationMs, status, hostname, workspace, targetRole |
 
 ---
 
