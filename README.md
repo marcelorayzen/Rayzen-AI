@@ -183,7 +183,13 @@ Veja [docs/architecture.md](docs/architecture.md) para o catálogo completo de m
 
 - **CacheModule Redis** — cache de aplicação `@Global()` com graceful degradation (TTL configurável por tipo): estado do projeto 10 min, wiki 15 min, brain search 5 min; invalidação automática por `delPattern` em escrita
 
-- **Audit de segurança (SEC-1 a SEC-10)** — throttle em `POST /auth/login`, JWT com expiry 8h, CORS whitelist por origin, `timingSafeEqual` para comparação de token/senha, path validation via `path.relative()`, pnpm 10.33.2
+- **Security headers (Helmet)** — `@fastify/helmet` registrado antes de qualquer rota: CSP, HSTS (31536000s), X-Frame-Options, XSS protection, noSniff; desabilitado em dev para não interferir com Swagger; ativo em produção sem intervenção manual
+
+- **Agent Audit Log** — cada execução do Agent gera uma entrada rastreável em `agent_audit_logs`: `actor`, `taskId`, `module`, `action`, `command`, `risk`, `dryRun`, `durationMs`, `status`, `hostname`, `workspace`, `targetRole`; endpoint `GET /tasks/audit` com filtros por action/status; o Agent envia os campos automaticamente em todo PATCH de conclusão
+
+- **Audit de segurança (SEC-1 a SEC-10)** — throttle em `POST /auth/login`, JWT com expiry 8h, CORS whitelist por origin via `CORS_ORIGINS` env var, `timingSafeEqual` com padding de buffers (evita throw em comprimentos diferentes), path validation via `path.relative()`, portas internas ligadas a `127.0.0.1`, pnpm 10.33.2
+
+- **Observabilidade Prometheus** — `GET /metrics` (protegido por JWT) exporta métricas no formato Prometheus: duração HTTP por rota, tokens LLM por módulo/modelo, tasks do Agent por action/status/role, queue size por estado, total de projetos/eventos/audit logs; `collectDefaultMetrics` para heap, GC e event loop do Node.js
 
 - **Análise de custos LLM** — `GET /costs/summary?period=&project_id=` agrega `ConversationMessage` por módulo e projeto; modal `◈ costs` na UI mostra tokens, mensagens, custo estimado USD e breakdown por módulo; todos os módulos que chamam LLM registram em `conversationMessages`
 
@@ -201,7 +207,9 @@ Veja [docs/architecture.md](docs/architecture.md) para o catálogo completo de m
 
 ## Confiabilidade
 
-**154 testes em 15 suites**, aplicados no CI:
+**173 testes em 18 suites** (154 unit + 19 E2E), aplicados no CI:
+
+**Testes unitários (154):**
 
 | Módulo | O que é testado |
 |---|---|
@@ -217,10 +225,19 @@ Veja [docs/architecture.md](docs/architecture.md) para o catálogo completo de m
 | `DataQualityService` | CRUD de regras e resultados, score, histórico, schema-diff |
 | `QAService` | Ingestão JUnit XML, Allure JSON, métricas de flakiness |
 
+**Testes E2E com Fastify inject (19):**
+
+| Suite | O que é testado |
+|---|---|
+| `auth.e2e.spec.ts` | Login com senha correta → 201 + JWT; token válido com `role:admin`; senha errada → 401; payload vazio → 400 |
+| `tasks.e2e.spec.ts` | `/tasks/pending` com/sem auth; filtro por role; `PATCH /tasks/:id` com campos de audit; `GET /tasks/audit` com filtros |
+| `projects.e2e.spec.ts` | `GET /projects` lista e filtra por `repoSlug`; `POST /projects` cria e valida; `GET /projects/:id` retorna por ID |
+
 Todos os specs usam `{ provide: PrismaService, useValue: mockPrisma }` — sem `new PrismaClient()` nos testes.
 
 ```bash
 pnpm test:cov    # jest --coverage  (thresholds: functions ≥ 65%, branches ≥ 45%, lines ≥ 67%)
+pnpm test:e2e    # jest --config jest.e2e.json --runInBand  (19 E2E com Fastify inject)
 ```
 
 Veja [docs/validation.md](docs/validation.md) para a filosofia de validação e metas de cobertura.
@@ -243,7 +260,7 @@ apps/api/src/modules/
 ├── validation/          # Detecção de prompt injection · validação de output · guard de classificação
 ├── configuration/       # Personalidade do sistema via rayzen.config.json · config de work mode
 ├── notion/              # Notion API: busca · leitura · criação · acréscimo · atualização de título
-├── agent-bridge/        # Autenticação JWT do PC Agent + gerenciamento de fila BullMQ
+├── agent-bridge/        # Autenticação JWT do PC Agent · fila BullMQ · `audit-log.service` rastreia cada execução em `agent_audit_logs`
 ├── auth/                # Autenticação JWT + guard ADMIN_PASSWORD
 ├── project/             # CRUD de projetos + metadados
 ├── project-state/       # Estado estruturado: milestones, backlog, activeFocus · resume brief
@@ -257,7 +274,8 @@ apps/api/src/modules/
 ├── cache/               # CacheModule Redis @Global — TTL por tipo, delPattern, graceful degradation
 ├── costs/               # GET /costs/summary — breakdown por módulo/projeto, estimativa USD
 ├── blueprint/           # Importação de planos externos: wiki + brain + state + events em um comando
-└── graph/               # Goal Graph: milestones, blockers, gap analysis (LLM), KPI auto-track
+├── graph/               # Goal Graph: milestones, blockers, gap analysis (LLM), KPI auto-track
+└── metrics/             # GET /metrics (JWT) — Prometheus: HTTP, LLM tokens, Agent tasks, queue, heap/GC
 ```
 
 **Modelos LLM por módulo:**

@@ -106,7 +106,13 @@ See [docs/architecture.md](docs/architecture.md) for the full module catalogue a
 
 - **Redis application cache** — global `CacheModule` with graceful degradation; TTL per data type (project state 10 min, wiki 15 min, brain search 5 min); automatic pattern invalidation on write
 
-- **Security audit (SEC-1 to SEC-10)** — rate limiting on `POST /auth/login`, JWT 8h expiry, CORS origin whitelist, `timingSafeEqual` for token/password comparison, `path.relative()` path validation, pnpm 10.33.2
+- **Security headers (Helmet)** — `@fastify/helmet` registered before any route: CSP, HSTS (31536000s), X-Frame-Options, XSS protection, noSniff; disabled in dev to not break Swagger; active in production without manual intervention
+
+- **Agent Audit Log** — every Agent execution produces a traceable entry in `agent_audit_logs`: `actor`, `taskId`, `module`, `action`, `command`, `risk`, `dryRun`, `durationMs`, `status`, `hostname`, `workspace`, `targetRole`; `GET /tasks/audit` endpoint with action/status filters; the Agent sends all fields automatically in every completion PATCH
+
+- **Security audit (SEC-1 to SEC-10)** — rate limiting on `POST /auth/login`, JWT 8h expiry, CORS origin whitelist via `CORS_ORIGINS` env var, `timingSafeEqual` with buffer padding (avoids throw on length mismatch), `path.relative()` path validation, internal ports bound to `127.0.0.1`, pnpm 10.33.2
+
+- **Prometheus observability** — `GET /metrics` (JWT-protected) exports metrics in Prometheus format: HTTP duration by route, LLM tokens by module/model, Agent tasks by action/status/role, queue size by state, total projects/events/audit logs; `collectDefaultMetrics` for Node.js heap, GC, and event loop
 
 - **LLM cost analysis** — `GET /costs/summary?period=&project_id=` aggregates `ConversationMessage` by module and project; `◈ costs` modal in UI shows tokens, messages, estimated USD and module breakdown; every LLM-calling module logs to `conversationMessages`
 
@@ -134,7 +140,9 @@ See [docs/architecture.md](docs/architecture.md) for the full module catalogue a
 
 ## Reliability
 
-**103 tests across 6 modules**, enforced in CI:
+**173 tests across 18 suites** (154 unit + 19 E2E), enforced in CI:
+
+**Unit tests (154):**
 
 | Module | What is tested |
 |---|---|
@@ -144,11 +152,25 @@ See [docs/architecture.md](docs/architecture.md) for the full module catalogue a
 | `MemoryService` | Checksum deduplication, Jina API call parameters, pgvector search score mapping, URL indexing error cases |
 | `ExecutionService` | BullMQ `queue.add` parameters: jobId, attempts=3, backoff=5000 |
 | `OrchestratorService` | Classification routing to correct module, `assertValidPrompt` called, response structure |
+| `BlueprintService` | import/preview with all options, wiki-exists warnings, Brain failure fallback |
+| `DataQualityService` | Rules and results CRUD, score, history, schema-diff |
+| `QAService` | JUnit XML ingestion, Allure JSON, flakiness metrics |
+| `WikiService` | Controller CRUD, LLM compilation, merge/diff, versioning, human_edited/locked protection |
+| `BrainService` | Jina 1024-dim embed, chunkText, indexDocument (created/updated), search with numeric score, cache invalidation |
+
+**E2E tests with Fastify inject (19):**
+
+| Suite | What is tested |
+|---|---|
+| `auth.e2e.spec.ts` | Login with correct password → 201 + JWT; valid token with `role:admin`; wrong password → 401; empty payload → 400 |
+| `tasks.e2e.spec.ts` | `/tasks/pending` with/without auth; role filter; `PATCH /tasks/:id` with audit fields; `GET /tasks/audit` with filters |
+| `projects.e2e.spec.ts` | `GET /projects` list and `repoSlug` filter; `POST /projects` create + validation; `GET /projects/:id` by ID |
 
 All specs use `{ provide: PrismaService, useValue: mockPrisma }` — no `new PrismaClient()` in tests, consistent with the DI model.
 
 ```bash
 pnpm test:cov    # jest --coverage  (thresholds: functions ≥ 65%, branches ≥ 45%, lines ≥ 67%)
+pnpm test:e2e    # jest --config jest.e2e.json --runInBand  (19 E2E with Fastify inject)
 ```
 
 See [docs/validation.md](docs/validation.md) for the full validation philosophy and coverage targets.
@@ -169,7 +191,7 @@ apps/api/src/modules/
 ├── validation/          # Prompt injection detection · output validation · classification guard
 ├── configuration/       # System personality from rayzen.config.json · work mode config
 ├── notion/              # Notion API: search · read page · create page · append · update title
-├── agent-bridge/        # PC Agent authentication (JWT) + BullMQ queue management
+├── agent-bridge/        # PC Agent JWT auth · BullMQ queue management · `audit-log.service` records every execution in `agent_audit_logs`
 ├── auth/                # JWT authentication + ADMIN_PASSWORD guard
 ├── project/             # Project CRUD + metadata
 ├── project-state/       # Structured state: milestones, backlog, activeFocus · resume brief
@@ -187,7 +209,8 @@ apps/api/src/modules/
 ├── cache/               # Redis @Global cache — TTL per type, delPattern, graceful degradation
 ├── costs/               # GET /costs/summary — breakdown by module/project, USD estimate
 ├── blueprint/           # External plan import: wiki + brain + state + events in one command
-└── graph/               # Goal Graph: milestones, blockers, gap analysis (LLM), KPI auto-track
+├── graph/               # Goal Graph: milestones, blockers, gap analysis (LLM), KPI auto-track
+└── metrics/             # GET /metrics (JWT) — Prometheus: HTTP, LLM tokens, Agent tasks, queue, heap/GC
 ```
 
 **LLM model assignments:**
@@ -311,7 +334,8 @@ Open **http://localhost:3100** and log in with `ADMIN_PASSWORD`.
 pnpm typecheck       # TypeScript zero-errors target (all workspaces)
 pnpm lint            # ESLint across all apps
 pnpm test            # Jest
-pnpm test:cov        # Jest + coverage report (functions ≥ 80%)
+pnpm test:cov        # Jest + coverage report (functions ≥ 65%, branches ≥ 45%, lines ≥ 67%)
+pnpm test:e2e        # Jest E2E (Fastify inject, no real DB)
 pnpm db:migrate      # Apply Prisma migrations
 pnpm db:studio       # Prisma Studio at http://localhost:5555
 pnpm build           # Build all apps
