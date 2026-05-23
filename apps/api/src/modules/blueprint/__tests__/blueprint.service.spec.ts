@@ -7,6 +7,7 @@ import { BrainService } from '../../brain/brain.service'
 import { EventService } from '../../event/event.service'
 import { ProjectStateService } from '../../project-state/project-state.service'
 import { PrismaService } from '../../../prisma/prisma.service'
+import { MetricsService } from '../../metrics/metrics.service'
 import { BlueprintFormat, BlueprintSource } from '../dto/import-blueprint.dto'
 
 const PROJECT_ID = 'proj-test-123'
@@ -44,6 +45,7 @@ describe('BlueprintService', () => {
         { provide: EventService, useValue: mockEvent },
         { provide: ProjectStateService, useValue: mockState },
         { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('') } },
+        { provide: MetricsService, useValue: { llmTokensTotal: { inc: jest.fn() }, llmRequestDuration: { observe: jest.fn() } } },
       ],
     }).compile()
 

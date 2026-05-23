@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 import OpenAI from 'openai'
 import { createHash } from 'crypto'
 import { EventService } from '../event/event.service'
+import { MetricsService } from '../metrics/metrics.service'
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfParse = require('pdf-parse') as (buf: Buffer) => Promise<{ text: string }>
 
@@ -32,6 +33,7 @@ export class MemoryService {
     private readonly prisma: PrismaService,
     private config: ConfigService,
     private eventService: EventService,
+    private readonly metrics: MetricsService,
   ) {}
 
   private async embed(text: string): Promise<number[]> {
@@ -187,6 +189,7 @@ export class MemoryService {
       apiKey: this.config.get('LITELLM_MASTER_KEY'),
     })
 
+    const llmStart = Date.now()
     const res = await llm.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
@@ -211,6 +214,8 @@ Língua: português brasileiro.`,
 
     const answer = res.choices[0].message.content ?? ''
     const tokensUsed = res.usage?.total_tokens ?? 0
+    this.metrics.llmTokensTotal.inc({ module: 'memory', model: 'gpt-4o-mini' }, tokensUsed)
+    this.metrics.llmRequestDuration.observe({ module: 'memory', model: 'gpt-4o-mini' }, (Date.now() - llmStart) / 1000)
 
     await this.saveBrainExchange(sessionId, query, answer, tokensUsed, projectId)
 

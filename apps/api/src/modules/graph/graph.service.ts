@@ -5,6 +5,7 @@ import { ProjectStateService, ProjectStateData } from '../project-state/project-
 import { HealthScoreService } from '../health/health.service'
 import OpenAI from 'openai'
 import { randomUUID } from 'crypto'
+import { MetricsService } from '../metrics/metrics.service'
 
 export interface SuccessCriteria {
   id: string
@@ -84,6 +85,7 @@ export class GraphService {
     private readonly stateService: ProjectStateService,
     private readonly healthService: HealthScoreService,
     private readonly config: ConfigService,
+    private readonly metrics: MetricsService,
   ) {
     this.llm = new OpenAI({
       apiKey: this.config.get('LITELLM_MASTER_KEY') ?? 'sk-rayzen',
@@ -385,12 +387,16 @@ Regras:
 - O valor deve ser uma string numérica ou texto (ex: "47", "sim", "3/10")`
 
     try {
+      const llmStart = Date.now()
       const res = await this.llm.chat.completions.create({
         model: 'gpt-4o-mini',
         temperature: 0.1,
         messages: [{ role: 'user', content: prompt }],
       })
       const raw = res.choices[0]?.message?.content ?? ''
+      const kpiTokens = res.usage?.total_tokens ?? 0
+      this.metrics.llmTokensTotal.inc({ module: 'graph', model: 'gpt-4o-mini' }, kpiTokens)
+      this.metrics.llmRequestDuration.observe({ module: 'graph', model: 'gpt-4o-mini' }, (Date.now() - llmStart) / 1000)
       this.prisma.conversationMessage.create({
         data: {
           sessionId: `graph-${randomUUID().slice(0, 8)}`,
@@ -398,7 +404,7 @@ Regras:
           projectId,
           role: 'assistant',
           content: raw.slice(0, 500),
-          tokensUsed: res.usage?.total_tokens ?? 0,
+          tokensUsed: kpiTokens,
         },
       }).catch(() => null)
       const parsed = this.extractJson(raw) as { kpis: Array<{ metric: string; current: string }> }
@@ -460,19 +466,23 @@ Retorne EXATAMENTE este JSON (sem markdown):
 Inclua todos os eventos. Use os ids exatos. milestoneId="none" quando sem relação clara.`
 
     try {
+      const llmStart = Date.now()
       const res = await this.llm.chat.completions.create({
         model: 'gpt-4o-mini',
         temperature: 0,
         messages: [{ role: 'user', content: prompt }],
       })
       const raw = res.choices[0]?.message?.content ?? ''
+      const mapTokens = res.usage?.total_tokens ?? 0
+      this.metrics.llmTokensTotal.inc({ module: 'graph', model: 'gpt-4o-mini' }, mapTokens)
+      this.metrics.llmRequestDuration.observe({ module: 'graph', model: 'gpt-4o-mini' }, (Date.now() - llmStart) / 1000)
       this.prisma.conversationMessage.create({
         data: {
           sessionId: `graph-${randomUUID().slice(0, 8)}`,
           module: 'graph',
           role: 'assistant',
           content: raw.slice(0, 500),
-          tokensUsed: res.usage?.total_tokens ?? 0,
+          tokensUsed: mapTokens,
         },
       }).catch(() => null)
       const parsed = this.extractJson(raw) as { mappings: Array<{ eventId: string; milestoneId: string }> }
@@ -575,12 +585,16 @@ Retorne EXATAMENTE este JSON (sem markdown):
 Priorize gaps de alta severidade primeiro. nextBestAction deve ser em 1 frase curta e acionável.`
 
     try {
+      const llmStart = Date.now()
       const res = await this.llm.chat.completions.create({
         model: 'gpt-4o-mini',
         temperature: 0.2,
         messages: [{ role: 'user', content: prompt }],
       })
       const raw = res.choices[0]?.message?.content ?? ''
+      const gapTokens = res.usage?.total_tokens ?? 0
+      this.metrics.llmTokensTotal.inc({ module: 'graph', model: 'gpt-4o-mini' }, gapTokens)
+      this.metrics.llmRequestDuration.observe({ module: 'graph', model: 'gpt-4o-mini' }, (Date.now() - llmStart) / 1000)
       this.logger.log(`Gap analysis raw: ${raw.slice(0, 200)}`)
       this.prisma.conversationMessage.create({
         data: {
@@ -588,7 +602,7 @@ Priorize gaps de alta severidade primeiro. nextBestAction deve ser em 1 frase cu
           module: 'graph',
           role: 'assistant',
           content: raw.slice(0, 500),
-          tokensUsed: res.usage?.total_tokens ?? 0,
+          tokensUsed: gapTokens,
         },
       }).catch(() => null)
       const parsed = this.extractJson(raw) as GapAnalysis

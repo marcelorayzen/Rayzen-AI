@@ -5,6 +5,7 @@ import { ProjectStateService } from '../project-state/project-state.service'
 import { ProjectState } from '@prisma/client'
 import OpenAI from 'openai'
 import { randomUUID } from 'crypto'
+import { MetricsService } from '../metrics/metrics.service'
 
 export type DocType =
   | 'project_state'
@@ -97,6 +98,7 @@ export class DocumentationService {
     private readonly prisma: PrismaService,
     private config: ConfigService,
     private readonly projectStateService: ProjectStateService,
+    private readonly metrics: MetricsService,
   ) {
     this.llm = new OpenAI({
       baseURL: this.config.get('LITELLM_BASE_URL', 'http://localhost:4000/v1'),
@@ -200,6 +202,7 @@ export class DocumentationService {
     const promptFn = DOC_PROMPTS[type as LlmDocType]
     if (!promptFn) throw new BadRequestException(`Tipo inválido: ${type}`)
 
+    const llmStart = Date.now()
     const res = await this.llm.chat.completions.create({
       model: 'gpt-4o',
       temperature: 0.3,
@@ -207,6 +210,9 @@ export class DocumentationService {
     })
 
     const newContent = res.choices[0].message.content ?? ''
+    const docTokens = res.usage?.total_tokens ?? 0
+    this.metrics.llmTokensTotal.inc({ module: 'documentation', model: 'gpt-4o' }, docTokens)
+    this.metrics.llmRequestDuration.observe({ module: 'documentation', model: 'gpt-4o' }, (Date.now() - llmStart) / 1000)
     this.prisma.conversationMessage.create({
       data: {
         sessionId: `doc-${randomUUID().slice(0, 8)}`,
@@ -214,7 +220,7 @@ export class DocumentationService {
         projectId,
         role: 'assistant',
         content: newContent.slice(0, 1000),
-        tokensUsed: res.usage?.total_tokens ?? 0,
+        tokensUsed: docTokens,
       },
     }).catch(() => null)
 

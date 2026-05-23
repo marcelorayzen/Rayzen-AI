@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config'
 import { MemoryService } from '../memory.service'
 import { PrismaService } from '../../../prisma/prisma.service'
 import { EventService } from '../../event/event.service'
+import { MetricsService } from '../../metrics/metrics.service'
 
 const mockPrisma = {
   document: {
@@ -40,6 +41,7 @@ describe('MemoryService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: ConfigService, useValue: { get: mockConfigGet } },
         { provide: EventService, useValue: { create: jest.fn().mockResolvedValue(undefined) } },
+        { provide: MetricsService, useValue: { llmTokensTotal: { inc: jest.fn() }, llmRequestDuration: { observe: jest.fn() } } },
       ],
     }).compile()
 

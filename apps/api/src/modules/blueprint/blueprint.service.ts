@@ -7,6 +7,7 @@ import { WikiService } from '../wiki/wiki.service'
 import { BrainService } from '../brain/brain.service'
 import { EventService } from '../event/event.service'
 import { ProjectStateService } from '../project-state/project-state.service'
+import { MetricsService } from '../metrics/metrics.service'
 import { ImportBlueprintDto, BlueprintFormat } from './dto/import-blueprint.dto'
 import { PreviewBlueprintDto } from './dto/preview-blueprint.dto'
 import { CreateBlueprintPlanDto, BlueprintPlanResult } from './dto/create-blueprint-plan.dto'
@@ -31,6 +32,7 @@ export class BlueprintService {
     private readonly eventService: EventService,
     private readonly stateService: ProjectStateService,
     private readonly config: ConfigService,
+    private readonly metrics: MetricsService,
   ) {
     this.llm = new OpenAI({
       apiKey: this.config.get('LITELLM_MASTER_KEY') ?? 'sk-rayzen',
@@ -180,6 +182,7 @@ Regras:
 - Nas seções 10, 11 e 12 use os prefixos exatos para que o parser do Rayzen detecte automaticamente
 - Retorne APENAS o Markdown, sem explicações antes ou depois`
 
+    const llmStart = Date.now()
     const res = await this.llm.chat.completions.create({
       model: 'gpt-4o',
       temperature: 0.3,
@@ -187,6 +190,9 @@ Regras:
     })
 
     const markdown = (res.choices[0]?.message?.content ?? '').trim()
+    const bpTokens = res.usage?.total_tokens ?? 0
+    this.metrics.llmTokensTotal.inc({ module: 'blueprint', model: 'gpt-4o' }, bpTokens)
+    this.metrics.llmRequestDuration.observe({ module: 'blueprint', model: 'gpt-4o' }, (Date.now() - llmStart) / 1000)
     this.prisma.conversationMessage.create({
       data: {
         sessionId: `bp-${randomUUID().slice(0, 8)}`,
@@ -194,7 +200,7 @@ Regras:
         projectId: dto.projectId ?? null,
         role: 'assistant',
         content: markdown.slice(0, 1000),
-        tokensUsed: res.usage?.total_tokens ?? 0,
+        tokensUsed: bpTokens,
       },
     }).catch(() => null)
     const titleMatch = markdown.match(/^#\s+(.+)/m)

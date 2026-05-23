@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 import OpenAI from 'openai'
 import { getWorkModeConfig } from '../orchestrator/work-modes'
 import { DocumentationService } from '../documentation/documentation.service'
+import { MetricsService } from '../metrics/metrics.service'
 
 export interface SynthesisResult {
   summary: string
@@ -22,6 +23,7 @@ export class SynthesisService {
     private readonly prisma: PrismaService,
     private config: ConfigService,
     @Inject(forwardRef(() => DocumentationService)) private readonly docSvc: DocumentationService,
+    private readonly metrics: MetricsService,
   ) {
     this.llm = new OpenAI({
       baseURL: this.config.get('LITELLM_BASE_URL', 'http://localhost:4000/v1'),
@@ -220,6 +222,7 @@ Regras:
 - confidence: "high" se há >10 itens de contexto e decisões claras, "medium" se contexto parcial, "low" se poucos dados
 - Se não houver itens numa categoria, retorne array vazio`
 
+    const llmStart = Date.now()
     const res = await this.llm.chat.completions.create({
       model: 'gpt-4o',
       temperature: 0.3,
@@ -228,6 +231,8 @@ Regras:
 
     const rawContent = res.choices[0].message.content ?? ''
     const tokensUsed = res.usage?.total_tokens ?? 0
+    this.metrics.llmTokensTotal.inc({ module: 'synthesis', model: 'gpt-4o' }, tokensUsed)
+    this.metrics.llmRequestDuration.observe({ module: 'synthesis', model: 'gpt-4o' }, (Date.now() - llmStart) / 1000)
     this.logger.log(`Síntese LLM raw (${rawContent.length} chars): ${rawContent.slice(0, 300)}`)
 
     if (opts.logContext) {

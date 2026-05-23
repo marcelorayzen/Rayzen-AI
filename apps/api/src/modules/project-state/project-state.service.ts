@@ -6,6 +6,7 @@ import { randomUUID } from 'crypto'
 import { HealthScoreService } from '../health/health.service'
 import { EventService } from '../event/event.service'
 import { CacheService } from '../cache/cache.service'
+import { MetricsService } from '../metrics/metrics.service'
 
 export interface Milestone {
   id: string
@@ -59,6 +60,7 @@ export class ProjectStateService {
     private healthScore: HealthScoreService,
     private eventService: EventService,
     private cache: CacheService,
+    private readonly metrics: MetricsService,
   ) {
     this.llm = new OpenAI({
       baseURL: this.config.get('LITELLM_BASE_URL', 'http://localhost:4000/v1'),
@@ -183,6 +185,7 @@ Regras:
 - Máximo 5 itens por array (exceto backlog)
 - Se não há dados suficientes para uma categoria, retorne array vazio ou string vazia`
 
+    const llmStart = Date.now()
     const res = await this.llm.chat.completions.create({
       model: 'gpt-4o-premium',
       temperature: 0.2,
@@ -190,6 +193,9 @@ Regras:
     })
 
     const raw = res.choices[0].message.content ?? '{}'
+    const psTokens = res.usage?.total_tokens ?? 0
+    this.metrics.llmTokensTotal.inc({ module: 'project-state', model: 'gpt-4o-premium' }, psTokens)
+    this.metrics.llmRequestDuration.observe({ module: 'project-state', model: 'gpt-4o-premium' }, (Date.now() - llmStart) / 1000)
     this.prisma.conversationMessage.create({
       data: {
         sessionId: `ps-${randomUUID().slice(0, 8)}`,
@@ -197,7 +203,7 @@ Regras:
         projectId,
         role: 'assistant',
         content: raw.slice(0, 1000),
-        tokensUsed: res.usage?.total_tokens ?? 0,
+        tokensUsed: psTokens,
       },
     }).catch(() => null)
     let derived: ProjectStateData
