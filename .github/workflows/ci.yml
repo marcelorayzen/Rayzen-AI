@@ -90,24 +90,5 @@ jobs:
           path: apps/api/coverage/
           retention-days: 7
 
-  deploy:
-    name: Deploy VPS
-    needs: [typecheck, lint, test]
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            set -e
-            cd /home/azureuser/projects/rayzen-ai
-            git pull origin main
-            docker compose up -d --build api web agent-server
-            docker compose exec -T api npx prisma generate
-            docker compose exec -T api npx prisma migrate deploy
-            docker image prune -f
-            echo "Deploy concluído: $(date)"
+  # Deploy é feito manualmente via SSH ou jarvis:restart_api
+  # O Azure NSG restringe a porta 22 a IPs específicos — GitHub Actions não tem IP fixo
