@@ -5,7 +5,7 @@
 <img src="https://img.shields.io/badge/NestJS-10-e0234e?style=for-the-badge&logo=nestjs&logoColor=white" />
 <img src="https://img.shields.io/badge/Next.js-16.2.2-000000?style=for-the-badge&logo=next.js&logoColor=white" />
 <img src="https://img.shields.io/badge/pnpm-10.33.2-f69220?style=for-the-badge&logo=pnpm&logoColor=white" />
-<img src="https://img.shields.io/github/actions/workflow/status/marcelorayzen/rayzen-ai/ci.yml?branch=main&style=for-the-badge&label=CI" />
+<img src="https://img.shields.io/github/actions/workflow/status/marcelorayzen/Rayzen-AI/ci.yml?branch=main&style=for-the-badge&label=CI" />
 
 <br /><br />
 
@@ -276,8 +276,8 @@ See [docs/agent-runtime.md](docs/agent-runtime.md) for the full security model a
 **Current operation:** central stack on an Azure Ubuntu VPS, desktop Agent on the workstation, and server Agent on the VPS. Public URLs and secrets stay out of the public README; see `docs/remote-agent-setup.md` for the operating model.
 
 ```bash
-git clone https://github.com/marcelorayzen/rayzen-ai.git
-cd rayzen-ai
+git clone https://github.com/marcelorayzen/Rayzen-AI.git
+cd Rayzen-AI
 pnpm install
 cp .env.example .env
 # Fill in API keys (see below)

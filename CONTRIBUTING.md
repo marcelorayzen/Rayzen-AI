@@ -29,8 +29,8 @@ Antes de abrir:
 ## Desenvolvimento local
 
 ```bash
-git clone https://github.com/marcelorayzen/rayzen-ai.git
-cd rayzen-ai
+git clone https://github.com/marcelorayzen/Rayzen-AI.git
+cd Rayzen-AI
 pnpm install
 cp .env.example .env  # preencha as chaves
 

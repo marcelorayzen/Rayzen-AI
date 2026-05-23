@@ -1,7 +1,7 @@
 blank_issues_enabled: false
 contact_links:
   - name: Discussão / Dúvida
-    url: https://github.com/marcelorayzen/rayzen-ai/discussions
+    url: https://github.com/marcelorayzen/Rayzen-AI/discussions
     about: Para dúvidas gerais, ideias e discussões sobre o projeto
   - name: Reportar vulnerabilidade de segurança
     url: mailto:contato@rayzen.dev

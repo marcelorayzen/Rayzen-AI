@@ -9,7 +9,7 @@ Leia este arquivo antes de qualquer tarefa. É o ponto de entrada; detalhes est�
 Plataforma pessoal de IA com automação, memória semântica, geração de documentos, QA, qualidade de dados e execução assistida entre a VPS central e o PC de trabalho. Monorepo TypeScript com pnpm workspaces.
 
 **Dono:** Marcelo Rayzen — QA Automation Engineer / Full-stack Developer
-**Repositório:** `github.com/marcelorayzen/rayzen-ai`
+**Repositório:** `github.com/marcelorayzen/Rayzen-AI`
 **Branch principal:** `main`
 **Web atual:** `http://<VPS_IP>:3100`
 **API atual:** `http://<VPS_IP>:3101`

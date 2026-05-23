@@ -26,8 +26,8 @@ Guia operacional para subir e manter a stack em produção na VPS Azure.
 
 ```bash
 # 1. Clonar o repositório
-git clone https://github.com/marcelorayzen/rayzen-ai.git
-cd rayzen-ai
+git clone https://github.com/marcelorayzen/Rayzen-AI.git
+cd Rayzen-AI
 
 # 2. Configurar variáveis de ambiente
 cp .env.example .env

@@ -32,8 +32,8 @@ Tudo configurável via painel visual ou arquivo `rayzen.config.json`.
 ## Instalação
 
 ```bash
-git clone https://github.com/marcelorayzen/rayzen-ai.git
-cd rayzen-ai
+git clone https://github.com/marcelorayzen/Rayzen-AI.git
+cd Rayzen-AI
 pnpm install
 cp .env.example .env
 ```
