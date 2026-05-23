@@ -92,7 +92,7 @@ See [docs/architecture.md](docs/architecture.md) for the full module catalogue a
 
 - **LiteLLM proxy** — provider-agnostic LLM layer; swap OpenAI ↔ Groq ↔ Anthropic via config, zero code changes; per-`virtual_key` budget enforcement
 
-- **Whitelist-enforced PC Agent** — 29 actions explicitly allow-listed in `whitelist.ts`; any unknown action silently rejected; path traversal blocked via `path.relative()` (never `startsWith()`); medium/high-risk actions run `dryRun: true` before the real operation
+- **Whitelist-enforced PC Agent** — 33 actions explicitly allow-listed in `whitelist.ts`; any unknown action silently rejected; path traversal blocked via `path.relative()` (never `startsWith()`); medium/high-risk actions run `dryRun: true` before the real operation
 
 - **Validation layer** — `ValidationModule` sits at the entry point of every request: detects prompt injection patterns, enforces prompt length, checks output for system-prompt leakage, and validates that classified modules are in the known set
 
@@ -140,7 +140,7 @@ See [docs/architecture.md](docs/architecture.md) for the full module catalogue a
 
 ## Reliability
 
-**173 tests across 18 suites** (154 unit + 19 E2E), enforced in CI:
+**198 tests across 18 suites** (179 unit + 19 E2E), enforced in CI:
 
 **Unit tests (154):**
 
@@ -251,8 +251,9 @@ The PC Agent runs locally (Windows, `apps/agent/`) and polls Redis every 3 secon
 | System | `get_system_info`, `screenshot`, `notify`, `clipboard_read`, `clipboard_write` |
 | Git | `git_status`, `git_log`, `git_branch`, `git_commit` |
 | Terminal & Dev | `run_command`, `run_tests`, `inspect_schema`, `restart_api` |
-| Docker | `docker_ps`, `docker_start`, `docker_stop` |
+| Docker | `docker_ps`, `docker_start`, `docker_stop`, `docker_logs` |
 | Communication | `read_emails`, `send_email`, `get_calendar` |
+| QA & Evidence | `parse_test_report`, `get_qa_summary`, `capture_test_failure` |
 | Data & Graph | `get_data_quality`, `run_graphify`, `graphify_sync` |
 
 **`run_tests`** — invokes Jest, Vitest, or Playwright in any project path; parses stdout for passed/failed/skipped/coverage and returns structured `{ passed, failed, skipped, coverage, failures[] }`. Handles non-zero exit codes (test failures) correctly.
@@ -374,7 +375,8 @@ git push origin main # Main project branch
 | [docs/architecture.md](docs/architecture.md) | Full system diagram, module catalogue, data stores, LiteLLM model assignments |
 | [docs/workflows.md](docs/workflows.md) | 5 end-to-end flows: memory indexing, routing, PC agent, voice, doc gen |
 | [docs/validation.md](docs/validation.md) | Validation philosophy, what is detected, coverage targets |
-| [docs/agent-runtime.md](docs/agent-runtime.md) | Security model, 26-action catalogue, dry-run protocol, adding new actions |
+| [docs/agent-runtime.md](docs/agent-runtime.md) | Security model, 33-action catalogue, dry-run protocol, adding new actions |
+| [docs/qa-strategy.md](docs/qa-strategy.md) | Test pyramid, area coverage, risks, and QA roadmap |
 | [docs/engineering-standards.md](docs/engineering-standards.md) | DI rules, PrismaService, LLM proxy, security, when to write a spec |
 | [docs/getting-started.md](docs/getting-started.md) | Detailed setup guide |
 | [docs/personalization.md](docs/personalization.md) | System persona and behaviour configuration |

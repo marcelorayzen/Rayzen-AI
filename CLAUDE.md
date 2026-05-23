@@ -292,6 +292,10 @@ Toda nova ação **deve** ser adicionada a `apps/agent/src/security/whitelist.ts
 | `jarvis:docker_ps` | `docker.ts` | |
 | `jarvis:docker_start` | `docker.ts` | dryRun disponível |
 | `jarvis:docker_stop` | `docker.ts` | dryRun disponível |
+| `jarvis:docker_logs` | `docker.ts` | últimas N linhas do container |
+| `jarvis:parse_test_report` | `parse-test-report.ts` | JUnit XML / Allure JSON → estruturado |
+| `jarvis:get_qa_summary` | `get-qa-summary.ts` | sumariza TestRuns do projeto |
+| `jarvis:capture_test_failure` | `capture-test-failure.ts` | screenshot + log de falha em evidência |
 | `jarvis:read_emails` | `outlook.ts` | COM Windows |
 | `jarvis:send_email` | `outlook.ts` | dryRun disponível |
 | `jarvis:get_calendar` | `outlook-calendar.ts` | |

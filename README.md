@@ -96,7 +96,7 @@
   </tr>
   <tr>
     <td align="center"><sub>Configuração de modelos por função — classify, chat, brain com temperature individual</sub></td>
-    <td align="center"><sub>26 ações do Agent habilitáveis individualmente — apps, git, docker, email, run_tests, inspect_schema</sub></td>
+    <td align="center"><sub>33 ações do Agent habilitáveis individualmente — apps, git, docker, email, run_tests, inspect_schema, QA</sub></td>
   </tr>
 </table>
 
@@ -147,7 +147,7 @@ Jina      Redis      docxtempl.  Mermaid       Whisper
    │    ┌─────┴──────────────────────────┐
    │    │     PC Agent  (Node.js local)  │
    │    │  poll a cada 3s via BullMQ     │
-   │    │  26 ações protegidas whitelist │
+   │    │  33 ações protegidas whitelist │
    │    └────────────────────────────────┘
    │
    └──── Notion ── Project ── Health ── Proactive ── Event ── Git
@@ -169,7 +169,7 @@ Veja [docs/architecture.md](docs/architecture.md) para o catálogo completo de m
 
 - **Proxy LiteLLM** — camada LLM agnóstica de provider; troque OpenAI ↔ Groq ↔ Anthropic via config, zero alterações de código; controle de budget por `virtual_key`
 
-- **PC Agent com whitelist** — 29 ações explicitamente permitidas em `whitelist.ts`; qualquer ação desconhecida é rejeitada silenciosamente; path traversal bloqueado via `path.relative()` (nunca `startsWith()`); ações de risco médio/alto executam `dryRun: true` antes da operação real
+- **PC Agent com whitelist** — 33 ações explicitamente permitidas em `whitelist.ts`; qualquer ação desconhecida é rejeitada silenciosamente; path traversal bloqueado via `path.relative()` (nunca `startsWith()`); ações de risco médio/alto executam `dryRun: true` antes da operação real
 
 - **Camada de validação** — `ValidationModule` na entrada de cada requisição: detecta padrões de prompt injection, aplica limite de tamanho, verifica vazamento de system prompt na saída, valida que módulos classificados existem
 
@@ -207,7 +207,7 @@ Veja [docs/architecture.md](docs/architecture.md) para o catálogo completo de m
 
 ## Confiabilidade
 
-**173 testes em 18 suites** (154 unit + 19 E2E), aplicados no CI:
+**198 testes em 18 suites** (179 unit + 19 E2E), aplicados no CI:
 
 **Testes unitários (154):**
 
@@ -237,7 +237,7 @@ Todos os specs usam `{ provide: PrismaService, useValue: mockPrisma }` — sem `
 
 ```bash
 pnpm test:cov    # jest --coverage  (thresholds: functions ≥ 65%, branches ≥ 45%, lines ≥ 67%)
-pnpm test:e2e    # jest --config jest.e2e.json --runInBand  (19 E2E com Fastify inject)
+pnpm test:e2e    # jest --config jest.e2e.json --runInBand  (19 E2E specs com Fastify inject)
 ```
 
 Veja [docs/validation.md](docs/validation.md) para a filosofia de validação e metas de cobertura.
@@ -316,8 +316,9 @@ O PC Agent roda localmente (Windows, `apps/agent/`) e faz polling no Redis a cad
 | Sistema | `get_system_info`, `screenshot`, `notify`, `clipboard_read`, `clipboard_write` |
 | Git | `git_status`, `git_log`, `git_branch`, `git_commit` |
 | Terminal e Dev | `run_command`, `run_tests`, `inspect_schema`, `restart_api` |
-| Docker | `docker_ps`, `docker_start`, `docker_stop` |
+| Docker | `docker_ps`, `docker_start`, `docker_stop`, `docker_logs` |
 | Comunicação | `read_emails`, `send_email`, `get_calendar` |
+| QA e Evidências | `parse_test_report`, `get_qa_summary`, `capture_test_failure` |
 | Dados e Grafo | `get_data_quality`, `run_graphify`, `graphify_sync` |
 
 **`run_tests`** — invoca Jest, Vitest ou Playwright em qualquer caminho de projeto; parseia stdout para passed/failed/skipped/coverage e retorna `{ passed, failed, skipped, coverage, failures[] }`. Trata corretamente exit code != 0 (falhas de teste).
@@ -438,11 +439,12 @@ git push origin main # Branch principal do projeto
 | [docs/architecture.md](docs/architecture.md) | Diagrama completo do sistema, catálogo de módulos, data stores, LiteLLM |
 | [docs/workflows.md](docs/workflows.md) | 5 fluxos end-to-end: indexação de memória, roteamento, PC agent, voz, geração de doc |
 | [docs/validation.md](docs/validation.md) | Filosofia de validação, o que é detectado, metas de cobertura |
-| [docs/agent-runtime.md](docs/agent-runtime.md) | Modelo de segurança, catálogo de 26 ações, protocolo dry-run, como adicionar ações |
+| [docs/agent-runtime.md](docs/agent-runtime.md) | Modelo de segurança, catálogo de 33 ações, protocolo dry-run, como adicionar ações |
 | [docs/engineering-standards.md](docs/engineering-standards.md) | Regras de DI, PrismaService, proxy LLM, segurança, quando escrever spec |
 | [docs/getting-started.md](docs/getting-started.md) | Guia de setup detalhado |
 | [docs/personalization.md](docs/personalization.md) | Configuração de persona e comportamento do sistema |
 | [docs/roadmap.md](docs/roadmap.md) | Roadmap de fases e status atual |
+| [docs/qa-strategy.md](docs/qa-strategy.md) | Pirâmide de testes, cobertura por área, riscos e roadmap de QA |
 | [docs/presentations/](docs/presentations/) | Apresentações atualizadas e posts para LinkedIn |
 
 ---
