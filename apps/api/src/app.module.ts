@@ -35,6 +35,7 @@ import { EvidenceModule } from './modules/evidence/evidence.module'
 import { BlueprintModule } from './modules/blueprint/blueprint.module'
 import { CacheModule } from './modules/cache/cache.module'
 import { CostsModule } from './modules/costs/costs.module'
+import { MetricsModule } from './modules/metrics/metrics.module'
 
 @Module({
   imports: [
@@ -73,6 +74,7 @@ import { CostsModule } from './modules/costs/costs.module'
     BlueprintModule,
     CacheModule,
     CostsModule,
+    MetricsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
