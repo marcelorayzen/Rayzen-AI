@@ -406,3 +406,27 @@ model ConversationMessage {
 
   @@map("conversation_messages")
 }
+
+model AgentAuditLog {
+  id          String   @id @default(uuid())
+  taskId      String   @map("task_id")
+  actor       String   @default("admin")
+  module      String
+  action      String
+  command     String?
+  risk        String?
+  dryRun      Boolean  @default(false) @map("dry_run")
+  durationMs  Int?     @map("duration_ms")
+  status      String   // success | error
+  result      Json?
+  error       String?
+  workspace   String?
+  hostname    String?
+  targetRole  String?  @map("target_role")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([taskId])
+  @@index([createdAt(sort: Desc)])
+  @@index([action, status])
+  @@map("agent_audit_logs")
+}

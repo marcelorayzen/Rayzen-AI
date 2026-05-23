@@ -1,10 +1,12 @@
 import axios from 'axios'
 import { readFile } from 'node:fs/promises'
-import { basename } from 'node:path'
+import { basename, resolve } from 'node:path'
+import { hostname } from 'node:os'
 import { AgentRole, Task } from '@rayzen/types'
 import { executeTask } from './executor'
 
 const AGENT_ROLE: AgentRole = process.env.AGENT_ROLE === 'server' ? 'server' : 'desktop'
+const HOSTNAME = hostname()
 
 const api = axios.create({
   baseURL: process.env.AGENT_API_URL,
@@ -29,17 +31,54 @@ export async function poll(): Promise<void> {
 async function processTask(task: Task): Promise<void> {
   console.log(`[agent] executando: ${task.module}/${task.action} (${task.id})`)
 
-  // Marca como processing
+  const startedAt = Date.now()
+  const payload = task.payload as Record<string, unknown>
+  const workspace = typeof payload.path === 'string' ? resolve(payload.path) : process.cwd()
+
+  // Campos de audit comuns a todas as notificações
+  const auditBase = {
+    module: task.module,
+    action: task.action,
+    hostname: HOSTNAME,
+    targetRole: AGENT_ROLE,
+    workspace,
+  }
+
+  // Extrai command/risk/dryRun para ações de terminal
+  const command = typeof payload.command === 'string' ? payload.command : undefined
+  const risk = typeof payload.risk === 'string' ? payload.risk : undefined
+  const dryRun = payload.dryRun === true
+
   await api.patch(`/tasks/${task.id}`, { status: 'processing' }).catch(() => null)
 
   try {
     const result = await executeTask(task)
     const enrichedResult = await maybeUploadEvidence(task, result)
-    await api.patch(`/tasks/${task.id}`, { status: 'done', result: enrichedResult })
-    console.log(`[agent] concluído: ${task.id}`)
+    const durationMs = Date.now() - startedAt
+
+    await api.patch(`/tasks/${task.id}`, {
+      status: 'done',
+      result: enrichedResult,
+      durationMs,
+      command,
+      risk,
+      dryRun,
+      ...auditBase,
+    })
+    console.log(`[agent] concluído: ${task.id} (${durationMs}ms)`)
   } catch (err) {
     const error = (err as Error).message
-    await api.patch(`/tasks/${task.id}`, { status: 'failed', error })
+    const durationMs = Date.now() - startedAt
+
+    await api.patch(`/tasks/${task.id}`, {
+      status: 'failed',
+      error,
+      durationMs,
+      command,
+      risk,
+      dryRun,
+      ...auditBase,
+    })
     console.error(`[agent] falhou: ${task.id} — ${error}`)
   }
 }

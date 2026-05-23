@@ -5,6 +5,8 @@ import { ValidationPipe } from '@nestjs/common'
 import { AppModule } from './app.module'
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const multipart = require('@fastify/multipart')
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const helmet = require('@fastify/helmet')
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -13,6 +15,27 @@ async function bootstrap() {
   )
 
   await app.register(multipart, { limits: { fileSize: 25 * 1024 * 1024 } })
+
+  const isDev = process.env.NODE_ENV !== 'production'
+  await app.register(helmet, {
+    contentSecurityPolicy: isDev
+      ? false
+      : {
+          directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", 'data:', 'blob:'],
+            connectSrc: ["'self'"],
+            fontSrc: ["'self'"],
+            objectSrc: ["'none'"],
+            upgradeInsecureRequests: [],
+          },
+        },
+    // HSTS: only in prod (requires HTTPS)
+    strictTransportSecurity: isDev ? false : { maxAge: 31536000, includeSubDomains: true },
+    crossOriginEmbedderPolicy: false, // swagger-ui incompatível com COEP
+  })
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }))
   const corsEnv = process.env.CORS_ORIGINS ?? 'http://localhost:3100'
   const allowedOrigins = corsEnv.split(',').map((o) => o.trim()).filter(Boolean)
