@@ -88,6 +88,25 @@ services:
     depends_on:
       - api
 
+  mcp-http:
+    build:
+      context: .
+      dockerfile: apps/agent/Dockerfile.server
+    restart: unless-stopped
+    command: node apps/agent/src/mcp/rayzen-mcp-http.mjs
+    environment:
+      NODE_ENV: production
+      AGENT_API_URL: http://api:3001
+      AGENT_TOKEN: ${AGENT_TOKEN}
+      MCP_TOKEN: ${MCP_TOKEN}
+      MCP_PORT: 3102
+      MCP_PROJECT_ID: ${MCP_PROJECT_ID:-}
+    ports:
+      - '3102:3102'
+    depends_on:
+      api:
+        condition: service_healthy
+
   web:
     build:
       context: .
