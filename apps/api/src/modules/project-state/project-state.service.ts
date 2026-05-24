@@ -187,7 +187,7 @@ Regras:
 - Se não há dados suficientes para uma categoria, retorne array vazio ou string vazia`
 
     const llmStart = Date.now()
-    let model = 'gpt-4o-premium'
+    let model = 'gpt-4o'
     let res = await this.llm.chat.completions.create({
       model,
       temperature: 0.2,
@@ -195,8 +195,8 @@ Regras:
     }).catch(async (err: unknown) => {
       const status = (err as { status?: number })?.status
       if (status === 429) {
-        this.logger.warn('gpt-4o-premium rate limited — fallback para gpt-4o')
-        model = 'gpt-4o'
+        this.logger.warn('gpt-4o rate limited — fallback para gpt-4o-mini')
+        model = 'gpt-4o-mini'
         return this.llm.chat.completions.create({
           model,
           temperature: 0.2,

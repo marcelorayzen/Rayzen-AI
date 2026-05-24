@@ -204,15 +204,15 @@ export class DocumentationService {
 
     const llmStart = Date.now()
     const res = await this.llm.chat.completions.create({
-      model: 'gpt-4o',
+      model: 'gpt-4o-mini',
       temperature: 0.3,
       messages: [{ role: 'user', content: promptFn(context) }],
     })
 
     const newContent = res.choices[0].message.content ?? ''
     const docTokens = res.usage?.total_tokens ?? 0
-    this.metrics.llmTokensTotal.inc({ module: 'documentation', model: 'gpt-4o' }, docTokens)
-    this.metrics.llmRequestDuration.observe({ module: 'documentation', model: 'gpt-4o' }, (Date.now() - llmStart) / 1000)
+    this.metrics.llmTokensTotal.inc({ module: 'documentation', model: 'gpt-4o-mini' }, docTokens)
+    this.metrics.llmRequestDuration.observe({ module: 'documentation', model: 'gpt-4o-mini' }, (Date.now() - llmStart) / 1000)
     this.prisma.conversationMessage.create({
       data: {
         sessionId: `doc-${randomUUID().slice(0, 8)}`,
