@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { Injectable, NotFoundException, Logger } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../../prisma/prisma.service'
 import OpenAI from 'openai'
@@ -52,6 +52,7 @@ export interface ProjectStateData {
 
 @Injectable()
 export class ProjectStateService {
+  private readonly logger = new Logger(ProjectStateService.name)
   private llm: OpenAI
 
   constructor(
@@ -186,16 +187,29 @@ Regras:
 - Se não há dados suficientes para uma categoria, retorne array vazio ou string vazia`
 
     const llmStart = Date.now()
-    const res = await this.llm.chat.completions.create({
-      model: 'gpt-4o-premium',
+    let model = 'gpt-4o-premium'
+    let res = await this.llm.chat.completions.create({
+      model,
       temperature: 0.2,
       messages: [{ role: 'user', content: prompt }],
+    }).catch(async (err: unknown) => {
+      const status = (err as { status?: number })?.status
+      if (status === 429) {
+        this.logger.warn('gpt-4o-premium rate limited — fallback para gpt-4o')
+        model = 'gpt-4o'
+        return this.llm.chat.completions.create({
+          model,
+          temperature: 0.2,
+          messages: [{ role: 'user', content: prompt }],
+        })
+      }
+      throw err
     })
 
     const raw = res.choices[0].message.content ?? '{}'
     const psTokens = res.usage?.total_tokens ?? 0
-    this.metrics.llmTokensTotal.inc({ module: 'project-state', model: 'gpt-4o-premium' }, psTokens)
-    this.metrics.llmRequestDuration.observe({ module: 'project-state', model: 'gpt-4o-premium' }, (Date.now() - llmStart) / 1000)
+    this.metrics.llmTokensTotal.inc({ module: 'project-state', model }, psTokens)
+    this.metrics.llmRequestDuration.observe({ module: 'project-state', model }, (Date.now() - llmStart) / 1000)
     this.prisma.conversationMessage.create({
       data: {
         sessionId: `ps-${randomUUID().slice(0, 8)}`,

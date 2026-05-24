@@ -86,15 +86,16 @@ export class SynthesisService {
         where: {
           projectId,
           ts: { gte: since },
-          // Fase 13: ignorar eventos arquivados no contexto de síntese
           memoryClass: { not: 'archive' },
         },
-        orderBy: { ts: 'asc' },
+        orderBy: { ts: 'desc' },
+        take: 60,
         select: { id: true, source: true, type: true, intent: true, content: true, metadata: true },
-      }),
+      }).then(evs => evs.reverse()),
       this.prisma.conversationMessage.findMany({
         where: { projectId, createdAt: { gte: since } },
         orderBy: { createdAt: 'asc' },
+        take: 30,
       }),
     ])
 
@@ -177,12 +178,12 @@ export class SynthesisService {
 
     const cliLines = opts.events
       .filter(e => e.source === 'cli')
-      .map(e => `[${e.intent ?? e.type}] ${e.content}`)
+      .map(e => `[${e.intent ?? e.type}] ${e.content.slice(0, 200)}`)
       .join('\n')
 
     const manualLines = opts.events
       .filter(e => e.source === 'manual' || e.intent)
-      .map(e => `[${e.intent ?? e.type}] ${e.content}`)
+      .map(e => `[${e.intent ?? e.type}] ${e.content.slice(0, 300)}`)
       .join('\n')
 
     const gitSummary = this.buildGitSummary(opts.events)

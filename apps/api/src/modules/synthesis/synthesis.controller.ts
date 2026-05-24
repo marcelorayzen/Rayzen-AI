@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Query, Param } from '@nestjs/common'
+import { Controller, Post, Get, Body, Query, Param, HttpCode } from '@nestjs/common'
 import { ApiTags, ApiOperation } from '@nestjs/swagger'
 import { SynthesisService } from './synthesis.service'
 import { SmartCheckpointService } from './smart-checkpoint.service'
@@ -20,16 +20,20 @@ export class SynthesisController {
   }
 
   @Post('checkpoint')
-  @ApiOperation({ summary: 'Checkpoint manual: sintetiza atividade desde o último checkpoint ou últimas 2h' })
-  async checkpoint(@Body() body: { projectId: string; note?: string; workMode?: string }) {
-    const result = await this.svc.checkpoint(body.projectId, body.note, body.workMode)
-    // Auto-rebuild Universe se ainda estiver vazio (primeira vez ou projeto novo)
-    this.universe.get(body.projectId).then(u => {
-      if (u.nodes.length === 0) {
-        this.universe.importFromProject(body.projectId).catch(() => {})
-      }
-    }).catch(() => {})
-    return result
+  @HttpCode(202)
+  @ApiOperation({ summary: 'Checkpoint manual: dispara síntese em background e retorna imediatamente' })
+  checkpoint(@Body() body: { projectId: string; note?: string; workMode?: string }) {
+    const checkpointId = `checkpoint-${Date.now()}`
+    this.svc.checkpoint(body.projectId, body.note, body.workMode)
+      .then(() => {
+        this.universe.get(body.projectId).then(u => {
+          if (u.nodes.length === 0) {
+            this.universe.importFromProject(body.projectId).catch(() => {})
+          }
+        }).catch(() => {})
+      })
+      .catch(() => {})
+    return { status: 'processing', checkpointId, message: 'Checkpoint iniciado — atualize em alguns segundos' }
   }
 
   @Get('artifacts')
