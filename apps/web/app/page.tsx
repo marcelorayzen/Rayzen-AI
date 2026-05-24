@@ -2340,7 +2340,7 @@ export default function Home() {
 
       {/* Header */}
       <div className="hud-header shrink-0 sticky top-0 z-30 px-6 py-4 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-center gap-3 shrink-0">
           <button
             onClick={openSidebar}
             style={{color:'var(--hud-dim)'}}
