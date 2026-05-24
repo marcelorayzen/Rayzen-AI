@@ -58,5 +58,11 @@ storage/evidence/
 docs/presentations/linkedin-post-*.md
 docs/presentations/*.zip
 
+# Configs pessoais — ficam apenas no repo privado
+rayzen.config.json
+CLAUDE.local.md
+docs/qa-strategy.md
+docs/presentation/
+
 # Graphify — grafo gerado localmente (regenerado com `graphify update .`)
 graphify-out/
