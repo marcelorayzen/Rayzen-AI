@@ -4,6 +4,9 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Rayzen AI",
   description: "Plataforma pessoal de IA — Rayzen",
+  icons: {
+    icon: "/rayzen-icon.svg",
+  },
 };
 
 export default function RootLayout({

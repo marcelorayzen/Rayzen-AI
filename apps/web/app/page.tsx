@@ -2388,9 +2388,12 @@ export default function Home() {
               <line x1="12" y1="3" x2="12" y2="15" />
             </svg>
           </button>
-          <div>
-            <h1 className="hud-title text-base font-bold">RAYZEN AI</h1>
-            <p className="text-[10px] mt-0.5" style={{color:'var(--hud-dim)'}}>SID: {sessionId.slice(0, 8)}…</p>
+          <div className="flex items-center gap-2">
+            <img src="/rayzen-icon.svg" width="26" height="26" alt="" aria-hidden="true" />
+            <div>
+              <h1 className="hud-title text-base font-bold">RAYZEN AI</h1>
+              <p className="text-[10px] mt-0.5" style={{color:'var(--hud-dim)'}}>SID: {sessionId.slice(0, 8)}…</p>
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-3 flex-wrap justify-end min-w-0">
