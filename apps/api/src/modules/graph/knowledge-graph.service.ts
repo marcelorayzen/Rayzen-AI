@@ -87,10 +87,11 @@ export class KnowledgeGraphService {
     for (const art of artifacts) {
       const id = `art:${art.id}`
       const c = art.content as { summary?: string; autoTriggered?: boolean; reason?: string }
+      if (!c.summary || c.summary === 'Síntese não disponível') continue
       nodes.push({
         id,
         type: 'artifact',
-        label: c.summary?.slice(0, 60) ?? 'Checkpoint',
+        label: c.summary.slice(0, 60),
         data: { originalId: art.id, createdAt: art.createdAt, autoTriggered: c.autoTriggered, reason: c.reason },
       })
 

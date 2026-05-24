@@ -26,11 +26,7 @@ export class SynthesisController {
     const checkpointId = `checkpoint-${Date.now()}`
     this.svc.checkpoint(body.projectId, body.note, body.workMode)
       .then(() => {
-        this.universe.get(body.projectId).then(u => {
-          if (u.nodes.length === 0) {
-            this.universe.importFromProject(body.projectId).catch(() => {})
-          }
-        }).catch(() => {})
+        this.universe.importFromProject(body.projectId).catch(() => {})
       })
       .catch(() => {})
     return { status: 'processing', checkpointId, message: 'Checkpoint iniciado — atualize em alguns segundos' }
