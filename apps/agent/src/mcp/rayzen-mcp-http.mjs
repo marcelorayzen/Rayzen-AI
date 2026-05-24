@@ -456,7 +456,8 @@ const httpServer = createServer(async (req, res) => {
       await mcpServer.connect(transport)
     }
 
-    const body = await readBody(req)
+    const raw = await readBody(req)
+    const body = raw.length ? JSON.parse(raw.toString()) : undefined
     await transport.handleRequest(req, res, body)
     return
   }
