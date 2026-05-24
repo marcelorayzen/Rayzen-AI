@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Rayzen AI — LinkedIn Cover</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  width: 1200px; height: 628px; overflow: hidden;
+  background: #080808;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+  color: #f0f0f0;
+}
+
+/* dot grid */
+body::before {
+  content: '';
+  position: absolute; inset: 0;
+  background-image: radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px);
+  background-size: 26px 26px;
+  pointer-events: none;
+}
+
+/* blue glow top-right */
+body::after {
+  content: '';
+  position: absolute;
+  top: -120px; right: -80px;
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, rgba(59,130,246,0.18) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.frame {
+  position: relative; z-index: 1;
+  width: 1200px; height: 628px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+/* ── LEFT ── */
+.left {
+  padding: 64px 60px;
+  display: flex; flex-direction: column; justify-content: center;
+  border-right: 1px solid rgba(255,255,255,0.06);
+  position: relative;
+}
+
+.brand-row {
+  display: flex; align-items: center; gap: 14px; margin-bottom: 36px;
+}
+.brand-name {
+  font-family: 'SF Mono', 'Fira Code', ui-monospace, monospace;
+  font-size: 12px; font-weight: 600;
+  letter-spacing: .22em; text-transform: uppercase;
+  color: #3b82f6;
+}
+
+.headline {
+  font-size: 46px; font-weight: 800;
+  line-height: 1.1; letter-spacing: -.03em;
+  color: #f0f0f0; margin-bottom: 20px;
+}
+.headline span { color: #3b82f6; }
+
+.tagline {
+  font-size: 15px; color: #888; line-height: 1.6;
+  max-width: 400px; margin-bottom: 36px;
+}
+
+.tags { display: flex; gap: 8px; flex-wrap: wrap; }
+.tag {
+  font-family: 'SF Mono', ui-monospace, monospace;
+  font-size: 11px; color: #555;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 4px; padding: 4px 10px;
+  letter-spacing: .06em;
+}
+
+/* ── RIGHT ── */
+.right {
+  padding: 48px 52px;
+  display: flex; flex-direction: column; justify-content: center; gap: 14px;
+  position: relative;
+}
+
+/* graph node background decoration */
+.graph-deco {
+  position: absolute; top: 50%; right: 40px;
+  transform: translateY(-50%);
+  opacity: .04; pointer-events: none;
+}
+
+.metric-row {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+}
+.metric {
+  background: #111; border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 10px; padding: 20px 22px;
+}
+.metric .num {
+  font-family: 'SF Mono', ui-monospace, monospace;
+  font-size: 38px; font-weight: 700; color: #3b82f6; line-height: 1;
+}
+.metric .lbl { font-size: 11px; color: #666; margin-top: 5px; letter-spacing: .04em; }
+.metric .sub { font-size: 10px; color: #444; margin-top: 3px; }
+
+.stack-row {
+  display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px;
+}
+.badge {
+  font-family: 'SF Mono', ui-monospace, monospace;
+  font-size: 10px; color: #93c5fd;
+  background: rgba(59,130,246,0.1);
+  border: 1px solid rgba(59,130,246,0.25);
+  border-radius: 4px; padding: 4px 9px;
+}
+
+.bottom-strip {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  padding: 14px 60px;
+  display: flex; align-items: center; justify-content: space-between;
+  background: rgba(0,0,0,0.4);
+}
+.strip-left { font-size: 12px; color: #444; letter-spacing: .04em; }
+.strip-right { font-size: 12px; color: #444; font-family: 'SF Mono', ui-monospace, monospace; }
+</style>
+</head>
+<body>
+<div class="frame">
+
+  <!-- LEFT -->
+  <div class="left">
+    <div class="brand-row">
+      <svg width="42" height="42" viewBox="0 0 100 100" fill="none">
+        <defs>
+          <radialGradient id="cg" cx="36%" cy="30%" r="65%">
+            <stop offset="0%" stop-color="#93c5fd"/>
+            <stop offset="100%" stop-color="#1d4ed8"/>
+          </radialGradient>
+          <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        <path d="M50 15 L80 68 L20 68 Z" stroke="#3b82f6" stroke-width="1.5" stroke-linejoin="round" opacity="0.2"/>
+        <line x1="50" y1="50" x2="50"  y2="15" stroke="#3b82f6" stroke-width="2.5" stroke-linecap="round" opacity="0.6"/>
+        <line x1="50" y1="50" x2="80"  y2="68" stroke="#3b82f6" stroke-width="2.5" stroke-linecap="round" opacity="0.6"/>
+        <line x1="50" y1="50" x2="20"  y2="68" stroke="#3b82f6" stroke-width="2.5" stroke-linecap="round" opacity="0.6"/>
+        <circle cx="50" cy="15" r="7" fill="none" stroke="#3b82f6" stroke-width="1.8"/>
+        <circle cx="80" cy="68" r="7" fill="none" stroke="#3b82f6" stroke-width="1.8"/>
+        <circle cx="20" cy="68" r="7" fill="none" stroke="#3b82f6" stroke-width="1.8"/>
+        <circle cx="50" cy="50" r="13" fill="url(#cg)" filter="url(#glow)"/>
+      </svg>
+      <span class="brand-name">Rayzen AI</span>
+    </div>
+
+    <div class="headline">A IA que<br>não <span>esquece.</span></div>
+
+    <p class="tagline">Plataforma de memória, contexto e execução para projetos de tecnologia. Captura cada sessão. Mantém tudo atualizado.</p>
+
+    <div class="tags">
+      <span class="tag">TypeScript</span>
+      <span class="tag">NestJS</span>
+      <span class="tag">pgvector</span>
+      <span class="tag">Claude + Groq</span>
+      <span class="tag">198 testes</span>
+    </div>
+  </div>
+
+  <!-- RIGHT -->
+  <div class="right">
+    <div class="metric-row">
+      <div class="metric">
+        <div class="num">86+</div>
+        <div class="lbl">Eventos capturados</div>
+        <div class="sub">automaticamente via hook</div>
+      </div>
+      <div class="metric">
+        <div class="num">33</div>
+        <div class="lbl">Ações no PC</div>
+        <div class="sub">git · docker · testes · outlook</div>
+      </div>
+      <div class="metric">
+        <div class="num">198</div>
+        <div class="lbl">Testes · CI verde</div>
+        <div class="sub">unit + e2e + agent safety</div>
+      </div>
+      <div class="metric">
+        <div class="num">5</div>
+        <div class="lbl">Docs vivos</div>
+        <div class="sub">auto-regenerados no checkpoint</div>
+      </div>
+    </div>
+
+    <div class="stack-row">
+      <span class="badge">NestJS 10</span>
+      <span class="badge">Next.js 16</span>
+      <span class="badge">pgvector</span>
+      <span class="badge">LiteLLM</span>
+      <span class="badge">BullMQ</span>
+      <span class="badge">React Flow</span>
+      <span class="badge">MCP Server</span>
+      <span class="badge">Docker · Azure</span>
+    </div>
+  </div>
+
+  <!-- BOTTOM STRIP -->
+  <div class="bottom-strip" style="grid-column:1/-1">
+    <span class="strip-left">Construído solo · Em produção</span>
+    <span class="strip-right">github.com/marcelorayzen/Rayzen-AI</span>
+  </div>
+
+</div>
+</body>
+</html>
