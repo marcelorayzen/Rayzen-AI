@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="apps/web/public/rayzen-icon.svg" width="72" height="72" alt="Rayzen AI" /><br /><br />
+
 <img src="https://img.shields.io/badge/Rayzen_AI-v1.0.0-6366f1?style=for-the-badge&logoColor=white" />
 <img src="https://img.shields.io/badge/TypeScript-100%25-3178c6?style=for-the-badge&logo=typescript&logoColor=white" />
 <img src="https://img.shields.io/badge/NestJS-10-e0234e?style=for-the-badge&logo=nestjs&logoColor=white" />
