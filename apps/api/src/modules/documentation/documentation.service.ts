@@ -249,8 +249,12 @@ export class DocumentationService {
   }
 
   async generateAll(projectId: string, opts: { force?: boolean } = {}) {
-    // Refresh único do ProjectState antes de gerar todos os docs em paralelo
-    await this.projectStateService.refresh(projectId).catch(() => {})
+    // Pula refresh se state foi atualizado há menos de 15min
+    const existingState = await this.prisma.projectState.findUnique({ where: { projectId } })
+    const isRecent = existingState && (Date.now() - existingState.updatedAt.getTime() < 15 * 60 * 1000)
+    if (!isRecent) {
+      await this.projectStateService.refresh(projectId).catch(() => {})
+    }
     const freshState = await this.prisma.projectState.findUnique({ where: { projectId } })
 
     const types: DocType[] = ['project_state', 'decisions_log', 'next_actions', 'work_journal', 'test_evidence']

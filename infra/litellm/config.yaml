@@ -32,6 +32,19 @@ model_list:
       model: anthropic/claude-haiku-4-5-20251001
       api_key: os.environ/ANTHROPIC_API_KEY
 
+  # Ollama local — tarefas mecânicas (classify, extract, gap analysis, proactive)
+  - model_name: gpt-local
+    litellm_params:
+      model: ollama/llama3.2:3b
+      api_base: http://ollama:11434
+      api_key: "none"
+
+  # Fallback do gpt-local: se Ollama cair, usa Groq
+  - model_name: gpt-local
+    litellm_params:
+      model: groq/llama-3.1-8b-instant
+      api_key: os.environ/GROQ_API_KEY
+
   # Speech to Text
   - model_name: whisper-1
     litellm_params:
@@ -69,3 +82,4 @@ router_settings:
   fallbacks:
     - {"gpt-4o": ["gpt-4o-premium"]}
     - {"gpt-4o-mini": ["gpt-4o-mini-premium"]}
+    - {"gpt-local": ["gpt-4o-mini"]}

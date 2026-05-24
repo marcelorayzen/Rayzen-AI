@@ -556,12 +556,12 @@ Formato da resposta: { "module": "...", "action": "...", "confidence": 0.0-1.0 }
     ]
     const classifyStart = Date.now()
     const res = await this.llm.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-local',
       messages,
       temperature: 0,
     })
-    this.metrics.llmTokensTotal.inc({ module: 'orchestrator', model: 'gpt-4o-mini' }, res.usage?.total_tokens ?? 0)
-    this.metrics.llmRequestDuration.observe({ module: 'orchestrator', model: 'gpt-4o-mini' }, (Date.now() - classifyStart) / 1000)
+    this.metrics.llmTokensTotal.inc({ module: 'orchestrator', model: 'gpt-local' }, res.usage?.total_tokens ?? 0)
+    this.metrics.llmRequestDuration.observe({ module: 'orchestrator', model: 'gpt-local' }, (Date.now() - classifyStart) / 1000)
     const parsed = this.parseLlmJson<ClassifyResult>(
       res.choices[0].message.content,
       { module: 'system', action: 'answer', confidence: 0.1 },
@@ -763,7 +763,7 @@ Seja direto, claro e amigável. Português brasileiro. Sem JSON bruto.`,
   private async extractAndIndex(prompt: string, reply: string, projectId?: string): Promise<void> {
     try {
       const res = await this.llm.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: 'gpt-local',
         messages: [
           {
             role: 'system',

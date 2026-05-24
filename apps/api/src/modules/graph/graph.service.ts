@@ -389,14 +389,14 @@ Regras:
     try {
       const llmStart = Date.now()
       const res = await this.llm.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: 'gpt-local',
         temperature: 0.1,
         messages: [{ role: 'user', content: prompt }],
       })
       const raw = res.choices[0]?.message?.content ?? ''
       const kpiTokens = res.usage?.total_tokens ?? 0
-      this.metrics.llmTokensTotal.inc({ module: 'graph', model: 'gpt-4o-mini' }, kpiTokens)
-      this.metrics.llmRequestDuration.observe({ module: 'graph', model: 'gpt-4o-mini' }, (Date.now() - llmStart) / 1000)
+      this.metrics.llmTokensTotal.inc({ module: 'graph', model: 'gpt-local' }, kpiTokens)
+      this.metrics.llmRequestDuration.observe({ module: 'graph', model: 'gpt-local' }, (Date.now() - llmStart) / 1000)
       this.prisma.conversationMessage.create({
         data: {
           sessionId: `graph-${randomUUID().slice(0, 8)}`,
@@ -468,14 +468,14 @@ Inclua todos os eventos. Use os ids exatos. milestoneId="none" quando sem relaç
     try {
       const llmStart = Date.now()
       const res = await this.llm.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: 'gpt-local',
         temperature: 0,
         messages: [{ role: 'user', content: prompt }],
       })
       const raw = res.choices[0]?.message?.content ?? ''
       const mapTokens = res.usage?.total_tokens ?? 0
-      this.metrics.llmTokensTotal.inc({ module: 'graph', model: 'gpt-4o-mini' }, mapTokens)
-      this.metrics.llmRequestDuration.observe({ module: 'graph', model: 'gpt-4o-mini' }, (Date.now() - llmStart) / 1000)
+      this.metrics.llmTokensTotal.inc({ module: 'graph', model: 'gpt-local' }, mapTokens)
+      this.metrics.llmRequestDuration.observe({ module: 'graph', model: 'gpt-local' }, (Date.now() - llmStart) / 1000)
       this.prisma.conversationMessage.create({
         data: {
           sessionId: `graph-${randomUUID().slice(0, 8)}`,
@@ -587,14 +587,14 @@ Priorize gaps de alta severidade primeiro. nextBestAction deve ser em 1 frase cu
     try {
       const llmStart = Date.now()
       const res = await this.llm.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: 'gpt-local',
         temperature: 0.2,
         messages: [{ role: 'user', content: prompt }],
       })
       const raw = res.choices[0]?.message?.content ?? ''
       const gapTokens = res.usage?.total_tokens ?? 0
-      this.metrics.llmTokensTotal.inc({ module: 'graph', model: 'gpt-4o-mini' }, gapTokens)
-      this.metrics.llmRequestDuration.observe({ module: 'graph', model: 'gpt-4o-mini' }, (Date.now() - llmStart) / 1000)
+      this.metrics.llmTokensTotal.inc({ module: 'graph', model: 'gpt-local' }, gapTokens)
+      this.metrics.llmRequestDuration.observe({ module: 'graph', model: 'gpt-local' }, (Date.now() - llmStart) / 1000)
       this.logger.log(`Gap analysis raw: ${raw.slice(0, 200)}`)
       this.prisma.conversationMessage.create({
         data: {

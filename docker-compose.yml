@@ -129,6 +129,16 @@ services:
       retries: 5
       start_period: 30s
 
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:11434:11434'
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      OLLAMA_HOST: '0.0.0.0:11434'
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
@@ -148,3 +158,4 @@ volumes:
   redis_data:
   caddy_data:
   caddy_config:
+  ollama_data:

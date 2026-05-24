@@ -5,7 +5,7 @@ import { DocumentationService } from '../documentation/documentation.service'
 
 const INTERVAL_MS   = 10 * 60 * 1000  // checar a cada 10min
 const MIN_EVENTS    = 5                // mínimo de eventos para qualquer trigger
-const BURST_EVENTS  = 15              // trigger por burst de atividade
+const BURST_EVENTS  = 8               // trigger por burst de atividade
 const MAX_HOURS     = 2               // trigger por tempo decorrido
 
 @Injectable()

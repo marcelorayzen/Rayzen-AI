@@ -13,7 +13,7 @@ export interface Recommendation {
   computedAt: string
 }
 
-const CACHE_TTL_MS = 60 * 60 * 1000  // 1h
+const CACHE_TTL_MS = 30 * 60 * 1000  // 30min
 
 @Injectable()
 export class ProactiveService {
@@ -315,13 +315,14 @@ Se o trabalho está alinhado com os objetivos, responda:
 
     try {
       const res = await this.llm.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: 'gpt-local',
         temperature: 0,
-        response_format: { type: 'json_object' },
         messages: [{ role: 'user', content: prompt }],
       })
 
-      const result = JSON.parse(res.choices[0].message.content ?? '{}') as {
+      const raw = res.choices[0].message.content ?? '{}'
+      const json = raw.match(/\{[\s\S]*\}/)?.[0] ?? '{}'
+      const result = JSON.parse(json) as {
         drifted: boolean; title?: string; description?: string; severity?: string
       }
 
@@ -388,13 +389,14 @@ Se tudo estiver consistente, responda:
 
     try {
       const res = await this.llm.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: 'gpt-local',
         temperature: 0,
-        response_format: { type: 'json_object' },
         messages: [{ role: 'user', content: prompt }],
       })
 
-      const result = JSON.parse(res.choices[0].message.content ?? '{}') as {
+      const raw2 = res.choices[0].message.content ?? '{}'
+      const json2 = raw2.match(/\{[\s\S]*\}/)?.[0] ?? '{}'
+      const result = JSON.parse(json2) as {
         found: boolean; title?: string; description?: string; severity?: string
       }
 
