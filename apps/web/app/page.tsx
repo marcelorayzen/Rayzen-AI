@@ -2388,7 +2388,7 @@ export default function Home() {
               <line x1="12" y1="3" x2="12" y2="15" />
             </svg>
           </button>
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 shrink-0">
             <img src="/rayzen-icon.svg" width="34" height="34" alt="" aria-hidden="true" className="shrink-0" />
             <div>
               <h1 className="hud-title text-base font-bold whitespace-nowrap">RAYZEN AI</h1>
