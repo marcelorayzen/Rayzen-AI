@@ -969,22 +969,27 @@ export default function Home() {
                       placeholder="ex: rayzen-pdv"
                       className="flex-1 bg-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none focus:ring-1 focus:ring-zinc-600 font-mono"
                     />
-                    <button
-                      type="button"
+                    <label
                       title="Selecionar pasta"
-                      onClick={async () => {
-                        try {
-                          // @ts-expect-error — API disponível em Chrome/Edge
-                          const dir = await window.showDirectoryPicker({ mode: 'read' })
-                          const folderName = dir.name.toLowerCase().replace(/[^a-z0-9-_]/g, '-')
-                          setNewProjectSlug(folderName)
-                          if (!newProjectName.trim()) setNewProjectName(dir.name)
-                        } catch { /* usuário cancelou */ }
-                      }}
-                      className="px-3 py-2 bg-zinc-700 hover:bg-zinc-600 rounded-lg text-zinc-300 hover:text-zinc-100 transition-colors text-sm"
+                      className="px-3 py-2 bg-zinc-700 hover:bg-zinc-600 rounded-lg text-zinc-300 hover:text-zinc-100 transition-colors text-sm cursor-pointer"
                     >
                       📁
-                    </button>
+                      <input
+                        type="file"
+                        // @ts-expect-error — webkitdirectory não está no tipo padrão
+                        webkitdirectory=""
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          const parts = file.webkitRelativePath.split('/')
+                          const folderName = parts[0].toLowerCase().replace(/[^a-z0-9-_]/g, '-')
+                          setNewProjectSlug(folderName)
+                          if (!newProjectName.trim()) setNewProjectName(parts[0])
+                          e.target.value = ''
+                        }}
+                      />
+                    </label>
                   </div>
                   <p className="text-[10px] text-zinc-600 mt-1">O hook do Claude detecta automaticamente o projeto por este nome · ou clique em 📁 para selecionar a pasta</p>
                 </div>
