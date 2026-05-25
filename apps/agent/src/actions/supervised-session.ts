@@ -1,16 +1,16 @@
-import * as pty from 'node-pty'
-import { createInterface } from 'readline'
+import { spawn } from 'child_process'
 import { copyFileSync, mkdirSync, readdirSync, statSync } from 'fs'
 import { join, resolve } from 'path'
 
 const API_URL = process.env.AGENT_API_URL ?? 'http://localhost:3101'
 const TOKEN = process.env.AGENT_TOKEN ?? ''
+const MAX_ITERATIONS = 20
 
 type AnalysisType = 'question' | 'completion' | 'error' | 'noise'
 
 function stripAnsi(text: string): string {
   // eslint-disable-next-line no-control-regex
-  return text.replace(/\x1b\[[0-9;]*[mGKHFJ]/g, '').replace(/\x1b\][^\x07]*\x07/g, '')
+  return text.replace(/\x1b\[[0-9;]*[mGKHFJA-Z]/g, '').replace(/\x1b\][^\x07]*\x07/g, '')
 }
 
 function analyzeOutput(text: string): { type: AnalysisType; content: string } {
@@ -60,7 +60,29 @@ async function pollReply(sessionId: string, timeoutMs = 30 * 60 * 1000): Promise
   return null
 }
 
-function copyPreviewFiles(outputDir: string, sessionId: string) {
+function runClaude(prompt: string, cwd: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = []
+    const proc = spawn('claude', ['-p', prompt, '--dangerously-skip-permissions'], {
+      cwd,
+      env: { ...process.env },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+
+    proc.stdout.on('data', (d: Buffer) => chunks.push(d))
+    proc.stderr.on('data', (d: Buffer) => chunks.push(d))
+
+    proc.on('close', (code) => {
+      const output = Buffer.concat(chunks).toString('utf8')
+      if (code === 0) resolve(output)
+      else reject(new Error(output || `claude exited with code ${code}`))
+    })
+
+    proc.on('error', reject)
+  })
+}
+
+function copyPreviewFiles(outputDir: string, sessionId: string): string | null {
   const destDir = resolve(process.cwd(), '../../storage/previews', sessionId)
   try {
     mkdirSync(destDir, { recursive: true })
@@ -85,31 +107,35 @@ export async function supervisedSession(payload: {
   const { sessionId, prompt, projectPath, previewOutputPath } = payload
   const cwd = projectPath ?? process.cwd()
 
-  const term = pty.spawn('claude', ['--allowedTools', 'all'], {
-    name: 'xterm-color',
-    cols: 160,
-    rows: 40,
-    cwd,
-    env: { ...process.env },
-  })
+  let context = prompt
+  let iteration = 0
 
-  let buffer = ''
-  let flushTimer: NodeJS.Timeout | null = null
+  while (iteration < MAX_ITERATIONS) {
+    iteration++
+    let output: string
 
-  const processBuffer = async () => {
-    const text = buffer
-    buffer = ''
-    const { type, content } = analyzeOutput(text)
+    try {
+      output = await runClaude(context, cwd)
+    } catch (err) {
+      const msg = (err as Error).message.slice(0, 300)
+      await apiPost(`/agent/session/${sessionId}/error`, { message: msg })
+      return { ok: false, sessionId, error: msg }
+    }
+
+    const { type, content } = analyzeOutput(output)
 
     if (type === 'question') {
       await apiPost(`/agent/session/${sessionId}/question`, { question: content })
       const reply = await pollReply(sessionId)
       if (reply) {
-        term.write(reply + '\n')
+        context = `${prompt}\n\n[Resposta anterior do usuário]: ${reply}\n\n[Continuar a implementação]`
       } else {
-        term.write('sem resposta — continue com o melhor julgamento\n')
+        context = `${prompt}\n\n[O usuário não respondeu a tempo — use o melhor julgamento para continuar]`
       }
-    } else if (type === 'completion') {
+      continue
+    }
+
+    if (type === 'completion') {
       let previewUrl: string | undefined
       if (previewOutputPath) {
         const destDir = copyPreviewFiles(previewOutputPath, sessionId)
@@ -119,26 +145,21 @@ export async function supervisedSession(payload: {
         }
       }
       await apiPost(`/agent/session/${sessionId}/complete`, { summary: content, previewUrl })
-      term.kill()
-    } else if (type === 'error') {
+      return { ok: true, sessionId }
+    }
+
+    if (type === 'error') {
       await apiPost(`/agent/session/${sessionId}/error`, { message: content })
-      term.kill()
+      return { ok: false, sessionId }
+    }
+
+    // noise — if Claude exited with 0 and no recognized pattern, treat as completion
+    if (output.trim().length > 50) {
+      await apiPost(`/agent/session/${sessionId}/complete`, { summary: output.slice(-500) })
+      return { ok: true, sessionId }
     }
   }
 
-  term.onData((data) => {
-    buffer += data
-    if (flushTimer) clearTimeout(flushTimer)
-    flushTimer = setTimeout(processBuffer, 2000)
-  })
-
-  // Inject initial prompt
-  term.write(prompt + '\n')
-
-  return new Promise<{ ok: boolean; sessionId: string }>((resolve) => {
-    term.onExit(({ exitCode }) => {
-      if (flushTimer) clearTimeout(flushTimer)
-      resolve({ ok: exitCode === 0, sessionId })
-    })
-  })
+  await apiPost(`/agent/session/${sessionId}/error`, { message: 'Número máximo de iterações atingido.' })
+  return { ok: false, sessionId }
 }
