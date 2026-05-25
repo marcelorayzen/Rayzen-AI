@@ -27,6 +27,7 @@ interface RayzenConfig {
   }
   tts: { provider: string; voice: string }
   obsidian: { vaultPath: string; vaultName: string }
+  premiumStateRefresh?: boolean
 }
 
 type Tab = 'identity' | 'modules' | 'llm' | 'agent' | 'security' | 'tts' | 'obsidian'
@@ -396,6 +397,30 @@ export default function SettingsPage() {
                   </p>
                 </div>
               )}
+
+              {/* Toggle qualidade do estado */}
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-zinc-200">Qualidade premium no estado do projeto</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      {config.premiumStateRefresh
+                        ? 'Claude Sonnet — análise mais precisa · ~$0.05/checkpoint'
+                        : 'Groq Llama 70B — rápido e gratuito · $0/checkpoint'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => update(['premiumStateRefresh'], !config.premiumStateRefresh)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      config.premiumStateRefresh ? 'bg-amber-500' : 'bg-zinc-700'
+                    }`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      config.premiumStateRefresh ? 'translate-x-6' : 'translate-x-1'
+                    }`} />
+                  </button>
+                </div>
+              </div>
 
               {/* Config por módulo */}
               {Object.entries(config.llm).map(([module, cfg]) => (

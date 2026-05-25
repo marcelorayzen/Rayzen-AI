@@ -7,6 +7,7 @@ import { HealthScoreService } from '../health/health.service'
 import { EventService } from '../event/event.service'
 import { CacheService } from '../cache/cache.service'
 import { MetricsService } from '../metrics/metrics.service'
+import { RayzenConfigService } from '../configuration/configuration.service'
 
 export interface Milestone {
   id: string
@@ -62,6 +63,7 @@ export class ProjectStateService {
     private eventService: EventService,
     private cache: CacheService,
     private readonly metrics: MetricsService,
+    private readonly rayzenConfig: RayzenConfigService,
   ) {
     this.llm = new OpenAI({
       baseURL: this.config.get('LITELLM_BASE_URL', 'http://localhost:4000/v1'),
@@ -187,7 +189,8 @@ Regras:
 - Se não há dados suficientes para uma categoria, retorne array vazio ou string vazia`
 
     const llmStart = Date.now()
-    let model = 'gpt-4o'
+    const premiumEnabled = (() => { try { return this.rayzenConfig.getConfig().premiumStateRefresh ?? false } catch { return false } })()
+    let model = premiumEnabled ? 'gpt-4o-premium' : 'gpt-4o'
     let res = await this.llm.chat.completions.create({
       model,
       temperature: 0.2,
@@ -195,7 +198,7 @@ Regras:
     }).catch(async (err: unknown) => {
       const status = (err as { status?: number })?.status
       if (status === 429) {
-        this.logger.warn('gpt-4o rate limited — fallback para gpt-4o-mini')
+        this.logger.warn(`${model} rate limited — fallback para gpt-4o-mini`)
         model = 'gpt-4o-mini'
         return this.llm.chat.completions.create({
           model,

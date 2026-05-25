@@ -36,6 +36,7 @@ export interface RayzenConfig {
   notion: {
     rootPageId: string  // ID da página raiz "Rayzen AI" no Notion
   }
+  premiumStateRefresh?: boolean  // usa Claude Sonnet no refresh de ProjectState; false = Groq
 }
 
 const CONFIG_PATHS = [

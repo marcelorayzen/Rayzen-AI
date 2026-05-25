@@ -112,5 +112,6 @@
   },
   "notion": {
     "rootPageId": "359c784498d680e68a15e71c90ff9f22"
-  }
+  },
+  "premiumStateRefresh": false
 }
