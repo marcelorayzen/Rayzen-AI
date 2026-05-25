@@ -188,10 +188,14 @@ export function useProjects() {
 
   const deleteProject = useCallback(async (id: string) => {
     if (!confirm('Deletar este projeto? Esta ação não pode ser desfeita.')) return
-    await fetch(`${API_URL}/projects/${id}`, { method: 'DELETE', headers: authHeaders() })
+    const res = await fetch(`${API_URL}/projects/${id}`, { method: 'DELETE', headers: authHeaders() })
+    if (!res.ok) {
+      alert(`Erro ao deletar projeto (${res.status}). Tente novamente.`)
+      return
+    }
     setProjects(prev => prev.filter(p => p.id !== id))
-    setActiveProjectIdState(prev => prev === id ? null : prev)
-  }, [])
+    if (activeProjectId === id) setActiveProjectId(null)
+  }, [activeProjectId, setActiveProjectId])
 
   const renameProject = useCallback(async (id: string, currentName: string) => {
     const name = prompt('Novo nome do projeto:', currentName)
