@@ -1,25 +1,15 @@
 model_list:
-  # Chat principal — Groq 70b (primário) + Claude Sonnet (fallback)
+  # Chat principal — Groq 70b apenas (sem fallback pago)
   - model_name: gpt-4o
     litellm_params:
       model: groq/llama-3.3-70b-versatile
       api_key: os.environ/GROQ_API_KEY
 
-  - model_name: gpt-4o
-    litellm_params:
-      model: anthropic/claude-sonnet-4-20250514
-      api_key: os.environ/ANTHROPIC_API_KEY
-
-  # Chamadas leves — Groq 8b (primário, quota maior) + Claude Haiku (fallback)
+  # Chamadas leves — Groq 8b apenas (sem fallback pago)
   - model_name: gpt-4o-mini
     litellm_params:
       model: groq/llama-3.1-8b-instant
       api_key: os.environ/GROQ_API_KEY
-
-  - model_name: gpt-4o-mini
-    litellm_params:
-      model: anthropic/claude-haiku-4-5-20251001
-      api_key: os.environ/ANTHROPIC_API_KEY
 
   # Aliases diretos para Claude — use quando quiser forçar melhor qualidade
   - model_name: gpt-4o-premium
@@ -80,6 +70,4 @@ router_settings:
   cooldown_time: 60
   # Fallback automático: se Groq rate-limitar ou falhar, cai no Claude
   fallbacks:
-    - {"gpt-4o": ["gpt-4o-premium"]}
-    - {"gpt-4o-mini": ["gpt-4o-mini-premium"]}
     - {"gpt-local": ["gpt-4o-mini"]}
