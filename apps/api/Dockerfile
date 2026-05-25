@@ -54,4 +54,4 @@ ENV NODE_ENV=production
 
 EXPOSE 3101
 
-CMD ["node", "apps/api/dist/main"]
+CMD ["sh", "-c", "cd apps/api && npx prisma migrate deploy && cd /app && node apps/api/dist/main"]
