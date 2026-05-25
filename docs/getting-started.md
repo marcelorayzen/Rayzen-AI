@@ -56,7 +56,7 @@ JINA_API_KEY=jina_...         # Jina AI — gratuito em jina.ai
 # Sistema
 LITELLM_MASTER_KEY=sk-rayzen-qualquercoisa
 LITELLM_BASE_URL=http://localhost:4100/v1
-DATABASE_URL=postgresql://rayzen:senha@localhost:55432/rayzen_app
+DATABASE_URL=postgresql://rayzen:senha@localhost:55432/rayzen_ai
 REDIS_URL=redis://localhost:56379
 JWT_SECRET=<rode: openssl rand -hex 32>
 

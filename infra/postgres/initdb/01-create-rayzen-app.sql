@@ -1,1 +1,1 @@
-CREATE DATABASE rayzen_app;
+CREATE DATABASE rayzen_ai;
