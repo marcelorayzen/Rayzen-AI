@@ -49,4 +49,7 @@ export const ALLOWED_ACTIONS = new Set([
   // Graphify — análise de grafo de código (desktop apenas)
   'jarvis:run_graphify',
   'jarvis:graphify_sync',
+
+  // Supervisor — sessão autônoma Claude Code com bridge Telegram
+  'jarvis:supervised_session',
 ])

@@ -34,6 +34,7 @@ model Project {
   projectGoals         ProjectGoal[]
   knowledgeMap         ProjectKnowledgeMap?
   blueprintImports     BlueprintImport[]
+  agentSessions        AgentSession[]
 
   @@map("projects")
 }
@@ -407,6 +408,24 @@ model ConversationMessage {
   project Project? @relation(fields: [projectId], references: [id])
 
   @@map("conversation_messages")
+}
+
+model AgentSession {
+  id              String   @id @default(cuid())
+  projectId       String   @map("project_id")
+  status          String   @default("active") // active | waiting | completed | error
+  claudePrompt    String   @map("claude_prompt")
+  pendingQuestion String?  @map("pending_question")
+  pendingReply    String?  @map("pending_reply")
+  previewUrl      String?  @map("preview_url")
+  summary         String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id])
+
+  @@index([projectId, status])
+  @@map("agent_sessions")
 }
 
 model AgentAuditLog {

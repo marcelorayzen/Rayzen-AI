@@ -9,9 +9,10 @@ import { ConfigurationModule } from '../configuration/configuration.module'
 import { ValidationModule } from '../validation/validation.module'
 import { EventModule } from '../event/event.module'
 import { MetricsModule } from '../metrics/metrics.module'
+import { AgentSessionModule } from '../agent-session/agent-session.module'
 
 @Module({
-  imports: [MemoryModule, DocumentProcessingModule, ExecutionModule, ContentEngineModule, ConfigurationModule, ValidationModule, EventModule, MetricsModule],
+  imports: [MemoryModule, DocumentProcessingModule, ExecutionModule, ContentEngineModule, ConfigurationModule, ValidationModule, EventModule, MetricsModule, AgentSessionModule],
   controllers: [OrchestratorController],
   providers: [OrchestratorService],
   exports: [OrchestratorService],

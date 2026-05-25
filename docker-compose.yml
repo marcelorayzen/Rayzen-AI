@@ -150,6 +150,7 @@ services:
       - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+      - ./storage/previews:/srv/previews:ro
     depends_on:
       - mcp-http
 

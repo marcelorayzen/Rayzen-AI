@@ -13,6 +13,7 @@ import { ValidationService } from '../validation/validation.service'
 import { EventService } from '../event/event.service'
 import { buildJarvisPayload } from '../execution/jarvis-payload-builder'
 import { MetricsService } from '../metrics/metrics.service'
+import { AgentSessionService } from '../agent-session/agent-session.service'
 
 
 export interface ClassifyResult {
@@ -94,6 +95,7 @@ export class OrchestratorService {
     private validation: ValidationService,
     private eventService: EventService,
     private metrics: MetricsService,
+    private agentSession: AgentSessionService,
   ) {
     this.llm = new OpenAI({
       baseURL: this.config.get('LITELLM_BASE_URL', 'http://localhost:4000/v1'),
@@ -275,7 +277,20 @@ export class OrchestratorService {
     // 1. Validar prompt antes de qualquer processamento
     this.validation.assertValidPrompt(prompt)
 
-    // 1. Classificar intent
+    // 1b. Detectar intenção de sessão supervisionada
+    if (this.isSupervisedSessionRequest(prompt) && projectId) {
+      const session = await this.agentSession.create(projectId, prompt)
+      const reply = `▶️ Sessão supervisionada iniciada (\`${session.id}\`).\nVocê receberá atualizações no Telegram. Pode fechar o PC.`
+      await this.prisma.conversationMessage.createMany({
+        data: [
+          { sessionId, module: 'system', role: 'user', content: prompt, projectId, workMode: workMode ?? null },
+          { sessionId, module: 'system', role: 'assistant', content: reply, tokensUsed: 0, projectId, workMode: workMode ?? null },
+        ],
+      })
+      return { reply, module: 'system', action: 'start_supervised_session', confidence: 1, tokensUsed: 0, sessionId }
+    }
+
+    // 2. Classificar intent
     const classify = await this.classify(prompt)
 
     // 2. Rotear para Brain se necessário
@@ -725,6 +740,11 @@ Seja direto, claro e amigável. Português brasileiro. Sem JSON bruto.`,
           prompt,
         }
       : { ...payload, projectId, prompt }
+  }
+
+  private isSupervisedSessionRequest(prompt: string): boolean {
+    const normalized = prompt.trim().toLowerCase()
+    return /\b(supervisionar|supervise|executar sem minha presen[çc]a|implementar autonomamente|rodar (o )?claude no background|claude no background|modo aut[oô]nomo)\b/.test(normalized)
   }
 
   private classifyDeterministic(prompt: string): ClassifyResult | null {

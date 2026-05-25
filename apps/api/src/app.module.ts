@@ -36,6 +36,8 @@ import { BlueprintModule } from './modules/blueprint/blueprint.module'
 import { CacheModule } from './modules/cache/cache.module'
 import { CostsModule } from './modules/costs/costs.module'
 import { MetricsModule } from './modules/metrics/metrics.module'
+import { TelegramModule } from './modules/telegram/telegram.module'
+import { AgentSessionModule } from './modules/agent-session/agent-session.module'
 
 @Module({
   imports: [
@@ -75,6 +77,8 @@ import { MetricsModule } from './modules/metrics/metrics.module'
     CacheModule,
     CostsModule,
     MetricsModule,
+    TelegramModule,
+    AgentSessionModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

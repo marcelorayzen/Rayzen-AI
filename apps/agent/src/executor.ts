@@ -25,6 +25,7 @@ import { getDataQuality } from './actions/get-data-quality'
 import { captureTestFailure } from './actions/capture-test-failure'
 import { runGraphify_action } from './actions/run-graphify'
 import { graphifySync } from './actions/graphify-sync'
+import { supervisedSession } from './actions/supervised-session'
 import { dockerLogs } from './actions/docker'
 import { isActionAllowedForRole } from './role-policy'
 import { AgentRole } from '@rayzen/types'
@@ -95,6 +96,9 @@ export async function executeTask(task: Task): Promise<unknown> {
     // Graphify
     case 'jarvis:run_graphify':    return runGraphify_action(p as { projectPath?: string; projectId?: string; dryRun?: boolean })
     case 'jarvis:graphify_sync':   return graphifySync(p as { cwd?: string })
+
+    // Supervisor
+    case 'jarvis:supervised_session': return supervisedSession(p as { sessionId: string; prompt: string; projectPath?: string; previewOutputPath?: string })
 
     default:
       throw new Error(`Handler não implementado: ${key}`)
