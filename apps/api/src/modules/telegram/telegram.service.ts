@@ -78,8 +78,14 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             const text = update.message?.text?.trim()
             const fromId = String(update.message?.chat?.id ?? '')
 
-            if (text && fromId === this.chatId && this.replyHandler) {
+            if (!text || fromId !== this.chatId) continue
+
+            if (text === '/status') {
+              await this.send('✅ Rayzen AI online. Nenhuma sessão supervisionada ativa no momento.')
+            } else if (this.replyHandler) {
               this.replyHandler(text)
+            } else {
+              await this.send('Nenhuma sessão ativa. Inicie uma sessão supervisionada pelo chat Rayzen para usar o bot.')
             }
           }
         }
