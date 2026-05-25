@@ -170,6 +170,13 @@ export class GraphService {
       ? await this.analyzeGap(goal, state, recentEvents)
       : null
 
+    if (gapAnalysis) {
+      this.prisma.projectGoal.update({
+        where: { id: goal.id },
+        data: { lastGapAnalysis: gapAnalysis as object },
+      }).catch(() => null)
+    }
+
     const mermaid = this.buildGoalMermaid(goal, gapAnalysis)
 
     return {

@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation } from '@nestjs/swagger'
 import { SynthesisService } from './synthesis.service'
 import { SmartCheckpointService } from './smart-checkpoint.service'
 import { UniverseService } from '../graph/universe.service'
+import { GraphService } from '../graph/graph.service'
 
 @ApiTags('synthesis')
 @Controller('synthesis')
@@ -11,6 +12,7 @@ export class SynthesisController {
     private readonly svc: SynthesisService,
     private readonly smartCheckpoint: SmartCheckpointService,
     private readonly universe: UniverseService,
+    private readonly graph: GraphService,
   ) {}
 
   @Post('session')
@@ -25,9 +27,10 @@ export class SynthesisController {
   checkpoint(@Body() body: { projectId: string; note?: string; workMode?: string }) {
     const checkpointId = `checkpoint-${Date.now()}`
     this.svc.checkpoint(body.projectId, body.note, body.workMode)
-      .then(() => {
-        this.universe.importFromProject(body.projectId).catch(() => {})
-      })
+      .then(() => Promise.all([
+        this.universe.importFromProject(body.projectId).catch(() => {}),
+        this.graph.getGoalGraph(body.projectId).catch(() => {}),
+      ]))
       .catch(() => {})
     return { status: 'processing', checkpointId, message: 'Checkpoint iniciado — atualize em alguns segundos' }
   }
