@@ -56,10 +56,13 @@ export class WikiService {
 
   // ─── Find related pages ─────────────────────────────────────────────────────
 
-  private async findRelated(keywords: string[], excludeSlug: string): Promise<string[]> {
+  private async findRelated(keywords: string[], excludeSlug: string, projectId?: string): Promise<string[]> {
     if (keywords.length === 0) return []
     const pages = await this.prisma.wikiPage.findMany({
-      where: { slug: { not: excludeSlug } },
+      where: {
+        slug: { not: excludeSlug },
+        ...(projectId ? { sources: { some: { document: { projectId } } } } : {}),
+      },
       select: { slug: true, title: true, tags: true },
     })
     return pages
@@ -117,7 +120,7 @@ export class WikiService {
     if (!existing) {
       // 4a. Criar nova página
       const finalSlug = await this.uniqueSlug(slug)
-      const related = await this.findRelated(draft.relatedKeywords, finalSlug)
+      const related = await this.findRelated(draft.relatedKeywords, finalSlug, input.projectId)
 
       const page = await this.prisma.wikiPage.create({
         data: {
@@ -167,7 +170,7 @@ export class WikiService {
       }
     }
 
-    const related = await this.findRelated(draft.relatedKeywords, existing.slug)
+    const related = await this.findRelated(draft.relatedKeywords, existing.slug, input.projectId)
 
     await this.prisma.wikiPage.update({
       where: { id: existing.id },

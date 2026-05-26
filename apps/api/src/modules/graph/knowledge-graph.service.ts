@@ -126,6 +126,7 @@ export class KnowledgeGraphService {
 
     // ── 4. Wiki pages ─────────────────────────────────────────────────────────
     const wikis = await this.prisma.wikiPage.findMany({
+      where: { sources: { some: { document: { projectId } } } },
       orderBy: { updatedAt: 'desc' },
       take: 10,
       select: { id: true, slug: true, title: true, related: true, sources: { select: { document: { select: { id: true, projectId: true } } } } },
