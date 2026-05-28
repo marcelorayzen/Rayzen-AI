@@ -19,12 +19,11 @@ export function getApiUrl(): string {
 
   const stored = window.localStorage.getItem(API_URL_STORAGE_KEY)
   if (stored && stored.trim()) return normalizeApiUrl(stored)
-  return shouldUseLocalDefault() ? normalizeApiUrl(DEFAULT_API_URL) : ''
+  return normalizeApiUrl(DEFAULT_API_URL)
 }
 
 export function setApiUrl(value: string): string {
-  const fallback = shouldUseLocalDefault() ? DEFAULT_API_URL : ''
-  const normalized = normalizeApiUrl(value || fallback)
+  const normalized = normalizeApiUrl(value || DEFAULT_API_URL)
   if (typeof window !== 'undefined') {
     window.localStorage.setItem(API_URL_STORAGE_KEY, normalized)
   }
