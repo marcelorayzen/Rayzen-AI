@@ -56,7 +56,7 @@ services:
     volumes:
       - ./storage/evidence:/app/storage/evidence
     ports:
-      - '3101:3001'
+      - '127.0.0.1:3101:3001'
     depends_on:
       postgres:
         condition: service_healthy
@@ -102,7 +102,7 @@ services:
       MCP_PORT: 3102
       MCP_PROJECT_ID: ${MCP_PROJECT_ID:-}
     ports:
-      - '3102:3102'
+      - '127.0.0.1:3102:3102'
     depends_on:
       api:
         condition: service_healthy
@@ -118,7 +118,7 @@ services:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3101}
       NEXT_TELEMETRY_DISABLED: "1"
     ports:
-      - '3100:3000'
+      - '127.0.0.1:3100:3000'
     depends_on:
       api:
         condition: service_healthy
