@@ -46,7 +46,6 @@ export class WikiCompilationService {
     const res = await this.llm.chat.completions.create({
       model: 'gpt-4o-mini',
       temperature: 0.2,
-      response_format: { type: 'json_object' },
       messages: [
         {
           role: 'system',
@@ -59,7 +58,7 @@ Campos obrigatórios:
 - content_md: nota em markdown com seções ## Resumo, ## Detalhes, ## Referências. Máx 400 palavras. Sem hype, linguagem técnica.
 - related_keywords: array de 2 a 4 termos para buscar notas relacionadas
 
-Responda APENAS com o JSON.`,
+Responda APENAS com o JSON, sem markdown, sem code fences.`,
         },
         {
           role: 'user',
@@ -68,7 +67,10 @@ Responda APENAS com o JSON.`,
       ],
     })
 
-    const parsed = JSON.parse(res.choices[0].message.content ?? '{}') as {
+    const raw = res.choices[0].message.content ?? '{}'
+    const jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+    const match = jsonStr.match(/\{[\s\S]*\}/)
+    const parsed = JSON.parse(match?.[0] ?? '{}') as {
       title?: string
       slug?: string
       tags?: string[]
