@@ -6,17 +6,25 @@ V2 rodará como `apps/api-v2/` — app paralelo ao V1 existente.
 ## Arquitetura
 
 ```
-Usuário → Router → Mission Engine → Context Engine
-                         ↓
-                   Skill Engine ←→ AI Router
-                         ↓              ↓
-              Dynamic Workflows    Local Models
-                         ↓              ↓
-                   QA Engine    Cost Controller
-                         ↓
-            Documentation Engine
-                         ↓
-                      Entrega
+Usuário
+  ↓
+Router
+  ↓
+Mission Engine
+  ↓
+Context Engine
+  ↓
+Memory Engine       ← fatos: o que foi feito, status, timeline
+  ↓
+Knowledge Engine    ← relações: como módulos/entidades/regras se conectam  ← ADR-016
+  ↓
+AI Router / Skills
+  ↓
+Dynamic Workflows
+  ↓
+QA Engine + Documentation Engine
+  ↓
+Entrega
 ```
 
 ## Componentes
@@ -38,22 +46,41 @@ Usuário → Router → Mission Engine → Context Engine
 | [013](013-local-models.md) | Local Models | 2 | Ollama (sem uso real) | Tier 0 de custo zero integrado ao AI Router |
 | [014](014-human-approval-gates.md) | Human Approval Gates | 3 | `dryRun` + confirmations | Gates formais com audit trail e timeout |
 | [015](015-dynamic-workflows.md) | Dynamic Workflows | 3 | Nenhum | DAG de steps com execução paralela e retry |
+| [016](016-telegram-agent.md) | Telegram Agent | 2 | Bot passivo de notificação | Interface mobile completa com comandos e chat |
+| [017](017-knowledge-engine.md) | Knowledge Engine | 2 | `graphify` (parcial) | Grafo de relações entre módulos, entidades e ADRs |
 
 ## Fases de implementação
 
 ```
 Fase 1: Mission Engine + Router + Memory Engine
-Fase 2: Skill Engine + AI Router + Context Engine + Local Models + Project Memory
-Fase 3: Documentation Engine + QA Engine + Human Approval Gates + Dynamic Workflows
+
+Fase 2: Skill Engine + AI Router + Context Engine
+        + Local Models + Project Memory
+        + Knowledge Engine          ← adicionado via ADR-016
+        + Telegram Agent
+
+Fase 3: Knowledge Graph Builder + Relationship Extractor
+        + Impact Analyzer + Project Mapper
+        + Documentation Engine + QA Engine
+        + Human Approval Gates + Dynamic Workflows
+
 Fase 4: Cost Controller + Observability completa
+
 Fase 5: Specialists + Multi-agent runtime + Planejamento autônomo
 ```
 
 ## Decisões de arquitetura
 
+| ADR | Decisão |
+|---|---|
+| ADR-001 a 027 | Ver `CLAUDE.local.md` — decisões da V1 |
+| [ADR-016](ADR-016-knowledge-engine.md) | Knowledge Engine como componente separado do Memory Engine |
+
+**Princípios:**
 - **App paralelo**: V2 em `apps/api-v2/` — V1 continua rodando sem interrupção
 - **Mission como unidade central**: toda execução é uma missão com lifecycle
 - **Skills antes de IA**: o Skill Engine é consultado antes de acionar modelos
+- **Memory ≠ Knowledge**: fatos operacionais (memory) separados de relações estruturais (knowledge)
 - **Ollama como tier 0**: modelos locais para classificação, resumo e extração
 - **Memória com lifecycle**: `inbox → working → consolidated → archive` com decay
 - **Trace distribuído**: `traceId` propagado de ponta a ponta
