@@ -21,11 +21,40 @@ import {
 import { createServer } from 'node:http'
 import { randomUUID } from 'node:crypto'
 
-const API_URL        = process.env.AGENT_API_URL  ?? 'http://api:3001'
-const API_TOKEN      = process.env.AGENT_TOKEN    ?? ''
-const MCP_TOKEN      = process.env.MCP_TOKEN      ?? ''
-const MCP_PORT       = Number(process.env.MCP_PORT ?? 3102)
-const DEFAULT_PID    = process.env.MCP_PROJECT_ID ?? ''
+const API_URL             = process.env.AGENT_API_URL       ?? 'http://api:3001'
+const API_TOKEN           = process.env.AGENT_TOKEN         ?? ''
+const MCP_PORT            = Number(process.env.MCP_PORT     ?? 3102)
+const DEFAULT_PID         = process.env.MCP_PROJECT_ID      ?? ''
+const ADMIN_PASSWORD      = process.env.ADMIN_PASSWORD      ?? ''
+const OAUTH_CLIENT_ID     = process.env.OAUTH_CLIENT_ID     ?? 'claude-ai'
+const OAUTH_CLIENT_SECRET = process.env.OAUTH_CLIENT_SECRET ?? ''
+const MCP_BASE_URL        = (process.env.MCP_BASE_URL       ?? 'https://rayzen.com.br').replace(/\/$/, '')
+
+// ── OAuth state (in-memory) ──────────────────────────────────────────────────
+const authCodes   = new Map() // code  → { redirectUri, expiresAt }
+const accessTokens = new Map() // token → expiresAt
+
+const CODE_TTL  = 5  * 60 * 1000        // 5 min
+const TOKEN_TTL = 30 * 24 * 60 * 60 * 1000 // 30 days
+
+function issueCode(redirectUri) {
+  const code = randomUUID()
+  authCodes.set(code, { redirectUri, expiresAt: Date.now() + CODE_TTL })
+  return code
+}
+
+function issueToken() {
+  const token = randomUUID().replace(/-/g, '') + randomUUID().replace(/-/g, '')
+  accessTokens.set(token, Date.now() + TOKEN_TTL)
+  return token
+}
+
+function isValidToken(token) {
+  const exp = accessTokens.get(token)
+  if (!exp) return false
+  if (Date.now() > exp) { accessTokens.delete(token); return false }
+  return true
+}
 
 // ── Rayzen API helper ────────────────────────────────────────────────────────
 
@@ -402,15 +431,73 @@ function createMcpServer() {
 const transports = new Map() // sessionId → StreamableHTTPServerTransport
 
 function checkAuth(req, res) {
-  if (!MCP_TOKEN) return true // sem token configurado = aberto (não recomendado em prod)
   const auth = req.headers['authorization'] ?? ''
-  if (auth !== `Bearer ${MCP_TOKEN}`) {
-    res.writeHead(401, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ error: 'Unauthorized' }))
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : null
+  if (!token || !isValidToken(token)) {
+    res.writeHead(401, {
+      'Content-Type': 'application/json',
+      'WWW-Authenticate': `Bearer realm="${MCP_BASE_URL}/mcp"`,
+    })
+    res.end(JSON.stringify({ error: 'unauthorized' }))
     return false
   }
   return true
 }
+
+const LOGIN_HTML = (state, redirectUri, clientId, error = '') => `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Rayzen AI — Autorizar acesso</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:#09090b;color:#f4f4f5;font-family:system-ui,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem}
+    .card{width:100%;max-width:360px}
+    .logo{display:flex;align-items:center;gap:.75rem;margin-bottom:2rem;justify-content:center}
+    .logo svg{width:40px;height:40px}
+    h1{font-size:1.25rem;font-weight:600;text-align:center;color:#f4f4f5}
+    p{font-size:.875rem;color:#71717a;text-align:center;margin-top:.5rem}
+    .app{background:#18181b;border:1px solid #27272a;border-radius:.75rem;padding:.75rem 1rem;margin:1.5rem 0;font-size:.8rem;color:#a1a1aa;word-break:break-all}
+    input{width:100%;background:#18181b;border:1px solid #27272a;border-radius:.75rem;padding:.875rem 1rem;font-size:.875rem;color:#f4f4f5;outline:none;margin-bottom:1rem}
+    input:focus{border-color:#3f3f46}
+    .error{color:#f87171;font-size:.8rem;text-align:center;margin-bottom:.75rem}
+    button{width:100%;background:#f4f4f5;color:#09090b;border:none;border-radius:.75rem;padding:.875rem;font-size:.875rem;font-weight:500;cursor:pointer}
+    button:hover{background:#fff}
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" fill="none">
+      <rect width="100" height="100" rx="22" fill="#0a0a0a"/>
+      <path d="M50 15 L80 68 L20 68 Z" stroke="#3b82f6" stroke-width="1.5" stroke-linejoin="round" opacity="0.2"/>
+      <line x1="50" y1="50" x2="50" y2="15" stroke="#3b82f6" stroke-width="2.5" stroke-linecap="round" opacity="0.6"/>
+      <line x1="50" y1="50" x2="80" y2="68" stroke="#3b82f6" stroke-width="2.5" stroke-linecap="round" opacity="0.6"/>
+      <line x1="50" y1="50" x2="20" y2="68" stroke="#3b82f6" stroke-width="2.5" stroke-linecap="round" opacity="0.6"/>
+      <circle cx="50" cy="15" r="7" fill="#0a0a0a" stroke="#3b82f6" stroke-width="1.8"/>
+      <circle cx="80" cy="68" r="7" fill="#0a0a0a" stroke="#3b82f6" stroke-width="1.8"/>
+      <circle cx="20" cy="68" r="7" fill="#0a0a0a" stroke="#3b82f6" stroke-width="1.8"/>
+      <circle cx="50" cy="50" r="13" fill="url(#cg)" filter="url(#glow)"/>
+      <defs>
+        <radialGradient id="cg" cx="36%" cy="30%" r="65%"><stop offset="0%" stop-color="#93c5fd"/><stop offset="100%" stop-color="#1d4ed8"/></radialGradient>
+        <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur in="SourceGraphic" stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      </defs>
+    </svg>
+    <h1>Rayzen AI</h1>
+  </div>
+  <p>Autorize o acesso de <strong style="color:#f4f4f5">${clientId}</strong></p>
+  <div class="app">🔗 ${redirectUri}</div>
+  ${error ? `<p class="error">${error}</p>` : ''}
+  <form method="POST" action="/oauth/authorize">
+    <input type="hidden" name="state" value="${state}">
+    <input type="hidden" name="redirect_uri" value="${redirectUri}">
+    <input type="hidden" name="client_id" value="${clientId}">
+    <input type="password" name="password" placeholder="Senha" autofocus autocomplete="current-password">
+    <button type="submit">Autorizar acesso</button>
+  </form>
+</div>
+</body></html>`
 
 async function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -424,10 +511,100 @@ async function readBody(req) {
 const httpServer = createServer(async (req, res) => {
   const url = new URL(req.url ?? '/', `http://localhost:${MCP_PORT}`)
 
-  // Health check (sem auth)
+  // ── Health check ────────────────────────────────────────────────────────────
   if (req.method === 'GET' && url.pathname === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ ok: true, service: 'rayzen-mcp-http', port: MCP_PORT }))
+    res.end(JSON.stringify({ ok: true, service: 'rayzen-mcp-http' }))
+    return
+  }
+
+  // ── OAuth discovery ─────────────────────────────────────────────────────────
+  if (req.method === 'GET' && url.pathname === '/.well-known/oauth-authorization-server') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
+    res.end(JSON.stringify({
+      issuer: MCP_BASE_URL,
+      authorization_endpoint: `${MCP_BASE_URL}/oauth/authorize`,
+      token_endpoint: `${MCP_BASE_URL}/oauth/token`,
+      response_types_supported: ['code'],
+      grant_types_supported: ['authorization_code'],
+      code_challenge_methods_supported: [],
+    }))
+    return
+  }
+
+  // ── OAuth authorize (GET → login page) ──────────────────────────────────────
+  if (req.method === 'GET' && url.pathname === '/oauth/authorize') {
+    const redirectUri = url.searchParams.get('redirect_uri') ?? ''
+    const state       = url.searchParams.get('state') ?? ''
+    const clientId    = url.searchParams.get('client_id') ?? ''
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+    res.end(LOGIN_HTML(state, redirectUri, clientId))
+    return
+  }
+
+  // ── OAuth authorize (POST → valida senha e redireciona com code) ─────────────
+  if (req.method === 'POST' && url.pathname === '/oauth/authorize') {
+    const body = await readBody(req)
+    const params = new URLSearchParams(body.toString())
+    const password    = params.get('password') ?? ''
+    const redirectUri = params.get('redirect_uri') ?? ''
+    const state       = params.get('state') ?? ''
+    const clientId    = params.get('client_id') ?? ''
+
+    if (!ADMIN_PASSWORD || password !== ADMIN_PASSWORD) {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+      res.end(LOGIN_HTML(state, redirectUri, clientId, 'Senha incorreta'))
+      return
+    }
+
+    const code = issueCode(redirectUri)
+    const dest = new URL(redirectUri)
+    dest.searchParams.set('code', code)
+    if (state) dest.searchParams.set('state', state)
+    res.writeHead(302, { Location: dest.toString() })
+    res.end()
+    return
+  }
+
+  // ── OAuth token (troca code por access_token) ────────────────────────────────
+  if (req.method === 'POST' && url.pathname === '/oauth/token') {
+    const body = await readBody(req)
+    const params = new URLSearchParams(body.toString())
+    const grantType   = params.get('grant_type')
+    const code        = params.get('code') ?? ''
+    const clientId    = params.get('client_id') ?? ''
+    const clientSecret = params.get('client_secret') ?? ''
+    const redirectUri = params.get('redirect_uri') ?? ''
+
+    const entry = authCodes.get(code)
+    if (
+      grantType !== 'authorization_code' ||
+      !entry ||
+      Date.now() > entry.expiresAt ||
+      clientId !== OAUTH_CLIENT_ID ||
+      (OAUTH_CLIENT_SECRET && clientSecret !== OAUTH_CLIENT_SECRET) ||
+      entry.redirectUri !== redirectUri
+    ) {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'invalid_grant' }))
+      return
+    }
+
+    authCodes.delete(code)
+    const token = issueToken()
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+    res.end(JSON.stringify({
+      access_token: token,
+      token_type: 'Bearer',
+      expires_in: TOKEN_TTL / 1000,
+    }))
+    return
+  }
+
+  // ── CORS preflight ───────────────────────────────────────────────────────────
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Authorization,Content-Type,mcp-session-id', 'Access-Control-Allow-Methods': 'GET,POST,DELETE' })
+    res.end()
     return
   }
 
@@ -496,6 +673,6 @@ const httpServer = createServer(async (req, res) => {
 httpServer.listen(MCP_PORT, () => {
   console.log(`[rayzen-mcp-http] listening on port ${MCP_PORT}`)
   console.log(`[rayzen-mcp-http] API_URL: ${API_URL}`)
-  console.log(`[rayzen-mcp-http] auth: ${MCP_TOKEN ? 'enabled' : 'DISABLED — set MCP_TOKEN'}`)
+  console.log(`[rayzen-mcp-http] auth: OAuth 2.0 (client_id=${OAUTH_CLIENT_ID})`)
   console.log(`[rayzen-mcp-http] default projectId: ${DEFAULT_PID || '(none — must pass in each call)'}`)
 })

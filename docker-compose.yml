@@ -98,9 +98,12 @@ services:
       NODE_ENV: production
       AGENT_API_URL: http://api:3001
       AGENT_TOKEN: ${AGENT_TOKEN}
-      MCP_TOKEN: ${MCP_TOKEN}
       MCP_PORT: 3102
       MCP_PROJECT_ID: ${MCP_PROJECT_ID:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      OAUTH_CLIENT_ID: ${OAUTH_CLIENT_ID:-claude-ai}
+      OAUTH_CLIENT_SECRET: ${OAUTH_CLIENT_SECRET}
+      MCP_BASE_URL: ${MCP_BASE_URL:-https://rayzen.com.br}
     ports:
       - '127.0.0.1:3102:3102'
     depends_on:

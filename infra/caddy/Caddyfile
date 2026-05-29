@@ -2,6 +2,12 @@ rayzen.com.br {
 	handle /mcp* {
 		reverse_proxy mcp-http:3102
 	}
+	handle /oauth/* {
+		reverse_proxy mcp-http:3102
+	}
+	handle /.well-known/* {
+		reverse_proxy mcp-http:3102
+	}
 	handle {
 		reverse_proxy web:3000
 	}
