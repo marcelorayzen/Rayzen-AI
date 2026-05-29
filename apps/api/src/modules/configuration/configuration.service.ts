@@ -2,10 +2,6 @@ import { Injectable, OnModuleInit } from '@nestjs/common'
 import { readFile, writeFile } from 'fs/promises'
 import { existsSync } from 'fs'
 import { resolve, dirname } from 'path'
-import { exec } from 'child_process'
-import { promisify } from 'util'
-
-const execAsync = promisify(exec)
 
 export interface RayzenConfig {
   identity: {
@@ -192,10 +188,49 @@ export class RayzenConfigService implements OnModuleInit {
   }
 
   async setLlmProvider(provider: LlmProvider): Promise<void> {
+    // 1. Escreve o config se o arquivo estiver acessível (dev ou volume montado)
     const configPath = LITELLM_CONFIG_PATHS.find((p) => existsSync(p))
-    if (!configPath) throw new Error('infra/litellm/config.yaml não encontrado')
-    await writeFile(configPath, LITELLM_CONFIGS[provider], 'utf-8')
-    const projectRoot = resolve(dirname(configPath), '../..')
-    await execAsync('docker compose restart litellm', { cwd: projectRoot })
+    if (configPath) {
+      await writeFile(configPath, LITELLM_CONFIGS[provider], 'utf-8')
+    }
+
+    // 2. Recarrega modelos via API dinâmica do LiteLLM (sem reiniciar container)
+    const litellmBase = process.env.LITELLM_BASE_URL?.replace('/v1', '') ?? 'http://litellm:4000'
+    const masterKey = process.env.LITELLM_MASTER_KEY ?? ''
+    const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${masterKey}` }
+
+    // Remove modelos existentes
+    try {
+      const modelsRes = await fetch(`${litellmBase}/model/info`, { headers })
+      if (modelsRes.ok) {
+        const { data } = await modelsRes.json() as { data: Array<{ model_info: { id: string } }> }
+        await Promise.all(
+          (data ?? []).map((m) =>
+            fetch(`${litellmBase}/model/delete`, {
+              method: 'POST', headers,
+              body: JSON.stringify({ id: m.model_info?.id }),
+            }),
+          ),
+        )
+      }
+    } catch { /* ignora se não conseguir limpar */ }
+
+    // Adiciona novos modelos do provider escolhido
+    const newModels = provider === 'claude'
+      ? [
+          { model_name: 'gpt-4o',      litellm_params: { model: 'anthropic/claude-sonnet-4-20250514', api_key: process.env.ANTHROPIC_API_KEY } },
+          { model_name: 'gpt-4o-mini', litellm_params: { model: 'anthropic/claude-sonnet-4-20250514', api_key: process.env.ANTHROPIC_API_KEY } },
+        ]
+      : [
+          { model_name: 'gpt-4o',      litellm_params: { model: 'groq/llama-3.3-70b-versatile', api_key: process.env.GROQ_API_KEY } },
+          { model_name: 'gpt-4o-mini', litellm_params: { model: 'groq/llama-3.3-70b-versatile', api_key: process.env.GROQ_API_KEY } },
+        ]
+
+    for (const m of newModels) {
+      await fetch(`${litellmBase}/model/new`, {
+        method: 'POST', headers,
+        body: JSON.stringify(m),
+      })
+    }
   }
 }
