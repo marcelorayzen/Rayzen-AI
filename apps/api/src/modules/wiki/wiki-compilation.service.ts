@@ -26,6 +26,30 @@ export class WikiCompilationService {
     })
   }
 
+  private extractJson(text: string): Record<string, unknown> {
+    const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+    const match = stripped.match(/\{[\s\S]*\}/)
+    if (!match) return {}
+    try {
+      return JSON.parse(match[0]) as Record<string, unknown>
+    } catch {
+      // sanitize bare control chars inside string values
+      let inString = false
+      let escaped = false
+      let result = ''
+      for (const ch of match[0]) {
+        if (escaped) { result += ch; escaped = false; continue }
+        if (ch === '\\' && inString) { result += ch; escaped = true; continue }
+        if (ch === '"') { inString = !inString; result += ch; continue }
+        if (inString && ch === '\n') { result += '\\n'; continue }
+        if (inString && ch === '\r') { result += '\\r'; continue }
+        if (inString && ch === '\t') { result += '\\t'; continue }
+        result += ch
+      }
+      try { return JSON.parse(result) as Record<string, unknown> } catch { return {} }
+    }
+  }
+
   toSlug(title: string): string {
     return title
       .toLowerCase()
@@ -68,9 +92,7 @@ Responda APENAS com o JSON, sem markdown, sem code fences.`,
     })
 
     const raw = res.choices[0].message.content ?? '{}'
-    const jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
-    const match = jsonStr.match(/\{[\s\S]*\}/)
-    const parsed = JSON.parse(match?.[0] ?? '{}') as {
+    const parsed = this.extractJson(raw) as {
       title?: string
       slug?: string
       tags?: string[]
