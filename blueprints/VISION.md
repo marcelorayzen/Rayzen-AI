@@ -120,17 +120,17 @@ Transversais (presentes em todas as camadas):
 | 2 | [002](002-router.md) | Router |
 | 3 | [003](003-ai-router.md) | AI Router |
 | 4 | [004](004-memory-engine.md) | Memory Engine |
-| 5 | [005](017-knowledge-engine.md) | Knowledge Engine |
-| 6 | [006](005-context-engine.md) | Context Engine |
-| 7 | [007](006-skill-engine.md) | Skill Engine |
+| 5 | [005](005-knowledge-engine.md) | Knowledge Engine |
+| 6 | [006](006-context-engine.md) | Context Engine |
+| 7 | [007](007-skill-engine.md) | Skill Engine |
 | 8 | [008](008-qa-engine.md) | QA Engine |
-| 9 | [009](007-documentation-engine.md) | Documentation Engine |
+| 9 | [009](009-documentation-engine.md) | Documentation Engine |
 | T | [010](010-resource-manager.md) | Resource Manager |
 | T | [011](011-mission-scheduler.md) | Mission Scheduler |
-| T | [012](009-cost-controller.md) | Cost Controller |
-| T | [013](010-observability.md) | Observability |
+| T | [012](012-cost-controller.md) | Cost Controller |
+| T | [013](013-observability.md) | Observability |
 | T | [014](014-human-approval-gates.md) | Human Approval Gates |
-| — | [015](011-specialists.md) | Specialists |
+| — | [015](015-specialists.md) | Specialists |
 | — | [ADR-016](ADR-016-knowledge-engine.md) | ADR: Knowledge Engine |
 
 ---

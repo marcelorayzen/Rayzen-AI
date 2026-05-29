@@ -24,21 +24,21 @@ Depois: Usuário → Objetivo → Missão → Execução → Validação → Ent
 | 2 | [002](002-router.md) | Router | 1 | Separação entre classificação e roteamento |
 | 3 | [003](003-ai-router.md) | AI Router | 2 | Seleção dinâmica de modelo por tier de custo |
 | 4 | [004](004-memory-engine.md) | Memory Engine | 1 | Working/Project/Long-Term/Archive com lifecycle |
-| 5 | [017](017-knowledge-engine.md) | Knowledge Engine | 2 | Grafo de relações entre módulos, entidades e ADRs |
-| 6 | [005](005-context-engine.md) | Context Engine | 2 | Contexto mínimo necessário — não 100k tokens |
-| 7 | [006](006-skill-engine.md) | Skill Engine | 2 | ADR, Roadmap, Architecture, Spec, QA, Review... |
+| 5 | [005](005-knowledge-engine.md) | Knowledge Engine | 2 | Grafo de relações entre módulos, entidades e ADRs |
+| 6 | [006](006-context-engine.md) | Context Engine | 2 | Contexto mínimo necessário — não 100k tokens |
+| 7 | [007](007-skill-engine.md) | Skill Engine | 2 | ADR, Roadmap, Architecture, Spec, QA, Review... |
 | 8 | [008](008-qa-engine.md) | QA Engine | 3 | QA gate linkado ao lifecycle da missão |
-| 9 | [007](007-documentation-engine.md) | Documentation Engine | 3 | Doc gerado nativo por missão concluída |
+| 9 | [009](009-documentation-engine.md) | Documentation Engine | 3 | Doc gerado nativo por missão concluída |
 | T | [010](010-resource-manager.md) | Resource Manager | 4 | Context explosion, zombie agents, loops infinitos |
 | T | [011](011-mission-scheduler.md) | Mission Scheduler | 4 | Fila, prioridade, dependências entre missões |
-| T | [009](009-cost-controller.md) | Cost Controller | 4 | Budget enforcement com bloqueio ativo e ROI |
+| T | [012](012-cost-controller.md) | Cost Controller | 4 | Budget enforcement com bloqueio ativo e ROI |
 | T | [013](013-observability.md) | Observability | 4 | Trace distribuído, mission timeline |
 | T | [014](014-human-approval-gates.md) | Human Approval Gates | 3 | Nem tudo deve ser automático |
-| — | [011](011-specialists.md) | Specialists | 5 | Criados sob demanda, destruídos após a missão |
-| — | [015](015-dynamic-workflows.md) | Dynamic Workflows | 3 | DAG de steps dentro de uma missão |
-| — | [012](012-project-memory.md) | Project Memory | 2 | Memória estruturada por tipo e projeto |
-| — | [013](013-local-models.md) | Local Models | 2 | Ollama tier 0 integrado ao AI Router |
-| — | [016](016-telegram-agent.md) | Telegram Agent | 2 | Interface mobile completa |
+| — | [015](015-specialists.md) | Specialists | 5 | Criados sob demanda, destruídos após a missão |
+| — | [016](016-project-memory.md) | Project Memory | 2 | Memória estruturada por tipo e projeto |
+| — | [017](017-local-models.md) | Local Models | 2 | Ollama tier 0 integrado ao AI Router |
+| — | [019](019-dynamic-workflows.md) | Dynamic Workflows | 3 | DAG de steps dentro de uma missão |
+| — | [020](020-telegram-agent.md) | Telegram Agent | 2 | Interface mobile completa |
 
 *T = componente transversal (presente em todas as camadas)*
 
