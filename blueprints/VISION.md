@@ -107,6 +107,7 @@ Transversais (presentes em todas as camadas):
   Camada 12 — Cost Controller     (budget, ROI, dashboard)
   Camada 13 — Observability       (missões, falhas, latência)
   Camada 14 — Human Approval Gates (nem tudo é automático)
+  Camada 21 — Vault Engine        (segredos nunca no contexto LLM)
   Especialistas Dinâmicos          (criados e destruídos por missão)
 ```
 
@@ -131,6 +132,7 @@ Transversais (presentes em todas as camadas):
 | T | [013](013-observability.md) | Observability |
 | T | [014](014-human-approval-gates.md) | Human Approval Gates |
 | — | [015](015-specialists.md) | Specialists |
+| T | [021](021-vault-engine.md) | Vault Engine |
 | — | [ADR-016](ADR-016-knowledge-engine.md) | ADR: Knowledge Engine |
 
 ---

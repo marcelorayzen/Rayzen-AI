@@ -39,6 +39,7 @@ Depois: Usuário → Objetivo → Missão → Execução → Validação → Ent
 | — | [017](017-local-models.md) | Local Models | 2 | Ollama tier 0 integrado ao AI Router |
 | — | [019](019-dynamic-workflows.md) | Dynamic Workflows | 3 | DAG de steps dentro de uma missão |
 | — | [020](020-telegram-agent.md) | Telegram Agent | 2 | Interface mobile completa |
+| T | [021](021-vault-engine.md) | Vault Engine | 2 | Segredos criptografados — nunca em contexto LLM |
 
 *T = componente transversal (presente em todas as camadas)*
 
@@ -63,6 +64,7 @@ Fase 2 — Inteligência
   Skill Engine + AI Router + Context Engine
   + Knowledge Engine + Local Models
   + Project Memory + Telegram Agent
+  + Vault Engine
 
 Fase 3 — Qualidade e Controle
   QA Engine + Documentation Engine
