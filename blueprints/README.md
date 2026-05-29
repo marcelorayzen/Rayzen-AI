@@ -40,6 +40,9 @@ Depois: Usuário → Objetivo → Missão → Execução → Validação → Ent
 | — | [019](019-dynamic-workflows.md) | Dynamic Workflows | 3 | DAG de steps dentro de uma missão |
 | — | [020](020-telegram-agent.md) | Telegram Agent | 2 | Interface mobile completa |
 | T | [021](021-vault-engine.md) | Vault Engine | 2 | Segredos criptografados — nunca em contexto LLM |
+| — | [022](022-skill-runtime.md) | Skill Runtime | 2 | Executor in-process + Specialist Factory on-demand |
+| — | [023](023-web-interface-v2.md) | Web Interface V2 | 3 | /mission /knowledge /vault /observability no apps/web |
+| — | [024](024-data-strategy.md) | Data Strategy | 1 | Schema v2 separado, V1BridgeService read-only, docker |
 
 *T = componente transversal (presente em todas as camadas)*
 
