@@ -1,86 +1,107 @@
-# Rayzen AI V2 — Blueprints
+# Rayzen AI V2 — Mission Oriented Engineering System
 
-Documentos de design para a arquitetura V2 orientada a missões.
-V2 rodará como `apps/api-v2/` — app paralelo ao V1 existente.
+> O Rayzen AI deixa de ser um assistente conversacional e passa a ser um **sistema operacional orientado a missões**, capaz de compreender projetos, preservar conhecimento, executar fluxos complexos, validar resultados e coordenar especialistas sob demanda com controle de custo, contexto e qualidade.
 
-## Arquitetura
+→ Ver [VISION.md](VISION.md) para a arquitetura completa e vision statement.
+
+---
+
+## Princípio central
 
 ```
-Usuário
-  ↓
-Router
-  ↓
-Mission Engine
-  ↓
-Context Engine
-  ↓
-Memory Engine       ← fatos: o que foi feito, status, timeline
-  ↓
-Knowledge Engine    ← relações: como módulos/entidades/regras se conectam  ← ADR-016
-  ↓
-AI Router / Skills
-  ↓
-Dynamic Workflows
-  ↓
-QA Engine + Documentation Engine
-  ↓
-Entrega
+Antes:  Usuário → Pergunta → Resposta
+
+Depois: Usuário → Objetivo → Missão → Execução → Validação → Entrega
 ```
 
-## Componentes
+---
 
-| # | Componente | Fase | V1 equivalente | Gap principal |
+## Componentes por camada
+
+| Layer | Blueprint | Componente | Fase | Gap principal |
 |---|---|---|---|---|
-| [001](001-mission-engine.md) | Mission Engine | 1 | `project-state/` + `event/` | Entidade Mission com lifecycle de execução |
-| [002](002-router.md) | Router | 1 | `orchestrator/` | Separação entre classificação e roteamento |
-| [003](003-ai-router.md) | AI Router | 2 | `orchestrator.classify()` | Seleção dinâmica de modelo por tier de custo |
-| [004](004-memory-engine.md) | Memory Engine | 1 | `memory/` + `brain/` | Lifecycle de classes, consolidação automática |
-| [005](005-context-engine.md) | Context Engine | 2 | `orchestrator.getProjectContext()` | Templates por work mode, cache, relevance scoring |
-| [006](006-skill-engine.md) | Skill Engine | 2 | `executor.ts` switch-case | Registry dinâmico com metadata e composição |
-| [007](007-documentation-engine.md) | Documentation Engine | 3 | `wiki/` + `documentation/` | Doc gerado nativo por missão concluída |
-| [008](008-qa-engine.md) | QA Engine | 3 | `qa/` + `data-quality/` | QA gate linkado ao lifecycle da missão |
-| [009](009-cost-controller.md) | Cost Controller | 4 | Logging de tokens disperso | Budget enforcement com bloqueio ativo |
-| [010](010-observability.md) | Observability | 4 | `metrics/` + `event/` | Trace IDs distribuídos, mission timeline |
-| [011](011-specialists.md) | Specialists | 5 | `supervised-session` | Especialistas dinâmicos com lifecycle gerenciado |
-| [012](012-project-memory.md) | Project Memory | 2 | `Document` + `Event` | Memória estruturada por tipo e classe por projeto |
-| [013](013-local-models.md) | Local Models | 2 | Ollama (sem uso real) | Tier 0 de custo zero integrado ao AI Router |
-| [014](014-human-approval-gates.md) | Human Approval Gates | 3 | `dryRun` + confirmations | Gates formais com audit trail e timeout |
-| [015](015-dynamic-workflows.md) | Dynamic Workflows | 3 | Nenhum | DAG de steps com execução paralela e retry |
-| [016](016-telegram-agent.md) | Telegram Agent | 2 | Bot passivo de notificação | Interface mobile completa com comandos e chat |
-| [017](017-knowledge-engine.md) | Knowledge Engine | 2 | `graphify` (parcial) | Grafo de relações entre módulos, entidades e ADRs |
+| 1 | [001](001-mission-engine.md) | Mission Engine | 1 | Entidade Mission com lifecycle de execução |
+| 2 | [002](002-router.md) | Router | 1 | Separação entre classificação e roteamento |
+| 3 | [003](003-ai-router.md) | AI Router | 2 | Seleção dinâmica de modelo por tier de custo |
+| 4 | [004](004-memory-engine.md) | Memory Engine | 1 | Working/Project/Long-Term/Archive com lifecycle |
+| 5 | [017](017-knowledge-engine.md) | Knowledge Engine | 2 | Grafo de relações entre módulos, entidades e ADRs |
+| 6 | [005](005-context-engine.md) | Context Engine | 2 | Contexto mínimo necessário — não 100k tokens |
+| 7 | [006](006-skill-engine.md) | Skill Engine | 2 | ADR, Roadmap, Architecture, Spec, QA, Review... |
+| 8 | [008](008-qa-engine.md) | QA Engine | 3 | QA gate linkado ao lifecycle da missão |
+| 9 | [007](007-documentation-engine.md) | Documentation Engine | 3 | Doc gerado nativo por missão concluída |
+| T | [010](010-resource-manager.md) | Resource Manager | 4 | Context explosion, zombie agents, loops infinitos |
+| T | [011](011-mission-scheduler.md) | Mission Scheduler | 4 | Fila, prioridade, dependências entre missões |
+| T | [009](009-cost-controller.md) | Cost Controller | 4 | Budget enforcement com bloqueio ativo e ROI |
+| T | [013](013-observability.md) | Observability | 4 | Trace distribuído, mission timeline |
+| T | [014](014-human-approval-gates.md) | Human Approval Gates | 3 | Nem tudo deve ser automático |
+| — | [011](011-specialists.md) | Specialists | 5 | Criados sob demanda, destruídos após a missão |
+| — | [015](015-dynamic-workflows.md) | Dynamic Workflows | 3 | DAG de steps dentro de uma missão |
+| — | [012](012-project-memory.md) | Project Memory | 2 | Memória estruturada por tipo e projeto |
+| — | [013](013-local-models.md) | Local Models | 2 | Ollama tier 0 integrado ao AI Router |
+| — | [016](016-telegram-agent.md) | Telegram Agent | 2 | Interface mobile completa |
 
-## Fases de implementação
+*T = componente transversal (presente em todas as camadas)*
 
-```
-Fase 1: Mission Engine + Router + Memory Engine
+---
 
-Fase 2: Skill Engine + AI Router + Context Engine
-        + Local Models + Project Memory
-        + Knowledge Engine          ← adicionado via ADR-016
-        + Telegram Agent
-
-Fase 3: Knowledge Graph Builder + Relationship Extractor
-        + Impact Analyzer + Project Mapper
-        + Documentation Engine + QA Engine
-        + Human Approval Gates + Dynamic Workflows
-
-Fase 4: Cost Controller + Observability completa
-
-Fase 5: Specialists + Multi-agent runtime + Planejamento autônomo
-```
-
-## Decisões de arquitetura
+## ADRs
 
 | ADR | Decisão |
 |---|---|
 | ADR-001 a 027 | Ver `CLAUDE.local.md` — decisões da V1 |
-| [ADR-016](ADR-016-knowledge-engine.md) | Knowledge Engine como componente separado do Memory Engine |
+| [ADR-016](ADR-016-knowledge-engine.md) | Knowledge Engine separado do Memory Engine |
 
-**Princípios:**
-- **App paralelo**: V2 em `apps/api-v2/` — V1 continua rodando sem interrupção
-- **Mission como unidade central**: toda execução é uma missão com lifecycle
-- **Skills antes de IA**: o Skill Engine é consultado antes de acionar modelos
-- **Memory ≠ Knowledge**: fatos operacionais (memory) separados de relações estruturais (knowledge)
-- **Ollama como tier 0**: modelos locais para classificação, resumo e extração
-- **Memória com lifecycle**: `inbox → working → consolidated → archive` com decay
-- **Trace distribuído**: `traceId` propagado de ponta a ponta
+---
+
+## Roadmap
+
+```
+Fase 1 — Fundação
+  Mission Engine + Router + Memory Engine
+
+Fase 2 — Inteligência
+  Skill Engine + AI Router + Context Engine
+  + Knowledge Engine + Local Models
+  + Project Memory + Telegram Agent
+
+Fase 3 — Qualidade e Controle
+  QA Engine + Documentation Engine
+  + Human Approval Gates + Dynamic Workflows
+  + Knowledge Graph Builder + Impact Analyzer
+
+Fase 4 — Governança
+  Resource Manager + Mission Scheduler
+  + Cost Controller + Observability completa
+
+Fase 5 — Autonomia
+  Specialists + Multi-agent runtime
+  + Planejamento autônomo avançado
+```
+
+---
+
+## Estrutura de pastas — apps/api-v2
+
+```
+apps/api-v2/src/
+├── core/
+├── mission/
+├── router/
+├── ai-router/
+├── memory/
+├── knowledge/
+│   ├── graph-builder/
+│   ├── graph-storage/
+│   ├── graph-query/
+│   ├── impact-analyzer/
+│   └── relationship-extractor/
+├── context/
+├── skills/
+├── qa/
+├── documentation/
+├── scheduler/
+├── resources/
+├── observability/
+├── approvals/
+└── specialists/
+```
