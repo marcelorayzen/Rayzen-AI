@@ -20,6 +20,8 @@ import {
 } from '@modelcontextprotocol/sdk/types.js'
 import { createServer } from 'node:http'
 import { randomUUID } from 'node:crypto'
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 
 const API_URL             = process.env.AGENT_API_URL       ?? 'http://api:3001'
 const API_TOKEN           = process.env.AGENT_TOKEN         ?? ''
@@ -30,11 +32,35 @@ const OAUTH_CLIENT_ID     = process.env.OAUTH_CLIENT_ID     ?? 'claude-ai'
 const OAUTH_CLIENT_SECRET = process.env.OAUTH_CLIENT_SECRET ?? ''
 const MCP_BASE_URL        = (process.env.MCP_BASE_URL       ?? 'https://rayzen.com.br').replace(/\/$/, '')
 
-// ── OAuth state (in-memory) ──────────────────────────────────────────────────
-const authCodes   = new Map() // code  → { redirectUri, expiresAt }
-const accessTokens = new Map() // token → expiresAt
+// ── Token persistence ────────────────────────────────────────────────────────
+const TOKEN_FILE = join('/app/storage/mcp', 'tokens.json')
 
-const CODE_TTL  = 5  * 60 * 1000        // 5 min
+function loadPersistedTokens() {
+  try {
+    mkdirSync(dirname(TOKEN_FILE), { recursive: true })
+    const raw = readFileSync(TOKEN_FILE, 'utf-8')
+    const data = JSON.parse(raw)
+    const map = new Map(Object.entries(data))
+    // Remove expired
+    const now = Date.now()
+    for (const [k, v] of map) { if (v < now) map.delete(k) }
+    console.log(`[MCP] Loaded ${map.size} persisted tokens`)
+    return map
+  } catch { return new Map() }
+}
+
+function saveTokens(map) {
+  try {
+    mkdirSync(dirname(TOKEN_FILE), { recursive: true })
+    writeFileSync(TOKEN_FILE, JSON.stringify(Object.fromEntries(map)), 'utf-8')
+  } catch (e) { console.warn('[MCP] Could not persist tokens:', e.message) }
+}
+
+// ── OAuth state ───────────────────────────────────────────────────────────────
+const authCodes    = new Map() // code  → { redirectUri, expiresAt }
+const accessTokens = loadPersistedTokens()  // token → expiresAt (persisted)
+
+const CODE_TTL  = 5  * 60 * 1000           // 5 min
 const TOKEN_TTL = 30 * 24 * 60 * 60 * 1000 // 30 days
 
 function issueCode(redirectUri) {
@@ -46,13 +72,14 @@ function issueCode(redirectUri) {
 function issueToken() {
   const token = randomUUID().replace(/-/g, '') + randomUUID().replace(/-/g, '')
   accessTokens.set(token, Date.now() + TOKEN_TTL)
+  saveTokens(accessTokens)   // persist immediately
   return token
 }
 
 function isValidToken(token) {
   const exp = accessTokens.get(token)
   if (!exp) return false
-  if (Date.now() > exp) { accessTokens.delete(token); return false }
+  if (Date.now() > exp) { accessTokens.delete(token); saveTokens(accessTokens); return false }
   return true
 }
 

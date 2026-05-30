@@ -104,6 +104,8 @@ services:
       OAUTH_CLIENT_ID: ${OAUTH_CLIENT_ID:-claude-ai}
       OAUTH_CLIENT_SECRET: ${OAUTH_CLIENT_SECRET}
       MCP_BASE_URL: ${MCP_BASE_URL:-https://rayzen.com.br}
+    volumes:
+      - ./storage/mcp:/app/storage/mcp
     ports:
       - '127.0.0.1:3102:3102'
     depends_on:
