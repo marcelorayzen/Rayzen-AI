@@ -55,6 +55,47 @@ export class V1ApiService {
     }
   }
 
+  // ─── Wiki ──────────────────────────────────────────────────────────────────
+
+  async listWikiPages(): Promise<Array<{ slug: string; title: string; projectId?: string }>> {
+    try {
+      const res = await fetch(`${this.baseUrl}/wiki`, { headers: this.headers })
+      if (!res.ok) return []
+      return res.json() as Promise<Array<{ slug: string; title: string; projectId?: string }>>
+    } catch { return [] }
+  }
+
+  async getWikiPage(slug: string): Promise<{ slug: string; title: string; content: string; projectId?: string } | null> {
+    try {
+      const res = await fetch(`${this.baseUrl}/wiki/${slug}`, { headers: this.headers })
+      if (!res.ok) return null
+      return res.json() as Promise<{ slug: string; title: string; content: string; projectId?: string }>
+    } catch { return null }
+  }
+
+  // ─── Documentation ────────────────────────────────────────────────────────
+
+  async getProjectDocs(projectId: string): Promise<Array<{ type: string; content: string }>> {
+    try {
+      const res = await fetch(`${this.baseUrl}/documentation/${projectId}`, { headers: this.headers })
+      if (!res.ok) return []
+      return res.json() as Promise<Array<{ type: string; content: string }>>
+    } catch { return [] }
+  }
+
+  // ─── Events ───────────────────────────────────────────────────────────────
+
+  async getDecisionEvents(projectId: string, limit = 30): Promise<Array<{ id: string; content: string; type: string }>> {
+    try {
+      const res = await fetch(`${this.baseUrl}/events?projectId=${projectId}&type=decision&limit=${limit}`, {
+        headers: this.headers,
+      })
+      if (!res.ok) return []
+      const data = await res.json() as { events?: Array<{ id: string; content: string; type: string }> } | Array<{ id: string; content: string; type: string }>
+      return Array.isArray(data) ? data : (data.events ?? [])
+    } catch { return [] }
+  }
+
   async deleteDocument(documentId: string): Promise<void> {
     await fetch(`${this.baseUrl}/memory/documents/${documentId}`, {
       method: 'DELETE',

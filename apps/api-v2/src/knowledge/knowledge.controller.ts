@@ -9,6 +9,7 @@ import { KnowledgeStorageService, EntityType } from './knowledge-storage.service
 import { KnowledgeQueryService } from './knowledge-query.service'
 import { KnowledgeExtractorService } from './knowledge-extractor.service'
 import { KnowledgeImpactService } from './knowledge-impact.service'
+import { KnowledgeGraphBuilderService } from './knowledge-graph-builder.service'
 import { JwtAuthGuard } from '../core/auth.guard'
 
 class AddNodeDto {
@@ -139,6 +140,7 @@ export class KnowledgeController {
     private readonly queryService: KnowledgeQueryService,
     private readonly extractor:  KnowledgeExtractorService,
     private readonly impactSvc:  KnowledgeImpactService,
+    private readonly builder:    KnowledgeGraphBuilderService,
   ) {}
 
   @Post('nodes')
@@ -218,5 +220,11 @@ export class KnowledgeController {
   @HttpCode(200)
   analyzeImpact(@Body() dto: ImpactDto) {
     return this.impactSvc.analyze(dto)
+  }
+
+  @Post('build/:projectId')
+  @HttpCode(200)
+  build(@Param('projectId') projectId: string) {
+    return this.builder.build(projectId)
   }
 }
