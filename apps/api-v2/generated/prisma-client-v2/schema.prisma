@@ -66,6 +66,10 @@ model MemoryMeta {
   accessCount      Int       @default(0) @map("access_count")
   lastAccessAt     DateTime? @map("last_access_at")
   consolidatedInto String?   @map("consolidated_into") // v1DocumentId of the consolidated chunk
+  memoryType       String?   @map("memory_type") // decision|lesson|pattern|constraint|assumption
+  confidence       Float? // 0-1
+  validUntil       DateTime? @map("valid_until")
+  missionId        String?   @map("mission_id")
   notes            String?
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
@@ -88,5 +92,46 @@ model VaultAccessLog {
 
   @@index([projectSlug, accessedAt])
   @@map("vault_access_logs")
+  @@schema("v2")
+}
+
+// ─── Knowledge Engine ─────────────────────────────────────────────────────────
+
+model KnowledgeNode {
+  id          String   @id @default(uuid())
+  projectId   String   @map("project_id")
+  type        String // module|rule|entity|adr|flow|file|concept
+  label       String
+  description String?
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  outEdges KnowledgeEdge[] @relation("EdgeFrom")
+  inEdges  KnowledgeEdge[] @relation("EdgeTo")
+
+  @@index([projectId, type])
+  @@index([projectId, label])
+  @@map("knowledge_nodes")
+  @@schema("v2")
+}
+
+model KnowledgeEdge {
+  id        String   @id @default(uuid())
+  projectId String   @map("project_id")
+  fromId    String   @map("from_id")
+  toId      String   @map("to_id")
+  relation  String // impacta|depende_de|contém|pertence_a|usa|implementa
+  weight    Float    @default(1.0)
+  source    String   @default("extracted") // extracted|manual|inferred
+  createdAt DateTime @default(now()) @map("created_at")
+
+  from KnowledgeNode @relation("EdgeFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  to   KnowledgeNode @relation("EdgeTo", fields: [toId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, relation])
+  @@index([fromId])
+  @@index([toId])
+  @@map("knowledge_edges")
   @@schema("v2")
 }

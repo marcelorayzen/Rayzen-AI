@@ -33,6 +33,16 @@ export type MemoryMeta = $Result.DefaultSelection<Prisma.$MemoryMetaPayload>
  * 
  */
 export type VaultAccessLog = $Result.DefaultSelection<Prisma.$VaultAccessLogPayload>
+/**
+ * Model KnowledgeNode
+ * 
+ */
+export type KnowledgeNode = $Result.DefaultSelection<Prisma.$KnowledgeNodePayload>
+/**
+ * Model KnowledgeEdge
+ * 
+ */
+export type KnowledgeEdge = $Result.DefaultSelection<Prisma.$KnowledgeEdgePayload>
 
 /**
  * ##  Prisma Client ʲˢ
@@ -196,6 +206,26 @@ export class PrismaClient<
     * ```
     */
   get vaultAccessLog(): Prisma.VaultAccessLogDelegate<ExtArgs>;
+
+  /**
+   * `prisma.knowledgeNode`: Exposes CRUD operations for the **KnowledgeNode** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more KnowledgeNodes
+    * const knowledgeNodes = await prisma.knowledgeNode.findMany()
+    * ```
+    */
+  get knowledgeNode(): Prisma.KnowledgeNodeDelegate<ExtArgs>;
+
+  /**
+   * `prisma.knowledgeEdge`: Exposes CRUD operations for the **KnowledgeEdge** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more KnowledgeEdges
+    * const knowledgeEdges = await prisma.knowledgeEdge.findMany()
+    * ```
+    */
+  get knowledgeEdge(): Prisma.KnowledgeEdgeDelegate<ExtArgs>;
 }
 
 export namespace Prisma {
@@ -640,7 +670,9 @@ export namespace Prisma {
     Mission: 'Mission',
     MissionStep: 'MissionStep',
     MemoryMeta: 'MemoryMeta',
-    VaultAccessLog: 'VaultAccessLog'
+    VaultAccessLog: 'VaultAccessLog',
+    KnowledgeNode: 'KnowledgeNode',
+    KnowledgeEdge: 'KnowledgeEdge'
   };
 
   export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -656,7 +688,7 @@ export namespace Prisma {
 
   export type TypeMap<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, ClientOptions = {}> = {
     meta: {
-      modelProps: "mission" | "missionStep" | "memoryMeta" | "vaultAccessLog"
+      modelProps: "mission" | "missionStep" | "memoryMeta" | "vaultAccessLog" | "knowledgeNode" | "knowledgeEdge"
       txIsolationLevel: Prisma.TransactionIsolationLevel
     }
     model: {
@@ -940,6 +972,146 @@ export namespace Prisma {
           }
         }
       }
+      KnowledgeNode: {
+        payload: Prisma.$KnowledgeNodePayload<ExtArgs>
+        fields: Prisma.KnowledgeNodeFieldRefs
+        operations: {
+          findUnique: {
+            args: Prisma.KnowledgeNodeFindUniqueArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$KnowledgeNodePayload> | null
+          }
+          findUniqueOrThrow: {
+            args: Prisma.KnowledgeNodeFindUniqueOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$KnowledgeNodePayload>
+          }
+          findFirst: {
+            args: Prisma.KnowledgeNodeFindFirstArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$KnowledgeNodePayload> | null
+          }
+          findFirstOrThrow: {
+            args: Prisma.KnowledgeNodeFindFirstOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$KnowledgeNodePayload>
+          }
+          findMany: {
+            args: Prisma.KnowledgeNodeFindManyArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$KnowledgeNodePayload>[]
+          }
+          create: {
+            args: Prisma.KnowledgeNodeCreateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$KnowledgeNodePayload>
+          }
+          createMany: {
+            args: Prisma.KnowledgeNodeCreateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          createManyAndReturn: {
+            args: Prisma.KnowledgeNodeCreateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$KnowledgeNodePayload>[]
+          }
+          delete: {
+            args: Prisma.KnowledgeNodeDeleteArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$KnowledgeNodePayload>
+          }
+          update: {
+            args: Prisma.KnowledgeNodeUpdateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$KnowledgeNodePayload>
+          }
+          deleteMany: {
+            args: Prisma.KnowledgeNodeDeleteManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateMany: {
+            args: Prisma.KnowledgeNodeUpdateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          upsert: {
+            args: Prisma.KnowledgeNodeUpsertArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$KnowledgeNodePayload>
+          }
+          aggregate: {
+            args: Prisma.KnowledgeNodeAggregateArgs<ExtArgs>
+            result: $Utils.Optional<AggregateKnowledgeNode>
+          }
+          groupBy: {
+            args: Prisma.KnowledgeNodeGroupByArgs<ExtArgs>
+            result: $Utils.Optional<KnowledgeNodeGroupByOutputType>[]
+          }
+          count: {
+            args: Prisma.KnowledgeNodeCountArgs<ExtArgs>
+            result: $Utils.Optional<KnowledgeNodeCountAggregateOutputType> | number
+          }
+        }
+      }
+      KnowledgeEdge: {
+        payload: Prisma.$KnowledgeEdgePayload<ExtArgs>
+        fields: Prisma.KnowledgeEdgeFieldRefs
+        operations: {
+          findUnique: {
+            args: Prisma.KnowledgeEdgeFindUniqueArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$KnowledgeEdgePayload> | null
+          }
+          findUniqueOrThrow: {
+            args: Prisma.KnowledgeEdgeFindUniqueOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$KnowledgeEdgePayload>
+          }
+          findFirst: {
+            args: Prisma.KnowledgeEdgeFindFirstArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$KnowledgeEdgePayload> | null
+          }
+          findFirstOrThrow: {
+            args: Prisma.KnowledgeEdgeFindFirstOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$KnowledgeEdgePayload>
+          }
+          findMany: {
+            args: Prisma.KnowledgeEdgeFindManyArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$KnowledgeEdgePayload>[]
+          }
+          create: {
+            args: Prisma.KnowledgeEdgeCreateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$KnowledgeEdgePayload>
+          }
+          createMany: {
+            args: Prisma.KnowledgeEdgeCreateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          createManyAndReturn: {
+            args: Prisma.KnowledgeEdgeCreateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$KnowledgeEdgePayload>[]
+          }
+          delete: {
+            args: Prisma.KnowledgeEdgeDeleteArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$KnowledgeEdgePayload>
+          }
+          update: {
+            args: Prisma.KnowledgeEdgeUpdateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$KnowledgeEdgePayload>
+          }
+          deleteMany: {
+            args: Prisma.KnowledgeEdgeDeleteManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateMany: {
+            args: Prisma.KnowledgeEdgeUpdateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          upsert: {
+            args: Prisma.KnowledgeEdgeUpsertArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$KnowledgeEdgePayload>
+          }
+          aggregate: {
+            args: Prisma.KnowledgeEdgeAggregateArgs<ExtArgs>
+            result: $Utils.Optional<AggregateKnowledgeEdge>
+          }
+          groupBy: {
+            args: Prisma.KnowledgeEdgeGroupByArgs<ExtArgs>
+            result: $Utils.Optional<KnowledgeEdgeGroupByOutputType>[]
+          }
+          count: {
+            args: Prisma.KnowledgeEdgeCountArgs<ExtArgs>
+            result: $Utils.Optional<KnowledgeEdgeCountAggregateOutputType> | number
+          }
+        }
+      }
     }
   } & {
     other: {
@@ -1124,6 +1296,46 @@ export namespace Prisma {
    */
   export type MissionCountOutputTypeCountStepsArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     where?: MissionStepWhereInput
+  }
+
+
+  /**
+   * Count Type KnowledgeNodeCountOutputType
+   */
+
+  export type KnowledgeNodeCountOutputType = {
+    outEdges: number
+    inEdges: number
+  }
+
+  export type KnowledgeNodeCountOutputTypeSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    outEdges?: boolean | KnowledgeNodeCountOutputTypeCountOutEdgesArgs
+    inEdges?: boolean | KnowledgeNodeCountOutputTypeCountInEdgesArgs
+  }
+
+  // Custom InputTypes
+  /**
+   * KnowledgeNodeCountOutputType without action
+   */
+  export type KnowledgeNodeCountOutputTypeDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the KnowledgeNodeCountOutputType
+     */
+    select?: KnowledgeNodeCountOutputTypeSelect<ExtArgs> | null
+  }
+
+  /**
+   * KnowledgeNodeCountOutputType without action
+   */
+  export type KnowledgeNodeCountOutputTypeCountOutEdgesArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: KnowledgeEdgeWhereInput
+  }
+
+  /**
+   * KnowledgeNodeCountOutputType without action
+   */
+  export type KnowledgeNodeCountOutputTypeCountInEdgesArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: KnowledgeEdgeWhereInput
   }
 
 
@@ -3236,10 +3448,12 @@ export namespace Prisma {
 
   export type MemoryMetaAvgAggregateOutputType = {
     accessCount: number | null
+    confidence: number | null
   }
 
   export type MemoryMetaSumAggregateOutputType = {
     accessCount: number | null
+    confidence: number | null
   }
 
   export type MemoryMetaMinAggregateOutputType = {
@@ -3250,6 +3464,10 @@ export namespace Prisma {
     accessCount: number | null
     lastAccessAt: Date | null
     consolidatedInto: string | null
+    memoryType: string | null
+    confidence: number | null
+    validUntil: Date | null
+    missionId: string | null
     notes: string | null
     createdAt: Date | null
     updatedAt: Date | null
@@ -3263,6 +3481,10 @@ export namespace Prisma {
     accessCount: number | null
     lastAccessAt: Date | null
     consolidatedInto: string | null
+    memoryType: string | null
+    confidence: number | null
+    validUntil: Date | null
+    missionId: string | null
     notes: string | null
     createdAt: Date | null
     updatedAt: Date | null
@@ -3276,6 +3498,10 @@ export namespace Prisma {
     accessCount: number
     lastAccessAt: number
     consolidatedInto: number
+    memoryType: number
+    confidence: number
+    validUntil: number
+    missionId: number
     notes: number
     createdAt: number
     updatedAt: number
@@ -3285,10 +3511,12 @@ export namespace Prisma {
 
   export type MemoryMetaAvgAggregateInputType = {
     accessCount?: true
+    confidence?: true
   }
 
   export type MemoryMetaSumAggregateInputType = {
     accessCount?: true
+    confidence?: true
   }
 
   export type MemoryMetaMinAggregateInputType = {
@@ -3299,6 +3527,10 @@ export namespace Prisma {
     accessCount?: true
     lastAccessAt?: true
     consolidatedInto?: true
+    memoryType?: true
+    confidence?: true
+    validUntil?: true
+    missionId?: true
     notes?: true
     createdAt?: true
     updatedAt?: true
@@ -3312,6 +3544,10 @@ export namespace Prisma {
     accessCount?: true
     lastAccessAt?: true
     consolidatedInto?: true
+    memoryType?: true
+    confidence?: true
+    validUntil?: true
+    missionId?: true
     notes?: true
     createdAt?: true
     updatedAt?: true
@@ -3325,6 +3561,10 @@ export namespace Prisma {
     accessCount?: true
     lastAccessAt?: true
     consolidatedInto?: true
+    memoryType?: true
+    confidence?: true
+    validUntil?: true
+    missionId?: true
     notes?: true
     createdAt?: true
     updatedAt?: true
@@ -3425,6 +3665,10 @@ export namespace Prisma {
     accessCount: number
     lastAccessAt: Date | null
     consolidatedInto: string | null
+    memoryType: string | null
+    confidence: number | null
+    validUntil: Date | null
+    missionId: string | null
     notes: string | null
     createdAt: Date
     updatedAt: Date
@@ -3457,6 +3701,10 @@ export namespace Prisma {
     accessCount?: boolean
     lastAccessAt?: boolean
     consolidatedInto?: boolean
+    memoryType?: boolean
+    confidence?: boolean
+    validUntil?: boolean
+    missionId?: boolean
     notes?: boolean
     createdAt?: boolean
     updatedAt?: boolean
@@ -3470,6 +3718,10 @@ export namespace Prisma {
     accessCount?: boolean
     lastAccessAt?: boolean
     consolidatedInto?: boolean
+    memoryType?: boolean
+    confidence?: boolean
+    validUntil?: boolean
+    missionId?: boolean
     notes?: boolean
     createdAt?: boolean
     updatedAt?: boolean
@@ -3483,6 +3735,10 @@ export namespace Prisma {
     accessCount?: boolean
     lastAccessAt?: boolean
     consolidatedInto?: boolean
+    memoryType?: boolean
+    confidence?: boolean
+    validUntil?: boolean
+    missionId?: boolean
     notes?: boolean
     createdAt?: boolean
     updatedAt?: boolean
@@ -3500,6 +3756,10 @@ export namespace Prisma {
       accessCount: number
       lastAccessAt: Date | null
       consolidatedInto: string | null
+      memoryType: string | null
+      confidence: number | null
+      validUntil: Date | null
+      missionId: string | null
       notes: string | null
       createdAt: Date
       updatedAt: Date
@@ -3903,6 +4163,10 @@ export namespace Prisma {
     readonly accessCount: FieldRef<"MemoryMeta", 'Int'>
     readonly lastAccessAt: FieldRef<"MemoryMeta", 'DateTime'>
     readonly consolidatedInto: FieldRef<"MemoryMeta", 'String'>
+    readonly memoryType: FieldRef<"MemoryMeta", 'String'>
+    readonly confidence: FieldRef<"MemoryMeta", 'Float'>
+    readonly validUntil: FieldRef<"MemoryMeta", 'DateTime'>
+    readonly missionId: FieldRef<"MemoryMeta", 'String'>
     readonly notes: FieldRef<"MemoryMeta", 'String'>
     readonly createdAt: FieldRef<"MemoryMeta", 'DateTime'>
     readonly updatedAt: FieldRef<"MemoryMeta", 'DateTime'>
@@ -5097,6 +5361,2019 @@ export namespace Prisma {
 
 
   /**
+   * Model KnowledgeNode
+   */
+
+  export type AggregateKnowledgeNode = {
+    _count: KnowledgeNodeCountAggregateOutputType | null
+    _min: KnowledgeNodeMinAggregateOutputType | null
+    _max: KnowledgeNodeMaxAggregateOutputType | null
+  }
+
+  export type KnowledgeNodeMinAggregateOutputType = {
+    id: string | null
+    projectId: string | null
+    type: string | null
+    label: string | null
+    description: string | null
+    createdAt: Date | null
+    updatedAt: Date | null
+  }
+
+  export type KnowledgeNodeMaxAggregateOutputType = {
+    id: string | null
+    projectId: string | null
+    type: string | null
+    label: string | null
+    description: string | null
+    createdAt: Date | null
+    updatedAt: Date | null
+  }
+
+  export type KnowledgeNodeCountAggregateOutputType = {
+    id: number
+    projectId: number
+    type: number
+    label: number
+    description: number
+    metadata: number
+    createdAt: number
+    updatedAt: number
+    _all: number
+  }
+
+
+  export type KnowledgeNodeMinAggregateInputType = {
+    id?: true
+    projectId?: true
+    type?: true
+    label?: true
+    description?: true
+    createdAt?: true
+    updatedAt?: true
+  }
+
+  export type KnowledgeNodeMaxAggregateInputType = {
+    id?: true
+    projectId?: true
+    type?: true
+    label?: true
+    description?: true
+    createdAt?: true
+    updatedAt?: true
+  }
+
+  export type KnowledgeNodeCountAggregateInputType = {
+    id?: true
+    projectId?: true
+    type?: true
+    label?: true
+    description?: true
+    metadata?: true
+    createdAt?: true
+    updatedAt?: true
+    _all?: true
+  }
+
+  export type KnowledgeNodeAggregateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which KnowledgeNode to aggregate.
+     */
+    where?: KnowledgeNodeWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of KnowledgeNodes to fetch.
+     */
+    orderBy?: KnowledgeNodeOrderByWithRelationInput | KnowledgeNodeOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the start position
+     */
+    cursor?: KnowledgeNodeWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` KnowledgeNodes from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` KnowledgeNodes.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Count returned KnowledgeNodes
+    **/
+    _count?: true | KnowledgeNodeCountAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the minimum value
+    **/
+    _min?: KnowledgeNodeMinAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the maximum value
+    **/
+    _max?: KnowledgeNodeMaxAggregateInputType
+  }
+
+  export type GetKnowledgeNodeAggregateType<T extends KnowledgeNodeAggregateArgs> = {
+        [P in keyof T & keyof AggregateKnowledgeNode]: P extends '_count' | 'count'
+      ? T[P] extends true
+        ? number
+        : GetScalarType<T[P], AggregateKnowledgeNode[P]>
+      : GetScalarType<T[P], AggregateKnowledgeNode[P]>
+  }
+
+
+
+
+  export type KnowledgeNodeGroupByArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: KnowledgeNodeWhereInput
+    orderBy?: KnowledgeNodeOrderByWithAggregationInput | KnowledgeNodeOrderByWithAggregationInput[]
+    by: KnowledgeNodeScalarFieldEnum[] | KnowledgeNodeScalarFieldEnum
+    having?: KnowledgeNodeScalarWhereWithAggregatesInput
+    take?: number
+    skip?: number
+    _count?: KnowledgeNodeCountAggregateInputType | true
+    _min?: KnowledgeNodeMinAggregateInputType
+    _max?: KnowledgeNodeMaxAggregateInputType
+  }
+
+  export type KnowledgeNodeGroupByOutputType = {
+    id: string
+    projectId: string
+    type: string
+    label: string
+    description: string | null
+    metadata: JsonValue
+    createdAt: Date
+    updatedAt: Date
+    _count: KnowledgeNodeCountAggregateOutputType | null
+    _min: KnowledgeNodeMinAggregateOutputType | null
+    _max: KnowledgeNodeMaxAggregateOutputType | null
+  }
+
+  type GetKnowledgeNodeGroupByPayload<T extends KnowledgeNodeGroupByArgs> = Prisma.PrismaPromise<
+    Array<
+      PickEnumerable<KnowledgeNodeGroupByOutputType, T['by']> &
+        {
+          [P in ((keyof T) & (keyof KnowledgeNodeGroupByOutputType))]: P extends '_count'
+            ? T[P] extends boolean
+              ? number
+              : GetScalarType<T[P], KnowledgeNodeGroupByOutputType[P]>
+            : GetScalarType<T[P], KnowledgeNodeGroupByOutputType[P]>
+        }
+      >
+    >
+
+
+  export type KnowledgeNodeSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    projectId?: boolean
+    type?: boolean
+    label?: boolean
+    description?: boolean
+    metadata?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+    outEdges?: boolean | KnowledgeNode$outEdgesArgs<ExtArgs>
+    inEdges?: boolean | KnowledgeNode$inEdgesArgs<ExtArgs>
+    _count?: boolean | KnowledgeNodeCountOutputTypeDefaultArgs<ExtArgs>
+  }, ExtArgs["result"]["knowledgeNode"]>
+
+  export type KnowledgeNodeSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    projectId?: boolean
+    type?: boolean
+    label?: boolean
+    description?: boolean
+    metadata?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+  }, ExtArgs["result"]["knowledgeNode"]>
+
+  export type KnowledgeNodeSelectScalar = {
+    id?: boolean
+    projectId?: boolean
+    type?: boolean
+    label?: boolean
+    description?: boolean
+    metadata?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+  }
+
+  export type KnowledgeNodeInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    outEdges?: boolean | KnowledgeNode$outEdgesArgs<ExtArgs>
+    inEdges?: boolean | KnowledgeNode$inEdgesArgs<ExtArgs>
+    _count?: boolean | KnowledgeNodeCountOutputTypeDefaultArgs<ExtArgs>
+  }
+  export type KnowledgeNodeIncludeCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {}
+
+  export type $KnowledgeNodePayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    name: "KnowledgeNode"
+    objects: {
+      outEdges: Prisma.$KnowledgeEdgePayload<ExtArgs>[]
+      inEdges: Prisma.$KnowledgeEdgePayload<ExtArgs>[]
+    }
+    scalars: $Extensions.GetPayloadResult<{
+      id: string
+      projectId: string
+      type: string
+      label: string
+      description: string | null
+      metadata: Prisma.JsonValue
+      createdAt: Date
+      updatedAt: Date
+    }, ExtArgs["result"]["knowledgeNode"]>
+    composites: {}
+  }
+
+  type KnowledgeNodeGetPayload<S extends boolean | null | undefined | KnowledgeNodeDefaultArgs> = $Result.GetResult<Prisma.$KnowledgeNodePayload, S>
+
+  type KnowledgeNodeCountArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = 
+    Omit<KnowledgeNodeFindManyArgs, 'select' | 'include' | 'distinct'> & {
+      select?: KnowledgeNodeCountAggregateInputType | true
+    }
+
+  export interface KnowledgeNodeDelegate<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> {
+    [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['model']['KnowledgeNode'], meta: { name: 'KnowledgeNode' } }
+    /**
+     * Find zero or one KnowledgeNode that matches the filter.
+     * @param {KnowledgeNodeFindUniqueArgs} args - Arguments to find a KnowledgeNode
+     * @example
+     * // Get one KnowledgeNode
+     * const knowledgeNode = await prisma.knowledgeNode.findUnique({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUnique<T extends KnowledgeNodeFindUniqueArgs>(args: SelectSubset<T, KnowledgeNodeFindUniqueArgs<ExtArgs>>): Prisma__KnowledgeNodeClient<$Result.GetResult<Prisma.$KnowledgeNodePayload<ExtArgs>, T, "findUnique"> | null, null, ExtArgs>
+
+    /**
+     * Find one KnowledgeNode that matches the filter or throw an error with `error.code='P2025'` 
+     * if no matches were found.
+     * @param {KnowledgeNodeFindUniqueOrThrowArgs} args - Arguments to find a KnowledgeNode
+     * @example
+     * // Get one KnowledgeNode
+     * const knowledgeNode = await prisma.knowledgeNode.findUniqueOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUniqueOrThrow<T extends KnowledgeNodeFindUniqueOrThrowArgs>(args: SelectSubset<T, KnowledgeNodeFindUniqueOrThrowArgs<ExtArgs>>): Prisma__KnowledgeNodeClient<$Result.GetResult<Prisma.$KnowledgeNodePayload<ExtArgs>, T, "findUniqueOrThrow">, never, ExtArgs>
+
+    /**
+     * Find the first KnowledgeNode that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {KnowledgeNodeFindFirstArgs} args - Arguments to find a KnowledgeNode
+     * @example
+     * // Get one KnowledgeNode
+     * const knowledgeNode = await prisma.knowledgeNode.findFirst({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirst<T extends KnowledgeNodeFindFirstArgs>(args?: SelectSubset<T, KnowledgeNodeFindFirstArgs<ExtArgs>>): Prisma__KnowledgeNodeClient<$Result.GetResult<Prisma.$KnowledgeNodePayload<ExtArgs>, T, "findFirst"> | null, null, ExtArgs>
+
+    /**
+     * Find the first KnowledgeNode that matches the filter or
+     * throw `PrismaKnownClientError` with `P2025` code if no matches were found.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {KnowledgeNodeFindFirstOrThrowArgs} args - Arguments to find a KnowledgeNode
+     * @example
+     * // Get one KnowledgeNode
+     * const knowledgeNode = await prisma.knowledgeNode.findFirstOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirstOrThrow<T extends KnowledgeNodeFindFirstOrThrowArgs>(args?: SelectSubset<T, KnowledgeNodeFindFirstOrThrowArgs<ExtArgs>>): Prisma__KnowledgeNodeClient<$Result.GetResult<Prisma.$KnowledgeNodePayload<ExtArgs>, T, "findFirstOrThrow">, never, ExtArgs>
+
+    /**
+     * Find zero or more KnowledgeNodes that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {KnowledgeNodeFindManyArgs} args - Arguments to filter and select certain fields only.
+     * @example
+     * // Get all KnowledgeNodes
+     * const knowledgeNodes = await prisma.knowledgeNode.findMany()
+     * 
+     * // Get first 10 KnowledgeNodes
+     * const knowledgeNodes = await prisma.knowledgeNode.findMany({ take: 10 })
+     * 
+     * // Only select the `id`
+     * const knowledgeNodeWithIdOnly = await prisma.knowledgeNode.findMany({ select: { id: true } })
+     * 
+     */
+    findMany<T extends KnowledgeNodeFindManyArgs>(args?: SelectSubset<T, KnowledgeNodeFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$KnowledgeNodePayload<ExtArgs>, T, "findMany">>
+
+    /**
+     * Create a KnowledgeNode.
+     * @param {KnowledgeNodeCreateArgs} args - Arguments to create a KnowledgeNode.
+     * @example
+     * // Create one KnowledgeNode
+     * const KnowledgeNode = await prisma.knowledgeNode.create({
+     *   data: {
+     *     // ... data to create a KnowledgeNode
+     *   }
+     * })
+     * 
+     */
+    create<T extends KnowledgeNodeCreateArgs>(args: SelectSubset<T, KnowledgeNodeCreateArgs<ExtArgs>>): Prisma__KnowledgeNodeClient<$Result.GetResult<Prisma.$KnowledgeNodePayload<ExtArgs>, T, "create">, never, ExtArgs>
+
+    /**
+     * Create many KnowledgeNodes.
+     * @param {KnowledgeNodeCreateManyArgs} args - Arguments to create many KnowledgeNodes.
+     * @example
+     * // Create many KnowledgeNodes
+     * const knowledgeNode = await prisma.knowledgeNode.createMany({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     *     
+     */
+    createMany<T extends KnowledgeNodeCreateManyArgs>(args?: SelectSubset<T, KnowledgeNodeCreateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create many KnowledgeNodes and returns the data saved in the database.
+     * @param {KnowledgeNodeCreateManyAndReturnArgs} args - Arguments to create many KnowledgeNodes.
+     * @example
+     * // Create many KnowledgeNodes
+     * const knowledgeNode = await prisma.knowledgeNode.createManyAndReturn({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Create many KnowledgeNodes and only return the `id`
+     * const knowledgeNodeWithIdOnly = await prisma.knowledgeNode.createManyAndReturn({ 
+     *   select: { id: true },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    createManyAndReturn<T extends KnowledgeNodeCreateManyAndReturnArgs>(args?: SelectSubset<T, KnowledgeNodeCreateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$KnowledgeNodePayload<ExtArgs>, T, "createManyAndReturn">>
+
+    /**
+     * Delete a KnowledgeNode.
+     * @param {KnowledgeNodeDeleteArgs} args - Arguments to delete one KnowledgeNode.
+     * @example
+     * // Delete one KnowledgeNode
+     * const KnowledgeNode = await prisma.knowledgeNode.delete({
+     *   where: {
+     *     // ... filter to delete one KnowledgeNode
+     *   }
+     * })
+     * 
+     */
+    delete<T extends KnowledgeNodeDeleteArgs>(args: SelectSubset<T, KnowledgeNodeDeleteArgs<ExtArgs>>): Prisma__KnowledgeNodeClient<$Result.GetResult<Prisma.$KnowledgeNodePayload<ExtArgs>, T, "delete">, never, ExtArgs>
+
+    /**
+     * Update one KnowledgeNode.
+     * @param {KnowledgeNodeUpdateArgs} args - Arguments to update one KnowledgeNode.
+     * @example
+     * // Update one KnowledgeNode
+     * const knowledgeNode = await prisma.knowledgeNode.update({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    update<T extends KnowledgeNodeUpdateArgs>(args: SelectSubset<T, KnowledgeNodeUpdateArgs<ExtArgs>>): Prisma__KnowledgeNodeClient<$Result.GetResult<Prisma.$KnowledgeNodePayload<ExtArgs>, T, "update">, never, ExtArgs>
+
+    /**
+     * Delete zero or more KnowledgeNodes.
+     * @param {KnowledgeNodeDeleteManyArgs} args - Arguments to filter KnowledgeNodes to delete.
+     * @example
+     * // Delete a few KnowledgeNodes
+     * const { count } = await prisma.knowledgeNode.deleteMany({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     * 
+     */
+    deleteMany<T extends KnowledgeNodeDeleteManyArgs>(args?: SelectSubset<T, KnowledgeNodeDeleteManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more KnowledgeNodes.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {KnowledgeNodeUpdateManyArgs} args - Arguments to update one or more rows.
+     * @example
+     * // Update many KnowledgeNodes
+     * const knowledgeNode = await prisma.knowledgeNode.updateMany({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    updateMany<T extends KnowledgeNodeUpdateManyArgs>(args: SelectSubset<T, KnowledgeNodeUpdateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create or update one KnowledgeNode.
+     * @param {KnowledgeNodeUpsertArgs} args - Arguments to update or create a KnowledgeNode.
+     * @example
+     * // Update or create a KnowledgeNode
+     * const knowledgeNode = await prisma.knowledgeNode.upsert({
+     *   create: {
+     *     // ... data to create a KnowledgeNode
+     *   },
+     *   update: {
+     *     // ... in case it already exists, update
+     *   },
+     *   where: {
+     *     // ... the filter for the KnowledgeNode we want to update
+     *   }
+     * })
+     */
+    upsert<T extends KnowledgeNodeUpsertArgs>(args: SelectSubset<T, KnowledgeNodeUpsertArgs<ExtArgs>>): Prisma__KnowledgeNodeClient<$Result.GetResult<Prisma.$KnowledgeNodePayload<ExtArgs>, T, "upsert">, never, ExtArgs>
+
+
+    /**
+     * Count the number of KnowledgeNodes.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {KnowledgeNodeCountArgs} args - Arguments to filter KnowledgeNodes to count.
+     * @example
+     * // Count the number of KnowledgeNodes
+     * const count = await prisma.knowledgeNode.count({
+     *   where: {
+     *     // ... the filter for the KnowledgeNodes we want to count
+     *   }
+     * })
+    **/
+    count<T extends KnowledgeNodeCountArgs>(
+      args?: Subset<T, KnowledgeNodeCountArgs>,
+    ): Prisma.PrismaPromise<
+      T extends $Utils.Record<'select', any>
+        ? T['select'] extends true
+          ? number
+          : GetScalarType<T['select'], KnowledgeNodeCountAggregateOutputType>
+        : number
+    >
+
+    /**
+     * Allows you to perform aggregations operations on a KnowledgeNode.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {KnowledgeNodeAggregateArgs} args - Select which aggregations you would like to apply and on what fields.
+     * @example
+     * // Ordered by age ascending
+     * // Where email contains prisma.io
+     * // Limited to the 10 users
+     * const aggregations = await prisma.user.aggregate({
+     *   _avg: {
+     *     age: true,
+     *   },
+     *   where: {
+     *     email: {
+     *       contains: "prisma.io",
+     *     },
+     *   },
+     *   orderBy: {
+     *     age: "asc",
+     *   },
+     *   take: 10,
+     * })
+    **/
+    aggregate<T extends KnowledgeNodeAggregateArgs>(args: Subset<T, KnowledgeNodeAggregateArgs>): Prisma.PrismaPromise<GetKnowledgeNodeAggregateType<T>>
+
+    /**
+     * Group by KnowledgeNode.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {KnowledgeNodeGroupByArgs} args - Group by arguments.
+     * @example
+     * // Group by city, order by createdAt, get count
+     * const result = await prisma.user.groupBy({
+     *   by: ['city', 'createdAt'],
+     *   orderBy: {
+     *     createdAt: true
+     *   },
+     *   _count: {
+     *     _all: true
+     *   },
+     * })
+     * 
+    **/
+    groupBy<
+      T extends KnowledgeNodeGroupByArgs,
+      HasSelectOrTake extends Or<
+        Extends<'skip', Keys<T>>,
+        Extends<'take', Keys<T>>
+      >,
+      OrderByArg extends True extends HasSelectOrTake
+        ? { orderBy: KnowledgeNodeGroupByArgs['orderBy'] }
+        : { orderBy?: KnowledgeNodeGroupByArgs['orderBy'] },
+      OrderFields extends ExcludeUnderscoreKeys<Keys<MaybeTupleToUnion<T['orderBy']>>>,
+      ByFields extends MaybeTupleToUnion<T['by']>,
+      ByValid extends Has<ByFields, OrderFields>,
+      HavingFields extends GetHavingFields<T['having']>,
+      HavingValid extends Has<ByFields, HavingFields>,
+      ByEmpty extends T['by'] extends never[] ? True : False,
+      InputErrors extends ByEmpty extends True
+      ? `Error: "by" must not be empty.`
+      : HavingValid extends False
+      ? {
+          [P in HavingFields]: P extends ByFields
+            ? never
+            : P extends string
+            ? `Error: Field "${P}" used in "having" needs to be provided in "by".`
+            : [
+                Error,
+                'Field ',
+                P,
+                ` in "having" needs to be provided in "by"`,
+              ]
+        }[HavingFields]
+      : 'take' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "take", you also need to provide "orderBy"'
+      : 'skip' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "skip", you also need to provide "orderBy"'
+      : ByValid extends True
+      ? {}
+      : {
+          [P in OrderFields]: P extends ByFields
+            ? never
+            : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+        }[OrderFields]
+    >(args: SubsetIntersection<T, KnowledgeNodeGroupByArgs, OrderByArg> & InputErrors): {} extends InputErrors ? GetKnowledgeNodeGroupByPayload<T> : Prisma.PrismaPromise<InputErrors>
+  /**
+   * Fields of the KnowledgeNode model
+   */
+  readonly fields: KnowledgeNodeFieldRefs;
+  }
+
+  /**
+   * The delegate class that acts as a "Promise-like" for KnowledgeNode.
+   * Why is this prefixed with `Prisma__`?
+   * Because we want to prevent naming conflicts as mentioned in
+   * https://github.com/prisma/prisma-client-js/issues/707
+   */
+  export interface Prisma__KnowledgeNodeClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> extends Prisma.PrismaPromise<T> {
+    readonly [Symbol.toStringTag]: "PrismaPromise"
+    outEdges<T extends KnowledgeNode$outEdgesArgs<ExtArgs> = {}>(args?: Subset<T, KnowledgeNode$outEdgesArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$KnowledgeEdgePayload<ExtArgs>, T, "findMany"> | Null>
+    inEdges<T extends KnowledgeNode$inEdgesArgs<ExtArgs> = {}>(args?: Subset<T, KnowledgeNode$inEdgesArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$KnowledgeEdgePayload<ExtArgs>, T, "findMany"> | Null>
+    /**
+     * Attaches callbacks for the resolution and/or rejection of the Promise.
+     * @param onfulfilled The callback to execute when the Promise is resolved.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of which ever callback is executed.
+     */
+    then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): $Utils.JsPromise<TResult1 | TResult2>
+    /**
+     * Attaches a callback for only the rejection of the Promise.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of the callback.
+     */
+    catch<TResult = never>(onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | undefined | null): $Utils.JsPromise<T | TResult>
+    /**
+     * Attaches a callback that is invoked when the Promise is settled (fulfilled or rejected). The
+     * resolved value cannot be modified from the callback.
+     * @param onfinally The callback to execute when the Promise is settled (fulfilled or rejected).
+     * @returns A Promise for the completion of the callback.
+     */
+    finally(onfinally?: (() => void) | undefined | null): $Utils.JsPromise<T>
+  }
+
+
+
+
+  /**
+   * Fields of the KnowledgeNode model
+   */ 
+  interface KnowledgeNodeFieldRefs {
+    readonly id: FieldRef<"KnowledgeNode", 'String'>
+    readonly projectId: FieldRef<"KnowledgeNode", 'String'>
+    readonly type: FieldRef<"KnowledgeNode", 'String'>
+    readonly label: FieldRef<"KnowledgeNode", 'String'>
+    readonly description: FieldRef<"KnowledgeNode", 'String'>
+    readonly metadata: FieldRef<"KnowledgeNode", 'Json'>
+    readonly createdAt: FieldRef<"KnowledgeNode", 'DateTime'>
+    readonly updatedAt: FieldRef<"KnowledgeNode", 'DateTime'>
+  }
+    
+
+  // Custom InputTypes
+  /**
+   * KnowledgeNode findUnique
+   */
+  export type KnowledgeNodeFindUniqueArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the KnowledgeNode
+     */
+    select?: KnowledgeNodeSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: KnowledgeNodeInclude<ExtArgs> | null
+    /**
+     * Filter, which KnowledgeNode to fetch.
+     */
+    where: KnowledgeNodeWhereUniqueInput
+  }
+
+  /**
+   * KnowledgeNode findUniqueOrThrow
+   */
+  export type KnowledgeNodeFindUniqueOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the KnowledgeNode
+     */
+    select?: KnowledgeNodeSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: KnowledgeNodeInclude<ExtArgs> | null
+    /**
+     * Filter, which KnowledgeNode to fetch.
+     */
+    where: KnowledgeNodeWhereUniqueInput
+  }
+
+  /**
+   * KnowledgeNode findFirst
+   */
+  export type KnowledgeNodeFindFirstArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the KnowledgeNode
+     */
+    select?: KnowledgeNodeSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: KnowledgeNodeInclude<ExtArgs> | null
+    /**
+     * Filter, which KnowledgeNode to fetch.
+     */
+    where?: KnowledgeNodeWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of KnowledgeNodes to fetch.
+     */
+    orderBy?: KnowledgeNodeOrderByWithRelationInput | KnowledgeNodeOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for KnowledgeNodes.
+     */
+    cursor?: KnowledgeNodeWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` KnowledgeNodes from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` KnowledgeNodes.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of KnowledgeNodes.
+     */
+    distinct?: KnowledgeNodeScalarFieldEnum | KnowledgeNodeScalarFieldEnum[]
+  }
+
+  /**
+   * KnowledgeNode findFirstOrThrow
+   */
+  export type KnowledgeNodeFindFirstOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the KnowledgeNode
+     */
+    select?: KnowledgeNodeSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: KnowledgeNodeInclude<ExtArgs> | null
+    /**
+     * Filter, which KnowledgeNode to fetch.
+     */
+    where?: KnowledgeNodeWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of KnowledgeNodes to fetch.
+     */
+    orderBy?: KnowledgeNodeOrderByWithRelationInput | KnowledgeNodeOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for KnowledgeNodes.
+     */
+    cursor?: KnowledgeNodeWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` KnowledgeNodes from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` KnowledgeNodes.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of KnowledgeNodes.
+     */
+    distinct?: KnowledgeNodeScalarFieldEnum | KnowledgeNodeScalarFieldEnum[]
+  }
+
+  /**
+   * KnowledgeNode findMany
+   */
+  export type KnowledgeNodeFindManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the KnowledgeNode
+     */
+    select?: KnowledgeNodeSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: KnowledgeNodeInclude<ExtArgs> | null
+    /**
+     * Filter, which KnowledgeNodes to fetch.
+     */
+    where?: KnowledgeNodeWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of KnowledgeNodes to fetch.
+     */
+    orderBy?: KnowledgeNodeOrderByWithRelationInput | KnowledgeNodeOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for listing KnowledgeNodes.
+     */
+    cursor?: KnowledgeNodeWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` KnowledgeNodes from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` KnowledgeNodes.
+     */
+    skip?: number
+    distinct?: KnowledgeNodeScalarFieldEnum | KnowledgeNodeScalarFieldEnum[]
+  }
+
+  /**
+   * KnowledgeNode create
+   */
+  export type KnowledgeNodeCreateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the KnowledgeNode
+     */
+    select?: KnowledgeNodeSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: KnowledgeNodeInclude<ExtArgs> | null
+    /**
+     * The data needed to create a KnowledgeNode.
+     */
+    data: XOR<KnowledgeNodeCreateInput, KnowledgeNodeUncheckedCreateInput>
+  }
+
+  /**
+   * KnowledgeNode createMany
+   */
+  export type KnowledgeNodeCreateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to create many KnowledgeNodes.
+     */
+    data: KnowledgeNodeCreateManyInput | KnowledgeNodeCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * KnowledgeNode createManyAndReturn
+   */
+  export type KnowledgeNodeCreateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the KnowledgeNode
+     */
+    select?: KnowledgeNodeSelectCreateManyAndReturn<ExtArgs> | null
+    /**
+     * The data used to create many KnowledgeNodes.
+     */
+    data: KnowledgeNodeCreateManyInput | KnowledgeNodeCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * KnowledgeNode update
+   */
+  export type KnowledgeNodeUpdateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the KnowledgeNode
+     */
+    select?: KnowledgeNodeSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: KnowledgeNodeInclude<ExtArgs> | null
+    /**
+     * The data needed to update a KnowledgeNode.
+     */
+    data: XOR<KnowledgeNodeUpdateInput, KnowledgeNodeUncheckedUpdateInput>
+    /**
+     * Choose, which KnowledgeNode to update.
+     */
+    where: KnowledgeNodeWhereUniqueInput
+  }
+
+  /**
+   * KnowledgeNode updateMany
+   */
+  export type KnowledgeNodeUpdateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to update KnowledgeNodes.
+     */
+    data: XOR<KnowledgeNodeUpdateManyMutationInput, KnowledgeNodeUncheckedUpdateManyInput>
+    /**
+     * Filter which KnowledgeNodes to update
+     */
+    where?: KnowledgeNodeWhereInput
+  }
+
+  /**
+   * KnowledgeNode upsert
+   */
+  export type KnowledgeNodeUpsertArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the KnowledgeNode
+     */
+    select?: KnowledgeNodeSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: KnowledgeNodeInclude<ExtArgs> | null
+    /**
+     * The filter to search for the KnowledgeNode to update in case it exists.
+     */
+    where: KnowledgeNodeWhereUniqueInput
+    /**
+     * In case the KnowledgeNode found by the `where` argument doesn't exist, create a new KnowledgeNode with this data.
+     */
+    create: XOR<KnowledgeNodeCreateInput, KnowledgeNodeUncheckedCreateInput>
+    /**
+     * In case the KnowledgeNode was found with the provided `where` argument, update it with this data.
+     */
+    update: XOR<KnowledgeNodeUpdateInput, KnowledgeNodeUncheckedUpdateInput>
+  }
+
+  /**
+   * KnowledgeNode delete
+   */
+  export type KnowledgeNodeDeleteArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the KnowledgeNode
+     */
+    select?: KnowledgeNodeSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: KnowledgeNodeInclude<ExtArgs> | null
+    /**
+     * Filter which KnowledgeNode to delete.
+     */
+    where: KnowledgeNodeWhereUniqueInput
+  }
+
+  /**
+   * KnowledgeNode deleteMany
+   */
+  export type KnowledgeNodeDeleteManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which KnowledgeNodes to delete
+     */
+    where?: KnowledgeNodeWhereInput
+  }
+
+  /**
+   * KnowledgeNode.outEdges
+   */
+  export type KnowledgeNode$outEdgesArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the KnowledgeEdge
+     */
+    select?: KnowledgeEdgeSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: KnowledgeEdgeInclude<ExtArgs> | null
+    where?: KnowledgeEdgeWhereInput
+    orderBy?: KnowledgeEdgeOrderByWithRelationInput | KnowledgeEdgeOrderByWithRelationInput[]
+    cursor?: KnowledgeEdgeWhereUniqueInput
+    take?: number
+    skip?: number
+    distinct?: KnowledgeEdgeScalarFieldEnum | KnowledgeEdgeScalarFieldEnum[]
+  }
+
+  /**
+   * KnowledgeNode.inEdges
+   */
+  export type KnowledgeNode$inEdgesArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the KnowledgeEdge
+     */
+    select?: KnowledgeEdgeSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: KnowledgeEdgeInclude<ExtArgs> | null
+    where?: KnowledgeEdgeWhereInput
+    orderBy?: KnowledgeEdgeOrderByWithRelationInput | KnowledgeEdgeOrderByWithRelationInput[]
+    cursor?: KnowledgeEdgeWhereUniqueInput
+    take?: number
+    skip?: number
+    distinct?: KnowledgeEdgeScalarFieldEnum | KnowledgeEdgeScalarFieldEnum[]
+  }
+
+  /**
+   * KnowledgeNode without action
+   */
+  export type KnowledgeNodeDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the KnowledgeNode
+     */
+    select?: KnowledgeNodeSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: KnowledgeNodeInclude<ExtArgs> | null
+  }
+
+
+  /**
+   * Model KnowledgeEdge
+   */
+
+  export type AggregateKnowledgeEdge = {
+    _count: KnowledgeEdgeCountAggregateOutputType | null
+    _avg: KnowledgeEdgeAvgAggregateOutputType | null
+    _sum: KnowledgeEdgeSumAggregateOutputType | null
+    _min: KnowledgeEdgeMinAggregateOutputType | null
+    _max: KnowledgeEdgeMaxAggregateOutputType | null
+  }
+
+  export type KnowledgeEdgeAvgAggregateOutputType = {
+    weight: number | null
+  }
+
+  export type KnowledgeEdgeSumAggregateOutputType = {
+    weight: number | null
+  }
+
+  export type KnowledgeEdgeMinAggregateOutputType = {
+    id: string | null
+    projectId: string | null
+    fromId: string | null
+    toId: string | null
+    relation: string | null
+    weight: number | null
+    source: string | null
+    createdAt: Date | null
+  }
+
+  export type KnowledgeEdgeMaxAggregateOutputType = {
+    id: string | null
+    projectId: string | null
+    fromId: string | null
+    toId: string | null
+    relation: string | null
+    weight: number | null
+    source: string | null
+    createdAt: Date | null
+  }
+
+  export type KnowledgeEdgeCountAggregateOutputType = {
+    id: number
+    projectId: number
+    fromId: number
+    toId: number
+    relation: number
+    weight: number
+    source: number
+    createdAt: number
+    _all: number
+  }
+
+
+  export type KnowledgeEdgeAvgAggregateInputType = {
+    weight?: true
+  }
+
+  export type KnowledgeEdgeSumAggregateInputType = {
+    weight?: true
+  }
+
+  export type KnowledgeEdgeMinAggregateInputType = {
+    id?: true
+    projectId?: true
+    fromId?: true
+    toId?: true
+    relation?: true
+    weight?: true
+    source?: true
+    createdAt?: true
+  }
+
+  export type KnowledgeEdgeMaxAggregateInputType = {
+    id?: true
+    projectId?: true
+    fromId?: true
+    toId?: true
+    relation?: true
+    weight?: true
+    source?: true
+    createdAt?: true
+  }
+
+  export type KnowledgeEdgeCountAggregateInputType = {
+    id?: true
+    projectId?: true
+    fromId?: true
+    toId?: true
+    relation?: true
+    weight?: true
+    source?: true
+    createdAt?: true
+    _all?: true
+  }
+
+  export type KnowledgeEdgeAggregateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which KnowledgeEdge to aggregate.
+     */
+    where?: KnowledgeEdgeWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of KnowledgeEdges to fetch.
+     */
+    orderBy?: KnowledgeEdgeOrderByWithRelationInput | KnowledgeEdgeOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the start position
+     */
+    cursor?: KnowledgeEdgeWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` KnowledgeEdges from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` KnowledgeEdges.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Count returned KnowledgeEdges
+    **/
+    _count?: true | KnowledgeEdgeCountAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to average
+    **/
+    _avg?: KnowledgeEdgeAvgAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to sum
+    **/
+    _sum?: KnowledgeEdgeSumAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the minimum value
+    **/
+    _min?: KnowledgeEdgeMinAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the maximum value
+    **/
+    _max?: KnowledgeEdgeMaxAggregateInputType
+  }
+
+  export type GetKnowledgeEdgeAggregateType<T extends KnowledgeEdgeAggregateArgs> = {
+        [P in keyof T & keyof AggregateKnowledgeEdge]: P extends '_count' | 'count'
+      ? T[P] extends true
+        ? number
+        : GetScalarType<T[P], AggregateKnowledgeEdge[P]>
+      : GetScalarType<T[P], AggregateKnowledgeEdge[P]>
+  }
+
+
+
+
+  export type KnowledgeEdgeGroupByArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: KnowledgeEdgeWhereInput
+    orderBy?: KnowledgeEdgeOrderByWithAggregationInput | KnowledgeEdgeOrderByWithAggregationInput[]
+    by: KnowledgeEdgeScalarFieldEnum[] | KnowledgeEdgeScalarFieldEnum
+    having?: KnowledgeEdgeScalarWhereWithAggregatesInput
+    take?: number
+    skip?: number
+    _count?: KnowledgeEdgeCountAggregateInputType | true
+    _avg?: KnowledgeEdgeAvgAggregateInputType
+    _sum?: KnowledgeEdgeSumAggregateInputType
+    _min?: KnowledgeEdgeMinAggregateInputType
+    _max?: KnowledgeEdgeMaxAggregateInputType
+  }
+
+  export type KnowledgeEdgeGroupByOutputType = {
+    id: string
+    projectId: string
+    fromId: string
+    toId: string
+    relation: string
+    weight: number
+    source: string
+    createdAt: Date
+    _count: KnowledgeEdgeCountAggregateOutputType | null
+    _avg: KnowledgeEdgeAvgAggregateOutputType | null
+    _sum: KnowledgeEdgeSumAggregateOutputType | null
+    _min: KnowledgeEdgeMinAggregateOutputType | null
+    _max: KnowledgeEdgeMaxAggregateOutputType | null
+  }
+
+  type GetKnowledgeEdgeGroupByPayload<T extends KnowledgeEdgeGroupByArgs> = Prisma.PrismaPromise<
+    Array<
+      PickEnumerable<KnowledgeEdgeGroupByOutputType, T['by']> &
+        {
+          [P in ((keyof T) & (keyof KnowledgeEdgeGroupByOutputType))]: P extends '_count'
+            ? T[P] extends boolean
+              ? number
+              : GetScalarType<T[P], KnowledgeEdgeGroupByOutputType[P]>
+            : GetScalarType<T[P], KnowledgeEdgeGroupByOutputType[P]>
+        }
+      >
+    >
+
+
+  export type KnowledgeEdgeSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    projectId?: boolean
+    fromId?: boolean
+    toId?: boolean
+    relation?: boolean
+    weight?: boolean
+    source?: boolean
+    createdAt?: boolean
+    from?: boolean | KnowledgeNodeDefaultArgs<ExtArgs>
+    to?: boolean | KnowledgeNodeDefaultArgs<ExtArgs>
+  }, ExtArgs["result"]["knowledgeEdge"]>
+
+  export type KnowledgeEdgeSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    projectId?: boolean
+    fromId?: boolean
+    toId?: boolean
+    relation?: boolean
+    weight?: boolean
+    source?: boolean
+    createdAt?: boolean
+    from?: boolean | KnowledgeNodeDefaultArgs<ExtArgs>
+    to?: boolean | KnowledgeNodeDefaultArgs<ExtArgs>
+  }, ExtArgs["result"]["knowledgeEdge"]>
+
+  export type KnowledgeEdgeSelectScalar = {
+    id?: boolean
+    projectId?: boolean
+    fromId?: boolean
+    toId?: boolean
+    relation?: boolean
+    weight?: boolean
+    source?: boolean
+    createdAt?: boolean
+  }
+
+  export type KnowledgeEdgeInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    from?: boolean | KnowledgeNodeDefaultArgs<ExtArgs>
+    to?: boolean | KnowledgeNodeDefaultArgs<ExtArgs>
+  }
+  export type KnowledgeEdgeIncludeCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    from?: boolean | KnowledgeNodeDefaultArgs<ExtArgs>
+    to?: boolean | KnowledgeNodeDefaultArgs<ExtArgs>
+  }
+
+  export type $KnowledgeEdgePayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    name: "KnowledgeEdge"
+    objects: {
+      from: Prisma.$KnowledgeNodePayload<ExtArgs>
+      to: Prisma.$KnowledgeNodePayload<ExtArgs>
+    }
+    scalars: $Extensions.GetPayloadResult<{
+      id: string
+      projectId: string
+      fromId: string
+      toId: string
+      relation: string
+      weight: number
+      source: string
+      createdAt: Date
+    }, ExtArgs["result"]["knowledgeEdge"]>
+    composites: {}
+  }
+
+  type KnowledgeEdgeGetPayload<S extends boolean | null | undefined | KnowledgeEdgeDefaultArgs> = $Result.GetResult<Prisma.$KnowledgeEdgePayload, S>
+
+  type KnowledgeEdgeCountArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = 
+    Omit<KnowledgeEdgeFindManyArgs, 'select' | 'include' | 'distinct'> & {
+      select?: KnowledgeEdgeCountAggregateInputType | true
+    }
+
+  export interface KnowledgeEdgeDelegate<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> {
+    [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['model']['KnowledgeEdge'], meta: { name: 'KnowledgeEdge' } }
+    /**
+     * Find zero or one KnowledgeEdge that matches the filter.
+     * @param {KnowledgeEdgeFindUniqueArgs} args - Arguments to find a KnowledgeEdge
+     * @example
+     * // Get one KnowledgeEdge
+     * const knowledgeEdge = await prisma.knowledgeEdge.findUnique({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUnique<T extends KnowledgeEdgeFindUniqueArgs>(args: SelectSubset<T, KnowledgeEdgeFindUniqueArgs<ExtArgs>>): Prisma__KnowledgeEdgeClient<$Result.GetResult<Prisma.$KnowledgeEdgePayload<ExtArgs>, T, "findUnique"> | null, null, ExtArgs>
+
+    /**
+     * Find one KnowledgeEdge that matches the filter or throw an error with `error.code='P2025'` 
+     * if no matches were found.
+     * @param {KnowledgeEdgeFindUniqueOrThrowArgs} args - Arguments to find a KnowledgeEdge
+     * @example
+     * // Get one KnowledgeEdge
+     * const knowledgeEdge = await prisma.knowledgeEdge.findUniqueOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUniqueOrThrow<T extends KnowledgeEdgeFindUniqueOrThrowArgs>(args: SelectSubset<T, KnowledgeEdgeFindUniqueOrThrowArgs<ExtArgs>>): Prisma__KnowledgeEdgeClient<$Result.GetResult<Prisma.$KnowledgeEdgePayload<ExtArgs>, T, "findUniqueOrThrow">, never, ExtArgs>
+
+    /**
+     * Find the first KnowledgeEdge that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {KnowledgeEdgeFindFirstArgs} args - Arguments to find a KnowledgeEdge
+     * @example
+     * // Get one KnowledgeEdge
+     * const knowledgeEdge = await prisma.knowledgeEdge.findFirst({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirst<T extends KnowledgeEdgeFindFirstArgs>(args?: SelectSubset<T, KnowledgeEdgeFindFirstArgs<ExtArgs>>): Prisma__KnowledgeEdgeClient<$Result.GetResult<Prisma.$KnowledgeEdgePayload<ExtArgs>, T, "findFirst"> | null, null, ExtArgs>
+
+    /**
+     * Find the first KnowledgeEdge that matches the filter or
+     * throw `PrismaKnownClientError` with `P2025` code if no matches were found.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {KnowledgeEdgeFindFirstOrThrowArgs} args - Arguments to find a KnowledgeEdge
+     * @example
+     * // Get one KnowledgeEdge
+     * const knowledgeEdge = await prisma.knowledgeEdge.findFirstOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirstOrThrow<T extends KnowledgeEdgeFindFirstOrThrowArgs>(args?: SelectSubset<T, KnowledgeEdgeFindFirstOrThrowArgs<ExtArgs>>): Prisma__KnowledgeEdgeClient<$Result.GetResult<Prisma.$KnowledgeEdgePayload<ExtArgs>, T, "findFirstOrThrow">, never, ExtArgs>
+
+    /**
+     * Find zero or more KnowledgeEdges that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {KnowledgeEdgeFindManyArgs} args - Arguments to filter and select certain fields only.
+     * @example
+     * // Get all KnowledgeEdges
+     * const knowledgeEdges = await prisma.knowledgeEdge.findMany()
+     * 
+     * // Get first 10 KnowledgeEdges
+     * const knowledgeEdges = await prisma.knowledgeEdge.findMany({ take: 10 })
+     * 
+     * // Only select the `id`
+     * const knowledgeEdgeWithIdOnly = await prisma.knowledgeEdge.findMany({ select: { id: true } })
+     * 
+     */
+    findMany<T extends KnowledgeEdgeFindManyArgs>(args?: SelectSubset<T, KnowledgeEdgeFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$KnowledgeEdgePayload<ExtArgs>, T, "findMany">>
+
+    /**
+     * Create a KnowledgeEdge.
+     * @param {KnowledgeEdgeCreateArgs} args - Arguments to create a KnowledgeEdge.
+     * @example
+     * // Create one KnowledgeEdge
+     * const KnowledgeEdge = await prisma.knowledgeEdge.create({
+     *   data: {
+     *     // ... data to create a KnowledgeEdge
+     *   }
+     * })
+     * 
+     */
+    create<T extends KnowledgeEdgeCreateArgs>(args: SelectSubset<T, KnowledgeEdgeCreateArgs<ExtArgs>>): Prisma__KnowledgeEdgeClient<$Result.GetResult<Prisma.$KnowledgeEdgePayload<ExtArgs>, T, "create">, never, ExtArgs>
+
+    /**
+     * Create many KnowledgeEdges.
+     * @param {KnowledgeEdgeCreateManyArgs} args - Arguments to create many KnowledgeEdges.
+     * @example
+     * // Create many KnowledgeEdges
+     * const knowledgeEdge = await prisma.knowledgeEdge.createMany({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     *     
+     */
+    createMany<T extends KnowledgeEdgeCreateManyArgs>(args?: SelectSubset<T, KnowledgeEdgeCreateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create many KnowledgeEdges and returns the data saved in the database.
+     * @param {KnowledgeEdgeCreateManyAndReturnArgs} args - Arguments to create many KnowledgeEdges.
+     * @example
+     * // Create many KnowledgeEdges
+     * const knowledgeEdge = await prisma.knowledgeEdge.createManyAndReturn({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Create many KnowledgeEdges and only return the `id`
+     * const knowledgeEdgeWithIdOnly = await prisma.knowledgeEdge.createManyAndReturn({ 
+     *   select: { id: true },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    createManyAndReturn<T extends KnowledgeEdgeCreateManyAndReturnArgs>(args?: SelectSubset<T, KnowledgeEdgeCreateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$KnowledgeEdgePayload<ExtArgs>, T, "createManyAndReturn">>
+
+    /**
+     * Delete a KnowledgeEdge.
+     * @param {KnowledgeEdgeDeleteArgs} args - Arguments to delete one KnowledgeEdge.
+     * @example
+     * // Delete one KnowledgeEdge
+     * const KnowledgeEdge = await prisma.knowledgeEdge.delete({
+     *   where: {
+     *     // ... filter to delete one KnowledgeEdge
+     *   }
+     * })
+     * 
+     */
+    delete<T extends KnowledgeEdgeDeleteArgs>(args: SelectSubset<T, KnowledgeEdgeDeleteArgs<ExtArgs>>): Prisma__KnowledgeEdgeClient<$Result.GetResult<Prisma.$KnowledgeEdgePayload<ExtArgs>, T, "delete">, never, ExtArgs>
+
+    /**
+     * Update one KnowledgeEdge.
+     * @param {KnowledgeEdgeUpdateArgs} args - Arguments to update one KnowledgeEdge.
+     * @example
+     * // Update one KnowledgeEdge
+     * const knowledgeEdge = await prisma.knowledgeEdge.update({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    update<T extends KnowledgeEdgeUpdateArgs>(args: SelectSubset<T, KnowledgeEdgeUpdateArgs<ExtArgs>>): Prisma__KnowledgeEdgeClient<$Result.GetResult<Prisma.$KnowledgeEdgePayload<ExtArgs>, T, "update">, never, ExtArgs>
+
+    /**
+     * Delete zero or more KnowledgeEdges.
+     * @param {KnowledgeEdgeDeleteManyArgs} args - Arguments to filter KnowledgeEdges to delete.
+     * @example
+     * // Delete a few KnowledgeEdges
+     * const { count } = await prisma.knowledgeEdge.deleteMany({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     * 
+     */
+    deleteMany<T extends KnowledgeEdgeDeleteManyArgs>(args?: SelectSubset<T, KnowledgeEdgeDeleteManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more KnowledgeEdges.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {KnowledgeEdgeUpdateManyArgs} args - Arguments to update one or more rows.
+     * @example
+     * // Update many KnowledgeEdges
+     * const knowledgeEdge = await prisma.knowledgeEdge.updateMany({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    updateMany<T extends KnowledgeEdgeUpdateManyArgs>(args: SelectSubset<T, KnowledgeEdgeUpdateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create or update one KnowledgeEdge.
+     * @param {KnowledgeEdgeUpsertArgs} args - Arguments to update or create a KnowledgeEdge.
+     * @example
+     * // Update or create a KnowledgeEdge
+     * const knowledgeEdge = await prisma.knowledgeEdge.upsert({
+     *   create: {
+     *     // ... data to create a KnowledgeEdge
+     *   },
+     *   update: {
+     *     // ... in case it already exists, update
+     *   },
+     *   where: {
+     *     // ... the filter for the KnowledgeEdge we want to update
+     *   }
+     * })
+     */
+    upsert<T extends KnowledgeEdgeUpsertArgs>(args: SelectSubset<T, KnowledgeEdgeUpsertArgs<ExtArgs>>): Prisma__KnowledgeEdgeClient<$Result.GetResult<Prisma.$KnowledgeEdgePayload<ExtArgs>, T, "upsert">, never, ExtArgs>
+
+
+    /**
+     * Count the number of KnowledgeEdges.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {KnowledgeEdgeCountArgs} args - Arguments to filter KnowledgeEdges to count.
+     * @example
+     * // Count the number of KnowledgeEdges
+     * const count = await prisma.knowledgeEdge.count({
+     *   where: {
+     *     // ... the filter for the KnowledgeEdges we want to count
+     *   }
+     * })
+    **/
+    count<T extends KnowledgeEdgeCountArgs>(
+      args?: Subset<T, KnowledgeEdgeCountArgs>,
+    ): Prisma.PrismaPromise<
+      T extends $Utils.Record<'select', any>
+        ? T['select'] extends true
+          ? number
+          : GetScalarType<T['select'], KnowledgeEdgeCountAggregateOutputType>
+        : number
+    >
+
+    /**
+     * Allows you to perform aggregations operations on a KnowledgeEdge.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {KnowledgeEdgeAggregateArgs} args - Select which aggregations you would like to apply and on what fields.
+     * @example
+     * // Ordered by age ascending
+     * // Where email contains prisma.io
+     * // Limited to the 10 users
+     * const aggregations = await prisma.user.aggregate({
+     *   _avg: {
+     *     age: true,
+     *   },
+     *   where: {
+     *     email: {
+     *       contains: "prisma.io",
+     *     },
+     *   },
+     *   orderBy: {
+     *     age: "asc",
+     *   },
+     *   take: 10,
+     * })
+    **/
+    aggregate<T extends KnowledgeEdgeAggregateArgs>(args: Subset<T, KnowledgeEdgeAggregateArgs>): Prisma.PrismaPromise<GetKnowledgeEdgeAggregateType<T>>
+
+    /**
+     * Group by KnowledgeEdge.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {KnowledgeEdgeGroupByArgs} args - Group by arguments.
+     * @example
+     * // Group by city, order by createdAt, get count
+     * const result = await prisma.user.groupBy({
+     *   by: ['city', 'createdAt'],
+     *   orderBy: {
+     *     createdAt: true
+     *   },
+     *   _count: {
+     *     _all: true
+     *   },
+     * })
+     * 
+    **/
+    groupBy<
+      T extends KnowledgeEdgeGroupByArgs,
+      HasSelectOrTake extends Or<
+        Extends<'skip', Keys<T>>,
+        Extends<'take', Keys<T>>
+      >,
+      OrderByArg extends True extends HasSelectOrTake
+        ? { orderBy: KnowledgeEdgeGroupByArgs['orderBy'] }
+        : { orderBy?: KnowledgeEdgeGroupByArgs['orderBy'] },
+      OrderFields extends ExcludeUnderscoreKeys<Keys<MaybeTupleToUnion<T['orderBy']>>>,
+      ByFields extends MaybeTupleToUnion<T['by']>,
+      ByValid extends Has<ByFields, OrderFields>,
+      HavingFields extends GetHavingFields<T['having']>,
+      HavingValid extends Has<ByFields, HavingFields>,
+      ByEmpty extends T['by'] extends never[] ? True : False,
+      InputErrors extends ByEmpty extends True
+      ? `Error: "by" must not be empty.`
+      : HavingValid extends False
+      ? {
+          [P in HavingFields]: P extends ByFields
+            ? never
+            : P extends string
+            ? `Error: Field "${P}" used in "having" needs to be provided in "by".`
+            : [
+                Error,
+                'Field ',
+                P,
+                ` in "having" needs to be provided in "by"`,
+              ]
+        }[HavingFields]
+      : 'take' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "take", you also need to provide "orderBy"'
+      : 'skip' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "skip", you also need to provide "orderBy"'
+      : ByValid extends True
+      ? {}
+      : {
+          [P in OrderFields]: P extends ByFields
+            ? never
+            : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+        }[OrderFields]
+    >(args: SubsetIntersection<T, KnowledgeEdgeGroupByArgs, OrderByArg> & InputErrors): {} extends InputErrors ? GetKnowledgeEdgeGroupByPayload<T> : Prisma.PrismaPromise<InputErrors>
+  /**
+   * Fields of the KnowledgeEdge model
+   */
+  readonly fields: KnowledgeEdgeFieldRefs;
+  }
+
+  /**
+   * The delegate class that acts as a "Promise-like" for KnowledgeEdge.
+   * Why is this prefixed with `Prisma__`?
+   * Because we want to prevent naming conflicts as mentioned in
+   * https://github.com/prisma/prisma-client-js/issues/707
+   */
+  export interface Prisma__KnowledgeEdgeClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> extends Prisma.PrismaPromise<T> {
+    readonly [Symbol.toStringTag]: "PrismaPromise"
+    from<T extends KnowledgeNodeDefaultArgs<ExtArgs> = {}>(args?: Subset<T, KnowledgeNodeDefaultArgs<ExtArgs>>): Prisma__KnowledgeNodeClient<$Result.GetResult<Prisma.$KnowledgeNodePayload<ExtArgs>, T, "findUniqueOrThrow"> | Null, Null, ExtArgs>
+    to<T extends KnowledgeNodeDefaultArgs<ExtArgs> = {}>(args?: Subset<T, KnowledgeNodeDefaultArgs<ExtArgs>>): Prisma__KnowledgeNodeClient<$Result.GetResult<Prisma.$KnowledgeNodePayload<ExtArgs>, T, "findUniqueOrThrow"> | Null, Null, ExtArgs>
+    /**
+     * Attaches callbacks for the resolution and/or rejection of the Promise.
+     * @param onfulfilled The callback to execute when the Promise is resolved.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of which ever callback is executed.
+     */
+    then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): $Utils.JsPromise<TResult1 | TResult2>
+    /**
+     * Attaches a callback for only the rejection of the Promise.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of the callback.
+     */
+    catch<TResult = never>(onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | undefined | null): $Utils.JsPromise<T | TResult>
+    /**
+     * Attaches a callback that is invoked when the Promise is settled (fulfilled or rejected). The
+     * resolved value cannot be modified from the callback.
+     * @param onfinally The callback to execute when the Promise is settled (fulfilled or rejected).
+     * @returns A Promise for the completion of the callback.
+     */
+    finally(onfinally?: (() => void) | undefined | null): $Utils.JsPromise<T>
+  }
+
+
+
+
+  /**
+   * Fields of the KnowledgeEdge model
+   */ 
+  interface KnowledgeEdgeFieldRefs {
+    readonly id: FieldRef<"KnowledgeEdge", 'String'>
+    readonly projectId: FieldRef<"KnowledgeEdge", 'String'>
+    readonly fromId: FieldRef<"KnowledgeEdge", 'String'>
+    readonly toId: FieldRef<"KnowledgeEdge", 'String'>
+    readonly relation: FieldRef<"KnowledgeEdge", 'String'>
+    readonly weight: FieldRef<"KnowledgeEdge", 'Float'>
+    readonly source: FieldRef<"KnowledgeEdge", 'String'>
+    readonly createdAt: FieldRef<"KnowledgeEdge", 'DateTime'>
+  }
+    
+
+  // Custom InputTypes
+  /**
+   * KnowledgeEdge findUnique
+   */
+  export type KnowledgeEdgeFindUniqueArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the KnowledgeEdge
+     */
+    select?: KnowledgeEdgeSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: KnowledgeEdgeInclude<ExtArgs> | null
+    /**
+     * Filter, which KnowledgeEdge to fetch.
+     */
+    where: KnowledgeEdgeWhereUniqueInput
+  }
+
+  /**
+   * KnowledgeEdge findUniqueOrThrow
+   */
+  export type KnowledgeEdgeFindUniqueOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the KnowledgeEdge
+     */
+    select?: KnowledgeEdgeSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: KnowledgeEdgeInclude<ExtArgs> | null
+    /**
+     * Filter, which KnowledgeEdge to fetch.
+     */
+    where: KnowledgeEdgeWhereUniqueInput
+  }
+
+  /**
+   * KnowledgeEdge findFirst
+   */
+  export type KnowledgeEdgeFindFirstArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the KnowledgeEdge
+     */
+    select?: KnowledgeEdgeSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: KnowledgeEdgeInclude<ExtArgs> | null
+    /**
+     * Filter, which KnowledgeEdge to fetch.
+     */
+    where?: KnowledgeEdgeWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of KnowledgeEdges to fetch.
+     */
+    orderBy?: KnowledgeEdgeOrderByWithRelationInput | KnowledgeEdgeOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for KnowledgeEdges.
+     */
+    cursor?: KnowledgeEdgeWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` KnowledgeEdges from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` KnowledgeEdges.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of KnowledgeEdges.
+     */
+    distinct?: KnowledgeEdgeScalarFieldEnum | KnowledgeEdgeScalarFieldEnum[]
+  }
+
+  /**
+   * KnowledgeEdge findFirstOrThrow
+   */
+  export type KnowledgeEdgeFindFirstOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the KnowledgeEdge
+     */
+    select?: KnowledgeEdgeSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: KnowledgeEdgeInclude<ExtArgs> | null
+    /**
+     * Filter, which KnowledgeEdge to fetch.
+     */
+    where?: KnowledgeEdgeWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of KnowledgeEdges to fetch.
+     */
+    orderBy?: KnowledgeEdgeOrderByWithRelationInput | KnowledgeEdgeOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for KnowledgeEdges.
+     */
+    cursor?: KnowledgeEdgeWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` KnowledgeEdges from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` KnowledgeEdges.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of KnowledgeEdges.
+     */
+    distinct?: KnowledgeEdgeScalarFieldEnum | KnowledgeEdgeScalarFieldEnum[]
+  }
+
+  /**
+   * KnowledgeEdge findMany
+   */
+  export type KnowledgeEdgeFindManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the KnowledgeEdge
+     */
+    select?: KnowledgeEdgeSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: KnowledgeEdgeInclude<ExtArgs> | null
+    /**
+     * Filter, which KnowledgeEdges to fetch.
+     */
+    where?: KnowledgeEdgeWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of KnowledgeEdges to fetch.
+     */
+    orderBy?: KnowledgeEdgeOrderByWithRelationInput | KnowledgeEdgeOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for listing KnowledgeEdges.
+     */
+    cursor?: KnowledgeEdgeWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` KnowledgeEdges from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` KnowledgeEdges.
+     */
+    skip?: number
+    distinct?: KnowledgeEdgeScalarFieldEnum | KnowledgeEdgeScalarFieldEnum[]
+  }
+
+  /**
+   * KnowledgeEdge create
+   */
+  export type KnowledgeEdgeCreateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the KnowledgeEdge
+     */
+    select?: KnowledgeEdgeSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: KnowledgeEdgeInclude<ExtArgs> | null
+    /**
+     * The data needed to create a KnowledgeEdge.
+     */
+    data: XOR<KnowledgeEdgeCreateInput, KnowledgeEdgeUncheckedCreateInput>
+  }
+
+  /**
+   * KnowledgeEdge createMany
+   */
+  export type KnowledgeEdgeCreateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to create many KnowledgeEdges.
+     */
+    data: KnowledgeEdgeCreateManyInput | KnowledgeEdgeCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * KnowledgeEdge createManyAndReturn
+   */
+  export type KnowledgeEdgeCreateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the KnowledgeEdge
+     */
+    select?: KnowledgeEdgeSelectCreateManyAndReturn<ExtArgs> | null
+    /**
+     * The data used to create many KnowledgeEdges.
+     */
+    data: KnowledgeEdgeCreateManyInput | KnowledgeEdgeCreateManyInput[]
+    skipDuplicates?: boolean
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: KnowledgeEdgeIncludeCreateManyAndReturn<ExtArgs> | null
+  }
+
+  /**
+   * KnowledgeEdge update
+   */
+  export type KnowledgeEdgeUpdateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the KnowledgeEdge
+     */
+    select?: KnowledgeEdgeSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: KnowledgeEdgeInclude<ExtArgs> | null
+    /**
+     * The data needed to update a KnowledgeEdge.
+     */
+    data: XOR<KnowledgeEdgeUpdateInput, KnowledgeEdgeUncheckedUpdateInput>
+    /**
+     * Choose, which KnowledgeEdge to update.
+     */
+    where: KnowledgeEdgeWhereUniqueInput
+  }
+
+  /**
+   * KnowledgeEdge updateMany
+   */
+  export type KnowledgeEdgeUpdateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to update KnowledgeEdges.
+     */
+    data: XOR<KnowledgeEdgeUpdateManyMutationInput, KnowledgeEdgeUncheckedUpdateManyInput>
+    /**
+     * Filter which KnowledgeEdges to update
+     */
+    where?: KnowledgeEdgeWhereInput
+  }
+
+  /**
+   * KnowledgeEdge upsert
+   */
+  export type KnowledgeEdgeUpsertArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the KnowledgeEdge
+     */
+    select?: KnowledgeEdgeSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: KnowledgeEdgeInclude<ExtArgs> | null
+    /**
+     * The filter to search for the KnowledgeEdge to update in case it exists.
+     */
+    where: KnowledgeEdgeWhereUniqueInput
+    /**
+     * In case the KnowledgeEdge found by the `where` argument doesn't exist, create a new KnowledgeEdge with this data.
+     */
+    create: XOR<KnowledgeEdgeCreateInput, KnowledgeEdgeUncheckedCreateInput>
+    /**
+     * In case the KnowledgeEdge was found with the provided `where` argument, update it with this data.
+     */
+    update: XOR<KnowledgeEdgeUpdateInput, KnowledgeEdgeUncheckedUpdateInput>
+  }
+
+  /**
+   * KnowledgeEdge delete
+   */
+  export type KnowledgeEdgeDeleteArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the KnowledgeEdge
+     */
+    select?: KnowledgeEdgeSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: KnowledgeEdgeInclude<ExtArgs> | null
+    /**
+     * Filter which KnowledgeEdge to delete.
+     */
+    where: KnowledgeEdgeWhereUniqueInput
+  }
+
+  /**
+   * KnowledgeEdge deleteMany
+   */
+  export type KnowledgeEdgeDeleteManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which KnowledgeEdges to delete
+     */
+    where?: KnowledgeEdgeWhereInput
+  }
+
+  /**
+   * KnowledgeEdge without action
+   */
+  export type KnowledgeEdgeDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the KnowledgeEdge
+     */
+    select?: KnowledgeEdgeSelect<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: KnowledgeEdgeInclude<ExtArgs> | null
+  }
+
+
+  /**
    * Enums
    */
 
@@ -5156,6 +7433,10 @@ export namespace Prisma {
     accessCount: 'accessCount',
     lastAccessAt: 'lastAccessAt',
     consolidatedInto: 'consolidatedInto',
+    memoryType: 'memoryType',
+    confidence: 'confidence',
+    validUntil: 'validUntil',
+    missionId: 'missionId',
     notes: 'notes',
     createdAt: 'createdAt',
     updatedAt: 'updatedAt'
@@ -5175,6 +7456,34 @@ export namespace Prisma {
   };
 
   export type VaultAccessLogScalarFieldEnum = (typeof VaultAccessLogScalarFieldEnum)[keyof typeof VaultAccessLogScalarFieldEnum]
+
+
+  export const KnowledgeNodeScalarFieldEnum: {
+    id: 'id',
+    projectId: 'projectId',
+    type: 'type',
+    label: 'label',
+    description: 'description',
+    metadata: 'metadata',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt'
+  };
+
+  export type KnowledgeNodeScalarFieldEnum = (typeof KnowledgeNodeScalarFieldEnum)[keyof typeof KnowledgeNodeScalarFieldEnum]
+
+
+  export const KnowledgeEdgeScalarFieldEnum: {
+    id: 'id',
+    projectId: 'projectId',
+    fromId: 'fromId',
+    toId: 'toId',
+    relation: 'relation',
+    weight: 'weight',
+    source: 'source',
+    createdAt: 'createdAt'
+  };
+
+  export type KnowledgeEdgeScalarFieldEnum = (typeof KnowledgeEdgeScalarFieldEnum)[keyof typeof KnowledgeEdgeScalarFieldEnum]
 
 
   export const SortOrder: {
@@ -5499,6 +7808,10 @@ export namespace Prisma {
     accessCount?: IntFilter<"MemoryMeta"> | number
     lastAccessAt?: DateTimeNullableFilter<"MemoryMeta"> | Date | string | null
     consolidatedInto?: StringNullableFilter<"MemoryMeta"> | string | null
+    memoryType?: StringNullableFilter<"MemoryMeta"> | string | null
+    confidence?: FloatNullableFilter<"MemoryMeta"> | number | null
+    validUntil?: DateTimeNullableFilter<"MemoryMeta"> | Date | string | null
+    missionId?: StringNullableFilter<"MemoryMeta"> | string | null
     notes?: StringNullableFilter<"MemoryMeta"> | string | null
     createdAt?: DateTimeFilter<"MemoryMeta"> | Date | string
     updatedAt?: DateTimeFilter<"MemoryMeta"> | Date | string
@@ -5512,6 +7825,10 @@ export namespace Prisma {
     accessCount?: SortOrder
     lastAccessAt?: SortOrderInput | SortOrder
     consolidatedInto?: SortOrderInput | SortOrder
+    memoryType?: SortOrderInput | SortOrder
+    confidence?: SortOrderInput | SortOrder
+    validUntil?: SortOrderInput | SortOrder
+    missionId?: SortOrderInput | SortOrder
     notes?: SortOrderInput | SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
@@ -5528,6 +7845,10 @@ export namespace Prisma {
     accessCount?: IntFilter<"MemoryMeta"> | number
     lastAccessAt?: DateTimeNullableFilter<"MemoryMeta"> | Date | string | null
     consolidatedInto?: StringNullableFilter<"MemoryMeta"> | string | null
+    memoryType?: StringNullableFilter<"MemoryMeta"> | string | null
+    confidence?: FloatNullableFilter<"MemoryMeta"> | number | null
+    validUntil?: DateTimeNullableFilter<"MemoryMeta"> | Date | string | null
+    missionId?: StringNullableFilter<"MemoryMeta"> | string | null
     notes?: StringNullableFilter<"MemoryMeta"> | string | null
     createdAt?: DateTimeFilter<"MemoryMeta"> | Date | string
     updatedAt?: DateTimeFilter<"MemoryMeta"> | Date | string
@@ -5541,6 +7862,10 @@ export namespace Prisma {
     accessCount?: SortOrder
     lastAccessAt?: SortOrderInput | SortOrder
     consolidatedInto?: SortOrderInput | SortOrder
+    memoryType?: SortOrderInput | SortOrder
+    confidence?: SortOrderInput | SortOrder
+    validUntil?: SortOrderInput | SortOrder
+    missionId?: SortOrderInput | SortOrder
     notes?: SortOrderInput | SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
@@ -5562,6 +7887,10 @@ export namespace Prisma {
     accessCount?: IntWithAggregatesFilter<"MemoryMeta"> | number
     lastAccessAt?: DateTimeNullableWithAggregatesFilter<"MemoryMeta"> | Date | string | null
     consolidatedInto?: StringNullableWithAggregatesFilter<"MemoryMeta"> | string | null
+    memoryType?: StringNullableWithAggregatesFilter<"MemoryMeta"> | string | null
+    confidence?: FloatNullableWithAggregatesFilter<"MemoryMeta"> | number | null
+    validUntil?: DateTimeNullableWithAggregatesFilter<"MemoryMeta"> | Date | string | null
+    missionId?: StringNullableWithAggregatesFilter<"MemoryMeta"> | string | null
     notes?: StringNullableWithAggregatesFilter<"MemoryMeta"> | string | null
     createdAt?: DateTimeWithAggregatesFilter<"MemoryMeta"> | Date | string
     updatedAt?: DateTimeWithAggregatesFilter<"MemoryMeta"> | Date | string
@@ -5627,6 +7956,154 @@ export namespace Prisma {
     missionId?: StringNullableWithAggregatesFilter<"VaultAccessLog"> | string | null
     stepId?: StringNullableWithAggregatesFilter<"VaultAccessLog"> | string | null
     accessedAt?: DateTimeWithAggregatesFilter<"VaultAccessLog"> | Date | string
+  }
+
+  export type KnowledgeNodeWhereInput = {
+    AND?: KnowledgeNodeWhereInput | KnowledgeNodeWhereInput[]
+    OR?: KnowledgeNodeWhereInput[]
+    NOT?: KnowledgeNodeWhereInput | KnowledgeNodeWhereInput[]
+    id?: StringFilter<"KnowledgeNode"> | string
+    projectId?: StringFilter<"KnowledgeNode"> | string
+    type?: StringFilter<"KnowledgeNode"> | string
+    label?: StringFilter<"KnowledgeNode"> | string
+    description?: StringNullableFilter<"KnowledgeNode"> | string | null
+    metadata?: JsonFilter<"KnowledgeNode">
+    createdAt?: DateTimeFilter<"KnowledgeNode"> | Date | string
+    updatedAt?: DateTimeFilter<"KnowledgeNode"> | Date | string
+    outEdges?: KnowledgeEdgeListRelationFilter
+    inEdges?: KnowledgeEdgeListRelationFilter
+  }
+
+  export type KnowledgeNodeOrderByWithRelationInput = {
+    id?: SortOrder
+    projectId?: SortOrder
+    type?: SortOrder
+    label?: SortOrder
+    description?: SortOrderInput | SortOrder
+    metadata?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+    outEdges?: KnowledgeEdgeOrderByRelationAggregateInput
+    inEdges?: KnowledgeEdgeOrderByRelationAggregateInput
+  }
+
+  export type KnowledgeNodeWhereUniqueInput = Prisma.AtLeast<{
+    id?: string
+    AND?: KnowledgeNodeWhereInput | KnowledgeNodeWhereInput[]
+    OR?: KnowledgeNodeWhereInput[]
+    NOT?: KnowledgeNodeWhereInput | KnowledgeNodeWhereInput[]
+    projectId?: StringFilter<"KnowledgeNode"> | string
+    type?: StringFilter<"KnowledgeNode"> | string
+    label?: StringFilter<"KnowledgeNode"> | string
+    description?: StringNullableFilter<"KnowledgeNode"> | string | null
+    metadata?: JsonFilter<"KnowledgeNode">
+    createdAt?: DateTimeFilter<"KnowledgeNode"> | Date | string
+    updatedAt?: DateTimeFilter<"KnowledgeNode"> | Date | string
+    outEdges?: KnowledgeEdgeListRelationFilter
+    inEdges?: KnowledgeEdgeListRelationFilter
+  }, "id">
+
+  export type KnowledgeNodeOrderByWithAggregationInput = {
+    id?: SortOrder
+    projectId?: SortOrder
+    type?: SortOrder
+    label?: SortOrder
+    description?: SortOrderInput | SortOrder
+    metadata?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+    _count?: KnowledgeNodeCountOrderByAggregateInput
+    _max?: KnowledgeNodeMaxOrderByAggregateInput
+    _min?: KnowledgeNodeMinOrderByAggregateInput
+  }
+
+  export type KnowledgeNodeScalarWhereWithAggregatesInput = {
+    AND?: KnowledgeNodeScalarWhereWithAggregatesInput | KnowledgeNodeScalarWhereWithAggregatesInput[]
+    OR?: KnowledgeNodeScalarWhereWithAggregatesInput[]
+    NOT?: KnowledgeNodeScalarWhereWithAggregatesInput | KnowledgeNodeScalarWhereWithAggregatesInput[]
+    id?: StringWithAggregatesFilter<"KnowledgeNode"> | string
+    projectId?: StringWithAggregatesFilter<"KnowledgeNode"> | string
+    type?: StringWithAggregatesFilter<"KnowledgeNode"> | string
+    label?: StringWithAggregatesFilter<"KnowledgeNode"> | string
+    description?: StringNullableWithAggregatesFilter<"KnowledgeNode"> | string | null
+    metadata?: JsonWithAggregatesFilter<"KnowledgeNode">
+    createdAt?: DateTimeWithAggregatesFilter<"KnowledgeNode"> | Date | string
+    updatedAt?: DateTimeWithAggregatesFilter<"KnowledgeNode"> | Date | string
+  }
+
+  export type KnowledgeEdgeWhereInput = {
+    AND?: KnowledgeEdgeWhereInput | KnowledgeEdgeWhereInput[]
+    OR?: KnowledgeEdgeWhereInput[]
+    NOT?: KnowledgeEdgeWhereInput | KnowledgeEdgeWhereInput[]
+    id?: StringFilter<"KnowledgeEdge"> | string
+    projectId?: StringFilter<"KnowledgeEdge"> | string
+    fromId?: StringFilter<"KnowledgeEdge"> | string
+    toId?: StringFilter<"KnowledgeEdge"> | string
+    relation?: StringFilter<"KnowledgeEdge"> | string
+    weight?: FloatFilter<"KnowledgeEdge"> | number
+    source?: StringFilter<"KnowledgeEdge"> | string
+    createdAt?: DateTimeFilter<"KnowledgeEdge"> | Date | string
+    from?: XOR<KnowledgeNodeRelationFilter, KnowledgeNodeWhereInput>
+    to?: XOR<KnowledgeNodeRelationFilter, KnowledgeNodeWhereInput>
+  }
+
+  export type KnowledgeEdgeOrderByWithRelationInput = {
+    id?: SortOrder
+    projectId?: SortOrder
+    fromId?: SortOrder
+    toId?: SortOrder
+    relation?: SortOrder
+    weight?: SortOrder
+    source?: SortOrder
+    createdAt?: SortOrder
+    from?: KnowledgeNodeOrderByWithRelationInput
+    to?: KnowledgeNodeOrderByWithRelationInput
+  }
+
+  export type KnowledgeEdgeWhereUniqueInput = Prisma.AtLeast<{
+    id?: string
+    AND?: KnowledgeEdgeWhereInput | KnowledgeEdgeWhereInput[]
+    OR?: KnowledgeEdgeWhereInput[]
+    NOT?: KnowledgeEdgeWhereInput | KnowledgeEdgeWhereInput[]
+    projectId?: StringFilter<"KnowledgeEdge"> | string
+    fromId?: StringFilter<"KnowledgeEdge"> | string
+    toId?: StringFilter<"KnowledgeEdge"> | string
+    relation?: StringFilter<"KnowledgeEdge"> | string
+    weight?: FloatFilter<"KnowledgeEdge"> | number
+    source?: StringFilter<"KnowledgeEdge"> | string
+    createdAt?: DateTimeFilter<"KnowledgeEdge"> | Date | string
+    from?: XOR<KnowledgeNodeRelationFilter, KnowledgeNodeWhereInput>
+    to?: XOR<KnowledgeNodeRelationFilter, KnowledgeNodeWhereInput>
+  }, "id">
+
+  export type KnowledgeEdgeOrderByWithAggregationInput = {
+    id?: SortOrder
+    projectId?: SortOrder
+    fromId?: SortOrder
+    toId?: SortOrder
+    relation?: SortOrder
+    weight?: SortOrder
+    source?: SortOrder
+    createdAt?: SortOrder
+    _count?: KnowledgeEdgeCountOrderByAggregateInput
+    _avg?: KnowledgeEdgeAvgOrderByAggregateInput
+    _max?: KnowledgeEdgeMaxOrderByAggregateInput
+    _min?: KnowledgeEdgeMinOrderByAggregateInput
+    _sum?: KnowledgeEdgeSumOrderByAggregateInput
+  }
+
+  export type KnowledgeEdgeScalarWhereWithAggregatesInput = {
+    AND?: KnowledgeEdgeScalarWhereWithAggregatesInput | KnowledgeEdgeScalarWhereWithAggregatesInput[]
+    OR?: KnowledgeEdgeScalarWhereWithAggregatesInput[]
+    NOT?: KnowledgeEdgeScalarWhereWithAggregatesInput | KnowledgeEdgeScalarWhereWithAggregatesInput[]
+    id?: StringWithAggregatesFilter<"KnowledgeEdge"> | string
+    projectId?: StringWithAggregatesFilter<"KnowledgeEdge"> | string
+    fromId?: StringWithAggregatesFilter<"KnowledgeEdge"> | string
+    toId?: StringWithAggregatesFilter<"KnowledgeEdge"> | string
+    relation?: StringWithAggregatesFilter<"KnowledgeEdge"> | string
+    weight?: FloatWithAggregatesFilter<"KnowledgeEdge"> | number
+    source?: StringWithAggregatesFilter<"KnowledgeEdge"> | string
+    createdAt?: DateTimeWithAggregatesFilter<"KnowledgeEdge"> | Date | string
   }
 
   export type MissionCreateInput = {
@@ -5864,6 +8341,10 @@ export namespace Prisma {
     accessCount?: number
     lastAccessAt?: Date | string | null
     consolidatedInto?: string | null
+    memoryType?: string | null
+    confidence?: number | null
+    validUntil?: Date | string | null
+    missionId?: string | null
     notes?: string | null
     createdAt?: Date | string
     updatedAt?: Date | string
@@ -5877,6 +8358,10 @@ export namespace Prisma {
     accessCount?: number
     lastAccessAt?: Date | string | null
     consolidatedInto?: string | null
+    memoryType?: string | null
+    confidence?: number | null
+    validUntil?: Date | string | null
+    missionId?: string | null
     notes?: string | null
     createdAt?: Date | string
     updatedAt?: Date | string
@@ -5890,6 +8375,10 @@ export namespace Prisma {
     accessCount?: IntFieldUpdateOperationsInput | number
     lastAccessAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     consolidatedInto?: NullableStringFieldUpdateOperationsInput | string | null
+    memoryType?: NullableStringFieldUpdateOperationsInput | string | null
+    confidence?: NullableFloatFieldUpdateOperationsInput | number | null
+    validUntil?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    missionId?: NullableStringFieldUpdateOperationsInput | string | null
     notes?: NullableStringFieldUpdateOperationsInput | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -5903,6 +8392,10 @@ export namespace Prisma {
     accessCount?: IntFieldUpdateOperationsInput | number
     lastAccessAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     consolidatedInto?: NullableStringFieldUpdateOperationsInput | string | null
+    memoryType?: NullableStringFieldUpdateOperationsInput | string | null
+    confidence?: NullableFloatFieldUpdateOperationsInput | number | null
+    validUntil?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    missionId?: NullableStringFieldUpdateOperationsInput | string | null
     notes?: NullableStringFieldUpdateOperationsInput | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -5916,6 +8409,10 @@ export namespace Prisma {
     accessCount?: number
     lastAccessAt?: Date | string | null
     consolidatedInto?: string | null
+    memoryType?: string | null
+    confidence?: number | null
+    validUntil?: Date | string | null
+    missionId?: string | null
     notes?: string | null
     createdAt?: Date | string
     updatedAt?: Date | string
@@ -5929,6 +8426,10 @@ export namespace Prisma {
     accessCount?: IntFieldUpdateOperationsInput | number
     lastAccessAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     consolidatedInto?: NullableStringFieldUpdateOperationsInput | string | null
+    memoryType?: NullableStringFieldUpdateOperationsInput | string | null
+    confidence?: NullableFloatFieldUpdateOperationsInput | number | null
+    validUntil?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    missionId?: NullableStringFieldUpdateOperationsInput | string | null
     notes?: NullableStringFieldUpdateOperationsInput | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -5942,6 +8443,10 @@ export namespace Prisma {
     accessCount?: IntFieldUpdateOperationsInput | number
     lastAccessAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     consolidatedInto?: NullableStringFieldUpdateOperationsInput | string | null
+    memoryType?: NullableStringFieldUpdateOperationsInput | string | null
+    confidence?: NullableFloatFieldUpdateOperationsInput | number | null
+    validUntil?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    missionId?: NullableStringFieldUpdateOperationsInput | string | null
     notes?: NullableStringFieldUpdateOperationsInput | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
@@ -6015,6 +8520,166 @@ export namespace Prisma {
     missionId?: NullableStringFieldUpdateOperationsInput | string | null
     stepId?: NullableStringFieldUpdateOperationsInput | string | null
     accessedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type KnowledgeNodeCreateInput = {
+    id?: string
+    projectId: string
+    type: string
+    label: string
+    description?: string | null
+    metadata?: JsonNullValueInput | InputJsonValue
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    outEdges?: KnowledgeEdgeCreateNestedManyWithoutFromInput
+    inEdges?: KnowledgeEdgeCreateNestedManyWithoutToInput
+  }
+
+  export type KnowledgeNodeUncheckedCreateInput = {
+    id?: string
+    projectId: string
+    type: string
+    label: string
+    description?: string | null
+    metadata?: JsonNullValueInput | InputJsonValue
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    outEdges?: KnowledgeEdgeUncheckedCreateNestedManyWithoutFromInput
+    inEdges?: KnowledgeEdgeUncheckedCreateNestedManyWithoutToInput
+  }
+
+  export type KnowledgeNodeUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    type?: StringFieldUpdateOperationsInput | string
+    label?: StringFieldUpdateOperationsInput | string
+    description?: NullableStringFieldUpdateOperationsInput | string | null
+    metadata?: JsonNullValueInput | InputJsonValue
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    outEdges?: KnowledgeEdgeUpdateManyWithoutFromNestedInput
+    inEdges?: KnowledgeEdgeUpdateManyWithoutToNestedInput
+  }
+
+  export type KnowledgeNodeUncheckedUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    type?: StringFieldUpdateOperationsInput | string
+    label?: StringFieldUpdateOperationsInput | string
+    description?: NullableStringFieldUpdateOperationsInput | string | null
+    metadata?: JsonNullValueInput | InputJsonValue
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    outEdges?: KnowledgeEdgeUncheckedUpdateManyWithoutFromNestedInput
+    inEdges?: KnowledgeEdgeUncheckedUpdateManyWithoutToNestedInput
+  }
+
+  export type KnowledgeNodeCreateManyInput = {
+    id?: string
+    projectId: string
+    type: string
+    label: string
+    description?: string | null
+    metadata?: JsonNullValueInput | InputJsonValue
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type KnowledgeNodeUpdateManyMutationInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    type?: StringFieldUpdateOperationsInput | string
+    label?: StringFieldUpdateOperationsInput | string
+    description?: NullableStringFieldUpdateOperationsInput | string | null
+    metadata?: JsonNullValueInput | InputJsonValue
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type KnowledgeNodeUncheckedUpdateManyInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    type?: StringFieldUpdateOperationsInput | string
+    label?: StringFieldUpdateOperationsInput | string
+    description?: NullableStringFieldUpdateOperationsInput | string | null
+    metadata?: JsonNullValueInput | InputJsonValue
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type KnowledgeEdgeCreateInput = {
+    id?: string
+    projectId: string
+    relation: string
+    weight?: number
+    source?: string
+    createdAt?: Date | string
+    from: KnowledgeNodeCreateNestedOneWithoutOutEdgesInput
+    to: KnowledgeNodeCreateNestedOneWithoutInEdgesInput
+  }
+
+  export type KnowledgeEdgeUncheckedCreateInput = {
+    id?: string
+    projectId: string
+    fromId: string
+    toId: string
+    relation: string
+    weight?: number
+    source?: string
+    createdAt?: Date | string
+  }
+
+  export type KnowledgeEdgeUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    relation?: StringFieldUpdateOperationsInput | string
+    weight?: FloatFieldUpdateOperationsInput | number
+    source?: StringFieldUpdateOperationsInput | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    from?: KnowledgeNodeUpdateOneRequiredWithoutOutEdgesNestedInput
+    to?: KnowledgeNodeUpdateOneRequiredWithoutInEdgesNestedInput
+  }
+
+  export type KnowledgeEdgeUncheckedUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    fromId?: StringFieldUpdateOperationsInput | string
+    toId?: StringFieldUpdateOperationsInput | string
+    relation?: StringFieldUpdateOperationsInput | string
+    weight?: FloatFieldUpdateOperationsInput | number
+    source?: StringFieldUpdateOperationsInput | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type KnowledgeEdgeCreateManyInput = {
+    id?: string
+    projectId: string
+    fromId: string
+    toId: string
+    relation: string
+    weight?: number
+    source?: string
+    createdAt?: Date | string
+  }
+
+  export type KnowledgeEdgeUpdateManyMutationInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    relation?: StringFieldUpdateOperationsInput | string
+    weight?: FloatFieldUpdateOperationsInput | number
+    source?: StringFieldUpdateOperationsInput | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type KnowledgeEdgeUncheckedUpdateManyInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    fromId?: StringFieldUpdateOperationsInput | string
+    toId?: StringFieldUpdateOperationsInput | string
+    relation?: StringFieldUpdateOperationsInput | string
+    weight?: FloatFieldUpdateOperationsInput | number
+    source?: StringFieldUpdateOperationsInput | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
   export type StringFilter<$PrismaModel = never> = {
@@ -6378,6 +9043,17 @@ export namespace Prisma {
     _max?: NestedIntFilter<$PrismaModel>
   }
 
+  export type FloatNullableFilter<$PrismaModel = never> = {
+    equals?: number | FloatFieldRefInput<$PrismaModel> | null
+    in?: number[] | ListFloatFieldRefInput<$PrismaModel> | null
+    notIn?: number[] | ListFloatFieldRefInput<$PrismaModel> | null
+    lt?: number | FloatFieldRefInput<$PrismaModel>
+    lte?: number | FloatFieldRefInput<$PrismaModel>
+    gt?: number | FloatFieldRefInput<$PrismaModel>
+    gte?: number | FloatFieldRefInput<$PrismaModel>
+    not?: NestedFloatNullableFilter<$PrismaModel> | number | null
+  }
+
   export type MemoryMetaCountOrderByAggregateInput = {
     id?: SortOrder
     v1DocumentId?: SortOrder
@@ -6386,6 +9062,10 @@ export namespace Prisma {
     accessCount?: SortOrder
     lastAccessAt?: SortOrder
     consolidatedInto?: SortOrder
+    memoryType?: SortOrder
+    confidence?: SortOrder
+    validUntil?: SortOrder
+    missionId?: SortOrder
     notes?: SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
@@ -6393,6 +9073,7 @@ export namespace Prisma {
 
   export type MemoryMetaAvgOrderByAggregateInput = {
     accessCount?: SortOrder
+    confidence?: SortOrder
   }
 
   export type MemoryMetaMaxOrderByAggregateInput = {
@@ -6403,6 +9084,10 @@ export namespace Prisma {
     accessCount?: SortOrder
     lastAccessAt?: SortOrder
     consolidatedInto?: SortOrder
+    memoryType?: SortOrder
+    confidence?: SortOrder
+    validUntil?: SortOrder
+    missionId?: SortOrder
     notes?: SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
@@ -6416,6 +9101,10 @@ export namespace Prisma {
     accessCount?: SortOrder
     lastAccessAt?: SortOrder
     consolidatedInto?: SortOrder
+    memoryType?: SortOrder
+    confidence?: SortOrder
+    validUntil?: SortOrder
+    missionId?: SortOrder
     notes?: SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
@@ -6423,6 +9112,23 @@ export namespace Prisma {
 
   export type MemoryMetaSumOrderByAggregateInput = {
     accessCount?: SortOrder
+    confidence?: SortOrder
+  }
+
+  export type FloatNullableWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: number | FloatFieldRefInput<$PrismaModel> | null
+    in?: number[] | ListFloatFieldRefInput<$PrismaModel> | null
+    notIn?: number[] | ListFloatFieldRefInput<$PrismaModel> | null
+    lt?: number | FloatFieldRefInput<$PrismaModel>
+    lte?: number | FloatFieldRefInput<$PrismaModel>
+    gt?: number | FloatFieldRefInput<$PrismaModel>
+    gte?: number | FloatFieldRefInput<$PrismaModel>
+    not?: NestedFloatNullableWithAggregatesFilter<$PrismaModel> | number | null
+    _count?: NestedIntNullableFilter<$PrismaModel>
+    _avg?: NestedFloatNullableFilter<$PrismaModel>
+    _sum?: NestedFloatNullableFilter<$PrismaModel>
+    _min?: NestedFloatNullableFilter<$PrismaModel>
+    _max?: NestedFloatNullableFilter<$PrismaModel>
   }
 
   export type VaultAccessLogCountOrderByAggregateInput = {
@@ -6453,6 +9159,120 @@ export namespace Prisma {
     missionId?: SortOrder
     stepId?: SortOrder
     accessedAt?: SortOrder
+  }
+
+  export type KnowledgeEdgeListRelationFilter = {
+    every?: KnowledgeEdgeWhereInput
+    some?: KnowledgeEdgeWhereInput
+    none?: KnowledgeEdgeWhereInput
+  }
+
+  export type KnowledgeEdgeOrderByRelationAggregateInput = {
+    _count?: SortOrder
+  }
+
+  export type KnowledgeNodeCountOrderByAggregateInput = {
+    id?: SortOrder
+    projectId?: SortOrder
+    type?: SortOrder
+    label?: SortOrder
+    description?: SortOrder
+    metadata?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type KnowledgeNodeMaxOrderByAggregateInput = {
+    id?: SortOrder
+    projectId?: SortOrder
+    type?: SortOrder
+    label?: SortOrder
+    description?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type KnowledgeNodeMinOrderByAggregateInput = {
+    id?: SortOrder
+    projectId?: SortOrder
+    type?: SortOrder
+    label?: SortOrder
+    description?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type FloatFilter<$PrismaModel = never> = {
+    equals?: number | FloatFieldRefInput<$PrismaModel>
+    in?: number[] | ListFloatFieldRefInput<$PrismaModel>
+    notIn?: number[] | ListFloatFieldRefInput<$PrismaModel>
+    lt?: number | FloatFieldRefInput<$PrismaModel>
+    lte?: number | FloatFieldRefInput<$PrismaModel>
+    gt?: number | FloatFieldRefInput<$PrismaModel>
+    gte?: number | FloatFieldRefInput<$PrismaModel>
+    not?: NestedFloatFilter<$PrismaModel> | number
+  }
+
+  export type KnowledgeNodeRelationFilter = {
+    is?: KnowledgeNodeWhereInput
+    isNot?: KnowledgeNodeWhereInput
+  }
+
+  export type KnowledgeEdgeCountOrderByAggregateInput = {
+    id?: SortOrder
+    projectId?: SortOrder
+    fromId?: SortOrder
+    toId?: SortOrder
+    relation?: SortOrder
+    weight?: SortOrder
+    source?: SortOrder
+    createdAt?: SortOrder
+  }
+
+  export type KnowledgeEdgeAvgOrderByAggregateInput = {
+    weight?: SortOrder
+  }
+
+  export type KnowledgeEdgeMaxOrderByAggregateInput = {
+    id?: SortOrder
+    projectId?: SortOrder
+    fromId?: SortOrder
+    toId?: SortOrder
+    relation?: SortOrder
+    weight?: SortOrder
+    source?: SortOrder
+    createdAt?: SortOrder
+  }
+
+  export type KnowledgeEdgeMinOrderByAggregateInput = {
+    id?: SortOrder
+    projectId?: SortOrder
+    fromId?: SortOrder
+    toId?: SortOrder
+    relation?: SortOrder
+    weight?: SortOrder
+    source?: SortOrder
+    createdAt?: SortOrder
+  }
+
+  export type KnowledgeEdgeSumOrderByAggregateInput = {
+    weight?: SortOrder
+  }
+
+  export type FloatWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: number | FloatFieldRefInput<$PrismaModel>
+    in?: number[] | ListFloatFieldRefInput<$PrismaModel>
+    notIn?: number[] | ListFloatFieldRefInput<$PrismaModel>
+    lt?: number | FloatFieldRefInput<$PrismaModel>
+    lte?: number | FloatFieldRefInput<$PrismaModel>
+    gt?: number | FloatFieldRefInput<$PrismaModel>
+    gte?: number | FloatFieldRefInput<$PrismaModel>
+    not?: NestedFloatWithAggregatesFilter<$PrismaModel> | number
+    _count?: NestedIntFilter<$PrismaModel>
+    _avg?: NestedFloatFilter<$PrismaModel>
+    _sum?: NestedFloatFilter<$PrismaModel>
+    _min?: NestedFloatFilter<$PrismaModel>
+    _max?: NestedFloatFilter<$PrismaModel>
   }
 
   export type MissionStepCreateNestedManyWithoutMissionInput = {
@@ -6542,6 +9362,134 @@ export namespace Prisma {
     upsert?: MissionUpsertWithoutStepsInput
     connect?: MissionWhereUniqueInput
     update?: XOR<XOR<MissionUpdateToOneWithWhereWithoutStepsInput, MissionUpdateWithoutStepsInput>, MissionUncheckedUpdateWithoutStepsInput>
+  }
+
+  export type NullableFloatFieldUpdateOperationsInput = {
+    set?: number | null
+    increment?: number
+    decrement?: number
+    multiply?: number
+    divide?: number
+  }
+
+  export type KnowledgeEdgeCreateNestedManyWithoutFromInput = {
+    create?: XOR<KnowledgeEdgeCreateWithoutFromInput, KnowledgeEdgeUncheckedCreateWithoutFromInput> | KnowledgeEdgeCreateWithoutFromInput[] | KnowledgeEdgeUncheckedCreateWithoutFromInput[]
+    connectOrCreate?: KnowledgeEdgeCreateOrConnectWithoutFromInput | KnowledgeEdgeCreateOrConnectWithoutFromInput[]
+    createMany?: KnowledgeEdgeCreateManyFromInputEnvelope
+    connect?: KnowledgeEdgeWhereUniqueInput | KnowledgeEdgeWhereUniqueInput[]
+  }
+
+  export type KnowledgeEdgeCreateNestedManyWithoutToInput = {
+    create?: XOR<KnowledgeEdgeCreateWithoutToInput, KnowledgeEdgeUncheckedCreateWithoutToInput> | KnowledgeEdgeCreateWithoutToInput[] | KnowledgeEdgeUncheckedCreateWithoutToInput[]
+    connectOrCreate?: KnowledgeEdgeCreateOrConnectWithoutToInput | KnowledgeEdgeCreateOrConnectWithoutToInput[]
+    createMany?: KnowledgeEdgeCreateManyToInputEnvelope
+    connect?: KnowledgeEdgeWhereUniqueInput | KnowledgeEdgeWhereUniqueInput[]
+  }
+
+  export type KnowledgeEdgeUncheckedCreateNestedManyWithoutFromInput = {
+    create?: XOR<KnowledgeEdgeCreateWithoutFromInput, KnowledgeEdgeUncheckedCreateWithoutFromInput> | KnowledgeEdgeCreateWithoutFromInput[] | KnowledgeEdgeUncheckedCreateWithoutFromInput[]
+    connectOrCreate?: KnowledgeEdgeCreateOrConnectWithoutFromInput | KnowledgeEdgeCreateOrConnectWithoutFromInput[]
+    createMany?: KnowledgeEdgeCreateManyFromInputEnvelope
+    connect?: KnowledgeEdgeWhereUniqueInput | KnowledgeEdgeWhereUniqueInput[]
+  }
+
+  export type KnowledgeEdgeUncheckedCreateNestedManyWithoutToInput = {
+    create?: XOR<KnowledgeEdgeCreateWithoutToInput, KnowledgeEdgeUncheckedCreateWithoutToInput> | KnowledgeEdgeCreateWithoutToInput[] | KnowledgeEdgeUncheckedCreateWithoutToInput[]
+    connectOrCreate?: KnowledgeEdgeCreateOrConnectWithoutToInput | KnowledgeEdgeCreateOrConnectWithoutToInput[]
+    createMany?: KnowledgeEdgeCreateManyToInputEnvelope
+    connect?: KnowledgeEdgeWhereUniqueInput | KnowledgeEdgeWhereUniqueInput[]
+  }
+
+  export type KnowledgeEdgeUpdateManyWithoutFromNestedInput = {
+    create?: XOR<KnowledgeEdgeCreateWithoutFromInput, KnowledgeEdgeUncheckedCreateWithoutFromInput> | KnowledgeEdgeCreateWithoutFromInput[] | KnowledgeEdgeUncheckedCreateWithoutFromInput[]
+    connectOrCreate?: KnowledgeEdgeCreateOrConnectWithoutFromInput | KnowledgeEdgeCreateOrConnectWithoutFromInput[]
+    upsert?: KnowledgeEdgeUpsertWithWhereUniqueWithoutFromInput | KnowledgeEdgeUpsertWithWhereUniqueWithoutFromInput[]
+    createMany?: KnowledgeEdgeCreateManyFromInputEnvelope
+    set?: KnowledgeEdgeWhereUniqueInput | KnowledgeEdgeWhereUniqueInput[]
+    disconnect?: KnowledgeEdgeWhereUniqueInput | KnowledgeEdgeWhereUniqueInput[]
+    delete?: KnowledgeEdgeWhereUniqueInput | KnowledgeEdgeWhereUniqueInput[]
+    connect?: KnowledgeEdgeWhereUniqueInput | KnowledgeEdgeWhereUniqueInput[]
+    update?: KnowledgeEdgeUpdateWithWhereUniqueWithoutFromInput | KnowledgeEdgeUpdateWithWhereUniqueWithoutFromInput[]
+    updateMany?: KnowledgeEdgeUpdateManyWithWhereWithoutFromInput | KnowledgeEdgeUpdateManyWithWhereWithoutFromInput[]
+    deleteMany?: KnowledgeEdgeScalarWhereInput | KnowledgeEdgeScalarWhereInput[]
+  }
+
+  export type KnowledgeEdgeUpdateManyWithoutToNestedInput = {
+    create?: XOR<KnowledgeEdgeCreateWithoutToInput, KnowledgeEdgeUncheckedCreateWithoutToInput> | KnowledgeEdgeCreateWithoutToInput[] | KnowledgeEdgeUncheckedCreateWithoutToInput[]
+    connectOrCreate?: KnowledgeEdgeCreateOrConnectWithoutToInput | KnowledgeEdgeCreateOrConnectWithoutToInput[]
+    upsert?: KnowledgeEdgeUpsertWithWhereUniqueWithoutToInput | KnowledgeEdgeUpsertWithWhereUniqueWithoutToInput[]
+    createMany?: KnowledgeEdgeCreateManyToInputEnvelope
+    set?: KnowledgeEdgeWhereUniqueInput | KnowledgeEdgeWhereUniqueInput[]
+    disconnect?: KnowledgeEdgeWhereUniqueInput | KnowledgeEdgeWhereUniqueInput[]
+    delete?: KnowledgeEdgeWhereUniqueInput | KnowledgeEdgeWhereUniqueInput[]
+    connect?: KnowledgeEdgeWhereUniqueInput | KnowledgeEdgeWhereUniqueInput[]
+    update?: KnowledgeEdgeUpdateWithWhereUniqueWithoutToInput | KnowledgeEdgeUpdateWithWhereUniqueWithoutToInput[]
+    updateMany?: KnowledgeEdgeUpdateManyWithWhereWithoutToInput | KnowledgeEdgeUpdateManyWithWhereWithoutToInput[]
+    deleteMany?: KnowledgeEdgeScalarWhereInput | KnowledgeEdgeScalarWhereInput[]
+  }
+
+  export type KnowledgeEdgeUncheckedUpdateManyWithoutFromNestedInput = {
+    create?: XOR<KnowledgeEdgeCreateWithoutFromInput, KnowledgeEdgeUncheckedCreateWithoutFromInput> | KnowledgeEdgeCreateWithoutFromInput[] | KnowledgeEdgeUncheckedCreateWithoutFromInput[]
+    connectOrCreate?: KnowledgeEdgeCreateOrConnectWithoutFromInput | KnowledgeEdgeCreateOrConnectWithoutFromInput[]
+    upsert?: KnowledgeEdgeUpsertWithWhereUniqueWithoutFromInput | KnowledgeEdgeUpsertWithWhereUniqueWithoutFromInput[]
+    createMany?: KnowledgeEdgeCreateManyFromInputEnvelope
+    set?: KnowledgeEdgeWhereUniqueInput | KnowledgeEdgeWhereUniqueInput[]
+    disconnect?: KnowledgeEdgeWhereUniqueInput | KnowledgeEdgeWhereUniqueInput[]
+    delete?: KnowledgeEdgeWhereUniqueInput | KnowledgeEdgeWhereUniqueInput[]
+    connect?: KnowledgeEdgeWhereUniqueInput | KnowledgeEdgeWhereUniqueInput[]
+    update?: KnowledgeEdgeUpdateWithWhereUniqueWithoutFromInput | KnowledgeEdgeUpdateWithWhereUniqueWithoutFromInput[]
+    updateMany?: KnowledgeEdgeUpdateManyWithWhereWithoutFromInput | KnowledgeEdgeUpdateManyWithWhereWithoutFromInput[]
+    deleteMany?: KnowledgeEdgeScalarWhereInput | KnowledgeEdgeScalarWhereInput[]
+  }
+
+  export type KnowledgeEdgeUncheckedUpdateManyWithoutToNestedInput = {
+    create?: XOR<KnowledgeEdgeCreateWithoutToInput, KnowledgeEdgeUncheckedCreateWithoutToInput> | KnowledgeEdgeCreateWithoutToInput[] | KnowledgeEdgeUncheckedCreateWithoutToInput[]
+    connectOrCreate?: KnowledgeEdgeCreateOrConnectWithoutToInput | KnowledgeEdgeCreateOrConnectWithoutToInput[]
+    upsert?: KnowledgeEdgeUpsertWithWhereUniqueWithoutToInput | KnowledgeEdgeUpsertWithWhereUniqueWithoutToInput[]
+    createMany?: KnowledgeEdgeCreateManyToInputEnvelope
+    set?: KnowledgeEdgeWhereUniqueInput | KnowledgeEdgeWhereUniqueInput[]
+    disconnect?: KnowledgeEdgeWhereUniqueInput | KnowledgeEdgeWhereUniqueInput[]
+    delete?: KnowledgeEdgeWhereUniqueInput | KnowledgeEdgeWhereUniqueInput[]
+    connect?: KnowledgeEdgeWhereUniqueInput | KnowledgeEdgeWhereUniqueInput[]
+    update?: KnowledgeEdgeUpdateWithWhereUniqueWithoutToInput | KnowledgeEdgeUpdateWithWhereUniqueWithoutToInput[]
+    updateMany?: KnowledgeEdgeUpdateManyWithWhereWithoutToInput | KnowledgeEdgeUpdateManyWithWhereWithoutToInput[]
+    deleteMany?: KnowledgeEdgeScalarWhereInput | KnowledgeEdgeScalarWhereInput[]
+  }
+
+  export type KnowledgeNodeCreateNestedOneWithoutOutEdgesInput = {
+    create?: XOR<KnowledgeNodeCreateWithoutOutEdgesInput, KnowledgeNodeUncheckedCreateWithoutOutEdgesInput>
+    connectOrCreate?: KnowledgeNodeCreateOrConnectWithoutOutEdgesInput
+    connect?: KnowledgeNodeWhereUniqueInput
+  }
+
+  export type KnowledgeNodeCreateNestedOneWithoutInEdgesInput = {
+    create?: XOR<KnowledgeNodeCreateWithoutInEdgesInput, KnowledgeNodeUncheckedCreateWithoutInEdgesInput>
+    connectOrCreate?: KnowledgeNodeCreateOrConnectWithoutInEdgesInput
+    connect?: KnowledgeNodeWhereUniqueInput
+  }
+
+  export type FloatFieldUpdateOperationsInput = {
+    set?: number
+    increment?: number
+    decrement?: number
+    multiply?: number
+    divide?: number
+  }
+
+  export type KnowledgeNodeUpdateOneRequiredWithoutOutEdgesNestedInput = {
+    create?: XOR<KnowledgeNodeCreateWithoutOutEdgesInput, KnowledgeNodeUncheckedCreateWithoutOutEdgesInput>
+    connectOrCreate?: KnowledgeNodeCreateOrConnectWithoutOutEdgesInput
+    upsert?: KnowledgeNodeUpsertWithoutOutEdgesInput
+    connect?: KnowledgeNodeWhereUniqueInput
+    update?: XOR<XOR<KnowledgeNodeUpdateToOneWithWhereWithoutOutEdgesInput, KnowledgeNodeUpdateWithoutOutEdgesInput>, KnowledgeNodeUncheckedUpdateWithoutOutEdgesInput>
+  }
+
+  export type KnowledgeNodeUpdateOneRequiredWithoutInEdgesNestedInput = {
+    create?: XOR<KnowledgeNodeCreateWithoutInEdgesInput, KnowledgeNodeUncheckedCreateWithoutInEdgesInput>
+    connectOrCreate?: KnowledgeNodeCreateOrConnectWithoutInEdgesInput
+    upsert?: KnowledgeNodeUpsertWithoutInEdgesInput
+    connect?: KnowledgeNodeWhereUniqueInput
+    update?: XOR<XOR<KnowledgeNodeUpdateToOneWithWhereWithoutInEdgesInput, KnowledgeNodeUpdateWithoutInEdgesInput>, KnowledgeNodeUncheckedUpdateWithoutInEdgesInput>
   }
 
   export type NestedStringFilter<$PrismaModel = never> = {
@@ -6749,6 +9697,49 @@ export namespace Prisma {
     not?: NestedFloatFilter<$PrismaModel> | number
   }
 
+  export type NestedFloatNullableFilter<$PrismaModel = never> = {
+    equals?: number | FloatFieldRefInput<$PrismaModel> | null
+    in?: number[] | ListFloatFieldRefInput<$PrismaModel> | null
+    notIn?: number[] | ListFloatFieldRefInput<$PrismaModel> | null
+    lt?: number | FloatFieldRefInput<$PrismaModel>
+    lte?: number | FloatFieldRefInput<$PrismaModel>
+    gt?: number | FloatFieldRefInput<$PrismaModel>
+    gte?: number | FloatFieldRefInput<$PrismaModel>
+    not?: NestedFloatNullableFilter<$PrismaModel> | number | null
+  }
+
+  export type NestedFloatNullableWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: number | FloatFieldRefInput<$PrismaModel> | null
+    in?: number[] | ListFloatFieldRefInput<$PrismaModel> | null
+    notIn?: number[] | ListFloatFieldRefInput<$PrismaModel> | null
+    lt?: number | FloatFieldRefInput<$PrismaModel>
+    lte?: number | FloatFieldRefInput<$PrismaModel>
+    gt?: number | FloatFieldRefInput<$PrismaModel>
+    gte?: number | FloatFieldRefInput<$PrismaModel>
+    not?: NestedFloatNullableWithAggregatesFilter<$PrismaModel> | number | null
+    _count?: NestedIntNullableFilter<$PrismaModel>
+    _avg?: NestedFloatNullableFilter<$PrismaModel>
+    _sum?: NestedFloatNullableFilter<$PrismaModel>
+    _min?: NestedFloatNullableFilter<$PrismaModel>
+    _max?: NestedFloatNullableFilter<$PrismaModel>
+  }
+
+  export type NestedFloatWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: number | FloatFieldRefInput<$PrismaModel>
+    in?: number[] | ListFloatFieldRefInput<$PrismaModel>
+    notIn?: number[] | ListFloatFieldRefInput<$PrismaModel>
+    lt?: number | FloatFieldRefInput<$PrismaModel>
+    lte?: number | FloatFieldRefInput<$PrismaModel>
+    gt?: number | FloatFieldRefInput<$PrismaModel>
+    gte?: number | FloatFieldRefInput<$PrismaModel>
+    not?: NestedFloatWithAggregatesFilter<$PrismaModel> | number
+    _count?: NestedIntFilter<$PrismaModel>
+    _avg?: NestedFloatFilter<$PrismaModel>
+    _sum?: NestedFloatFilter<$PrismaModel>
+    _min?: NestedFloatFilter<$PrismaModel>
+    _max?: NestedFloatFilter<$PrismaModel>
+  }
+
   export type MissionStepCreateWithoutMissionInput = {
     id?: string
     title: string
@@ -6901,6 +9892,240 @@ export namespace Prisma {
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
+  export type KnowledgeEdgeCreateWithoutFromInput = {
+    id?: string
+    projectId: string
+    relation: string
+    weight?: number
+    source?: string
+    createdAt?: Date | string
+    to: KnowledgeNodeCreateNestedOneWithoutInEdgesInput
+  }
+
+  export type KnowledgeEdgeUncheckedCreateWithoutFromInput = {
+    id?: string
+    projectId: string
+    toId: string
+    relation: string
+    weight?: number
+    source?: string
+    createdAt?: Date | string
+  }
+
+  export type KnowledgeEdgeCreateOrConnectWithoutFromInput = {
+    where: KnowledgeEdgeWhereUniqueInput
+    create: XOR<KnowledgeEdgeCreateWithoutFromInput, KnowledgeEdgeUncheckedCreateWithoutFromInput>
+  }
+
+  export type KnowledgeEdgeCreateManyFromInputEnvelope = {
+    data: KnowledgeEdgeCreateManyFromInput | KnowledgeEdgeCreateManyFromInput[]
+    skipDuplicates?: boolean
+  }
+
+  export type KnowledgeEdgeCreateWithoutToInput = {
+    id?: string
+    projectId: string
+    relation: string
+    weight?: number
+    source?: string
+    createdAt?: Date | string
+    from: KnowledgeNodeCreateNestedOneWithoutOutEdgesInput
+  }
+
+  export type KnowledgeEdgeUncheckedCreateWithoutToInput = {
+    id?: string
+    projectId: string
+    fromId: string
+    relation: string
+    weight?: number
+    source?: string
+    createdAt?: Date | string
+  }
+
+  export type KnowledgeEdgeCreateOrConnectWithoutToInput = {
+    where: KnowledgeEdgeWhereUniqueInput
+    create: XOR<KnowledgeEdgeCreateWithoutToInput, KnowledgeEdgeUncheckedCreateWithoutToInput>
+  }
+
+  export type KnowledgeEdgeCreateManyToInputEnvelope = {
+    data: KnowledgeEdgeCreateManyToInput | KnowledgeEdgeCreateManyToInput[]
+    skipDuplicates?: boolean
+  }
+
+  export type KnowledgeEdgeUpsertWithWhereUniqueWithoutFromInput = {
+    where: KnowledgeEdgeWhereUniqueInput
+    update: XOR<KnowledgeEdgeUpdateWithoutFromInput, KnowledgeEdgeUncheckedUpdateWithoutFromInput>
+    create: XOR<KnowledgeEdgeCreateWithoutFromInput, KnowledgeEdgeUncheckedCreateWithoutFromInput>
+  }
+
+  export type KnowledgeEdgeUpdateWithWhereUniqueWithoutFromInput = {
+    where: KnowledgeEdgeWhereUniqueInput
+    data: XOR<KnowledgeEdgeUpdateWithoutFromInput, KnowledgeEdgeUncheckedUpdateWithoutFromInput>
+  }
+
+  export type KnowledgeEdgeUpdateManyWithWhereWithoutFromInput = {
+    where: KnowledgeEdgeScalarWhereInput
+    data: XOR<KnowledgeEdgeUpdateManyMutationInput, KnowledgeEdgeUncheckedUpdateManyWithoutFromInput>
+  }
+
+  export type KnowledgeEdgeScalarWhereInput = {
+    AND?: KnowledgeEdgeScalarWhereInput | KnowledgeEdgeScalarWhereInput[]
+    OR?: KnowledgeEdgeScalarWhereInput[]
+    NOT?: KnowledgeEdgeScalarWhereInput | KnowledgeEdgeScalarWhereInput[]
+    id?: StringFilter<"KnowledgeEdge"> | string
+    projectId?: StringFilter<"KnowledgeEdge"> | string
+    fromId?: StringFilter<"KnowledgeEdge"> | string
+    toId?: StringFilter<"KnowledgeEdge"> | string
+    relation?: StringFilter<"KnowledgeEdge"> | string
+    weight?: FloatFilter<"KnowledgeEdge"> | number
+    source?: StringFilter<"KnowledgeEdge"> | string
+    createdAt?: DateTimeFilter<"KnowledgeEdge"> | Date | string
+  }
+
+  export type KnowledgeEdgeUpsertWithWhereUniqueWithoutToInput = {
+    where: KnowledgeEdgeWhereUniqueInput
+    update: XOR<KnowledgeEdgeUpdateWithoutToInput, KnowledgeEdgeUncheckedUpdateWithoutToInput>
+    create: XOR<KnowledgeEdgeCreateWithoutToInput, KnowledgeEdgeUncheckedCreateWithoutToInput>
+  }
+
+  export type KnowledgeEdgeUpdateWithWhereUniqueWithoutToInput = {
+    where: KnowledgeEdgeWhereUniqueInput
+    data: XOR<KnowledgeEdgeUpdateWithoutToInput, KnowledgeEdgeUncheckedUpdateWithoutToInput>
+  }
+
+  export type KnowledgeEdgeUpdateManyWithWhereWithoutToInput = {
+    where: KnowledgeEdgeScalarWhereInput
+    data: XOR<KnowledgeEdgeUpdateManyMutationInput, KnowledgeEdgeUncheckedUpdateManyWithoutToInput>
+  }
+
+  export type KnowledgeNodeCreateWithoutOutEdgesInput = {
+    id?: string
+    projectId: string
+    type: string
+    label: string
+    description?: string | null
+    metadata?: JsonNullValueInput | InputJsonValue
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    inEdges?: KnowledgeEdgeCreateNestedManyWithoutToInput
+  }
+
+  export type KnowledgeNodeUncheckedCreateWithoutOutEdgesInput = {
+    id?: string
+    projectId: string
+    type: string
+    label: string
+    description?: string | null
+    metadata?: JsonNullValueInput | InputJsonValue
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    inEdges?: KnowledgeEdgeUncheckedCreateNestedManyWithoutToInput
+  }
+
+  export type KnowledgeNodeCreateOrConnectWithoutOutEdgesInput = {
+    where: KnowledgeNodeWhereUniqueInput
+    create: XOR<KnowledgeNodeCreateWithoutOutEdgesInput, KnowledgeNodeUncheckedCreateWithoutOutEdgesInput>
+  }
+
+  export type KnowledgeNodeCreateWithoutInEdgesInput = {
+    id?: string
+    projectId: string
+    type: string
+    label: string
+    description?: string | null
+    metadata?: JsonNullValueInput | InputJsonValue
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    outEdges?: KnowledgeEdgeCreateNestedManyWithoutFromInput
+  }
+
+  export type KnowledgeNodeUncheckedCreateWithoutInEdgesInput = {
+    id?: string
+    projectId: string
+    type: string
+    label: string
+    description?: string | null
+    metadata?: JsonNullValueInput | InputJsonValue
+    createdAt?: Date | string
+    updatedAt?: Date | string
+    outEdges?: KnowledgeEdgeUncheckedCreateNestedManyWithoutFromInput
+  }
+
+  export type KnowledgeNodeCreateOrConnectWithoutInEdgesInput = {
+    where: KnowledgeNodeWhereUniqueInput
+    create: XOR<KnowledgeNodeCreateWithoutInEdgesInput, KnowledgeNodeUncheckedCreateWithoutInEdgesInput>
+  }
+
+  export type KnowledgeNodeUpsertWithoutOutEdgesInput = {
+    update: XOR<KnowledgeNodeUpdateWithoutOutEdgesInput, KnowledgeNodeUncheckedUpdateWithoutOutEdgesInput>
+    create: XOR<KnowledgeNodeCreateWithoutOutEdgesInput, KnowledgeNodeUncheckedCreateWithoutOutEdgesInput>
+    where?: KnowledgeNodeWhereInput
+  }
+
+  export type KnowledgeNodeUpdateToOneWithWhereWithoutOutEdgesInput = {
+    where?: KnowledgeNodeWhereInput
+    data: XOR<KnowledgeNodeUpdateWithoutOutEdgesInput, KnowledgeNodeUncheckedUpdateWithoutOutEdgesInput>
+  }
+
+  export type KnowledgeNodeUpdateWithoutOutEdgesInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    type?: StringFieldUpdateOperationsInput | string
+    label?: StringFieldUpdateOperationsInput | string
+    description?: NullableStringFieldUpdateOperationsInput | string | null
+    metadata?: JsonNullValueInput | InputJsonValue
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    inEdges?: KnowledgeEdgeUpdateManyWithoutToNestedInput
+  }
+
+  export type KnowledgeNodeUncheckedUpdateWithoutOutEdgesInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    type?: StringFieldUpdateOperationsInput | string
+    label?: StringFieldUpdateOperationsInput | string
+    description?: NullableStringFieldUpdateOperationsInput | string | null
+    metadata?: JsonNullValueInput | InputJsonValue
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    inEdges?: KnowledgeEdgeUncheckedUpdateManyWithoutToNestedInput
+  }
+
+  export type KnowledgeNodeUpsertWithoutInEdgesInput = {
+    update: XOR<KnowledgeNodeUpdateWithoutInEdgesInput, KnowledgeNodeUncheckedUpdateWithoutInEdgesInput>
+    create: XOR<KnowledgeNodeCreateWithoutInEdgesInput, KnowledgeNodeUncheckedCreateWithoutInEdgesInput>
+    where?: KnowledgeNodeWhereInput
+  }
+
+  export type KnowledgeNodeUpdateToOneWithWhereWithoutInEdgesInput = {
+    where?: KnowledgeNodeWhereInput
+    data: XOR<KnowledgeNodeUpdateWithoutInEdgesInput, KnowledgeNodeUncheckedUpdateWithoutInEdgesInput>
+  }
+
+  export type KnowledgeNodeUpdateWithoutInEdgesInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    type?: StringFieldUpdateOperationsInput | string
+    label?: StringFieldUpdateOperationsInput | string
+    description?: NullableStringFieldUpdateOperationsInput | string | null
+    metadata?: JsonNullValueInput | InputJsonValue
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    outEdges?: KnowledgeEdgeUpdateManyWithoutFromNestedInput
+  }
+
+  export type KnowledgeNodeUncheckedUpdateWithoutInEdgesInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    type?: StringFieldUpdateOperationsInput | string
+    label?: StringFieldUpdateOperationsInput | string
+    description?: NullableStringFieldUpdateOperationsInput | string | null
+    metadata?: JsonNullValueInput | InputJsonValue
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    outEdges?: KnowledgeEdgeUncheckedUpdateManyWithoutFromNestedInput
+  }
+
   export type MissionStepCreateManyMissionInput = {
     id?: string
     title: string
@@ -6973,6 +10198,86 @@ export namespace Prisma {
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
+  export type KnowledgeEdgeCreateManyFromInput = {
+    id?: string
+    projectId: string
+    toId: string
+    relation: string
+    weight?: number
+    source?: string
+    createdAt?: Date | string
+  }
+
+  export type KnowledgeEdgeCreateManyToInput = {
+    id?: string
+    projectId: string
+    fromId: string
+    relation: string
+    weight?: number
+    source?: string
+    createdAt?: Date | string
+  }
+
+  export type KnowledgeEdgeUpdateWithoutFromInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    relation?: StringFieldUpdateOperationsInput | string
+    weight?: FloatFieldUpdateOperationsInput | number
+    source?: StringFieldUpdateOperationsInput | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    to?: KnowledgeNodeUpdateOneRequiredWithoutInEdgesNestedInput
+  }
+
+  export type KnowledgeEdgeUncheckedUpdateWithoutFromInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    toId?: StringFieldUpdateOperationsInput | string
+    relation?: StringFieldUpdateOperationsInput | string
+    weight?: FloatFieldUpdateOperationsInput | number
+    source?: StringFieldUpdateOperationsInput | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type KnowledgeEdgeUncheckedUpdateManyWithoutFromInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    toId?: StringFieldUpdateOperationsInput | string
+    relation?: StringFieldUpdateOperationsInput | string
+    weight?: FloatFieldUpdateOperationsInput | number
+    source?: StringFieldUpdateOperationsInput | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type KnowledgeEdgeUpdateWithoutToInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    relation?: StringFieldUpdateOperationsInput | string
+    weight?: FloatFieldUpdateOperationsInput | number
+    source?: StringFieldUpdateOperationsInput | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    from?: KnowledgeNodeUpdateOneRequiredWithoutOutEdgesNestedInput
+  }
+
+  export type KnowledgeEdgeUncheckedUpdateWithoutToInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    fromId?: StringFieldUpdateOperationsInput | string
+    relation?: StringFieldUpdateOperationsInput | string
+    weight?: FloatFieldUpdateOperationsInput | number
+    source?: StringFieldUpdateOperationsInput | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type KnowledgeEdgeUncheckedUpdateManyWithoutToInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    fromId?: StringFieldUpdateOperationsInput | string
+    relation?: StringFieldUpdateOperationsInput | string
+    weight?: FloatFieldUpdateOperationsInput | number
+    source?: StringFieldUpdateOperationsInput | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
 
 
   /**
@@ -6982,6 +10287,10 @@ export namespace Prisma {
      * @deprecated Use MissionCountOutputTypeDefaultArgs instead
      */
     export type MissionCountOutputTypeArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = MissionCountOutputTypeDefaultArgs<ExtArgs>
+    /**
+     * @deprecated Use KnowledgeNodeCountOutputTypeDefaultArgs instead
+     */
+    export type KnowledgeNodeCountOutputTypeArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = KnowledgeNodeCountOutputTypeDefaultArgs<ExtArgs>
     /**
      * @deprecated Use MissionDefaultArgs instead
      */
@@ -6998,6 +10307,14 @@ export namespace Prisma {
      * @deprecated Use VaultAccessLogDefaultArgs instead
      */
     export type VaultAccessLogArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = VaultAccessLogDefaultArgs<ExtArgs>
+    /**
+     * @deprecated Use KnowledgeNodeDefaultArgs instead
+     */
+    export type KnowledgeNodeArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = KnowledgeNodeDefaultArgs<ExtArgs>
+    /**
+     * @deprecated Use KnowledgeEdgeDefaultArgs instead
+     */
+    export type KnowledgeEdgeArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = KnowledgeEdgeDefaultArgs<ExtArgs>
 
   /**
    * Batch Payload for updateMany & deleteMany & createMany

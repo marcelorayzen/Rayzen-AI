@@ -8,6 +8,8 @@ import { AiRouterModule } from './ai-router/ai-router.module'
 import { ContextEngineModule } from './context-engine/context-engine.module'
 import { SkillEngineModule } from './skill-engine/skill-engine.module'
 import { VaultModule } from './vault/vault.module'
+import { KnowledgeModule } from './knowledge/knowledge.module'
+import { ProjectMemoryModule } from './project-memory/project-memory.module'
 
 @Module({
   imports: [
@@ -20,6 +22,8 @@ import { VaultModule } from './vault/vault.module'
     RouterModule,
     SkillEngineModule,
     VaultModule,
+    KnowledgeModule,
+    ProjectMemoryModule,
   ],
 })
 export class AppModule {}

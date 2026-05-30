@@ -162,6 +162,10 @@ exports.Prisma.MemoryMetaScalarFieldEnum = {
   accessCount: 'accessCount',
   lastAccessAt: 'lastAccessAt',
   consolidatedInto: 'consolidatedInto',
+  memoryType: 'memoryType',
+  confidence: 'confidence',
+  validUntil: 'validUntil',
+  missionId: 'missionId',
   notes: 'notes',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
@@ -175,6 +179,28 @@ exports.Prisma.VaultAccessLogScalarFieldEnum = {
   missionId: 'missionId',
   stepId: 'stepId',
   accessedAt: 'accessedAt'
+};
+
+exports.Prisma.KnowledgeNodeScalarFieldEnum = {
+  id: 'id',
+  projectId: 'projectId',
+  type: 'type',
+  label: 'label',
+  description: 'description',
+  metadata: 'metadata',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.KnowledgeEdgeScalarFieldEnum = {
+  id: 'id',
+  projectId: 'projectId',
+  fromId: 'fromId',
+  toId: 'toId',
+  relation: 'relation',
+  weight: 'weight',
+  source: 'source',
+  createdAt: 'createdAt'
 };
 
 exports.Prisma.SortOrder = {
@@ -212,7 +238,9 @@ exports.Prisma.ModelName = {
   Mission: 'Mission',
   MissionStep: 'MissionStep',
   MemoryMeta: 'MemoryMeta',
-  VaultAccessLog: 'VaultAccessLog'
+  VaultAccessLog: 'VaultAccessLog',
+  KnowledgeNode: 'KnowledgeNode',
+  KnowledgeEdge: 'KnowledgeEdge'
 };
 
 /**
