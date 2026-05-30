@@ -18,6 +18,7 @@ import { CostControllerModule } from './cost-controller/cost-controller.module'
 import { ObservabilityModule } from './observability/observability.module'
 import { ResourceManagerModule } from './resource-manager/resource-manager.module'
 import { MissionSchedulerModule } from './mission-scheduler/mission-scheduler.module'
+import { SpecialistModule } from './specialists/specialist.module'
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { MissionSchedulerModule } from './mission-scheduler/mission-scheduler.mo
     DocumentationEngineModule,
     ResourceManagerModule,
     MissionSchedulerModule,
+    SpecialistModule,
   ],
 })
 export class AppModule {}

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { MissionService } from '../mission/mission.service'
 import { SkillEngineService } from '../skill-engine/skill-engine.service'
 import { AiRouterService } from '../ai-router/ai-router.service'
+import { SpecialistService } from '../specialists/specialist.service'
 
 type StepStatus = 'pending' | 'running' | 'done' | 'failed' | 'skipped'
 
@@ -48,9 +49,10 @@ export class WorkflowEngineService {
   private readonly logger = new Logger(WorkflowEngineService.name)
 
   constructor(
-    private readonly missions:    MissionService,
-    private readonly skillEngine: SkillEngineService,
-    private readonly aiRouter:    AiRouterService,
+    private readonly missions:     MissionService,
+    private readonly skillEngine:  SkillEngineService,
+    private readonly aiRouter:     AiRouterService,
+    private readonly specialists:  SpecialistService,
   ) {}
 
   // Execute all pending steps respecting DAG dependencies
@@ -156,19 +158,30 @@ export class WorkflowEngineService {
       return result.output
     }
 
-    // AI step
-    const prompt = step.prompt
+    // AI step → spawn a Specialist for richer execution
+    const task = step.prompt
       ? step.prompt
-      : `Mission: ${objective}\nStep: ${step.title}\n${prevOutputs ? `\nContext from previous steps:\n${prevOutputs}` : ''}`
+      : `Mission: ${objective}\nStep: ${step.title}\n${prevOutputs ? `\nContext:\n${prevOutputs}` : ''}`
 
-    const result = await this.aiRouter.complete({
-      prompt,
-      taskType:  'implement',
+    const instance = await this.specialists.spawn({
+      task,
+      missionId: step.id,
+      stepId:    step.id,
       projectId,
-      maxTokens: 2048,
+      context:   prevOutputs || undefined,
     })
 
-    return { response: result.content, tokensUsed: result.tokensIn + result.tokensOut, model: result.modelUsed }
+    // Wait for specialist to complete (max 60s)
+    let waited = 0
+    while (instance.status === 'running' && waited < 60000) {
+      await new Promise((r) => setTimeout(r, 2000))
+      waited += 2000
+      const fresh = this.specialists.getStatus(instance.id)
+      if (fresh) Object.assign(instance, fresh)
+    }
+
+    if (instance.status === 'failed') throw new Error('Specialist failed')
+    return instance.output ?? { response: 'No output', specialist: instance.type }
   }
 
   getTemplates() {

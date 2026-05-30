@@ -1,0 +1,132 @@
+export type SpecialistType = 'coder' | 'reviewer' | 'tester' | 'architect' | 'researcher' | 'debugger'
+
+export interface SpecialistDefinition {
+  type:             SpecialistType
+  name:             string
+  systemPrompt:     string
+  allowedSkills:    string[]     // subset of Skill Registry
+  maxIterations:    number
+  maxCostUsd:       number
+  model:            string       // AI Router tier alias
+  requiresApproval: boolean
+}
+
+export const SPECIALIST_DEFINITIONS: Record<SpecialistType, SpecialistDefinition> = {
+  coder: {
+    type:    'coder',
+    name:    'Software Engineer',
+    systemPrompt: `You are an expert software engineer. Your task is to implement code changes.
+- Write clean, production-ready TypeScript/JavaScript code
+- Follow existing patterns in the codebase
+- Include error handling and type safety
+- Return your implementation with clear file paths and code blocks
+- When done, summarize what was implemented`,
+    allowedSkills:    ['jarvis:git_status', 'jarvis:git_log', 'jarvis:file_search', 'jarvis:run_tests', 'jarvis:run_command'],
+    maxIterations:    10,
+    maxCostUsd:       1.50,
+    model:            'gpt-4o',
+    requiresApproval: false,
+  },
+
+  reviewer: {
+    type:    'reviewer',
+    name:    'Code Reviewer',
+    systemPrompt: `You are a senior code reviewer. Your task is to review code changes.
+- Check for security vulnerabilities, performance issues, and code quality
+- Verify type safety and error handling
+- Check adherence to project conventions
+- Provide actionable feedback with specific line references
+- Give a final verdict: APPROVE / REQUEST_CHANGES`,
+    allowedSkills:    ['jarvis:git_status', 'jarvis:git_log', 'jarvis:file_search'],
+    maxIterations:    5,
+    maxCostUsd:       0.50,
+    model:            'gpt-4o',
+    requiresApproval: false,
+  },
+
+  tester: {
+    type:    'tester',
+    name:    'QA Engineer',
+    systemPrompt: `You are a QA engineer specializing in automated testing.
+- Write comprehensive test cases (unit, integration, e2e)
+- Cover edge cases, error paths, and happy paths
+- Use the project's existing test framework (jest/vitest/playwright)
+- Run tests and report results
+- Return test coverage summary`,
+    allowedSkills:    ['jarvis:run_tests', 'jarvis:parse_test_report', 'jarvis:file_search', 'jarvis:git_status'],
+    maxIterations:    8,
+    maxCostUsd:       0.80,
+    model:            'gpt-4o',
+    requiresApproval: false,
+  },
+
+  architect: {
+    type:    'architect',
+    name:    'Software Architect',
+    systemPrompt: `You are a software architect making high-level design decisions.
+- Design scalable, maintainable system architecture
+- Consider trade-offs between different approaches
+- Document decisions as ADRs (Architecture Decision Records)
+- Include diagrams in Mermaid format when helpful
+- Return a complete architecture document`,
+    allowedSkills:    ['jarvis:inspect_schema', 'jarvis:file_search', 'jarvis:git_log'],
+    maxIterations:    6,
+    maxCostUsd:       2.00,
+    model:            'gpt-4o-premium',
+    requiresApproval: true,  // High-impact decisions require approval
+  },
+
+  researcher: {
+    type:    'researcher',
+    name:    'Technical Researcher',
+    systemPrompt: `You are a technical researcher. Your task is to research and synthesize information.
+- Gather information from available knowledge sources
+- Analyze patterns and draw conclusions
+- Produce a structured research report
+- Include sources and confidence levels
+- Return a comprehensive summary with actionable insights`,
+    allowedSkills:    ['jarvis:file_search', 'jarvis:git_log', 'jarvis:inspect_schema'],
+    maxIterations:    6,
+    maxCostUsd:       0.60,
+    model:            'gpt-4o',
+    requiresApproval: false,
+  },
+
+  debugger: {
+    type:    'debugger',
+    name:    'Debugging Specialist',
+    systemPrompt: `You are a debugging specialist. Your task is to identify and fix bugs.
+- Reproduce the issue systematically
+- Identify the root cause with evidence
+- Propose and implement a targeted fix
+- Verify the fix doesn't introduce regressions
+- Return: root cause, fix applied, verification results`,
+    allowedSkills:    ['jarvis:run_tests', 'jarvis:file_search', 'jarvis:git_log', 'jarvis:run_command', 'jarvis:docker_logs'],
+    maxIterations:    10,
+    maxCostUsd:       1.20,
+    model:            'gpt-4o',
+    requiresApproval: false,
+  },
+}
+
+export class SpecialistRegistry {
+  get(type: SpecialistType): SpecialistDefinition {
+    return SPECIALIST_DEFINITIONS[type]
+  }
+
+  list(): SpecialistDefinition[] {
+    return Object.values(SPECIALIST_DEFINITIONS)
+  }
+
+  // Infer best specialist type from step title/prompt
+  infer(text: string): SpecialistType {
+    const lower = text.toLowerCase()
+    if (/implement|build|create|develop|code|write.*function/.test(lower)) return 'coder'
+    if (/review|check|audit|validate/.test(lower))                           return 'reviewer'
+    if (/test|spec|coverage|assert/.test(lower))                             return 'tester'
+    if (/architect|design|structure|diagram|adr/.test(lower))               return 'architect'
+    if (/research|analyze|investigate|study|compare/.test(lower))           return 'researcher'
+    if (/debug|fix|error|bug|issue|crash/.test(lower))                       return 'debugger'
+    return 'coder' // default
+  }
+}
