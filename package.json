@@ -14,7 +14,8 @@
     "db:studio": "pnpm --filter api db:studio",
     "rayzen:event": "node scripts/rayzen-event.mjs event",
     "rayzen:checkpoint": "node scripts/rayzen-event.mjs checkpoint",
-    "gen:catalog": "node scripts/gen-agent-catalog.mjs"
+    "gen:catalog": "node scripts/gen-agent-catalog.mjs",
+    "scan:secrets": "node scripts/scan-secrets.mjs"
   },
   "devDependencies": {
     "typescript": "^5.5.0"
