@@ -14,7 +14,12 @@ rayzen.com.br {
 }
 
 api.rayzen.com.br {
-	reverse_proxy api:3001
+	handle /v2/* {
+		reverse_proxy api-v2:3002
+	}
+	handle {
+		reverse_proxy api:3001
+	}
 }
 
 20.251.146.221.nip.io {

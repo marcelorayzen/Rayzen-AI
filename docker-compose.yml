@@ -132,6 +132,30 @@ services:
       retries: 5
       start_period: 30s
 
+  api-v2:
+    build:
+      context: .
+      dockerfile: apps/api-v2/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL_V2: postgresql://rayzen:${POSTGRES_PASSWORD:-senha}@postgres:5432/rayzen_ai?schema=v2
+      DATABASE_URL: postgresql://rayzen:${POSTGRES_PASSWORD:-senha}@postgres:5432/rayzen_ai
+      API_V2_PORT: 3002
+    ports:
+      - '127.0.0.1:3103:3002'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'node', '-e', "require('http').get('http://localhost:3002/v2/docs', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
   ollama:
     image: ollama/ollama:latest
     restart: unless-stopped

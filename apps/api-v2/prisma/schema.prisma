@@ -1,0 +1,56 @@
+generator client {
+  provider        = "prisma-client-js"
+  output          = "../src/generated/prisma-client-v2"
+  previewFeatures = ["multiSchema"]
+  binaryTargets   = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL_V2")
+  schemas  = ["v2"]
+}
+
+// ─── Mission Engine ───────────────────────────────────────────────────────────
+
+model Mission {
+  id          String    @id @default(uuid())
+  projectId   String    @map("project_id")
+  title       String
+  objective   String
+  status      String    @default("pending") // pending | active | paused | done | failed | cancelled
+  context     Json      @default("{}")       // contexto acumulado entre steps
+  createdAt   DateTime  @default(now()) @map("created_at")
+  startedAt   DateTime? @map("started_at")
+  completedAt DateTime? @map("completed_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  steps MissionStep[]
+
+  @@schema("v2")
+  @@map("missions")
+}
+
+model MissionStep {
+  id             String   @id @default(uuid())
+  missionId      String   @map("mission_id")
+  title          String
+  status         String   @default("pending") // pending | running | done | failed | skipped
+  skillId        String?  @map("skill_id")
+  prompt         String?
+  input          Json     @default("{}")
+  output         Json?
+  dependsOn      String[] @map("depends_on") // ids de steps que devem completar antes
+  retries        Int      @default(0)
+  executor       String   @default("ai")     // skill | ai | human
+  approvalGateId String?  @map("approval_gate_id")
+  startedAt      DateTime? @map("started_at")
+  completedAt    DateTime? @map("completed_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  mission Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+
+  @@schema("v2")
+  @@map("mission_steps")
+}
