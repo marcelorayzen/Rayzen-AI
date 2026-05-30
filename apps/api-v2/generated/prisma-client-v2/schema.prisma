@@ -19,7 +19,7 @@ model Mission {
   title       String
   objective   String
   status      String    @default("pending") // pending | active | paused | done | failed | cancelled
-  context     Json      @default("{}")       // contexto acumulado entre steps
+  context     Json      @default("{}") // contexto acumulado entre steps
   createdAt   DateTime  @default(now()) @map("created_at")
   startedAt   DateTime? @map("started_at")
   completedAt DateTime? @map("completed_at")
@@ -27,30 +27,30 @@ model Mission {
 
   steps MissionStep[]
 
-  @@schema("v2")
   @@map("missions")
+  @@schema("v2")
 }
 
 model MissionStep {
-  id             String   @id @default(uuid())
-  missionId      String   @map("mission_id")
+  id             String    @id @default(uuid())
+  missionId      String    @map("mission_id")
   title          String
-  status         String   @default("pending") // pending | running | done | failed | skipped
-  skillId        String?  @map("skill_id")
+  status         String    @default("pending") // pending | running | done | failed | skipped
+  skillId        String?   @map("skill_id")
   prompt         String?
-  input          Json     @default("{}")
+  input          Json      @default("{}")
   output         Json?
-  dependsOn      String[] @map("depends_on") // ids de steps que devem completar antes
-  retries        Int      @default(0)
-  executor       String   @default("ai")     // skill | ai | human
-  approvalGateId String?  @map("approval_gate_id")
+  dependsOn      String[]  @map("depends_on") // ids de steps que devem completar antes
+  retries        Int       @default(0)
+  executor       String    @default("ai") // skill | ai | human
+  approvalGateId String?   @map("approval_gate_id")
   startedAt      DateTime? @map("started_at")
   completedAt    DateTime? @map("completed_at")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
   mission Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
 
-  @@schema("v2")
   @@map("mission_steps")
+  @@schema("v2")
 }

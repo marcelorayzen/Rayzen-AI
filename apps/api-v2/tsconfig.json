@@ -8,9 +8,7 @@
     "rootDir": "./src",
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
-    "paths": {
-      "@generated/prisma-client-v2": ["./src/generated/prisma-client-v2"]
-    }
+    "paths": {}
   },
   "include": ["src"],
   "exclude": ["node_modules", "dist"]

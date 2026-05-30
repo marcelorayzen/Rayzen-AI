@@ -50,7 +50,7 @@ RUN pnpm install --frozen-lockfile
 COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
 COPY --from=builder /app/apps/api-v2/dist ./apps/api-v2/dist
 COPY --from=builder /app/apps/api-v2/prisma ./apps/api-v2/prisma
-COPY --from=builder /app/apps/api-v2/src/generated ./apps/api-v2/src/generated
+COPY --from=builder /app/apps/api-v2/generated ./apps/api-v2/generated
 
 RUN pnpm --filter api db:generate
 RUN pnpm --filter api-v2 db:generate
