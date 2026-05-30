@@ -4,8 +4,20 @@ import { LlmModule } from './llm/llm.module'
 import { MissionModule } from './mission/mission.module'
 import { RouterModule } from './router/router.module'
 import { MemoryModule } from './memory/memory.module'
+import { AiRouterModule } from './ai-router/ai-router.module'
+import { ContextEngineModule } from './context-engine/context-engine.module'
+import { SkillEngineModule } from './skill-engine/skill-engine.module'
 
 @Module({
-  imports: [CoreModule, LlmModule, MissionModule, RouterModule, MemoryModule],
+  imports: [
+    CoreModule,
+    LlmModule,
+    AiRouterModule,
+    MemoryModule,
+    ContextEngineModule,
+    MissionModule,
+    RouterModule,
+    SkillEngineModule,
+  ],
 })
 export class AppModule {}
