@@ -2,6 +2,9 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaV2Service } from '../core/prisma-v2.service'
 import { CreateMissionDto, CreateMissionStepDto, UpdateMissionStepDto } from './dto/create-mission.dto'
 
+// DTO fields are Record<string, unknown>; Prisma Json requires object — double cast is intentional
+const j = (v?: Record<string, unknown>): object => (v ?? {}) as object
+
 type MissionStatus = 'pending' | 'active' | 'paused' | 'done' | 'failed' | 'cancelled'
 
 const VALID_TRANSITIONS: Record<MissionStatus, MissionStatus[]> = {
@@ -23,7 +26,7 @@ export class MissionService {
         projectId: dto.projectId,
         title:     dto.title,
         objective: dto.objective,
-        context:   dto.context ?? {},
+        context:   j(dto.context),
         status:    'pending',
       },
       include: { steps: true },
@@ -69,7 +72,7 @@ export class MissionService {
         title:     dto.title,
         skillId:   dto.skillId,
         prompt:    dto.prompt,
-        input:     dto.input ?? {},
+        input:     j(dto.input),
         executor:  dto.executor ?? 'ai',
         dependsOn: dto.dependsOn ?? [],
         status:    'pending',
@@ -90,11 +93,11 @@ export class MissionService {
     if (!step) throw new NotFoundException(`Step ${stepId} not found in mission ${missionId}`)
 
     const data: Record<string, unknown> = {}
-    if (dto.output !== undefined) data.output = dto.output
+    if (dto.output !== undefined) data.output = j(dto.output)
     if (dto.status !== undefined) {
       data.status = dto.status
-      if (dto.status === 'running' && !step.startedAt)   data.startedAt   = new Date()
-      if (dto.status === 'done'    || dto.status === 'failed') data.completedAt = new Date()
+      if (dto.status === 'running' && !step.startedAt)        data.startedAt   = new Date()
+      if (dto.status === 'done' || dto.status === 'failed')   data.completedAt = new Date()
     }
 
     return this.prisma.missionStep.update({ where: { id: stepId }, data })
