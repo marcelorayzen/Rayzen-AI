@@ -23,6 +23,11 @@ export type Mission = $Result.DefaultSelection<Prisma.$MissionPayload>
  * 
  */
 export type MissionStep = $Result.DefaultSelection<Prisma.$MissionStepPayload>
+/**
+ * Model MemoryMeta
+ * 
+ */
+export type MemoryMeta = $Result.DefaultSelection<Prisma.$MemoryMetaPayload>
 
 /**
  * ##  Prisma Client ʲˢ
@@ -166,6 +171,16 @@ export class PrismaClient<
     * ```
     */
   get missionStep(): Prisma.MissionStepDelegate<ExtArgs>;
+
+  /**
+   * `prisma.memoryMeta`: Exposes CRUD operations for the **MemoryMeta** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more MemoryMetas
+    * const memoryMetas = await prisma.memoryMeta.findMany()
+    * ```
+    */
+  get memoryMeta(): Prisma.MemoryMetaDelegate<ExtArgs>;
 }
 
 export namespace Prisma {
@@ -608,7 +623,8 @@ export namespace Prisma {
 
   export const ModelName: {
     Mission: 'Mission',
-    MissionStep: 'MissionStep'
+    MissionStep: 'MissionStep',
+    MemoryMeta: 'MemoryMeta'
   };
 
   export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -624,7 +640,7 @@ export namespace Prisma {
 
   export type TypeMap<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, ClientOptions = {}> = {
     meta: {
-      modelProps: "mission" | "missionStep"
+      modelProps: "mission" | "missionStep" | "memoryMeta"
       txIsolationLevel: Prisma.TransactionIsolationLevel
     }
     model: {
@@ -765,6 +781,76 @@ export namespace Prisma {
           count: {
             args: Prisma.MissionStepCountArgs<ExtArgs>
             result: $Utils.Optional<MissionStepCountAggregateOutputType> | number
+          }
+        }
+      }
+      MemoryMeta: {
+        payload: Prisma.$MemoryMetaPayload<ExtArgs>
+        fields: Prisma.MemoryMetaFieldRefs
+        operations: {
+          findUnique: {
+            args: Prisma.MemoryMetaFindUniqueArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$MemoryMetaPayload> | null
+          }
+          findUniqueOrThrow: {
+            args: Prisma.MemoryMetaFindUniqueOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$MemoryMetaPayload>
+          }
+          findFirst: {
+            args: Prisma.MemoryMetaFindFirstArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$MemoryMetaPayload> | null
+          }
+          findFirstOrThrow: {
+            args: Prisma.MemoryMetaFindFirstOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$MemoryMetaPayload>
+          }
+          findMany: {
+            args: Prisma.MemoryMetaFindManyArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$MemoryMetaPayload>[]
+          }
+          create: {
+            args: Prisma.MemoryMetaCreateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$MemoryMetaPayload>
+          }
+          createMany: {
+            args: Prisma.MemoryMetaCreateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          createManyAndReturn: {
+            args: Prisma.MemoryMetaCreateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$MemoryMetaPayload>[]
+          }
+          delete: {
+            args: Prisma.MemoryMetaDeleteArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$MemoryMetaPayload>
+          }
+          update: {
+            args: Prisma.MemoryMetaUpdateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$MemoryMetaPayload>
+          }
+          deleteMany: {
+            args: Prisma.MemoryMetaDeleteManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateMany: {
+            args: Prisma.MemoryMetaUpdateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          upsert: {
+            args: Prisma.MemoryMetaUpsertArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$MemoryMetaPayload>
+          }
+          aggregate: {
+            args: Prisma.MemoryMetaAggregateArgs<ExtArgs>
+            result: $Utils.Optional<AggregateMemoryMeta>
+          }
+          groupBy: {
+            args: Prisma.MemoryMetaGroupByArgs<ExtArgs>
+            result: $Utils.Optional<MemoryMetaGroupByOutputType>[]
+          }
+          count: {
+            args: Prisma.MemoryMetaCountArgs<ExtArgs>
+            result: $Utils.Optional<MemoryMetaCountAggregateOutputType> | number
           }
         }
       }
@@ -3051,6 +3137,978 @@ export namespace Prisma {
 
 
   /**
+   * Model MemoryMeta
+   */
+
+  export type AggregateMemoryMeta = {
+    _count: MemoryMetaCountAggregateOutputType | null
+    _avg: MemoryMetaAvgAggregateOutputType | null
+    _sum: MemoryMetaSumAggregateOutputType | null
+    _min: MemoryMetaMinAggregateOutputType | null
+    _max: MemoryMetaMaxAggregateOutputType | null
+  }
+
+  export type MemoryMetaAvgAggregateOutputType = {
+    accessCount: number | null
+  }
+
+  export type MemoryMetaSumAggregateOutputType = {
+    accessCount: number | null
+  }
+
+  export type MemoryMetaMinAggregateOutputType = {
+    id: string | null
+    v1DocumentId: string | null
+    projectId: string | null
+    memoryClass: string | null
+    accessCount: number | null
+    lastAccessAt: Date | null
+    consolidatedInto: string | null
+    notes: string | null
+    createdAt: Date | null
+    updatedAt: Date | null
+  }
+
+  export type MemoryMetaMaxAggregateOutputType = {
+    id: string | null
+    v1DocumentId: string | null
+    projectId: string | null
+    memoryClass: string | null
+    accessCount: number | null
+    lastAccessAt: Date | null
+    consolidatedInto: string | null
+    notes: string | null
+    createdAt: Date | null
+    updatedAt: Date | null
+  }
+
+  export type MemoryMetaCountAggregateOutputType = {
+    id: number
+    v1DocumentId: number
+    projectId: number
+    memoryClass: number
+    accessCount: number
+    lastAccessAt: number
+    consolidatedInto: number
+    notes: number
+    createdAt: number
+    updatedAt: number
+    _all: number
+  }
+
+
+  export type MemoryMetaAvgAggregateInputType = {
+    accessCount?: true
+  }
+
+  export type MemoryMetaSumAggregateInputType = {
+    accessCount?: true
+  }
+
+  export type MemoryMetaMinAggregateInputType = {
+    id?: true
+    v1DocumentId?: true
+    projectId?: true
+    memoryClass?: true
+    accessCount?: true
+    lastAccessAt?: true
+    consolidatedInto?: true
+    notes?: true
+    createdAt?: true
+    updatedAt?: true
+  }
+
+  export type MemoryMetaMaxAggregateInputType = {
+    id?: true
+    v1DocumentId?: true
+    projectId?: true
+    memoryClass?: true
+    accessCount?: true
+    lastAccessAt?: true
+    consolidatedInto?: true
+    notes?: true
+    createdAt?: true
+    updatedAt?: true
+  }
+
+  export type MemoryMetaCountAggregateInputType = {
+    id?: true
+    v1DocumentId?: true
+    projectId?: true
+    memoryClass?: true
+    accessCount?: true
+    lastAccessAt?: true
+    consolidatedInto?: true
+    notes?: true
+    createdAt?: true
+    updatedAt?: true
+    _all?: true
+  }
+
+  export type MemoryMetaAggregateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which MemoryMeta to aggregate.
+     */
+    where?: MemoryMetaWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of MemoryMetas to fetch.
+     */
+    orderBy?: MemoryMetaOrderByWithRelationInput | MemoryMetaOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the start position
+     */
+    cursor?: MemoryMetaWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` MemoryMetas from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` MemoryMetas.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Count returned MemoryMetas
+    **/
+    _count?: true | MemoryMetaCountAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to average
+    **/
+    _avg?: MemoryMetaAvgAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to sum
+    **/
+    _sum?: MemoryMetaSumAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the minimum value
+    **/
+    _min?: MemoryMetaMinAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the maximum value
+    **/
+    _max?: MemoryMetaMaxAggregateInputType
+  }
+
+  export type GetMemoryMetaAggregateType<T extends MemoryMetaAggregateArgs> = {
+        [P in keyof T & keyof AggregateMemoryMeta]: P extends '_count' | 'count'
+      ? T[P] extends true
+        ? number
+        : GetScalarType<T[P], AggregateMemoryMeta[P]>
+      : GetScalarType<T[P], AggregateMemoryMeta[P]>
+  }
+
+
+
+
+  export type MemoryMetaGroupByArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: MemoryMetaWhereInput
+    orderBy?: MemoryMetaOrderByWithAggregationInput | MemoryMetaOrderByWithAggregationInput[]
+    by: MemoryMetaScalarFieldEnum[] | MemoryMetaScalarFieldEnum
+    having?: MemoryMetaScalarWhereWithAggregatesInput
+    take?: number
+    skip?: number
+    _count?: MemoryMetaCountAggregateInputType | true
+    _avg?: MemoryMetaAvgAggregateInputType
+    _sum?: MemoryMetaSumAggregateInputType
+    _min?: MemoryMetaMinAggregateInputType
+    _max?: MemoryMetaMaxAggregateInputType
+  }
+
+  export type MemoryMetaGroupByOutputType = {
+    id: string
+    v1DocumentId: string
+    projectId: string
+    memoryClass: string
+    accessCount: number
+    lastAccessAt: Date | null
+    consolidatedInto: string | null
+    notes: string | null
+    createdAt: Date
+    updatedAt: Date
+    _count: MemoryMetaCountAggregateOutputType | null
+    _avg: MemoryMetaAvgAggregateOutputType | null
+    _sum: MemoryMetaSumAggregateOutputType | null
+    _min: MemoryMetaMinAggregateOutputType | null
+    _max: MemoryMetaMaxAggregateOutputType | null
+  }
+
+  type GetMemoryMetaGroupByPayload<T extends MemoryMetaGroupByArgs> = Prisma.PrismaPromise<
+    Array<
+      PickEnumerable<MemoryMetaGroupByOutputType, T['by']> &
+        {
+          [P in ((keyof T) & (keyof MemoryMetaGroupByOutputType))]: P extends '_count'
+            ? T[P] extends boolean
+              ? number
+              : GetScalarType<T[P], MemoryMetaGroupByOutputType[P]>
+            : GetScalarType<T[P], MemoryMetaGroupByOutputType[P]>
+        }
+      >
+    >
+
+
+  export type MemoryMetaSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    v1DocumentId?: boolean
+    projectId?: boolean
+    memoryClass?: boolean
+    accessCount?: boolean
+    lastAccessAt?: boolean
+    consolidatedInto?: boolean
+    notes?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+  }, ExtArgs["result"]["memoryMeta"]>
+
+  export type MemoryMetaSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    v1DocumentId?: boolean
+    projectId?: boolean
+    memoryClass?: boolean
+    accessCount?: boolean
+    lastAccessAt?: boolean
+    consolidatedInto?: boolean
+    notes?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+  }, ExtArgs["result"]["memoryMeta"]>
+
+  export type MemoryMetaSelectScalar = {
+    id?: boolean
+    v1DocumentId?: boolean
+    projectId?: boolean
+    memoryClass?: boolean
+    accessCount?: boolean
+    lastAccessAt?: boolean
+    consolidatedInto?: boolean
+    notes?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+  }
+
+
+  export type $MemoryMetaPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    name: "MemoryMeta"
+    objects: {}
+    scalars: $Extensions.GetPayloadResult<{
+      id: string
+      v1DocumentId: string
+      projectId: string
+      memoryClass: string
+      accessCount: number
+      lastAccessAt: Date | null
+      consolidatedInto: string | null
+      notes: string | null
+      createdAt: Date
+      updatedAt: Date
+    }, ExtArgs["result"]["memoryMeta"]>
+    composites: {}
+  }
+
+  type MemoryMetaGetPayload<S extends boolean | null | undefined | MemoryMetaDefaultArgs> = $Result.GetResult<Prisma.$MemoryMetaPayload, S>
+
+  type MemoryMetaCountArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = 
+    Omit<MemoryMetaFindManyArgs, 'select' | 'include' | 'distinct'> & {
+      select?: MemoryMetaCountAggregateInputType | true
+    }
+
+  export interface MemoryMetaDelegate<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> {
+    [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['model']['MemoryMeta'], meta: { name: 'MemoryMeta' } }
+    /**
+     * Find zero or one MemoryMeta that matches the filter.
+     * @param {MemoryMetaFindUniqueArgs} args - Arguments to find a MemoryMeta
+     * @example
+     * // Get one MemoryMeta
+     * const memoryMeta = await prisma.memoryMeta.findUnique({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUnique<T extends MemoryMetaFindUniqueArgs>(args: SelectSubset<T, MemoryMetaFindUniqueArgs<ExtArgs>>): Prisma__MemoryMetaClient<$Result.GetResult<Prisma.$MemoryMetaPayload<ExtArgs>, T, "findUnique"> | null, null, ExtArgs>
+
+    /**
+     * Find one MemoryMeta that matches the filter or throw an error with `error.code='P2025'` 
+     * if no matches were found.
+     * @param {MemoryMetaFindUniqueOrThrowArgs} args - Arguments to find a MemoryMeta
+     * @example
+     * // Get one MemoryMeta
+     * const memoryMeta = await prisma.memoryMeta.findUniqueOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUniqueOrThrow<T extends MemoryMetaFindUniqueOrThrowArgs>(args: SelectSubset<T, MemoryMetaFindUniqueOrThrowArgs<ExtArgs>>): Prisma__MemoryMetaClient<$Result.GetResult<Prisma.$MemoryMetaPayload<ExtArgs>, T, "findUniqueOrThrow">, never, ExtArgs>
+
+    /**
+     * Find the first MemoryMeta that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {MemoryMetaFindFirstArgs} args - Arguments to find a MemoryMeta
+     * @example
+     * // Get one MemoryMeta
+     * const memoryMeta = await prisma.memoryMeta.findFirst({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirst<T extends MemoryMetaFindFirstArgs>(args?: SelectSubset<T, MemoryMetaFindFirstArgs<ExtArgs>>): Prisma__MemoryMetaClient<$Result.GetResult<Prisma.$MemoryMetaPayload<ExtArgs>, T, "findFirst"> | null, null, ExtArgs>
+
+    /**
+     * Find the first MemoryMeta that matches the filter or
+     * throw `PrismaKnownClientError` with `P2025` code if no matches were found.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {MemoryMetaFindFirstOrThrowArgs} args - Arguments to find a MemoryMeta
+     * @example
+     * // Get one MemoryMeta
+     * const memoryMeta = await prisma.memoryMeta.findFirstOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirstOrThrow<T extends MemoryMetaFindFirstOrThrowArgs>(args?: SelectSubset<T, MemoryMetaFindFirstOrThrowArgs<ExtArgs>>): Prisma__MemoryMetaClient<$Result.GetResult<Prisma.$MemoryMetaPayload<ExtArgs>, T, "findFirstOrThrow">, never, ExtArgs>
+
+    /**
+     * Find zero or more MemoryMetas that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {MemoryMetaFindManyArgs} args - Arguments to filter and select certain fields only.
+     * @example
+     * // Get all MemoryMetas
+     * const memoryMetas = await prisma.memoryMeta.findMany()
+     * 
+     * // Get first 10 MemoryMetas
+     * const memoryMetas = await prisma.memoryMeta.findMany({ take: 10 })
+     * 
+     * // Only select the `id`
+     * const memoryMetaWithIdOnly = await prisma.memoryMeta.findMany({ select: { id: true } })
+     * 
+     */
+    findMany<T extends MemoryMetaFindManyArgs>(args?: SelectSubset<T, MemoryMetaFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$MemoryMetaPayload<ExtArgs>, T, "findMany">>
+
+    /**
+     * Create a MemoryMeta.
+     * @param {MemoryMetaCreateArgs} args - Arguments to create a MemoryMeta.
+     * @example
+     * // Create one MemoryMeta
+     * const MemoryMeta = await prisma.memoryMeta.create({
+     *   data: {
+     *     // ... data to create a MemoryMeta
+     *   }
+     * })
+     * 
+     */
+    create<T extends MemoryMetaCreateArgs>(args: SelectSubset<T, MemoryMetaCreateArgs<ExtArgs>>): Prisma__MemoryMetaClient<$Result.GetResult<Prisma.$MemoryMetaPayload<ExtArgs>, T, "create">, never, ExtArgs>
+
+    /**
+     * Create many MemoryMetas.
+     * @param {MemoryMetaCreateManyArgs} args - Arguments to create many MemoryMetas.
+     * @example
+     * // Create many MemoryMetas
+     * const memoryMeta = await prisma.memoryMeta.createMany({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     *     
+     */
+    createMany<T extends MemoryMetaCreateManyArgs>(args?: SelectSubset<T, MemoryMetaCreateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create many MemoryMetas and returns the data saved in the database.
+     * @param {MemoryMetaCreateManyAndReturnArgs} args - Arguments to create many MemoryMetas.
+     * @example
+     * // Create many MemoryMetas
+     * const memoryMeta = await prisma.memoryMeta.createManyAndReturn({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Create many MemoryMetas and only return the `id`
+     * const memoryMetaWithIdOnly = await prisma.memoryMeta.createManyAndReturn({ 
+     *   select: { id: true },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    createManyAndReturn<T extends MemoryMetaCreateManyAndReturnArgs>(args?: SelectSubset<T, MemoryMetaCreateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$MemoryMetaPayload<ExtArgs>, T, "createManyAndReturn">>
+
+    /**
+     * Delete a MemoryMeta.
+     * @param {MemoryMetaDeleteArgs} args - Arguments to delete one MemoryMeta.
+     * @example
+     * // Delete one MemoryMeta
+     * const MemoryMeta = await prisma.memoryMeta.delete({
+     *   where: {
+     *     // ... filter to delete one MemoryMeta
+     *   }
+     * })
+     * 
+     */
+    delete<T extends MemoryMetaDeleteArgs>(args: SelectSubset<T, MemoryMetaDeleteArgs<ExtArgs>>): Prisma__MemoryMetaClient<$Result.GetResult<Prisma.$MemoryMetaPayload<ExtArgs>, T, "delete">, never, ExtArgs>
+
+    /**
+     * Update one MemoryMeta.
+     * @param {MemoryMetaUpdateArgs} args - Arguments to update one MemoryMeta.
+     * @example
+     * // Update one MemoryMeta
+     * const memoryMeta = await prisma.memoryMeta.update({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    update<T extends MemoryMetaUpdateArgs>(args: SelectSubset<T, MemoryMetaUpdateArgs<ExtArgs>>): Prisma__MemoryMetaClient<$Result.GetResult<Prisma.$MemoryMetaPayload<ExtArgs>, T, "update">, never, ExtArgs>
+
+    /**
+     * Delete zero or more MemoryMetas.
+     * @param {MemoryMetaDeleteManyArgs} args - Arguments to filter MemoryMetas to delete.
+     * @example
+     * // Delete a few MemoryMetas
+     * const { count } = await prisma.memoryMeta.deleteMany({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     * 
+     */
+    deleteMany<T extends MemoryMetaDeleteManyArgs>(args?: SelectSubset<T, MemoryMetaDeleteManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more MemoryMetas.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {MemoryMetaUpdateManyArgs} args - Arguments to update one or more rows.
+     * @example
+     * // Update many MemoryMetas
+     * const memoryMeta = await prisma.memoryMeta.updateMany({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    updateMany<T extends MemoryMetaUpdateManyArgs>(args: SelectSubset<T, MemoryMetaUpdateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create or update one MemoryMeta.
+     * @param {MemoryMetaUpsertArgs} args - Arguments to update or create a MemoryMeta.
+     * @example
+     * // Update or create a MemoryMeta
+     * const memoryMeta = await prisma.memoryMeta.upsert({
+     *   create: {
+     *     // ... data to create a MemoryMeta
+     *   },
+     *   update: {
+     *     // ... in case it already exists, update
+     *   },
+     *   where: {
+     *     // ... the filter for the MemoryMeta we want to update
+     *   }
+     * })
+     */
+    upsert<T extends MemoryMetaUpsertArgs>(args: SelectSubset<T, MemoryMetaUpsertArgs<ExtArgs>>): Prisma__MemoryMetaClient<$Result.GetResult<Prisma.$MemoryMetaPayload<ExtArgs>, T, "upsert">, never, ExtArgs>
+
+
+    /**
+     * Count the number of MemoryMetas.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {MemoryMetaCountArgs} args - Arguments to filter MemoryMetas to count.
+     * @example
+     * // Count the number of MemoryMetas
+     * const count = await prisma.memoryMeta.count({
+     *   where: {
+     *     // ... the filter for the MemoryMetas we want to count
+     *   }
+     * })
+    **/
+    count<T extends MemoryMetaCountArgs>(
+      args?: Subset<T, MemoryMetaCountArgs>,
+    ): Prisma.PrismaPromise<
+      T extends $Utils.Record<'select', any>
+        ? T['select'] extends true
+          ? number
+          : GetScalarType<T['select'], MemoryMetaCountAggregateOutputType>
+        : number
+    >
+
+    /**
+     * Allows you to perform aggregations operations on a MemoryMeta.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {MemoryMetaAggregateArgs} args - Select which aggregations you would like to apply and on what fields.
+     * @example
+     * // Ordered by age ascending
+     * // Where email contains prisma.io
+     * // Limited to the 10 users
+     * const aggregations = await prisma.user.aggregate({
+     *   _avg: {
+     *     age: true,
+     *   },
+     *   where: {
+     *     email: {
+     *       contains: "prisma.io",
+     *     },
+     *   },
+     *   orderBy: {
+     *     age: "asc",
+     *   },
+     *   take: 10,
+     * })
+    **/
+    aggregate<T extends MemoryMetaAggregateArgs>(args: Subset<T, MemoryMetaAggregateArgs>): Prisma.PrismaPromise<GetMemoryMetaAggregateType<T>>
+
+    /**
+     * Group by MemoryMeta.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {MemoryMetaGroupByArgs} args - Group by arguments.
+     * @example
+     * // Group by city, order by createdAt, get count
+     * const result = await prisma.user.groupBy({
+     *   by: ['city', 'createdAt'],
+     *   orderBy: {
+     *     createdAt: true
+     *   },
+     *   _count: {
+     *     _all: true
+     *   },
+     * })
+     * 
+    **/
+    groupBy<
+      T extends MemoryMetaGroupByArgs,
+      HasSelectOrTake extends Or<
+        Extends<'skip', Keys<T>>,
+        Extends<'take', Keys<T>>
+      >,
+      OrderByArg extends True extends HasSelectOrTake
+        ? { orderBy: MemoryMetaGroupByArgs['orderBy'] }
+        : { orderBy?: MemoryMetaGroupByArgs['orderBy'] },
+      OrderFields extends ExcludeUnderscoreKeys<Keys<MaybeTupleToUnion<T['orderBy']>>>,
+      ByFields extends MaybeTupleToUnion<T['by']>,
+      ByValid extends Has<ByFields, OrderFields>,
+      HavingFields extends GetHavingFields<T['having']>,
+      HavingValid extends Has<ByFields, HavingFields>,
+      ByEmpty extends T['by'] extends never[] ? True : False,
+      InputErrors extends ByEmpty extends True
+      ? `Error: "by" must not be empty.`
+      : HavingValid extends False
+      ? {
+          [P in HavingFields]: P extends ByFields
+            ? never
+            : P extends string
+            ? `Error: Field "${P}" used in "having" needs to be provided in "by".`
+            : [
+                Error,
+                'Field ',
+                P,
+                ` in "having" needs to be provided in "by"`,
+              ]
+        }[HavingFields]
+      : 'take' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "take", you also need to provide "orderBy"'
+      : 'skip' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "skip", you also need to provide "orderBy"'
+      : ByValid extends True
+      ? {}
+      : {
+          [P in OrderFields]: P extends ByFields
+            ? never
+            : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+        }[OrderFields]
+    >(args: SubsetIntersection<T, MemoryMetaGroupByArgs, OrderByArg> & InputErrors): {} extends InputErrors ? GetMemoryMetaGroupByPayload<T> : Prisma.PrismaPromise<InputErrors>
+  /**
+   * Fields of the MemoryMeta model
+   */
+  readonly fields: MemoryMetaFieldRefs;
+  }
+
+  /**
+   * The delegate class that acts as a "Promise-like" for MemoryMeta.
+   * Why is this prefixed with `Prisma__`?
+   * Because we want to prevent naming conflicts as mentioned in
+   * https://github.com/prisma/prisma-client-js/issues/707
+   */
+  export interface Prisma__MemoryMetaClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> extends Prisma.PrismaPromise<T> {
+    readonly [Symbol.toStringTag]: "PrismaPromise"
+    /**
+     * Attaches callbacks for the resolution and/or rejection of the Promise.
+     * @param onfulfilled The callback to execute when the Promise is resolved.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of which ever callback is executed.
+     */
+    then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): $Utils.JsPromise<TResult1 | TResult2>
+    /**
+     * Attaches a callback for only the rejection of the Promise.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of the callback.
+     */
+    catch<TResult = never>(onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | undefined | null): $Utils.JsPromise<T | TResult>
+    /**
+     * Attaches a callback that is invoked when the Promise is settled (fulfilled or rejected). The
+     * resolved value cannot be modified from the callback.
+     * @param onfinally The callback to execute when the Promise is settled (fulfilled or rejected).
+     * @returns A Promise for the completion of the callback.
+     */
+    finally(onfinally?: (() => void) | undefined | null): $Utils.JsPromise<T>
+  }
+
+
+
+
+  /**
+   * Fields of the MemoryMeta model
+   */ 
+  interface MemoryMetaFieldRefs {
+    readonly id: FieldRef<"MemoryMeta", 'String'>
+    readonly v1DocumentId: FieldRef<"MemoryMeta", 'String'>
+    readonly projectId: FieldRef<"MemoryMeta", 'String'>
+    readonly memoryClass: FieldRef<"MemoryMeta", 'String'>
+    readonly accessCount: FieldRef<"MemoryMeta", 'Int'>
+    readonly lastAccessAt: FieldRef<"MemoryMeta", 'DateTime'>
+    readonly consolidatedInto: FieldRef<"MemoryMeta", 'String'>
+    readonly notes: FieldRef<"MemoryMeta", 'String'>
+    readonly createdAt: FieldRef<"MemoryMeta", 'DateTime'>
+    readonly updatedAt: FieldRef<"MemoryMeta", 'DateTime'>
+  }
+    
+
+  // Custom InputTypes
+  /**
+   * MemoryMeta findUnique
+   */
+  export type MemoryMetaFindUniqueArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the MemoryMeta
+     */
+    select?: MemoryMetaSelect<ExtArgs> | null
+    /**
+     * Filter, which MemoryMeta to fetch.
+     */
+    where: MemoryMetaWhereUniqueInput
+  }
+
+  /**
+   * MemoryMeta findUniqueOrThrow
+   */
+  export type MemoryMetaFindUniqueOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the MemoryMeta
+     */
+    select?: MemoryMetaSelect<ExtArgs> | null
+    /**
+     * Filter, which MemoryMeta to fetch.
+     */
+    where: MemoryMetaWhereUniqueInput
+  }
+
+  /**
+   * MemoryMeta findFirst
+   */
+  export type MemoryMetaFindFirstArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the MemoryMeta
+     */
+    select?: MemoryMetaSelect<ExtArgs> | null
+    /**
+     * Filter, which MemoryMeta to fetch.
+     */
+    where?: MemoryMetaWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of MemoryMetas to fetch.
+     */
+    orderBy?: MemoryMetaOrderByWithRelationInput | MemoryMetaOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for MemoryMetas.
+     */
+    cursor?: MemoryMetaWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` MemoryMetas from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` MemoryMetas.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of MemoryMetas.
+     */
+    distinct?: MemoryMetaScalarFieldEnum | MemoryMetaScalarFieldEnum[]
+  }
+
+  /**
+   * MemoryMeta findFirstOrThrow
+   */
+  export type MemoryMetaFindFirstOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the MemoryMeta
+     */
+    select?: MemoryMetaSelect<ExtArgs> | null
+    /**
+     * Filter, which MemoryMeta to fetch.
+     */
+    where?: MemoryMetaWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of MemoryMetas to fetch.
+     */
+    orderBy?: MemoryMetaOrderByWithRelationInput | MemoryMetaOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for MemoryMetas.
+     */
+    cursor?: MemoryMetaWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` MemoryMetas from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` MemoryMetas.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of MemoryMetas.
+     */
+    distinct?: MemoryMetaScalarFieldEnum | MemoryMetaScalarFieldEnum[]
+  }
+
+  /**
+   * MemoryMeta findMany
+   */
+  export type MemoryMetaFindManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the MemoryMeta
+     */
+    select?: MemoryMetaSelect<ExtArgs> | null
+    /**
+     * Filter, which MemoryMetas to fetch.
+     */
+    where?: MemoryMetaWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of MemoryMetas to fetch.
+     */
+    orderBy?: MemoryMetaOrderByWithRelationInput | MemoryMetaOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for listing MemoryMetas.
+     */
+    cursor?: MemoryMetaWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` MemoryMetas from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` MemoryMetas.
+     */
+    skip?: number
+    distinct?: MemoryMetaScalarFieldEnum | MemoryMetaScalarFieldEnum[]
+  }
+
+  /**
+   * MemoryMeta create
+   */
+  export type MemoryMetaCreateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the MemoryMeta
+     */
+    select?: MemoryMetaSelect<ExtArgs> | null
+    /**
+     * The data needed to create a MemoryMeta.
+     */
+    data: XOR<MemoryMetaCreateInput, MemoryMetaUncheckedCreateInput>
+  }
+
+  /**
+   * MemoryMeta createMany
+   */
+  export type MemoryMetaCreateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to create many MemoryMetas.
+     */
+    data: MemoryMetaCreateManyInput | MemoryMetaCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * MemoryMeta createManyAndReturn
+   */
+  export type MemoryMetaCreateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the MemoryMeta
+     */
+    select?: MemoryMetaSelectCreateManyAndReturn<ExtArgs> | null
+    /**
+     * The data used to create many MemoryMetas.
+     */
+    data: MemoryMetaCreateManyInput | MemoryMetaCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * MemoryMeta update
+   */
+  export type MemoryMetaUpdateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the MemoryMeta
+     */
+    select?: MemoryMetaSelect<ExtArgs> | null
+    /**
+     * The data needed to update a MemoryMeta.
+     */
+    data: XOR<MemoryMetaUpdateInput, MemoryMetaUncheckedUpdateInput>
+    /**
+     * Choose, which MemoryMeta to update.
+     */
+    where: MemoryMetaWhereUniqueInput
+  }
+
+  /**
+   * MemoryMeta updateMany
+   */
+  export type MemoryMetaUpdateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to update MemoryMetas.
+     */
+    data: XOR<MemoryMetaUpdateManyMutationInput, MemoryMetaUncheckedUpdateManyInput>
+    /**
+     * Filter which MemoryMetas to update
+     */
+    where?: MemoryMetaWhereInput
+  }
+
+  /**
+   * MemoryMeta upsert
+   */
+  export type MemoryMetaUpsertArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the MemoryMeta
+     */
+    select?: MemoryMetaSelect<ExtArgs> | null
+    /**
+     * The filter to search for the MemoryMeta to update in case it exists.
+     */
+    where: MemoryMetaWhereUniqueInput
+    /**
+     * In case the MemoryMeta found by the `where` argument doesn't exist, create a new MemoryMeta with this data.
+     */
+    create: XOR<MemoryMetaCreateInput, MemoryMetaUncheckedCreateInput>
+    /**
+     * In case the MemoryMeta was found with the provided `where` argument, update it with this data.
+     */
+    update: XOR<MemoryMetaUpdateInput, MemoryMetaUncheckedUpdateInput>
+  }
+
+  /**
+   * MemoryMeta delete
+   */
+  export type MemoryMetaDeleteArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the MemoryMeta
+     */
+    select?: MemoryMetaSelect<ExtArgs> | null
+    /**
+     * Filter which MemoryMeta to delete.
+     */
+    where: MemoryMetaWhereUniqueInput
+  }
+
+  /**
+   * MemoryMeta deleteMany
+   */
+  export type MemoryMetaDeleteManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which MemoryMetas to delete
+     */
+    where?: MemoryMetaWhereInput
+  }
+
+  /**
+   * MemoryMeta without action
+   */
+  export type MemoryMetaDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the MemoryMeta
+     */
+    select?: MemoryMetaSelect<ExtArgs> | null
+  }
+
+
+  /**
    * Enums
    */
 
@@ -3100,6 +4158,22 @@ export namespace Prisma {
   };
 
   export type MissionStepScalarFieldEnum = (typeof MissionStepScalarFieldEnum)[keyof typeof MissionStepScalarFieldEnum]
+
+
+  export const MemoryMetaScalarFieldEnum: {
+    id: 'id',
+    v1DocumentId: 'v1DocumentId',
+    projectId: 'projectId',
+    memoryClass: 'memoryClass',
+    accessCount: 'accessCount',
+    lastAccessAt: 'lastAccessAt',
+    consolidatedInto: 'consolidatedInto',
+    notes: 'notes',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt'
+  };
+
+  export type MemoryMetaScalarFieldEnum = (typeof MemoryMetaScalarFieldEnum)[keyof typeof MemoryMetaScalarFieldEnum]
 
 
   export const SortOrder: {
@@ -3413,6 +4487,85 @@ export namespace Prisma {
     updatedAt?: DateTimeWithAggregatesFilter<"MissionStep"> | Date | string
   }
 
+  export type MemoryMetaWhereInput = {
+    AND?: MemoryMetaWhereInput | MemoryMetaWhereInput[]
+    OR?: MemoryMetaWhereInput[]
+    NOT?: MemoryMetaWhereInput | MemoryMetaWhereInput[]
+    id?: StringFilter<"MemoryMeta"> | string
+    v1DocumentId?: StringFilter<"MemoryMeta"> | string
+    projectId?: StringFilter<"MemoryMeta"> | string
+    memoryClass?: StringFilter<"MemoryMeta"> | string
+    accessCount?: IntFilter<"MemoryMeta"> | number
+    lastAccessAt?: DateTimeNullableFilter<"MemoryMeta"> | Date | string | null
+    consolidatedInto?: StringNullableFilter<"MemoryMeta"> | string | null
+    notes?: StringNullableFilter<"MemoryMeta"> | string | null
+    createdAt?: DateTimeFilter<"MemoryMeta"> | Date | string
+    updatedAt?: DateTimeFilter<"MemoryMeta"> | Date | string
+  }
+
+  export type MemoryMetaOrderByWithRelationInput = {
+    id?: SortOrder
+    v1DocumentId?: SortOrder
+    projectId?: SortOrder
+    memoryClass?: SortOrder
+    accessCount?: SortOrder
+    lastAccessAt?: SortOrderInput | SortOrder
+    consolidatedInto?: SortOrderInput | SortOrder
+    notes?: SortOrderInput | SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type MemoryMetaWhereUniqueInput = Prisma.AtLeast<{
+    id?: string
+    v1DocumentId?: string
+    AND?: MemoryMetaWhereInput | MemoryMetaWhereInput[]
+    OR?: MemoryMetaWhereInput[]
+    NOT?: MemoryMetaWhereInput | MemoryMetaWhereInput[]
+    projectId?: StringFilter<"MemoryMeta"> | string
+    memoryClass?: StringFilter<"MemoryMeta"> | string
+    accessCount?: IntFilter<"MemoryMeta"> | number
+    lastAccessAt?: DateTimeNullableFilter<"MemoryMeta"> | Date | string | null
+    consolidatedInto?: StringNullableFilter<"MemoryMeta"> | string | null
+    notes?: StringNullableFilter<"MemoryMeta"> | string | null
+    createdAt?: DateTimeFilter<"MemoryMeta"> | Date | string
+    updatedAt?: DateTimeFilter<"MemoryMeta"> | Date | string
+  }, "id" | "v1DocumentId">
+
+  export type MemoryMetaOrderByWithAggregationInput = {
+    id?: SortOrder
+    v1DocumentId?: SortOrder
+    projectId?: SortOrder
+    memoryClass?: SortOrder
+    accessCount?: SortOrder
+    lastAccessAt?: SortOrderInput | SortOrder
+    consolidatedInto?: SortOrderInput | SortOrder
+    notes?: SortOrderInput | SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+    _count?: MemoryMetaCountOrderByAggregateInput
+    _avg?: MemoryMetaAvgOrderByAggregateInput
+    _max?: MemoryMetaMaxOrderByAggregateInput
+    _min?: MemoryMetaMinOrderByAggregateInput
+    _sum?: MemoryMetaSumOrderByAggregateInput
+  }
+
+  export type MemoryMetaScalarWhereWithAggregatesInput = {
+    AND?: MemoryMetaScalarWhereWithAggregatesInput | MemoryMetaScalarWhereWithAggregatesInput[]
+    OR?: MemoryMetaScalarWhereWithAggregatesInput[]
+    NOT?: MemoryMetaScalarWhereWithAggregatesInput | MemoryMetaScalarWhereWithAggregatesInput[]
+    id?: StringWithAggregatesFilter<"MemoryMeta"> | string
+    v1DocumentId?: StringWithAggregatesFilter<"MemoryMeta"> | string
+    projectId?: StringWithAggregatesFilter<"MemoryMeta"> | string
+    memoryClass?: StringWithAggregatesFilter<"MemoryMeta"> | string
+    accessCount?: IntWithAggregatesFilter<"MemoryMeta"> | number
+    lastAccessAt?: DateTimeNullableWithAggregatesFilter<"MemoryMeta"> | Date | string | null
+    consolidatedInto?: StringNullableWithAggregatesFilter<"MemoryMeta"> | string | null
+    notes?: StringNullableWithAggregatesFilter<"MemoryMeta"> | string | null
+    createdAt?: DateTimeWithAggregatesFilter<"MemoryMeta"> | Date | string
+    updatedAt?: DateTimeWithAggregatesFilter<"MemoryMeta"> | Date | string
+  }
+
   export type MissionCreateInput = {
     id?: string
     projectId: string
@@ -3636,6 +4789,97 @@ export namespace Prisma {
     approvalGateId?: NullableStringFieldUpdateOperationsInput | string | null
     startedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     completedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type MemoryMetaCreateInput = {
+    id?: string
+    v1DocumentId: string
+    projectId: string
+    memoryClass?: string
+    accessCount?: number
+    lastAccessAt?: Date | string | null
+    consolidatedInto?: string | null
+    notes?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type MemoryMetaUncheckedCreateInput = {
+    id?: string
+    v1DocumentId: string
+    projectId: string
+    memoryClass?: string
+    accessCount?: number
+    lastAccessAt?: Date | string | null
+    consolidatedInto?: string | null
+    notes?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type MemoryMetaUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    v1DocumentId?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    memoryClass?: StringFieldUpdateOperationsInput | string
+    accessCount?: IntFieldUpdateOperationsInput | number
+    lastAccessAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    consolidatedInto?: NullableStringFieldUpdateOperationsInput | string | null
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type MemoryMetaUncheckedUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    v1DocumentId?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    memoryClass?: StringFieldUpdateOperationsInput | string
+    accessCount?: IntFieldUpdateOperationsInput | number
+    lastAccessAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    consolidatedInto?: NullableStringFieldUpdateOperationsInput | string | null
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type MemoryMetaCreateManyInput = {
+    id?: string
+    v1DocumentId: string
+    projectId: string
+    memoryClass?: string
+    accessCount?: number
+    lastAccessAt?: Date | string | null
+    consolidatedInto?: string | null
+    notes?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type MemoryMetaUpdateManyMutationInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    v1DocumentId?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    memoryClass?: StringFieldUpdateOperationsInput | string
+    accessCount?: IntFieldUpdateOperationsInput | number
+    lastAccessAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    consolidatedInto?: NullableStringFieldUpdateOperationsInput | string | null
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type MemoryMetaUncheckedUpdateManyInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    v1DocumentId?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    memoryClass?: StringFieldUpdateOperationsInput | string
+    accessCount?: IntFieldUpdateOperationsInput | number
+    lastAccessAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    consolidatedInto?: NullableStringFieldUpdateOperationsInput | string | null
+    notes?: NullableStringFieldUpdateOperationsInput | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
@@ -3999,6 +5243,53 @@ export namespace Prisma {
     _sum?: NestedIntFilter<$PrismaModel>
     _min?: NestedIntFilter<$PrismaModel>
     _max?: NestedIntFilter<$PrismaModel>
+  }
+
+  export type MemoryMetaCountOrderByAggregateInput = {
+    id?: SortOrder
+    v1DocumentId?: SortOrder
+    projectId?: SortOrder
+    memoryClass?: SortOrder
+    accessCount?: SortOrder
+    lastAccessAt?: SortOrder
+    consolidatedInto?: SortOrder
+    notes?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type MemoryMetaAvgOrderByAggregateInput = {
+    accessCount?: SortOrder
+  }
+
+  export type MemoryMetaMaxOrderByAggregateInput = {
+    id?: SortOrder
+    v1DocumentId?: SortOrder
+    projectId?: SortOrder
+    memoryClass?: SortOrder
+    accessCount?: SortOrder
+    lastAccessAt?: SortOrder
+    consolidatedInto?: SortOrder
+    notes?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type MemoryMetaMinOrderByAggregateInput = {
+    id?: SortOrder
+    v1DocumentId?: SortOrder
+    projectId?: SortOrder
+    memoryClass?: SortOrder
+    accessCount?: SortOrder
+    lastAccessAt?: SortOrder
+    consolidatedInto?: SortOrder
+    notes?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type MemoryMetaSumOrderByAggregateInput = {
+    accessCount?: SortOrder
   }
 
   export type MissionStepCreateNestedManyWithoutMissionInput = {
@@ -4536,6 +5827,10 @@ export namespace Prisma {
      * @deprecated Use MissionStepDefaultArgs instead
      */
     export type MissionStepArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = MissionStepDefaultArgs<ExtArgs>
+    /**
+     * @deprecated Use MemoryMetaDefaultArgs instead
+     */
+    export type MemoryMetaArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = MemoryMetaDefaultArgs<ExtArgs>
 
   /**
    * Batch Payload for updateMany & deleteMany & createMany

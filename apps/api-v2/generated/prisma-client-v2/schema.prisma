@@ -54,3 +54,23 @@ model MissionStep {
   @@map("mission_steps")
   @@schema("v2")
 }
+
+// ─── Memory Engine ────────────────────────────────────────────────────────────
+
+// Lifecycle metadata keyed by V1 Document.id — V2 never writes to public.documents
+model MemoryMeta {
+  id               String    @id @default(uuid())
+  v1DocumentId     String    @unique @map("v1_document_id")
+  projectId        String    @map("project_id")
+  memoryClass      String    @default("inbox") @map("memory_class") // inbox|working|consolidated|archive
+  accessCount      Int       @default(0) @map("access_count")
+  lastAccessAt     DateTime? @map("last_access_at")
+  consolidatedInto String?   @map("consolidated_into") // v1DocumentId of the consolidated chunk
+  notes            String?
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@index([projectId, memoryClass])
+  @@map("memory_meta")
+  @@schema("v2")
+}

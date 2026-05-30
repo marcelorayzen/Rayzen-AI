@@ -146,6 +146,8 @@ services:
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
       JWT_SECRET: ${JWT_SECRET}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3100}
+      V1_API_URL: http://api:3001
+      V1_API_TOKEN: ${AGENT_TOKEN}
     ports:
       - '127.0.0.1:3103:3002'
     depends_on:

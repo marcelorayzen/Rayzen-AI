@@ -154,6 +154,19 @@ exports.Prisma.MissionStepScalarFieldEnum = {
   updatedAt: 'updatedAt'
 };
 
+exports.Prisma.MemoryMetaScalarFieldEnum = {
+  id: 'id',
+  v1DocumentId: 'v1DocumentId',
+  projectId: 'projectId',
+  memoryClass: 'memoryClass',
+  accessCount: 'accessCount',
+  lastAccessAt: 'lastAccessAt',
+  consolidatedInto: 'consolidatedInto',
+  notes: 'notes',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
 exports.Prisma.SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -187,7 +200,8 @@ exports.Prisma.NullsOrder = {
 
 exports.Prisma.ModelName = {
   Mission: 'Mission',
-  MissionStep: 'MissionStep'
+  MissionStep: 'MissionStep',
+  MemoryMeta: 'MemoryMeta'
 };
 
 /**
