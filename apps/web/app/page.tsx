@@ -437,6 +437,7 @@ export default function Home() {
   const [activityOpen, setActivityOpen] = useState(false)
   const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([])
   const [activityLoading, setActivityLoading] = useState(false)
+  const [hookHealth, setHookHealth] = useState<{ status: string; lastCliEvent: string | null } | null>(null)
   const [memoryClassFilter, setMemoryClassFilter] = useState<MemoryClassFilter>('all')
   const [highSignalOnly, setHighSignalOnly] = useState(true)
   const [synthesisOpen, setSynthesisOpen] = useState(false)
@@ -526,17 +527,30 @@ export default function Home() {
     }
   }, [activeProjectId])
 
+  // Saúde do hook: independe do filtro de classe — reflete se eventos cli chegam
+  const loadHookHealth = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_URL}/events/hook/health`, { headers: authHeaders() })
+      const data = await res.json() as { projects: Array<{ projectId: string; status: string; lastCliEvent: string | null }> }
+      const mine = data.projects?.find((p) => p.projectId === activeProjectId)
+      setHookHealth(mine ? { status: mine.status, lastCliEvent: mine.lastCliEvent } : null)
+    } catch {
+      setHookHealth(null)
+    }
+  }, [activeProjectId])
+
   const openActivity = useCallback(async () => {
     setActivityOpen(true)
     setMemoryClassFilter('all')
     loadActivityEvents('all')
-  }, [loadActivityEvents])
+    loadHookHealth()
+  }, [loadActivityEvents, loadHookHealth])
 
   useEffect(() => {
     if (!activityOpen) return
-    const id = setInterval(() => loadActivityEvents(memoryClassFilter), 5000)
+    const id = setInterval(() => { loadActivityEvents(memoryClassFilter); loadHookHealth() }, 5000)
     return () => clearInterval(id)
-  }, [activityOpen, memoryClassFilter, loadActivityEvents])
+  }, [activityOpen, memoryClassFilter, loadActivityEvents, loadHookHealth])
 
   const openSynthesis = useCallback(async () => {
     setSynthesisOpen(true)
@@ -1605,9 +1619,31 @@ export default function Home() {
           <div className="fixed inset-0 bg-black/70" onClick={() => setActivityOpen(false)} />
           <div className="relative z-50 w-full max-w-lg bg-zinc-900 border border-zinc-800 rounded-2xl p-6 mx-4 max-h-[80vh] flex flex-col">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold">
-                Atividade{activeProjectId && projects.find(p => p.id === activeProjectId) ? ` — ${projects.find(p => p.id === activeProjectId)!.name}` : ''}
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-semibold">
+                  Atividade{activeProjectId && projects.find(p => p.id === activeProjectId) ? ` — ${projects.find(p => p.id === activeProjectId)!.name}` : ''}
+                </h2>
+                {activeProjectId && hookHealth && (() => {
+                  const ts = hookHealth.lastCliEvent ? new Date(hookHealth.lastCliEvent).getTime() : 0
+                  const ageMin = ts ? Math.floor((Date.now() - ts) / 60000) : Infinity
+                  const live = ageMin < 10
+                  const ago = !ts ? 'sem eventos'
+                    : ageMin < 1 ? 'agora'
+                    : ageMin < 60 ? `há ${ageMin}min`
+                    : ageMin < 1440 ? `há ${Math.floor(ageMin / 60)}h`
+                    : `há ${Math.floor(ageMin / 1440)}d`
+                  const color = live ? 'bg-emerald-500' : ageMin < 1440 ? 'bg-amber-500' : 'bg-red-500'
+                  return (
+                    <span
+                      title={`Hook ${hookHealth.status} · último evento ${ago}`}
+                      className="flex items-center gap-1 text-[10px] text-zinc-400"
+                    >
+                      <span className={`w-2 h-2 rounded-full ${color} ${live ? 'animate-pulse' : ''}`} />
+                      {live ? 'ao vivo' : ago}
+                    </span>
+                  )
+                })()}
+              </div>
               <button onClick={() => setActivityOpen(false)} className="text-zinc-500 hover:text-zinc-300 text-xs">fechar</button>
             </div>
             <div className="flex gap-1 mb-3 flex-wrap items-center">
