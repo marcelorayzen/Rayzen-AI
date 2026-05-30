@@ -661,7 +661,20 @@ const httpServer = createServer(async (req, res) => {
     }
 
     const raw = await readBody(req)
-    const body = raw.length ? JSON.parse(raw.toString()) : undefined
+    let body
+    if (raw.length) {
+      // Remove BOM (﻿) que alguns clientes/ferramentas prefixam
+      const text = raw.toString('utf8').replace(/^﻿/, '').trim()
+      try {
+        body = text ? JSON.parse(text) : undefined
+      } catch (err) {
+        // JSON inválido NUNCA deve derrubar o servidor — responder 400
+        console.warn('[MCP] JSON inválido no POST /mcp:', err.message)
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' } }))
+        return
+      }
+    }
     await transport.handleRequest(req, res, body)
     return
   }
@@ -702,4 +715,13 @@ httpServer.listen(MCP_PORT, () => {
   console.log(`[rayzen-mcp-http] API_URL: ${API_URL}`)
   console.log(`[rayzen-mcp-http] auth: OAuth 2.0 (client_id=${OAUTH_CLIENT_ID})`)
   console.log(`[rayzen-mcp-http] default projectId: ${DEFAULT_PID || '(none — must pass in each call)'}`)
+})
+
+// Defesa em profundidade: nenhum erro inesperado deve derrubar o servidor MCP.
+// Antes, um JSON malformado ou falha de transport reiniciava o processo (indisponibilidade).
+process.on('uncaughtException', (err) => {
+  console.error('[rayzen-mcp-http] uncaughtException (ignorado):', err?.message ?? err)
+})
+process.on('unhandledRejection', (reason) => {
+  console.error('[rayzen-mcp-http] unhandledRejection (ignorado):', reason?.message ?? reason)
 })
