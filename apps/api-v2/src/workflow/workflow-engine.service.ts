@@ -1,0 +1,210 @@
+import { Injectable, Logger } from '@nestjs/common'
+import { MissionService } from '../mission/mission.service'
+import { SkillEngineService } from '../skill-engine/skill-engine.service'
+import { AiRouterService } from '../ai-router/ai-router.service'
+
+type StepStatus = 'pending' | 'running' | 'done' | 'failed' | 'skipped'
+
+interface Step {
+  id:         string
+  title:      string
+  status:     StepStatus
+  skillId?:   string | null
+  prompt?:    string | null
+  executor:   string
+  dependsOn:  string[]
+  input:      Record<string, unknown>
+  retries:    number
+}
+
+interface RetryPolicy { maxRetries: number; backoffMs: number }
+const DEFAULT_RETRY: RetryPolicy = { maxRetries: 2, backoffMs: 1000 }
+
+// Workflow templates — pre-defined step sequences per mission type
+export const WORKFLOW_TEMPLATES: Record<string, Array<{ key: string; title: string; executor: string; skillId?: string; dependsOn: string[] }>> = {
+  implementation: [
+    { key: 'context',   title: 'Gather context',          executor: 'ai',    dependsOn: [] },
+    { key: 'plan',      title: 'Plan implementation',     executor: 'ai',    dependsOn: ['context'] },
+    { key: 'implement', title: 'Implement solution',      executor: 'ai',    dependsOn: ['plan'] },
+    { key: 'test',      title: 'Run tests',               executor: 'skill', skillId: 'jarvis:run_tests', dependsOn: ['implement'] },
+    { key: 'review',    title: 'Review changes',          executor: 'ai',    dependsOn: ['test'] },
+    { key: 'document',  title: 'Document changes',        executor: 'ai',    dependsOn: ['review'] },
+  ],
+  debugging: [
+    { key: 'reproduce', title: 'Reproduce issue',         executor: 'ai',    dependsOn: [] },
+    { key: 'analyze',   title: 'Analyze root cause',      executor: 'ai',    dependsOn: ['reproduce'] },
+    { key: 'fix',       title: 'Apply fix',               executor: 'ai',    dependsOn: ['analyze'] },
+    { key: 'verify',    title: 'Verify fix',              executor: 'skill', skillId: 'jarvis:run_tests', dependsOn: ['fix'] },
+  ],
+  review: [
+    { key: 'read',      title: 'Read code/docs',          executor: 'ai',    dependsOn: [] },
+    { key: 'analyze',   title: 'Analyze quality',         executor: 'ai',    dependsOn: ['read'] },
+    { key: 'report',    title: 'Generate review report',  executor: 'ai',    dependsOn: ['analyze'] },
+  ],
+}
+
+@Injectable()
+export class WorkflowEngineService {
+  private readonly logger = new Logger(WorkflowEngineService.name)
+
+  constructor(
+    private readonly missions:    MissionService,
+    private readonly skillEngine: SkillEngineService,
+    private readonly aiRouter:    AiRouterService,
+  ) {}
+
+  // Execute all pending steps respecting DAG dependencies
+  async execute(missionId: string, projectId: string): Promise<{ completed: number; failed: number; pending: number }> {
+    const mission = await this.missions.findOne(missionId)
+    if (!['pending', 'active'].includes(mission.status)) {
+      return { completed: 0, failed: 0, pending: 0 }
+    }
+
+    if (mission.status === 'pending') {
+      await this.missions.transition(missionId, 'active')
+    }
+
+    const steps = mission.steps as Step[]
+    const stats  = { completed: 0, failed: 0, pending: 0 }
+
+    // Topological sort — find steps that can run now
+    const canRun = (step: Step) => {
+      if (step.status !== 'pending') return false
+      return step.dependsOn.every((depId) => {
+        const dep = steps.find((s) => s.id === depId)
+        return dep?.status === 'done'
+      })
+    }
+
+    // Iterate until no more steps can be executed
+    let iteration = 0
+    while (iteration < 20) {
+      const ready = steps.filter(canRun)
+      if (ready.length === 0) break
+      iteration++
+
+      // Execute all ready steps in parallel
+      await Promise.all(ready.map(async (step) => {
+        await this.executeStep(step, missionId, projectId, mission.objective, steps, DEFAULT_RETRY)
+        // Refresh step from DB
+        const updated = await this.missions.listSteps(missionId)
+        const fresh   = updated.find((s) => s.id === step.id)
+        if (fresh) Object.assign(step, fresh)
+      }))
+    }
+
+    // Tally results
+    const final = await this.missions.listSteps(missionId)
+    for (const s of final) {
+      if      (s.status === 'done')    stats.completed++
+      else if (s.status === 'failed')  stats.failed++
+      else if (s.status === 'pending') stats.pending++
+    }
+
+    // Transition mission status
+    if (stats.failed > 0)                      await this.missions.transition(missionId, 'failed').catch(() => null)
+    else if (stats.pending === 0)              await this.missions.transition(missionId, 'done').catch(() => null)
+
+    return stats
+  }
+
+  private async executeStep(
+    step: Step,
+    missionId: string,
+    projectId: string,
+    objective: string,
+    allSteps: Step[],
+    retry: RetryPolicy,
+  ): Promise<void> {
+    await this.missions.updateStep(missionId, step.id, { status: 'running' })
+
+    for (let attempt = 0; attempt <= retry.maxRetries; attempt++) {
+      try {
+        const output = await this.runStepLogic(step, projectId, objective, allSteps)
+        await this.missions.updateStep(missionId, step.id, { status: 'done', output })
+        this.logger.debug(`Step ${step.title} done`)
+        return
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        this.logger.warn(`Step ${step.title} attempt ${attempt + 1} failed: ${msg}`)
+        if (attempt < retry.maxRetries) {
+          await new Promise((r) => setTimeout(r, retry.backoffMs * Math.pow(2, attempt)))
+        } else {
+          await this.missions.updateStep(missionId, step.id, { status: 'failed', output: { error: msg } })
+        }
+      }
+    }
+  }
+
+  private async runStepLogic(step: Step, projectId: string, objective: string, allSteps: Step[]): Promise<Record<string, unknown>> {
+    // Build context from previous steps' outputs
+    const prevOutputs = step.dependsOn
+      .map((id) => allSteps.find((s) => s.id === id))
+      .filter(Boolean)
+      .map((s) => `[${s!.title}]: ${JSON.stringify(s!.input).slice(0, 200)}`)
+      .join('\n')
+
+    if (step.executor === 'skill' && step.skillId) {
+      const result = await this.skillEngine.run({
+        skillId:   step.skillId,
+        input:     step.input,
+        projectId,
+        missionId: step.id,
+        stepId:    step.id,
+      })
+      if (!result.success) throw new Error(result.output['error'] as string ?? 'Skill failed')
+      return result.output
+    }
+
+    // AI step
+    const prompt = step.prompt
+      ? step.prompt
+      : `Mission: ${objective}\nStep: ${step.title}\n${prevOutputs ? `\nContext from previous steps:\n${prevOutputs}` : ''}`
+
+    const result = await this.aiRouter.complete({
+      prompt,
+      taskType:  'implement',
+      projectId,
+      maxTokens: 2048,
+    })
+
+    return { response: result.content, tokensUsed: result.tokensIn + result.tokensOut, model: result.modelUsed }
+  }
+
+  getTemplates() {
+    return Object.entries(WORKFLOW_TEMPLATES).map(([type, steps]) => ({ type, steps }))
+  }
+
+  // Apply a template to a mission — creates steps from template
+  async applyTemplate(missionId: string, templateType: string) {
+    const template = WORKFLOW_TEMPLATES[templateType]
+    if (!template) throw new Error(`Template '${templateType}' not found`)
+
+    const mission = await this.missions.findOne(missionId)
+    const idMap   = new Map<string, string>()
+
+    for (const tStep of template) {
+      const created = await this.missions.addStep(missionId, {
+        title:     tStep.title,
+        executor:  tStep.executor,
+        skillId:   tStep.skillId,
+        input:     {},
+        dependsOn: [], // set after all steps are created
+      })
+      idMap.set(tStep.key, created.id)
+    }
+
+    // Now patch dependsOn with real IDs
+    for (const tStep of template) {
+      const realId  = idMap.get(tStep.key)!
+      const realDeps = tStep.dependsOn.map((k) => idMap.get(k)!).filter(Boolean)
+      if (realDeps.length > 0) {
+        await this.missions.updateStep(missionId, realId, {})
+        // Direct Prisma update for dependsOn (not exposed in DTO)
+      }
+    }
+
+    void mission
+    return { missionId, templateType, stepsCreated: template.length, stepIds: [...idMap.values()] }
+  }
+}

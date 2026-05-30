@@ -1,5 +1,6 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common'
 import { V1ApiService } from '../core/v1-api.service'
+import { ApprovalGatesService } from '../approval-gates/approval-gates.service'
 import { SkillRegistry } from './skill-registry'
 
 export interface SkillRunRequest {
@@ -24,20 +25,38 @@ export class SkillEngineService {
   private readonly logger = new Logger(SkillEngineService.name)
   readonly registry = new SkillRegistry()
 
-  constructor(private readonly v1Api: V1ApiService) {}
+  constructor(
+    private readonly v1Api:  V1ApiService,
+    private readonly gates:  ApprovalGatesService,
+  ) {}
 
   async run(req: SkillRunRequest): Promise<SkillRunResult> {
     const skill = this.registry.get(req.skillId)
     if (!skill) throw new NotFoundException(`Skill '${req.skillId}' not found`)
 
-    if (skill.risk === 'high' && !req.dryRun) {
-      throw new BadRequestException(
-        `Skill '${req.skillId}' has risk=high. Set dryRun:true to preview, or confirm explicitly.`,
-      )
-    }
-
     const t0 = Date.now()
     const logs: string[] = []
+
+    // Create approval gate for medium/high risk skills (when in a mission context)
+    if ((skill.risk === 'high' || skill.risk === 'medium') && !req.dryRun && req.missionId && req.stepId) {
+      const { required, gate } = await this.gates.checkAndCreate(
+        skill.risk,
+        req.projectId ?? '',
+        req.missionId,
+        req.stepId,
+        `Skill ${skill.name} requires approval (risk: ${skill.risk})`,
+        { skillId: skill.id, input: req.input },
+      )
+      if (required && gate?.status === 'pending') {
+        return {
+          skillId:    req.skillId,
+          success:    false,
+          output:     { gateId: gate.id, status: 'pending_approval', message: `Awaiting approval — gate ${gate.id}` },
+          durationMs: Date.now() - t0,
+          logs:       [`Gate created: ${gate.id}`],
+        }
+      }
+    }
 
     try {
       if (req.dryRun) {

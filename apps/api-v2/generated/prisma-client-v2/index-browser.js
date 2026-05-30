@@ -203,6 +203,24 @@ exports.Prisma.KnowledgeEdgeScalarFieldEnum = {
   createdAt: 'createdAt'
 };
 
+exports.Prisma.ApprovalGateScalarFieldEnum = {
+  id: 'id',
+  projectId: 'projectId',
+  missionId: 'missionId',
+  stepId: 'stepId',
+  type: 'type',
+  description: 'description',
+  context: 'context',
+  status: 'status',
+  expiresAt: 'expiresAt',
+  autoOnExpiry: 'autoOnExpiry',
+  approvedBy: 'approvedBy',
+  approvedAt: 'approvedAt',
+  comment: 'comment',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
 exports.Prisma.SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -240,7 +258,8 @@ exports.Prisma.ModelName = {
   MemoryMeta: 'MemoryMeta',
   VaultAccessLog: 'VaultAccessLog',
   KnowledgeNode: 'KnowledgeNode',
-  KnowledgeEdge: 'KnowledgeEdge'
+  KnowledgeEdge: 'KnowledgeEdge',
+  ApprovalGate: 'ApprovalGate'
 };
 
 /**

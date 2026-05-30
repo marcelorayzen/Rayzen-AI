@@ -43,6 +43,11 @@ export type KnowledgeNode = $Result.DefaultSelection<Prisma.$KnowledgeNodePayloa
  * 
  */
 export type KnowledgeEdge = $Result.DefaultSelection<Prisma.$KnowledgeEdgePayload>
+/**
+ * Model ApprovalGate
+ * 
+ */
+export type ApprovalGate = $Result.DefaultSelection<Prisma.$ApprovalGatePayload>
 
 /**
  * ##  Prisma Client ʲˢ
@@ -226,6 +231,16 @@ export class PrismaClient<
     * ```
     */
   get knowledgeEdge(): Prisma.KnowledgeEdgeDelegate<ExtArgs>;
+
+  /**
+   * `prisma.approvalGate`: Exposes CRUD operations for the **ApprovalGate** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more ApprovalGates
+    * const approvalGates = await prisma.approvalGate.findMany()
+    * ```
+    */
+  get approvalGate(): Prisma.ApprovalGateDelegate<ExtArgs>;
 }
 
 export namespace Prisma {
@@ -672,7 +687,8 @@ export namespace Prisma {
     MemoryMeta: 'MemoryMeta',
     VaultAccessLog: 'VaultAccessLog',
     KnowledgeNode: 'KnowledgeNode',
-    KnowledgeEdge: 'KnowledgeEdge'
+    KnowledgeEdge: 'KnowledgeEdge',
+    ApprovalGate: 'ApprovalGate'
   };
 
   export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -688,7 +704,7 @@ export namespace Prisma {
 
   export type TypeMap<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, ClientOptions = {}> = {
     meta: {
-      modelProps: "mission" | "missionStep" | "memoryMeta" | "vaultAccessLog" | "knowledgeNode" | "knowledgeEdge"
+      modelProps: "mission" | "missionStep" | "memoryMeta" | "vaultAccessLog" | "knowledgeNode" | "knowledgeEdge" | "approvalGate"
       txIsolationLevel: Prisma.TransactionIsolationLevel
     }
     model: {
@@ -1109,6 +1125,76 @@ export namespace Prisma {
           count: {
             args: Prisma.KnowledgeEdgeCountArgs<ExtArgs>
             result: $Utils.Optional<KnowledgeEdgeCountAggregateOutputType> | number
+          }
+        }
+      }
+      ApprovalGate: {
+        payload: Prisma.$ApprovalGatePayload<ExtArgs>
+        fields: Prisma.ApprovalGateFieldRefs
+        operations: {
+          findUnique: {
+            args: Prisma.ApprovalGateFindUniqueArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ApprovalGatePayload> | null
+          }
+          findUniqueOrThrow: {
+            args: Prisma.ApprovalGateFindUniqueOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ApprovalGatePayload>
+          }
+          findFirst: {
+            args: Prisma.ApprovalGateFindFirstArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ApprovalGatePayload> | null
+          }
+          findFirstOrThrow: {
+            args: Prisma.ApprovalGateFindFirstOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ApprovalGatePayload>
+          }
+          findMany: {
+            args: Prisma.ApprovalGateFindManyArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ApprovalGatePayload>[]
+          }
+          create: {
+            args: Prisma.ApprovalGateCreateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ApprovalGatePayload>
+          }
+          createMany: {
+            args: Prisma.ApprovalGateCreateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          createManyAndReturn: {
+            args: Prisma.ApprovalGateCreateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ApprovalGatePayload>[]
+          }
+          delete: {
+            args: Prisma.ApprovalGateDeleteArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ApprovalGatePayload>
+          }
+          update: {
+            args: Prisma.ApprovalGateUpdateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ApprovalGatePayload>
+          }
+          deleteMany: {
+            args: Prisma.ApprovalGateDeleteManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateMany: {
+            args: Prisma.ApprovalGateUpdateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          upsert: {
+            args: Prisma.ApprovalGateUpsertArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ApprovalGatePayload>
+          }
+          aggregate: {
+            args: Prisma.ApprovalGateAggregateArgs<ExtArgs>
+            result: $Utils.Optional<AggregateApprovalGate>
+          }
+          groupBy: {
+            args: Prisma.ApprovalGateGroupByArgs<ExtArgs>
+            result: $Utils.Optional<ApprovalGateGroupByOutputType>[]
+          }
+          count: {
+            args: Prisma.ApprovalGateCountArgs<ExtArgs>
+            result: $Utils.Optional<ApprovalGateCountAggregateOutputType> | number
           }
         }
       }
@@ -7374,6 +7460,1000 @@ export namespace Prisma {
 
 
   /**
+   * Model ApprovalGate
+   */
+
+  export type AggregateApprovalGate = {
+    _count: ApprovalGateCountAggregateOutputType | null
+    _min: ApprovalGateMinAggregateOutputType | null
+    _max: ApprovalGateMaxAggregateOutputType | null
+  }
+
+  export type ApprovalGateMinAggregateOutputType = {
+    id: string | null
+    projectId: string | null
+    missionId: string | null
+    stepId: string | null
+    type: string | null
+    description: string | null
+    status: string | null
+    expiresAt: Date | null
+    autoOnExpiry: string | null
+    approvedBy: string | null
+    approvedAt: Date | null
+    comment: string | null
+    createdAt: Date | null
+    updatedAt: Date | null
+  }
+
+  export type ApprovalGateMaxAggregateOutputType = {
+    id: string | null
+    projectId: string | null
+    missionId: string | null
+    stepId: string | null
+    type: string | null
+    description: string | null
+    status: string | null
+    expiresAt: Date | null
+    autoOnExpiry: string | null
+    approvedBy: string | null
+    approvedAt: Date | null
+    comment: string | null
+    createdAt: Date | null
+    updatedAt: Date | null
+  }
+
+  export type ApprovalGateCountAggregateOutputType = {
+    id: number
+    projectId: number
+    missionId: number
+    stepId: number
+    type: number
+    description: number
+    context: number
+    status: number
+    expiresAt: number
+    autoOnExpiry: number
+    approvedBy: number
+    approvedAt: number
+    comment: number
+    createdAt: number
+    updatedAt: number
+    _all: number
+  }
+
+
+  export type ApprovalGateMinAggregateInputType = {
+    id?: true
+    projectId?: true
+    missionId?: true
+    stepId?: true
+    type?: true
+    description?: true
+    status?: true
+    expiresAt?: true
+    autoOnExpiry?: true
+    approvedBy?: true
+    approvedAt?: true
+    comment?: true
+    createdAt?: true
+    updatedAt?: true
+  }
+
+  export type ApprovalGateMaxAggregateInputType = {
+    id?: true
+    projectId?: true
+    missionId?: true
+    stepId?: true
+    type?: true
+    description?: true
+    status?: true
+    expiresAt?: true
+    autoOnExpiry?: true
+    approvedBy?: true
+    approvedAt?: true
+    comment?: true
+    createdAt?: true
+    updatedAt?: true
+  }
+
+  export type ApprovalGateCountAggregateInputType = {
+    id?: true
+    projectId?: true
+    missionId?: true
+    stepId?: true
+    type?: true
+    description?: true
+    context?: true
+    status?: true
+    expiresAt?: true
+    autoOnExpiry?: true
+    approvedBy?: true
+    approvedAt?: true
+    comment?: true
+    createdAt?: true
+    updatedAt?: true
+    _all?: true
+  }
+
+  export type ApprovalGateAggregateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which ApprovalGate to aggregate.
+     */
+    where?: ApprovalGateWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of ApprovalGates to fetch.
+     */
+    orderBy?: ApprovalGateOrderByWithRelationInput | ApprovalGateOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the start position
+     */
+    cursor?: ApprovalGateWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` ApprovalGates from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` ApprovalGates.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Count returned ApprovalGates
+    **/
+    _count?: true | ApprovalGateCountAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the minimum value
+    **/
+    _min?: ApprovalGateMinAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the maximum value
+    **/
+    _max?: ApprovalGateMaxAggregateInputType
+  }
+
+  export type GetApprovalGateAggregateType<T extends ApprovalGateAggregateArgs> = {
+        [P in keyof T & keyof AggregateApprovalGate]: P extends '_count' | 'count'
+      ? T[P] extends true
+        ? number
+        : GetScalarType<T[P], AggregateApprovalGate[P]>
+      : GetScalarType<T[P], AggregateApprovalGate[P]>
+  }
+
+
+
+
+  export type ApprovalGateGroupByArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: ApprovalGateWhereInput
+    orderBy?: ApprovalGateOrderByWithAggregationInput | ApprovalGateOrderByWithAggregationInput[]
+    by: ApprovalGateScalarFieldEnum[] | ApprovalGateScalarFieldEnum
+    having?: ApprovalGateScalarWhereWithAggregatesInput
+    take?: number
+    skip?: number
+    _count?: ApprovalGateCountAggregateInputType | true
+    _min?: ApprovalGateMinAggregateInputType
+    _max?: ApprovalGateMaxAggregateInputType
+  }
+
+  export type ApprovalGateGroupByOutputType = {
+    id: string
+    projectId: string
+    missionId: string
+    stepId: string
+    type: string
+    description: string
+    context: JsonValue
+    status: string
+    expiresAt: Date
+    autoOnExpiry: string
+    approvedBy: string | null
+    approvedAt: Date | null
+    comment: string | null
+    createdAt: Date
+    updatedAt: Date
+    _count: ApprovalGateCountAggregateOutputType | null
+    _min: ApprovalGateMinAggregateOutputType | null
+    _max: ApprovalGateMaxAggregateOutputType | null
+  }
+
+  type GetApprovalGateGroupByPayload<T extends ApprovalGateGroupByArgs> = Prisma.PrismaPromise<
+    Array<
+      PickEnumerable<ApprovalGateGroupByOutputType, T['by']> &
+        {
+          [P in ((keyof T) & (keyof ApprovalGateGroupByOutputType))]: P extends '_count'
+            ? T[P] extends boolean
+              ? number
+              : GetScalarType<T[P], ApprovalGateGroupByOutputType[P]>
+            : GetScalarType<T[P], ApprovalGateGroupByOutputType[P]>
+        }
+      >
+    >
+
+
+  export type ApprovalGateSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    projectId?: boolean
+    missionId?: boolean
+    stepId?: boolean
+    type?: boolean
+    description?: boolean
+    context?: boolean
+    status?: boolean
+    expiresAt?: boolean
+    autoOnExpiry?: boolean
+    approvedBy?: boolean
+    approvedAt?: boolean
+    comment?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+  }, ExtArgs["result"]["approvalGate"]>
+
+  export type ApprovalGateSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    projectId?: boolean
+    missionId?: boolean
+    stepId?: boolean
+    type?: boolean
+    description?: boolean
+    context?: boolean
+    status?: boolean
+    expiresAt?: boolean
+    autoOnExpiry?: boolean
+    approvedBy?: boolean
+    approvedAt?: boolean
+    comment?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+  }, ExtArgs["result"]["approvalGate"]>
+
+  export type ApprovalGateSelectScalar = {
+    id?: boolean
+    projectId?: boolean
+    missionId?: boolean
+    stepId?: boolean
+    type?: boolean
+    description?: boolean
+    context?: boolean
+    status?: boolean
+    expiresAt?: boolean
+    autoOnExpiry?: boolean
+    approvedBy?: boolean
+    approvedAt?: boolean
+    comment?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+  }
+
+
+  export type $ApprovalGatePayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    name: "ApprovalGate"
+    objects: {}
+    scalars: $Extensions.GetPayloadResult<{
+      id: string
+      projectId: string
+      missionId: string
+      stepId: string
+      type: string
+      description: string
+      context: Prisma.JsonValue
+      status: string
+      expiresAt: Date
+      autoOnExpiry: string
+      approvedBy: string | null
+      approvedAt: Date | null
+      comment: string | null
+      createdAt: Date
+      updatedAt: Date
+    }, ExtArgs["result"]["approvalGate"]>
+    composites: {}
+  }
+
+  type ApprovalGateGetPayload<S extends boolean | null | undefined | ApprovalGateDefaultArgs> = $Result.GetResult<Prisma.$ApprovalGatePayload, S>
+
+  type ApprovalGateCountArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = 
+    Omit<ApprovalGateFindManyArgs, 'select' | 'include' | 'distinct'> & {
+      select?: ApprovalGateCountAggregateInputType | true
+    }
+
+  export interface ApprovalGateDelegate<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> {
+    [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['model']['ApprovalGate'], meta: { name: 'ApprovalGate' } }
+    /**
+     * Find zero or one ApprovalGate that matches the filter.
+     * @param {ApprovalGateFindUniqueArgs} args - Arguments to find a ApprovalGate
+     * @example
+     * // Get one ApprovalGate
+     * const approvalGate = await prisma.approvalGate.findUnique({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUnique<T extends ApprovalGateFindUniqueArgs>(args: SelectSubset<T, ApprovalGateFindUniqueArgs<ExtArgs>>): Prisma__ApprovalGateClient<$Result.GetResult<Prisma.$ApprovalGatePayload<ExtArgs>, T, "findUnique"> | null, null, ExtArgs>
+
+    /**
+     * Find one ApprovalGate that matches the filter or throw an error with `error.code='P2025'` 
+     * if no matches were found.
+     * @param {ApprovalGateFindUniqueOrThrowArgs} args - Arguments to find a ApprovalGate
+     * @example
+     * // Get one ApprovalGate
+     * const approvalGate = await prisma.approvalGate.findUniqueOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUniqueOrThrow<T extends ApprovalGateFindUniqueOrThrowArgs>(args: SelectSubset<T, ApprovalGateFindUniqueOrThrowArgs<ExtArgs>>): Prisma__ApprovalGateClient<$Result.GetResult<Prisma.$ApprovalGatePayload<ExtArgs>, T, "findUniqueOrThrow">, never, ExtArgs>
+
+    /**
+     * Find the first ApprovalGate that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ApprovalGateFindFirstArgs} args - Arguments to find a ApprovalGate
+     * @example
+     * // Get one ApprovalGate
+     * const approvalGate = await prisma.approvalGate.findFirst({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirst<T extends ApprovalGateFindFirstArgs>(args?: SelectSubset<T, ApprovalGateFindFirstArgs<ExtArgs>>): Prisma__ApprovalGateClient<$Result.GetResult<Prisma.$ApprovalGatePayload<ExtArgs>, T, "findFirst"> | null, null, ExtArgs>
+
+    /**
+     * Find the first ApprovalGate that matches the filter or
+     * throw `PrismaKnownClientError` with `P2025` code if no matches were found.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ApprovalGateFindFirstOrThrowArgs} args - Arguments to find a ApprovalGate
+     * @example
+     * // Get one ApprovalGate
+     * const approvalGate = await prisma.approvalGate.findFirstOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirstOrThrow<T extends ApprovalGateFindFirstOrThrowArgs>(args?: SelectSubset<T, ApprovalGateFindFirstOrThrowArgs<ExtArgs>>): Prisma__ApprovalGateClient<$Result.GetResult<Prisma.$ApprovalGatePayload<ExtArgs>, T, "findFirstOrThrow">, never, ExtArgs>
+
+    /**
+     * Find zero or more ApprovalGates that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ApprovalGateFindManyArgs} args - Arguments to filter and select certain fields only.
+     * @example
+     * // Get all ApprovalGates
+     * const approvalGates = await prisma.approvalGate.findMany()
+     * 
+     * // Get first 10 ApprovalGates
+     * const approvalGates = await prisma.approvalGate.findMany({ take: 10 })
+     * 
+     * // Only select the `id`
+     * const approvalGateWithIdOnly = await prisma.approvalGate.findMany({ select: { id: true } })
+     * 
+     */
+    findMany<T extends ApprovalGateFindManyArgs>(args?: SelectSubset<T, ApprovalGateFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$ApprovalGatePayload<ExtArgs>, T, "findMany">>
+
+    /**
+     * Create a ApprovalGate.
+     * @param {ApprovalGateCreateArgs} args - Arguments to create a ApprovalGate.
+     * @example
+     * // Create one ApprovalGate
+     * const ApprovalGate = await prisma.approvalGate.create({
+     *   data: {
+     *     // ... data to create a ApprovalGate
+     *   }
+     * })
+     * 
+     */
+    create<T extends ApprovalGateCreateArgs>(args: SelectSubset<T, ApprovalGateCreateArgs<ExtArgs>>): Prisma__ApprovalGateClient<$Result.GetResult<Prisma.$ApprovalGatePayload<ExtArgs>, T, "create">, never, ExtArgs>
+
+    /**
+     * Create many ApprovalGates.
+     * @param {ApprovalGateCreateManyArgs} args - Arguments to create many ApprovalGates.
+     * @example
+     * // Create many ApprovalGates
+     * const approvalGate = await prisma.approvalGate.createMany({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     *     
+     */
+    createMany<T extends ApprovalGateCreateManyArgs>(args?: SelectSubset<T, ApprovalGateCreateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create many ApprovalGates and returns the data saved in the database.
+     * @param {ApprovalGateCreateManyAndReturnArgs} args - Arguments to create many ApprovalGates.
+     * @example
+     * // Create many ApprovalGates
+     * const approvalGate = await prisma.approvalGate.createManyAndReturn({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Create many ApprovalGates and only return the `id`
+     * const approvalGateWithIdOnly = await prisma.approvalGate.createManyAndReturn({ 
+     *   select: { id: true },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    createManyAndReturn<T extends ApprovalGateCreateManyAndReturnArgs>(args?: SelectSubset<T, ApprovalGateCreateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$ApprovalGatePayload<ExtArgs>, T, "createManyAndReturn">>
+
+    /**
+     * Delete a ApprovalGate.
+     * @param {ApprovalGateDeleteArgs} args - Arguments to delete one ApprovalGate.
+     * @example
+     * // Delete one ApprovalGate
+     * const ApprovalGate = await prisma.approvalGate.delete({
+     *   where: {
+     *     // ... filter to delete one ApprovalGate
+     *   }
+     * })
+     * 
+     */
+    delete<T extends ApprovalGateDeleteArgs>(args: SelectSubset<T, ApprovalGateDeleteArgs<ExtArgs>>): Prisma__ApprovalGateClient<$Result.GetResult<Prisma.$ApprovalGatePayload<ExtArgs>, T, "delete">, never, ExtArgs>
+
+    /**
+     * Update one ApprovalGate.
+     * @param {ApprovalGateUpdateArgs} args - Arguments to update one ApprovalGate.
+     * @example
+     * // Update one ApprovalGate
+     * const approvalGate = await prisma.approvalGate.update({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    update<T extends ApprovalGateUpdateArgs>(args: SelectSubset<T, ApprovalGateUpdateArgs<ExtArgs>>): Prisma__ApprovalGateClient<$Result.GetResult<Prisma.$ApprovalGatePayload<ExtArgs>, T, "update">, never, ExtArgs>
+
+    /**
+     * Delete zero or more ApprovalGates.
+     * @param {ApprovalGateDeleteManyArgs} args - Arguments to filter ApprovalGates to delete.
+     * @example
+     * // Delete a few ApprovalGates
+     * const { count } = await prisma.approvalGate.deleteMany({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     * 
+     */
+    deleteMany<T extends ApprovalGateDeleteManyArgs>(args?: SelectSubset<T, ApprovalGateDeleteManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more ApprovalGates.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ApprovalGateUpdateManyArgs} args - Arguments to update one or more rows.
+     * @example
+     * // Update many ApprovalGates
+     * const approvalGate = await prisma.approvalGate.updateMany({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    updateMany<T extends ApprovalGateUpdateManyArgs>(args: SelectSubset<T, ApprovalGateUpdateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create or update one ApprovalGate.
+     * @param {ApprovalGateUpsertArgs} args - Arguments to update or create a ApprovalGate.
+     * @example
+     * // Update or create a ApprovalGate
+     * const approvalGate = await prisma.approvalGate.upsert({
+     *   create: {
+     *     // ... data to create a ApprovalGate
+     *   },
+     *   update: {
+     *     // ... in case it already exists, update
+     *   },
+     *   where: {
+     *     // ... the filter for the ApprovalGate we want to update
+     *   }
+     * })
+     */
+    upsert<T extends ApprovalGateUpsertArgs>(args: SelectSubset<T, ApprovalGateUpsertArgs<ExtArgs>>): Prisma__ApprovalGateClient<$Result.GetResult<Prisma.$ApprovalGatePayload<ExtArgs>, T, "upsert">, never, ExtArgs>
+
+
+    /**
+     * Count the number of ApprovalGates.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ApprovalGateCountArgs} args - Arguments to filter ApprovalGates to count.
+     * @example
+     * // Count the number of ApprovalGates
+     * const count = await prisma.approvalGate.count({
+     *   where: {
+     *     // ... the filter for the ApprovalGates we want to count
+     *   }
+     * })
+    **/
+    count<T extends ApprovalGateCountArgs>(
+      args?: Subset<T, ApprovalGateCountArgs>,
+    ): Prisma.PrismaPromise<
+      T extends $Utils.Record<'select', any>
+        ? T['select'] extends true
+          ? number
+          : GetScalarType<T['select'], ApprovalGateCountAggregateOutputType>
+        : number
+    >
+
+    /**
+     * Allows you to perform aggregations operations on a ApprovalGate.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ApprovalGateAggregateArgs} args - Select which aggregations you would like to apply and on what fields.
+     * @example
+     * // Ordered by age ascending
+     * // Where email contains prisma.io
+     * // Limited to the 10 users
+     * const aggregations = await prisma.user.aggregate({
+     *   _avg: {
+     *     age: true,
+     *   },
+     *   where: {
+     *     email: {
+     *       contains: "prisma.io",
+     *     },
+     *   },
+     *   orderBy: {
+     *     age: "asc",
+     *   },
+     *   take: 10,
+     * })
+    **/
+    aggregate<T extends ApprovalGateAggregateArgs>(args: Subset<T, ApprovalGateAggregateArgs>): Prisma.PrismaPromise<GetApprovalGateAggregateType<T>>
+
+    /**
+     * Group by ApprovalGate.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ApprovalGateGroupByArgs} args - Group by arguments.
+     * @example
+     * // Group by city, order by createdAt, get count
+     * const result = await prisma.user.groupBy({
+     *   by: ['city', 'createdAt'],
+     *   orderBy: {
+     *     createdAt: true
+     *   },
+     *   _count: {
+     *     _all: true
+     *   },
+     * })
+     * 
+    **/
+    groupBy<
+      T extends ApprovalGateGroupByArgs,
+      HasSelectOrTake extends Or<
+        Extends<'skip', Keys<T>>,
+        Extends<'take', Keys<T>>
+      >,
+      OrderByArg extends True extends HasSelectOrTake
+        ? { orderBy: ApprovalGateGroupByArgs['orderBy'] }
+        : { orderBy?: ApprovalGateGroupByArgs['orderBy'] },
+      OrderFields extends ExcludeUnderscoreKeys<Keys<MaybeTupleToUnion<T['orderBy']>>>,
+      ByFields extends MaybeTupleToUnion<T['by']>,
+      ByValid extends Has<ByFields, OrderFields>,
+      HavingFields extends GetHavingFields<T['having']>,
+      HavingValid extends Has<ByFields, HavingFields>,
+      ByEmpty extends T['by'] extends never[] ? True : False,
+      InputErrors extends ByEmpty extends True
+      ? `Error: "by" must not be empty.`
+      : HavingValid extends False
+      ? {
+          [P in HavingFields]: P extends ByFields
+            ? never
+            : P extends string
+            ? `Error: Field "${P}" used in "having" needs to be provided in "by".`
+            : [
+                Error,
+                'Field ',
+                P,
+                ` in "having" needs to be provided in "by"`,
+              ]
+        }[HavingFields]
+      : 'take' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "take", you also need to provide "orderBy"'
+      : 'skip' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "skip", you also need to provide "orderBy"'
+      : ByValid extends True
+      ? {}
+      : {
+          [P in OrderFields]: P extends ByFields
+            ? never
+            : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+        }[OrderFields]
+    >(args: SubsetIntersection<T, ApprovalGateGroupByArgs, OrderByArg> & InputErrors): {} extends InputErrors ? GetApprovalGateGroupByPayload<T> : Prisma.PrismaPromise<InputErrors>
+  /**
+   * Fields of the ApprovalGate model
+   */
+  readonly fields: ApprovalGateFieldRefs;
+  }
+
+  /**
+   * The delegate class that acts as a "Promise-like" for ApprovalGate.
+   * Why is this prefixed with `Prisma__`?
+   * Because we want to prevent naming conflicts as mentioned in
+   * https://github.com/prisma/prisma-client-js/issues/707
+   */
+  export interface Prisma__ApprovalGateClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> extends Prisma.PrismaPromise<T> {
+    readonly [Symbol.toStringTag]: "PrismaPromise"
+    /**
+     * Attaches callbacks for the resolution and/or rejection of the Promise.
+     * @param onfulfilled The callback to execute when the Promise is resolved.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of which ever callback is executed.
+     */
+    then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): $Utils.JsPromise<TResult1 | TResult2>
+    /**
+     * Attaches a callback for only the rejection of the Promise.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of the callback.
+     */
+    catch<TResult = never>(onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | undefined | null): $Utils.JsPromise<T | TResult>
+    /**
+     * Attaches a callback that is invoked when the Promise is settled (fulfilled or rejected). The
+     * resolved value cannot be modified from the callback.
+     * @param onfinally The callback to execute when the Promise is settled (fulfilled or rejected).
+     * @returns A Promise for the completion of the callback.
+     */
+    finally(onfinally?: (() => void) | undefined | null): $Utils.JsPromise<T>
+  }
+
+
+
+
+  /**
+   * Fields of the ApprovalGate model
+   */ 
+  interface ApprovalGateFieldRefs {
+    readonly id: FieldRef<"ApprovalGate", 'String'>
+    readonly projectId: FieldRef<"ApprovalGate", 'String'>
+    readonly missionId: FieldRef<"ApprovalGate", 'String'>
+    readonly stepId: FieldRef<"ApprovalGate", 'String'>
+    readonly type: FieldRef<"ApprovalGate", 'String'>
+    readonly description: FieldRef<"ApprovalGate", 'String'>
+    readonly context: FieldRef<"ApprovalGate", 'Json'>
+    readonly status: FieldRef<"ApprovalGate", 'String'>
+    readonly expiresAt: FieldRef<"ApprovalGate", 'DateTime'>
+    readonly autoOnExpiry: FieldRef<"ApprovalGate", 'String'>
+    readonly approvedBy: FieldRef<"ApprovalGate", 'String'>
+    readonly approvedAt: FieldRef<"ApprovalGate", 'DateTime'>
+    readonly comment: FieldRef<"ApprovalGate", 'String'>
+    readonly createdAt: FieldRef<"ApprovalGate", 'DateTime'>
+    readonly updatedAt: FieldRef<"ApprovalGate", 'DateTime'>
+  }
+    
+
+  // Custom InputTypes
+  /**
+   * ApprovalGate findUnique
+   */
+  export type ApprovalGateFindUniqueArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ApprovalGate
+     */
+    select?: ApprovalGateSelect<ExtArgs> | null
+    /**
+     * Filter, which ApprovalGate to fetch.
+     */
+    where: ApprovalGateWhereUniqueInput
+  }
+
+  /**
+   * ApprovalGate findUniqueOrThrow
+   */
+  export type ApprovalGateFindUniqueOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ApprovalGate
+     */
+    select?: ApprovalGateSelect<ExtArgs> | null
+    /**
+     * Filter, which ApprovalGate to fetch.
+     */
+    where: ApprovalGateWhereUniqueInput
+  }
+
+  /**
+   * ApprovalGate findFirst
+   */
+  export type ApprovalGateFindFirstArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ApprovalGate
+     */
+    select?: ApprovalGateSelect<ExtArgs> | null
+    /**
+     * Filter, which ApprovalGate to fetch.
+     */
+    where?: ApprovalGateWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of ApprovalGates to fetch.
+     */
+    orderBy?: ApprovalGateOrderByWithRelationInput | ApprovalGateOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for ApprovalGates.
+     */
+    cursor?: ApprovalGateWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` ApprovalGates from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` ApprovalGates.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of ApprovalGates.
+     */
+    distinct?: ApprovalGateScalarFieldEnum | ApprovalGateScalarFieldEnum[]
+  }
+
+  /**
+   * ApprovalGate findFirstOrThrow
+   */
+  export type ApprovalGateFindFirstOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ApprovalGate
+     */
+    select?: ApprovalGateSelect<ExtArgs> | null
+    /**
+     * Filter, which ApprovalGate to fetch.
+     */
+    where?: ApprovalGateWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of ApprovalGates to fetch.
+     */
+    orderBy?: ApprovalGateOrderByWithRelationInput | ApprovalGateOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for ApprovalGates.
+     */
+    cursor?: ApprovalGateWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` ApprovalGates from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` ApprovalGates.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of ApprovalGates.
+     */
+    distinct?: ApprovalGateScalarFieldEnum | ApprovalGateScalarFieldEnum[]
+  }
+
+  /**
+   * ApprovalGate findMany
+   */
+  export type ApprovalGateFindManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ApprovalGate
+     */
+    select?: ApprovalGateSelect<ExtArgs> | null
+    /**
+     * Filter, which ApprovalGates to fetch.
+     */
+    where?: ApprovalGateWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of ApprovalGates to fetch.
+     */
+    orderBy?: ApprovalGateOrderByWithRelationInput | ApprovalGateOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for listing ApprovalGates.
+     */
+    cursor?: ApprovalGateWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` ApprovalGates from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` ApprovalGates.
+     */
+    skip?: number
+    distinct?: ApprovalGateScalarFieldEnum | ApprovalGateScalarFieldEnum[]
+  }
+
+  /**
+   * ApprovalGate create
+   */
+  export type ApprovalGateCreateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ApprovalGate
+     */
+    select?: ApprovalGateSelect<ExtArgs> | null
+    /**
+     * The data needed to create a ApprovalGate.
+     */
+    data: XOR<ApprovalGateCreateInput, ApprovalGateUncheckedCreateInput>
+  }
+
+  /**
+   * ApprovalGate createMany
+   */
+  export type ApprovalGateCreateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to create many ApprovalGates.
+     */
+    data: ApprovalGateCreateManyInput | ApprovalGateCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * ApprovalGate createManyAndReturn
+   */
+  export type ApprovalGateCreateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ApprovalGate
+     */
+    select?: ApprovalGateSelectCreateManyAndReturn<ExtArgs> | null
+    /**
+     * The data used to create many ApprovalGates.
+     */
+    data: ApprovalGateCreateManyInput | ApprovalGateCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * ApprovalGate update
+   */
+  export type ApprovalGateUpdateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ApprovalGate
+     */
+    select?: ApprovalGateSelect<ExtArgs> | null
+    /**
+     * The data needed to update a ApprovalGate.
+     */
+    data: XOR<ApprovalGateUpdateInput, ApprovalGateUncheckedUpdateInput>
+    /**
+     * Choose, which ApprovalGate to update.
+     */
+    where: ApprovalGateWhereUniqueInput
+  }
+
+  /**
+   * ApprovalGate updateMany
+   */
+  export type ApprovalGateUpdateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to update ApprovalGates.
+     */
+    data: XOR<ApprovalGateUpdateManyMutationInput, ApprovalGateUncheckedUpdateManyInput>
+    /**
+     * Filter which ApprovalGates to update
+     */
+    where?: ApprovalGateWhereInput
+  }
+
+  /**
+   * ApprovalGate upsert
+   */
+  export type ApprovalGateUpsertArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ApprovalGate
+     */
+    select?: ApprovalGateSelect<ExtArgs> | null
+    /**
+     * The filter to search for the ApprovalGate to update in case it exists.
+     */
+    where: ApprovalGateWhereUniqueInput
+    /**
+     * In case the ApprovalGate found by the `where` argument doesn't exist, create a new ApprovalGate with this data.
+     */
+    create: XOR<ApprovalGateCreateInput, ApprovalGateUncheckedCreateInput>
+    /**
+     * In case the ApprovalGate was found with the provided `where` argument, update it with this data.
+     */
+    update: XOR<ApprovalGateUpdateInput, ApprovalGateUncheckedUpdateInput>
+  }
+
+  /**
+   * ApprovalGate delete
+   */
+  export type ApprovalGateDeleteArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ApprovalGate
+     */
+    select?: ApprovalGateSelect<ExtArgs> | null
+    /**
+     * Filter which ApprovalGate to delete.
+     */
+    where: ApprovalGateWhereUniqueInput
+  }
+
+  /**
+   * ApprovalGate deleteMany
+   */
+  export type ApprovalGateDeleteManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which ApprovalGates to delete
+     */
+    where?: ApprovalGateWhereInput
+  }
+
+  /**
+   * ApprovalGate without action
+   */
+  export type ApprovalGateDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ApprovalGate
+     */
+    select?: ApprovalGateSelect<ExtArgs> | null
+  }
+
+
+  /**
    * Enums
    */
 
@@ -7484,6 +8564,27 @@ export namespace Prisma {
   };
 
   export type KnowledgeEdgeScalarFieldEnum = (typeof KnowledgeEdgeScalarFieldEnum)[keyof typeof KnowledgeEdgeScalarFieldEnum]
+
+
+  export const ApprovalGateScalarFieldEnum: {
+    id: 'id',
+    projectId: 'projectId',
+    missionId: 'missionId',
+    stepId: 'stepId',
+    type: 'type',
+    description: 'description',
+    context: 'context',
+    status: 'status',
+    expiresAt: 'expiresAt',
+    autoOnExpiry: 'autoOnExpiry',
+    approvedBy: 'approvedBy',
+    approvedAt: 'approvedAt',
+    comment: 'comment',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt'
+  };
+
+  export type ApprovalGateScalarFieldEnum = (typeof ApprovalGateScalarFieldEnum)[keyof typeof ApprovalGateScalarFieldEnum]
 
 
   export const SortOrder: {
@@ -8106,6 +9207,108 @@ export namespace Prisma {
     createdAt?: DateTimeWithAggregatesFilter<"KnowledgeEdge"> | Date | string
   }
 
+  export type ApprovalGateWhereInput = {
+    AND?: ApprovalGateWhereInput | ApprovalGateWhereInput[]
+    OR?: ApprovalGateWhereInput[]
+    NOT?: ApprovalGateWhereInput | ApprovalGateWhereInput[]
+    id?: StringFilter<"ApprovalGate"> | string
+    projectId?: StringFilter<"ApprovalGate"> | string
+    missionId?: StringFilter<"ApprovalGate"> | string
+    stepId?: StringFilter<"ApprovalGate"> | string
+    type?: StringFilter<"ApprovalGate"> | string
+    description?: StringFilter<"ApprovalGate"> | string
+    context?: JsonFilter<"ApprovalGate">
+    status?: StringFilter<"ApprovalGate"> | string
+    expiresAt?: DateTimeFilter<"ApprovalGate"> | Date | string
+    autoOnExpiry?: StringFilter<"ApprovalGate"> | string
+    approvedBy?: StringNullableFilter<"ApprovalGate"> | string | null
+    approvedAt?: DateTimeNullableFilter<"ApprovalGate"> | Date | string | null
+    comment?: StringNullableFilter<"ApprovalGate"> | string | null
+    createdAt?: DateTimeFilter<"ApprovalGate"> | Date | string
+    updatedAt?: DateTimeFilter<"ApprovalGate"> | Date | string
+  }
+
+  export type ApprovalGateOrderByWithRelationInput = {
+    id?: SortOrder
+    projectId?: SortOrder
+    missionId?: SortOrder
+    stepId?: SortOrder
+    type?: SortOrder
+    description?: SortOrder
+    context?: SortOrder
+    status?: SortOrder
+    expiresAt?: SortOrder
+    autoOnExpiry?: SortOrder
+    approvedBy?: SortOrderInput | SortOrder
+    approvedAt?: SortOrderInput | SortOrder
+    comment?: SortOrderInput | SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type ApprovalGateWhereUniqueInput = Prisma.AtLeast<{
+    id?: string
+    AND?: ApprovalGateWhereInput | ApprovalGateWhereInput[]
+    OR?: ApprovalGateWhereInput[]
+    NOT?: ApprovalGateWhereInput | ApprovalGateWhereInput[]
+    projectId?: StringFilter<"ApprovalGate"> | string
+    missionId?: StringFilter<"ApprovalGate"> | string
+    stepId?: StringFilter<"ApprovalGate"> | string
+    type?: StringFilter<"ApprovalGate"> | string
+    description?: StringFilter<"ApprovalGate"> | string
+    context?: JsonFilter<"ApprovalGate">
+    status?: StringFilter<"ApprovalGate"> | string
+    expiresAt?: DateTimeFilter<"ApprovalGate"> | Date | string
+    autoOnExpiry?: StringFilter<"ApprovalGate"> | string
+    approvedBy?: StringNullableFilter<"ApprovalGate"> | string | null
+    approvedAt?: DateTimeNullableFilter<"ApprovalGate"> | Date | string | null
+    comment?: StringNullableFilter<"ApprovalGate"> | string | null
+    createdAt?: DateTimeFilter<"ApprovalGate"> | Date | string
+    updatedAt?: DateTimeFilter<"ApprovalGate"> | Date | string
+  }, "id">
+
+  export type ApprovalGateOrderByWithAggregationInput = {
+    id?: SortOrder
+    projectId?: SortOrder
+    missionId?: SortOrder
+    stepId?: SortOrder
+    type?: SortOrder
+    description?: SortOrder
+    context?: SortOrder
+    status?: SortOrder
+    expiresAt?: SortOrder
+    autoOnExpiry?: SortOrder
+    approvedBy?: SortOrderInput | SortOrder
+    approvedAt?: SortOrderInput | SortOrder
+    comment?: SortOrderInput | SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+    _count?: ApprovalGateCountOrderByAggregateInput
+    _max?: ApprovalGateMaxOrderByAggregateInput
+    _min?: ApprovalGateMinOrderByAggregateInput
+  }
+
+  export type ApprovalGateScalarWhereWithAggregatesInput = {
+    AND?: ApprovalGateScalarWhereWithAggregatesInput | ApprovalGateScalarWhereWithAggregatesInput[]
+    OR?: ApprovalGateScalarWhereWithAggregatesInput[]
+    NOT?: ApprovalGateScalarWhereWithAggregatesInput | ApprovalGateScalarWhereWithAggregatesInput[]
+    id?: StringWithAggregatesFilter<"ApprovalGate"> | string
+    projectId?: StringWithAggregatesFilter<"ApprovalGate"> | string
+    missionId?: StringWithAggregatesFilter<"ApprovalGate"> | string
+    stepId?: StringWithAggregatesFilter<"ApprovalGate"> | string
+    type?: StringWithAggregatesFilter<"ApprovalGate"> | string
+    description?: StringWithAggregatesFilter<"ApprovalGate"> | string
+    context?: JsonWithAggregatesFilter<"ApprovalGate">
+    status?: StringWithAggregatesFilter<"ApprovalGate"> | string
+    expiresAt?: DateTimeWithAggregatesFilter<"ApprovalGate"> | Date | string
+    autoOnExpiry?: StringWithAggregatesFilter<"ApprovalGate"> | string
+    approvedBy?: StringNullableWithAggregatesFilter<"ApprovalGate"> | string | null
+    approvedAt?: DateTimeNullableWithAggregatesFilter<"ApprovalGate"> | Date | string | null
+    comment?: StringNullableWithAggregatesFilter<"ApprovalGate"> | string | null
+    createdAt?: DateTimeWithAggregatesFilter<"ApprovalGate"> | Date | string
+    updatedAt?: DateTimeWithAggregatesFilter<"ApprovalGate"> | Date | string
+  }
+
   export type MissionCreateInput = {
     id?: string
     projectId: string
@@ -8680,6 +9883,132 @@ export namespace Prisma {
     weight?: FloatFieldUpdateOperationsInput | number
     source?: StringFieldUpdateOperationsInput | string
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type ApprovalGateCreateInput = {
+    id?: string
+    projectId: string
+    missionId: string
+    stepId: string
+    type: string
+    description: string
+    context?: JsonNullValueInput | InputJsonValue
+    status?: string
+    expiresAt: Date | string
+    autoOnExpiry?: string
+    approvedBy?: string | null
+    approvedAt?: Date | string | null
+    comment?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type ApprovalGateUncheckedCreateInput = {
+    id?: string
+    projectId: string
+    missionId: string
+    stepId: string
+    type: string
+    description: string
+    context?: JsonNullValueInput | InputJsonValue
+    status?: string
+    expiresAt: Date | string
+    autoOnExpiry?: string
+    approvedBy?: string | null
+    approvedAt?: Date | string | null
+    comment?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type ApprovalGateUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    missionId?: StringFieldUpdateOperationsInput | string
+    stepId?: StringFieldUpdateOperationsInput | string
+    type?: StringFieldUpdateOperationsInput | string
+    description?: StringFieldUpdateOperationsInput | string
+    context?: JsonNullValueInput | InputJsonValue
+    status?: StringFieldUpdateOperationsInput | string
+    expiresAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    autoOnExpiry?: StringFieldUpdateOperationsInput | string
+    approvedBy?: NullableStringFieldUpdateOperationsInput | string | null
+    approvedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    comment?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type ApprovalGateUncheckedUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    missionId?: StringFieldUpdateOperationsInput | string
+    stepId?: StringFieldUpdateOperationsInput | string
+    type?: StringFieldUpdateOperationsInput | string
+    description?: StringFieldUpdateOperationsInput | string
+    context?: JsonNullValueInput | InputJsonValue
+    status?: StringFieldUpdateOperationsInput | string
+    expiresAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    autoOnExpiry?: StringFieldUpdateOperationsInput | string
+    approvedBy?: NullableStringFieldUpdateOperationsInput | string | null
+    approvedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    comment?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type ApprovalGateCreateManyInput = {
+    id?: string
+    projectId: string
+    missionId: string
+    stepId: string
+    type: string
+    description: string
+    context?: JsonNullValueInput | InputJsonValue
+    status?: string
+    expiresAt: Date | string
+    autoOnExpiry?: string
+    approvedBy?: string | null
+    approvedAt?: Date | string | null
+    comment?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type ApprovalGateUpdateManyMutationInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    missionId?: StringFieldUpdateOperationsInput | string
+    stepId?: StringFieldUpdateOperationsInput | string
+    type?: StringFieldUpdateOperationsInput | string
+    description?: StringFieldUpdateOperationsInput | string
+    context?: JsonNullValueInput | InputJsonValue
+    status?: StringFieldUpdateOperationsInput | string
+    expiresAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    autoOnExpiry?: StringFieldUpdateOperationsInput | string
+    approvedBy?: NullableStringFieldUpdateOperationsInput | string | null
+    approvedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    comment?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type ApprovalGateUncheckedUpdateManyInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    missionId?: StringFieldUpdateOperationsInput | string
+    stepId?: StringFieldUpdateOperationsInput | string
+    type?: StringFieldUpdateOperationsInput | string
+    description?: StringFieldUpdateOperationsInput | string
+    context?: JsonNullValueInput | InputJsonValue
+    status?: StringFieldUpdateOperationsInput | string
+    expiresAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    autoOnExpiry?: StringFieldUpdateOperationsInput | string
+    approvedBy?: NullableStringFieldUpdateOperationsInput | string | null
+    approvedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    comment?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
   export type StringFilter<$PrismaModel = never> = {
@@ -9273,6 +10602,58 @@ export namespace Prisma {
     _sum?: NestedFloatFilter<$PrismaModel>
     _min?: NestedFloatFilter<$PrismaModel>
     _max?: NestedFloatFilter<$PrismaModel>
+  }
+
+  export type ApprovalGateCountOrderByAggregateInput = {
+    id?: SortOrder
+    projectId?: SortOrder
+    missionId?: SortOrder
+    stepId?: SortOrder
+    type?: SortOrder
+    description?: SortOrder
+    context?: SortOrder
+    status?: SortOrder
+    expiresAt?: SortOrder
+    autoOnExpiry?: SortOrder
+    approvedBy?: SortOrder
+    approvedAt?: SortOrder
+    comment?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type ApprovalGateMaxOrderByAggregateInput = {
+    id?: SortOrder
+    projectId?: SortOrder
+    missionId?: SortOrder
+    stepId?: SortOrder
+    type?: SortOrder
+    description?: SortOrder
+    status?: SortOrder
+    expiresAt?: SortOrder
+    autoOnExpiry?: SortOrder
+    approvedBy?: SortOrder
+    approvedAt?: SortOrder
+    comment?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type ApprovalGateMinOrderByAggregateInput = {
+    id?: SortOrder
+    projectId?: SortOrder
+    missionId?: SortOrder
+    stepId?: SortOrder
+    type?: SortOrder
+    description?: SortOrder
+    status?: SortOrder
+    expiresAt?: SortOrder
+    autoOnExpiry?: SortOrder
+    approvedBy?: SortOrder
+    approvedAt?: SortOrder
+    comment?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
   }
 
   export type MissionStepCreateNestedManyWithoutMissionInput = {
@@ -10315,6 +11696,10 @@ export namespace Prisma {
      * @deprecated Use KnowledgeEdgeDefaultArgs instead
      */
     export type KnowledgeEdgeArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = KnowledgeEdgeDefaultArgs<ExtArgs>
+    /**
+     * @deprecated Use ApprovalGateDefaultArgs instead
+     */
+    export type ApprovalGateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = ApprovalGateDefaultArgs<ExtArgs>
 
   /**
    * Batch Payload for updateMany & deleteMany & createMany

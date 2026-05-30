@@ -10,6 +10,10 @@ import { SkillEngineModule } from './skill-engine/skill-engine.module'
 import { VaultModule } from './vault/vault.module'
 import { KnowledgeModule } from './knowledge/knowledge.module'
 import { ProjectMemoryModule } from './project-memory/project-memory.module'
+import { ApprovalGatesModule } from './approval-gates/approval-gates.module'
+import { WorkflowModule } from './workflow/workflow.module'
+import { QaEngineModule } from './qa-engine/qa-engine.module'
+import { DocumentationEngineModule } from './documentation-engine/documentation-engine.module'
 
 @Module({
   imports: [
@@ -24,6 +28,10 @@ import { ProjectMemoryModule } from './project-memory/project-memory.module'
     VaultModule,
     KnowledgeModule,
     ProjectMemoryModule,
+    ApprovalGatesModule,
+    WorkflowModule,
+    QaEngineModule,
+    DocumentationEngineModule,
   ],
 })
 export class AppModule {}

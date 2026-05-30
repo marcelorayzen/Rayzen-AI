@@ -135,3 +135,29 @@ model KnowledgeEdge {
   @@schema("v2")
   @@map("knowledge_edges")
 }
+
+// ─── Human Approval Gates ─────────────────────────────────────────────────────
+
+model ApprovalGate {
+  id           String    @id @default(uuid())
+  projectId    String    @map("project_id")
+  missionId    String    @map("mission_id")
+  stepId       String    @map("step_id")
+  type         String    // code_deploy|data_write|external_api|irreversible|high_cost|specialist_spawn
+  description  String
+  context      Json      @default("{}")
+  status       String    @default("pending")   // pending|approved|rejected|expired
+  expiresAt    DateTime  @map("expires_at")
+  autoOnExpiry String    @default("reject") @map("auto_on_expiry") // reject|approve|pause
+  approvedBy   String?   @map("approved_by")
+  approvedAt   DateTime? @map("approved_at")
+  comment      String?
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@index([missionId, status])
+  @@index([projectId, status])
+  @@index([expiresAt, status])
+  @@schema("v2")
+  @@map("approval_gates")
+}
