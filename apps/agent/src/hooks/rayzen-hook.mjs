@@ -194,12 +194,16 @@ function post(url, body, token) {
 const SLUG_CACHE_FILE = join(tmpdir(), 'rayzen-slug-cache.json')
 const SLUG_CACHE_TTL = 5 * 60 * 1000
 
-function readSlugCache() {
+// Lê o cache bruto (sem checar TTL) — usado para fallback stale-while-error
+function readSlugCacheRaw() {
   try {
-    const raw = readFileSync(SLUG_CACHE_FILE, 'utf8')
-    const cache = JSON.parse(raw)
-    if (Date.now() - cache.ts < SLUG_CACHE_TTL) return cache
-  } catch { /* ignora */ }
+    return JSON.parse(readFileSync(SLUG_CACHE_FILE, 'utf8'))
+  } catch { return null }
+}
+
+function readSlugCache() {
+  const cache = readSlugCacheRaw()
+  if (cache && Date.now() - cache.ts < SLUG_CACHE_TTL) return cache
   return null
 }
 
@@ -237,7 +241,7 @@ async function resolveProjectId(cfg) {
   const slug = getProjectName()
   if (!slug) return null
 
-  // Prioridade 2: cache em arquivo
+  // Prioridade 2: cache fresco (dentro do TTL)
   const cached = readSlugCache()
   if (cached?.slug === slug) return cached.projectId
 
@@ -266,13 +270,24 @@ async function resolveProjectId(cfg) {
         })
       })
       req.on('error', () => resolve(null))
-      req.setTimeout(3000, () => { req.destroy(); resolve(null) })
+      req.setTimeout(5000, () => { req.destroy(); resolve(null) })
       req.end()
     })
 
-    if (projectId) writeSlugCache(slug, projectId)
-    return projectId
-  } catch { return null }
+    if (projectId) { writeSlugCache(slug, projectId); return projectId }
+
+    // Stale-while-error: query falhou (rede/timeout). Em vez de mandar órfão,
+    // reusa o cache do MESMO slug mesmo expirado — o projectId não muda.
+    // Isso elimina "desconexões" por hiccups transitórios de rede.
+    const stale = readSlugCacheRaw()
+    if (stale?.slug === slug) return stale.projectId
+
+    return null
+  } catch {
+    const stale = readSlugCacheRaw()
+    if (stale?.slug === slug) return stale.projectId
+    return null
+  }
 }
 
 async function main() {
