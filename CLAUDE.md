@@ -55,7 +55,7 @@ rayzen-ai/
 │       │   ├── poller.ts       # setInterval 3s → GET /tasks/pending
 │       │   ├── executor.ts     # action dispatcher
 │       │   ├── security/whitelist.ts   # CRITICAL — never bypass
-│       │   ├── actions/        # 33 actions implemented
+│       │   ├── actions/        # 34 actions implemented
 │       │   └── mcp/            # MCP servers (stdio + HTTP)
 │       └── hooks/              # Claude Code hook (gitignored config)
 ├── packages/types/src/index.ts # Task, Document, ChatMessage
@@ -125,7 +125,7 @@ pnpm --filter agent build
 
 ## Agent actions (whitelist)
 
-33 actions — every new action **must** be added to `apps/agent/src/security/whitelist.ts`.
+34 actions — every new action **must** be added to `apps/agent/src/security/whitelist.ts`.
 
 | Action | File |
 |---|---|
@@ -162,6 +162,7 @@ pnpm --filter agent build
 | `jarvis:get_data_quality` | get-data-quality.ts |
 | `jarvis:run_graphify` | run-graphify.ts |
 | `jarvis:graphify_sync` | graphify-sync.ts |
+| `jarvis:supervised_session` | supervised-session.ts |
 
 Adding a new action:
 ```typescript
