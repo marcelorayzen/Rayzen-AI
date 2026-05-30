@@ -142,6 +142,10 @@ services:
       DATABASE_URL_V2: postgresql://rayzen:${POSTGRES_PASSWORD:-senha}@postgres:5432/rayzen_ai?schema=v2
       DATABASE_URL: postgresql://rayzen:${POSTGRES_PASSWORD:-senha}@postgres:5432/rayzen_ai
       API_V2_PORT: 3002
+      LITELLM_BASE_URL: http://litellm:4000/v1
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3100}
     ports:
       - '127.0.0.1:3103:3002'
     depends_on:
