@@ -4,6 +4,7 @@ import { EventService, CreateEventDto, MemoryClass } from './event.service'
 import { SynthesisService } from '../synthesis/synthesis.service'
 import { PrismaService } from '../../prisma/prisma.service'
 import { MemoryService } from '../memory/memory.service'
+import { normalizeSlug } from '../project/project.service'
 
 function inferIntent(tool: string, filePath?: string): CreateEventDto['intent'] | undefined {
   if (filePath && /CLAUDE\.md|AGENTS\.md|ADR|decisions/i.test(filePath)) return 'decision'
@@ -58,13 +59,17 @@ export class EventController {
   @Post('cli')
   @ApiOperation({ summary: 'Recebe payload do hook do Claude Code e salva como evento' })
   async fromCli(@Body() payload: CliHookPayload) {
-    // Resolve projectId: UUID explícito > busca por nome > undefined
+    // Resolve projectId: UUID explícito > resolução robusta por slug/nome > undefined
     let projectId = payload.projectId ?? undefined
     if (!projectId && payload.projectName) {
-      const found = await this.prisma.project.findFirst({
-        where: { name: { equals: payload.projectName, mode: 'insensitive' } },
-        select: { id: true },
+      const target = normalizeSlug(payload.projectName)
+      const all = await this.prisma.project.findMany({
+        select: { id: true, name: true, repoSlug: true },
       })
+      // Compara slug do hook contra repoSlug e nome normalizados de cada projeto
+      const found =
+        all.find((p) => p.repoSlug && normalizeSlug(p.repoSlug) === target) ??
+        all.find((p) => normalizeSlug(p.name) === target)
       if (found) projectId = found.id
     }
 
@@ -212,5 +217,49 @@ export class EventController {
     @Query('limit') limit?: string,
   ) {
     return this.events.findAll({ projectId, source, type, memoryClass, limit: limit ? parseInt(limit) : undefined })
+  }
+
+  @Get('hook/health')
+  @ApiOperation({ summary: 'Saúde do hook: última vez que cada projeto recebeu evento via CLI' })
+  async hookHealth() {
+    const projects = await this.prisma.project.findMany({
+      where: { status: 'active' },
+      select: { id: true, name: true, repoSlug: true },
+    })
+
+    const STALE_MS = 2 * 24 * 60 * 60 * 1000  // 2 dias
+
+    const rows = await Promise.all(projects.map(async (p) => {
+      const last = await this.prisma.event.findFirst({
+        where: { projectId: p.id, source: 'cli' },
+        orderBy: { ts: 'desc' },
+        select: { ts: true },
+      })
+      const lastTs = last?.ts ?? null
+      const ageMs  = lastTs ? Date.now() - new Date(lastTs).getTime() : null
+      return {
+        projectId:    p.id,
+        name:         p.name,
+        repoSlug:     p.repoSlug,
+        lastCliEvent: lastTs,
+        ageDays:      ageMs !== null ? Math.floor(ageMs / (24 * 60 * 60 * 1000)) : null,
+        status:       lastTs === null ? 'never' : (ageMs! > STALE_MS ? 'stale' : 'healthy'),
+      }
+    }))
+
+    // Contar eventos órfãos (sem projectId) das últimas 48h — sinal de hook quebrado
+    const orphans = await this.prisma.event.count({
+      where: {
+        source: 'cli',
+        projectId: null,
+        ts: { gte: new Date(Date.now() - STALE_MS) },
+      },
+    })
+
+    return {
+      checkedAt: new Date().toISOString(),
+      orphanEventsLast48h: orphans,
+      projects: rows.sort((a, b) => (a.ageDays ?? 9999) - (b.ageDays ?? 9999)),
+    }
   }
 }

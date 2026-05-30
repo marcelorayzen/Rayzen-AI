@@ -2,6 +2,20 @@ import { Injectable, Inject, forwardRef } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { NotionService } from '../notion/notion.service'
 
+// Normaliza slug/nome para comparação tolerante:
+// lowercase, _ → -, remove sufixos de visibilidade, remove não-alfanuméricos
+// "rayzen-ai-private" → "rayzen-ai" ; "Rayzen AI" → "rayzen-ai" ; "vb_ferragens" → "vb-ferragens"
+export function normalizeSlug(s: string): string {
+  return s
+    .toLowerCase()
+    .trim()
+    .replace(/[\s_]+/g, '-')
+    .replace(/-(private|public|fork|main|master)$/g, '')
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+}
+
 @Injectable()
 export class ProjectService {
   constructor(
@@ -11,10 +25,26 @@ export class ProjectService {
 
   async findAll(repoSlug?: string) {
     if (repoSlug) {
-      return this.prisma.project.findMany({
+      // 1. Match exato (rápido, usa índice)
+      const exact = await this.prisma.project.findMany({
         where: { repoSlug },
         orderBy: { createdAt: 'desc' },
       })
+      if (exact.length > 0) return exact
+
+      // 2. Match normalizado — tolera repo privado/público, case, _ vs -
+      //    ex: remote "rayzen-ai-private" resolve para repoSlug "Rayzen-AI"
+      const target = normalizeSlug(repoSlug)
+      const all = await this.prisma.project.findMany({ orderBy: { createdAt: 'desc' } })
+      const matches = all.filter((p) => {
+        if (!p.repoSlug) return false
+        return normalizeSlug(p.repoSlug) === target
+      })
+      if (matches.length > 0) return matches
+
+      // 3. Fallback por nome normalizado (ex: slug "rayzen-ai" ≈ nome "Rayzen AI")
+      const byName = all.filter((p) => normalizeSlug(p.name) === target)
+      return byName
     }
     return this.prisma.project.findMany({ orderBy: { createdAt: 'desc' } })
   }
