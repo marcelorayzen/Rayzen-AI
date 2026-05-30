@@ -209,6 +209,27 @@ function writeSlugCache(slug, projectId) {
   } catch { /* ignora */ }
 }
 
+// Aviso de resolução falha — visível no Claude Code (exit 2), no máximo 1x/hora
+const WARN_FILE = join(tmpdir(), 'rayzen-hook-warn.json')
+const WARN_THROTTLE = 60 * 60 * 1000  // 1 hora
+
+function warnUnresolved(slug) {
+  // stderr sempre (para logs), mas exit 2 (visível) só após throttle
+  process.stderr.write(`[rayzen-hook] projectId não resolvido para "${slug ?? '?'}".\n`)
+  let last = 0
+  try { last = JSON.parse(readFileSync(WARN_FILE, 'utf8')).ts ?? 0 } catch { /* ignora */ }
+  if (Date.now() - last < WARN_THROTTLE) return  // já avisou recentemente — silencioso
+
+  try { writeFileSync(WARN_FILE, JSON.stringify({ slug, ts: Date.now() }), 'utf8') } catch { /* ignora */ }
+  process.stderr.write(
+    `\n⚠️  Rayzen: a atividade deste repositório ("${slug ?? '?'}") NÃO está sendo vinculada a um projeto.\n` +
+    `   Provável: nenhum projeto com esse repoSlug no Rayzen, ou repoSlug divergente.\n` +
+    `   Verifique: GET /events/hook/health  ·  ou fixe projectId em apps/agent/src/hooks/hook.config.mjs\n`,
+  )
+  // exit 2 faz o Claude Code exibir o stderr ao usuário (PostToolUse não bloqueia a ação já executada)
+  process.exitCode = 2
+}
+
 async function resolveProjectId(cfg) {
   // Prioridade 1: config explícito
   if (cfg.projectId) return cfg.projectId
@@ -287,7 +308,8 @@ async function main() {
   } else {
     const name = getProjectName()
     if (name) payload.projectName = name
-    process.stderr.write(`[rayzen-hook] projectId não resolvido para slug "${name ?? '?'}". Verifique hook.config.mjs.\n`)
+    // Aviso ativo (throttle 1h): falha de resolução fica VISÍVEL no Claude Code via exit 2
+    warnUnresolved(name)
   }
 
   // Enriquecer com contexto git (não bloqueia se falhar)
@@ -323,7 +345,8 @@ async function main() {
   }
 
   await post(`${cfg.apiUrl}/events/cli`, payload, cfg.apiToken)
-  process.exit(0)
+  // Preserva exitCode 2 definido por warnUnresolved (aviso visível); senão 0
+  process.exit(process.exitCode ?? 0)
 }
 
 main().catch(() => process.exit(0))
