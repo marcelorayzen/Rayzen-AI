@@ -24,8 +24,9 @@ export class V1ApiService {
         body: JSON.stringify({ projectId, query, limit }),
       })
       if (!res.ok) return []
-      const data = await res.json() as { results?: MemorySearchResult[] }
-      return data.results ?? (data as unknown as MemorySearchResult[]) ?? []
+      // V1 /memory/search returns {answer, sources, tokensUsed}
+      const data = await res.json() as { sources?: MemorySearchResult[]; results?: MemorySearchResult[] }
+      return data.sources ?? data.results ?? []
     } catch (e) {
       this.logger.warn(`memory search failed: ${e}`)
       return []
