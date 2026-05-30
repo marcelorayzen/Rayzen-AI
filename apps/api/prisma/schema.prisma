@@ -451,3 +451,14 @@ model AgentAuditLog {
   @@index([action, status])
   @@map("agent_audit_logs")
 }
+
+model TelegramSession {
+  id             String   @id @default(uuid())
+  telegramChatId String   @unique @map("telegram_chat_id")
+  sessionId      String   @default(uuid()) @map("session_id")
+  projectId      String?  @map("project_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("telegram_sessions")
+}

@@ -74,3 +74,19 @@ model MemoryMeta {
   @@schema("v2")
   @@map("memory_meta")
 }
+
+// ─── Vault Engine ─────────────────────────────────────────────────────────────
+
+model VaultAccessLog {
+  id          String   @id @default(uuid())
+  projectSlug String   @map("project_slug")
+  key         String
+  accessor    String   @default("api")  // skill-engine | mission-engine | api | cli
+  missionId   String?  @map("mission_id")
+  stepId      String?  @map("step_id")
+  accessedAt  DateTime @default(now()) @map("accessed_at")
+
+  @@index([projectSlug, accessedAt])
+  @@schema("v2")
+  @@map("vault_access_logs")
+}

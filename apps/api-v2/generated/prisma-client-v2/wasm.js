@@ -167,6 +167,16 @@ exports.Prisma.MemoryMetaScalarFieldEnum = {
   updatedAt: 'updatedAt'
 };
 
+exports.Prisma.VaultAccessLogScalarFieldEnum = {
+  id: 'id',
+  projectSlug: 'projectSlug',
+  key: 'key',
+  accessor: 'accessor',
+  missionId: 'missionId',
+  stepId: 'stepId',
+  accessedAt: 'accessedAt'
+};
+
 exports.Prisma.SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -201,7 +211,8 @@ exports.Prisma.NullsOrder = {
 exports.Prisma.ModelName = {
   Mission: 'Mission',
   MissionStep: 'MissionStep',
-  MemoryMeta: 'MemoryMeta'
+  MemoryMeta: 'MemoryMeta',
+  VaultAccessLog: 'VaultAccessLog'
 };
 
 /**

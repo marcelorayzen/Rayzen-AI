@@ -28,6 +28,11 @@ export type MissionStep = $Result.DefaultSelection<Prisma.$MissionStepPayload>
  * 
  */
 export type MemoryMeta = $Result.DefaultSelection<Prisma.$MemoryMetaPayload>
+/**
+ * Model VaultAccessLog
+ * 
+ */
+export type VaultAccessLog = $Result.DefaultSelection<Prisma.$VaultAccessLogPayload>
 
 /**
  * ##  Prisma Client ʲˢ
@@ -181,6 +186,16 @@ export class PrismaClient<
     * ```
     */
   get memoryMeta(): Prisma.MemoryMetaDelegate<ExtArgs>;
+
+  /**
+   * `prisma.vaultAccessLog`: Exposes CRUD operations for the **VaultAccessLog** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more VaultAccessLogs
+    * const vaultAccessLogs = await prisma.vaultAccessLog.findMany()
+    * ```
+    */
+  get vaultAccessLog(): Prisma.VaultAccessLogDelegate<ExtArgs>;
 }
 
 export namespace Prisma {
@@ -624,7 +639,8 @@ export namespace Prisma {
   export const ModelName: {
     Mission: 'Mission',
     MissionStep: 'MissionStep',
-    MemoryMeta: 'MemoryMeta'
+    MemoryMeta: 'MemoryMeta',
+    VaultAccessLog: 'VaultAccessLog'
   };
 
   export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -640,7 +656,7 @@ export namespace Prisma {
 
   export type TypeMap<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, ClientOptions = {}> = {
     meta: {
-      modelProps: "mission" | "missionStep" | "memoryMeta"
+      modelProps: "mission" | "missionStep" | "memoryMeta" | "vaultAccessLog"
       txIsolationLevel: Prisma.TransactionIsolationLevel
     }
     model: {
@@ -851,6 +867,76 @@ export namespace Prisma {
           count: {
             args: Prisma.MemoryMetaCountArgs<ExtArgs>
             result: $Utils.Optional<MemoryMetaCountAggregateOutputType> | number
+          }
+        }
+      }
+      VaultAccessLog: {
+        payload: Prisma.$VaultAccessLogPayload<ExtArgs>
+        fields: Prisma.VaultAccessLogFieldRefs
+        operations: {
+          findUnique: {
+            args: Prisma.VaultAccessLogFindUniqueArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$VaultAccessLogPayload> | null
+          }
+          findUniqueOrThrow: {
+            args: Prisma.VaultAccessLogFindUniqueOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$VaultAccessLogPayload>
+          }
+          findFirst: {
+            args: Prisma.VaultAccessLogFindFirstArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$VaultAccessLogPayload> | null
+          }
+          findFirstOrThrow: {
+            args: Prisma.VaultAccessLogFindFirstOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$VaultAccessLogPayload>
+          }
+          findMany: {
+            args: Prisma.VaultAccessLogFindManyArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$VaultAccessLogPayload>[]
+          }
+          create: {
+            args: Prisma.VaultAccessLogCreateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$VaultAccessLogPayload>
+          }
+          createMany: {
+            args: Prisma.VaultAccessLogCreateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          createManyAndReturn: {
+            args: Prisma.VaultAccessLogCreateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$VaultAccessLogPayload>[]
+          }
+          delete: {
+            args: Prisma.VaultAccessLogDeleteArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$VaultAccessLogPayload>
+          }
+          update: {
+            args: Prisma.VaultAccessLogUpdateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$VaultAccessLogPayload>
+          }
+          deleteMany: {
+            args: Prisma.VaultAccessLogDeleteManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateMany: {
+            args: Prisma.VaultAccessLogUpdateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          upsert: {
+            args: Prisma.VaultAccessLogUpsertArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$VaultAccessLogPayload>
+          }
+          aggregate: {
+            args: Prisma.VaultAccessLogAggregateArgs<ExtArgs>
+            result: $Utils.Optional<AggregateVaultAccessLog>
+          }
+          groupBy: {
+            args: Prisma.VaultAccessLogGroupByArgs<ExtArgs>
+            result: $Utils.Optional<VaultAccessLogGroupByOutputType>[]
+          }
+          count: {
+            args: Prisma.VaultAccessLogCountArgs<ExtArgs>
+            result: $Utils.Optional<VaultAccessLogCountAggregateOutputType> | number
           }
         }
       }
@@ -4109,6 +4195,908 @@ export namespace Prisma {
 
 
   /**
+   * Model VaultAccessLog
+   */
+
+  export type AggregateVaultAccessLog = {
+    _count: VaultAccessLogCountAggregateOutputType | null
+    _min: VaultAccessLogMinAggregateOutputType | null
+    _max: VaultAccessLogMaxAggregateOutputType | null
+  }
+
+  export type VaultAccessLogMinAggregateOutputType = {
+    id: string | null
+    projectSlug: string | null
+    key: string | null
+    accessor: string | null
+    missionId: string | null
+    stepId: string | null
+    accessedAt: Date | null
+  }
+
+  export type VaultAccessLogMaxAggregateOutputType = {
+    id: string | null
+    projectSlug: string | null
+    key: string | null
+    accessor: string | null
+    missionId: string | null
+    stepId: string | null
+    accessedAt: Date | null
+  }
+
+  export type VaultAccessLogCountAggregateOutputType = {
+    id: number
+    projectSlug: number
+    key: number
+    accessor: number
+    missionId: number
+    stepId: number
+    accessedAt: number
+    _all: number
+  }
+
+
+  export type VaultAccessLogMinAggregateInputType = {
+    id?: true
+    projectSlug?: true
+    key?: true
+    accessor?: true
+    missionId?: true
+    stepId?: true
+    accessedAt?: true
+  }
+
+  export type VaultAccessLogMaxAggregateInputType = {
+    id?: true
+    projectSlug?: true
+    key?: true
+    accessor?: true
+    missionId?: true
+    stepId?: true
+    accessedAt?: true
+  }
+
+  export type VaultAccessLogCountAggregateInputType = {
+    id?: true
+    projectSlug?: true
+    key?: true
+    accessor?: true
+    missionId?: true
+    stepId?: true
+    accessedAt?: true
+    _all?: true
+  }
+
+  export type VaultAccessLogAggregateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which VaultAccessLog to aggregate.
+     */
+    where?: VaultAccessLogWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of VaultAccessLogs to fetch.
+     */
+    orderBy?: VaultAccessLogOrderByWithRelationInput | VaultAccessLogOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the start position
+     */
+    cursor?: VaultAccessLogWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` VaultAccessLogs from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` VaultAccessLogs.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Count returned VaultAccessLogs
+    **/
+    _count?: true | VaultAccessLogCountAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the minimum value
+    **/
+    _min?: VaultAccessLogMinAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the maximum value
+    **/
+    _max?: VaultAccessLogMaxAggregateInputType
+  }
+
+  export type GetVaultAccessLogAggregateType<T extends VaultAccessLogAggregateArgs> = {
+        [P in keyof T & keyof AggregateVaultAccessLog]: P extends '_count' | 'count'
+      ? T[P] extends true
+        ? number
+        : GetScalarType<T[P], AggregateVaultAccessLog[P]>
+      : GetScalarType<T[P], AggregateVaultAccessLog[P]>
+  }
+
+
+
+
+  export type VaultAccessLogGroupByArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: VaultAccessLogWhereInput
+    orderBy?: VaultAccessLogOrderByWithAggregationInput | VaultAccessLogOrderByWithAggregationInput[]
+    by: VaultAccessLogScalarFieldEnum[] | VaultAccessLogScalarFieldEnum
+    having?: VaultAccessLogScalarWhereWithAggregatesInput
+    take?: number
+    skip?: number
+    _count?: VaultAccessLogCountAggregateInputType | true
+    _min?: VaultAccessLogMinAggregateInputType
+    _max?: VaultAccessLogMaxAggregateInputType
+  }
+
+  export type VaultAccessLogGroupByOutputType = {
+    id: string
+    projectSlug: string
+    key: string
+    accessor: string
+    missionId: string | null
+    stepId: string | null
+    accessedAt: Date
+    _count: VaultAccessLogCountAggregateOutputType | null
+    _min: VaultAccessLogMinAggregateOutputType | null
+    _max: VaultAccessLogMaxAggregateOutputType | null
+  }
+
+  type GetVaultAccessLogGroupByPayload<T extends VaultAccessLogGroupByArgs> = Prisma.PrismaPromise<
+    Array<
+      PickEnumerable<VaultAccessLogGroupByOutputType, T['by']> &
+        {
+          [P in ((keyof T) & (keyof VaultAccessLogGroupByOutputType))]: P extends '_count'
+            ? T[P] extends boolean
+              ? number
+              : GetScalarType<T[P], VaultAccessLogGroupByOutputType[P]>
+            : GetScalarType<T[P], VaultAccessLogGroupByOutputType[P]>
+        }
+      >
+    >
+
+
+  export type VaultAccessLogSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    projectSlug?: boolean
+    key?: boolean
+    accessor?: boolean
+    missionId?: boolean
+    stepId?: boolean
+    accessedAt?: boolean
+  }, ExtArgs["result"]["vaultAccessLog"]>
+
+  export type VaultAccessLogSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    projectSlug?: boolean
+    key?: boolean
+    accessor?: boolean
+    missionId?: boolean
+    stepId?: boolean
+    accessedAt?: boolean
+  }, ExtArgs["result"]["vaultAccessLog"]>
+
+  export type VaultAccessLogSelectScalar = {
+    id?: boolean
+    projectSlug?: boolean
+    key?: boolean
+    accessor?: boolean
+    missionId?: boolean
+    stepId?: boolean
+    accessedAt?: boolean
+  }
+
+
+  export type $VaultAccessLogPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    name: "VaultAccessLog"
+    objects: {}
+    scalars: $Extensions.GetPayloadResult<{
+      id: string
+      projectSlug: string
+      key: string
+      accessor: string
+      missionId: string | null
+      stepId: string | null
+      accessedAt: Date
+    }, ExtArgs["result"]["vaultAccessLog"]>
+    composites: {}
+  }
+
+  type VaultAccessLogGetPayload<S extends boolean | null | undefined | VaultAccessLogDefaultArgs> = $Result.GetResult<Prisma.$VaultAccessLogPayload, S>
+
+  type VaultAccessLogCountArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = 
+    Omit<VaultAccessLogFindManyArgs, 'select' | 'include' | 'distinct'> & {
+      select?: VaultAccessLogCountAggregateInputType | true
+    }
+
+  export interface VaultAccessLogDelegate<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> {
+    [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['model']['VaultAccessLog'], meta: { name: 'VaultAccessLog' } }
+    /**
+     * Find zero or one VaultAccessLog that matches the filter.
+     * @param {VaultAccessLogFindUniqueArgs} args - Arguments to find a VaultAccessLog
+     * @example
+     * // Get one VaultAccessLog
+     * const vaultAccessLog = await prisma.vaultAccessLog.findUnique({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUnique<T extends VaultAccessLogFindUniqueArgs>(args: SelectSubset<T, VaultAccessLogFindUniqueArgs<ExtArgs>>): Prisma__VaultAccessLogClient<$Result.GetResult<Prisma.$VaultAccessLogPayload<ExtArgs>, T, "findUnique"> | null, null, ExtArgs>
+
+    /**
+     * Find one VaultAccessLog that matches the filter or throw an error with `error.code='P2025'` 
+     * if no matches were found.
+     * @param {VaultAccessLogFindUniqueOrThrowArgs} args - Arguments to find a VaultAccessLog
+     * @example
+     * // Get one VaultAccessLog
+     * const vaultAccessLog = await prisma.vaultAccessLog.findUniqueOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUniqueOrThrow<T extends VaultAccessLogFindUniqueOrThrowArgs>(args: SelectSubset<T, VaultAccessLogFindUniqueOrThrowArgs<ExtArgs>>): Prisma__VaultAccessLogClient<$Result.GetResult<Prisma.$VaultAccessLogPayload<ExtArgs>, T, "findUniqueOrThrow">, never, ExtArgs>
+
+    /**
+     * Find the first VaultAccessLog that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {VaultAccessLogFindFirstArgs} args - Arguments to find a VaultAccessLog
+     * @example
+     * // Get one VaultAccessLog
+     * const vaultAccessLog = await prisma.vaultAccessLog.findFirst({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirst<T extends VaultAccessLogFindFirstArgs>(args?: SelectSubset<T, VaultAccessLogFindFirstArgs<ExtArgs>>): Prisma__VaultAccessLogClient<$Result.GetResult<Prisma.$VaultAccessLogPayload<ExtArgs>, T, "findFirst"> | null, null, ExtArgs>
+
+    /**
+     * Find the first VaultAccessLog that matches the filter or
+     * throw `PrismaKnownClientError` with `P2025` code if no matches were found.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {VaultAccessLogFindFirstOrThrowArgs} args - Arguments to find a VaultAccessLog
+     * @example
+     * // Get one VaultAccessLog
+     * const vaultAccessLog = await prisma.vaultAccessLog.findFirstOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirstOrThrow<T extends VaultAccessLogFindFirstOrThrowArgs>(args?: SelectSubset<T, VaultAccessLogFindFirstOrThrowArgs<ExtArgs>>): Prisma__VaultAccessLogClient<$Result.GetResult<Prisma.$VaultAccessLogPayload<ExtArgs>, T, "findFirstOrThrow">, never, ExtArgs>
+
+    /**
+     * Find zero or more VaultAccessLogs that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {VaultAccessLogFindManyArgs} args - Arguments to filter and select certain fields only.
+     * @example
+     * // Get all VaultAccessLogs
+     * const vaultAccessLogs = await prisma.vaultAccessLog.findMany()
+     * 
+     * // Get first 10 VaultAccessLogs
+     * const vaultAccessLogs = await prisma.vaultAccessLog.findMany({ take: 10 })
+     * 
+     * // Only select the `id`
+     * const vaultAccessLogWithIdOnly = await prisma.vaultAccessLog.findMany({ select: { id: true } })
+     * 
+     */
+    findMany<T extends VaultAccessLogFindManyArgs>(args?: SelectSubset<T, VaultAccessLogFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$VaultAccessLogPayload<ExtArgs>, T, "findMany">>
+
+    /**
+     * Create a VaultAccessLog.
+     * @param {VaultAccessLogCreateArgs} args - Arguments to create a VaultAccessLog.
+     * @example
+     * // Create one VaultAccessLog
+     * const VaultAccessLog = await prisma.vaultAccessLog.create({
+     *   data: {
+     *     // ... data to create a VaultAccessLog
+     *   }
+     * })
+     * 
+     */
+    create<T extends VaultAccessLogCreateArgs>(args: SelectSubset<T, VaultAccessLogCreateArgs<ExtArgs>>): Prisma__VaultAccessLogClient<$Result.GetResult<Prisma.$VaultAccessLogPayload<ExtArgs>, T, "create">, never, ExtArgs>
+
+    /**
+     * Create many VaultAccessLogs.
+     * @param {VaultAccessLogCreateManyArgs} args - Arguments to create many VaultAccessLogs.
+     * @example
+     * // Create many VaultAccessLogs
+     * const vaultAccessLog = await prisma.vaultAccessLog.createMany({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     *     
+     */
+    createMany<T extends VaultAccessLogCreateManyArgs>(args?: SelectSubset<T, VaultAccessLogCreateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create many VaultAccessLogs and returns the data saved in the database.
+     * @param {VaultAccessLogCreateManyAndReturnArgs} args - Arguments to create many VaultAccessLogs.
+     * @example
+     * // Create many VaultAccessLogs
+     * const vaultAccessLog = await prisma.vaultAccessLog.createManyAndReturn({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Create many VaultAccessLogs and only return the `id`
+     * const vaultAccessLogWithIdOnly = await prisma.vaultAccessLog.createManyAndReturn({ 
+     *   select: { id: true },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    createManyAndReturn<T extends VaultAccessLogCreateManyAndReturnArgs>(args?: SelectSubset<T, VaultAccessLogCreateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$VaultAccessLogPayload<ExtArgs>, T, "createManyAndReturn">>
+
+    /**
+     * Delete a VaultAccessLog.
+     * @param {VaultAccessLogDeleteArgs} args - Arguments to delete one VaultAccessLog.
+     * @example
+     * // Delete one VaultAccessLog
+     * const VaultAccessLog = await prisma.vaultAccessLog.delete({
+     *   where: {
+     *     // ... filter to delete one VaultAccessLog
+     *   }
+     * })
+     * 
+     */
+    delete<T extends VaultAccessLogDeleteArgs>(args: SelectSubset<T, VaultAccessLogDeleteArgs<ExtArgs>>): Prisma__VaultAccessLogClient<$Result.GetResult<Prisma.$VaultAccessLogPayload<ExtArgs>, T, "delete">, never, ExtArgs>
+
+    /**
+     * Update one VaultAccessLog.
+     * @param {VaultAccessLogUpdateArgs} args - Arguments to update one VaultAccessLog.
+     * @example
+     * // Update one VaultAccessLog
+     * const vaultAccessLog = await prisma.vaultAccessLog.update({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    update<T extends VaultAccessLogUpdateArgs>(args: SelectSubset<T, VaultAccessLogUpdateArgs<ExtArgs>>): Prisma__VaultAccessLogClient<$Result.GetResult<Prisma.$VaultAccessLogPayload<ExtArgs>, T, "update">, never, ExtArgs>
+
+    /**
+     * Delete zero or more VaultAccessLogs.
+     * @param {VaultAccessLogDeleteManyArgs} args - Arguments to filter VaultAccessLogs to delete.
+     * @example
+     * // Delete a few VaultAccessLogs
+     * const { count } = await prisma.vaultAccessLog.deleteMany({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     * 
+     */
+    deleteMany<T extends VaultAccessLogDeleteManyArgs>(args?: SelectSubset<T, VaultAccessLogDeleteManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more VaultAccessLogs.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {VaultAccessLogUpdateManyArgs} args - Arguments to update one or more rows.
+     * @example
+     * // Update many VaultAccessLogs
+     * const vaultAccessLog = await prisma.vaultAccessLog.updateMany({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    updateMany<T extends VaultAccessLogUpdateManyArgs>(args: SelectSubset<T, VaultAccessLogUpdateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create or update one VaultAccessLog.
+     * @param {VaultAccessLogUpsertArgs} args - Arguments to update or create a VaultAccessLog.
+     * @example
+     * // Update or create a VaultAccessLog
+     * const vaultAccessLog = await prisma.vaultAccessLog.upsert({
+     *   create: {
+     *     // ... data to create a VaultAccessLog
+     *   },
+     *   update: {
+     *     // ... in case it already exists, update
+     *   },
+     *   where: {
+     *     // ... the filter for the VaultAccessLog we want to update
+     *   }
+     * })
+     */
+    upsert<T extends VaultAccessLogUpsertArgs>(args: SelectSubset<T, VaultAccessLogUpsertArgs<ExtArgs>>): Prisma__VaultAccessLogClient<$Result.GetResult<Prisma.$VaultAccessLogPayload<ExtArgs>, T, "upsert">, never, ExtArgs>
+
+
+    /**
+     * Count the number of VaultAccessLogs.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {VaultAccessLogCountArgs} args - Arguments to filter VaultAccessLogs to count.
+     * @example
+     * // Count the number of VaultAccessLogs
+     * const count = await prisma.vaultAccessLog.count({
+     *   where: {
+     *     // ... the filter for the VaultAccessLogs we want to count
+     *   }
+     * })
+    **/
+    count<T extends VaultAccessLogCountArgs>(
+      args?: Subset<T, VaultAccessLogCountArgs>,
+    ): Prisma.PrismaPromise<
+      T extends $Utils.Record<'select', any>
+        ? T['select'] extends true
+          ? number
+          : GetScalarType<T['select'], VaultAccessLogCountAggregateOutputType>
+        : number
+    >
+
+    /**
+     * Allows you to perform aggregations operations on a VaultAccessLog.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {VaultAccessLogAggregateArgs} args - Select which aggregations you would like to apply and on what fields.
+     * @example
+     * // Ordered by age ascending
+     * // Where email contains prisma.io
+     * // Limited to the 10 users
+     * const aggregations = await prisma.user.aggregate({
+     *   _avg: {
+     *     age: true,
+     *   },
+     *   where: {
+     *     email: {
+     *       contains: "prisma.io",
+     *     },
+     *   },
+     *   orderBy: {
+     *     age: "asc",
+     *   },
+     *   take: 10,
+     * })
+    **/
+    aggregate<T extends VaultAccessLogAggregateArgs>(args: Subset<T, VaultAccessLogAggregateArgs>): Prisma.PrismaPromise<GetVaultAccessLogAggregateType<T>>
+
+    /**
+     * Group by VaultAccessLog.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {VaultAccessLogGroupByArgs} args - Group by arguments.
+     * @example
+     * // Group by city, order by createdAt, get count
+     * const result = await prisma.user.groupBy({
+     *   by: ['city', 'createdAt'],
+     *   orderBy: {
+     *     createdAt: true
+     *   },
+     *   _count: {
+     *     _all: true
+     *   },
+     * })
+     * 
+    **/
+    groupBy<
+      T extends VaultAccessLogGroupByArgs,
+      HasSelectOrTake extends Or<
+        Extends<'skip', Keys<T>>,
+        Extends<'take', Keys<T>>
+      >,
+      OrderByArg extends True extends HasSelectOrTake
+        ? { orderBy: VaultAccessLogGroupByArgs['orderBy'] }
+        : { orderBy?: VaultAccessLogGroupByArgs['orderBy'] },
+      OrderFields extends ExcludeUnderscoreKeys<Keys<MaybeTupleToUnion<T['orderBy']>>>,
+      ByFields extends MaybeTupleToUnion<T['by']>,
+      ByValid extends Has<ByFields, OrderFields>,
+      HavingFields extends GetHavingFields<T['having']>,
+      HavingValid extends Has<ByFields, HavingFields>,
+      ByEmpty extends T['by'] extends never[] ? True : False,
+      InputErrors extends ByEmpty extends True
+      ? `Error: "by" must not be empty.`
+      : HavingValid extends False
+      ? {
+          [P in HavingFields]: P extends ByFields
+            ? never
+            : P extends string
+            ? `Error: Field "${P}" used in "having" needs to be provided in "by".`
+            : [
+                Error,
+                'Field ',
+                P,
+                ` in "having" needs to be provided in "by"`,
+              ]
+        }[HavingFields]
+      : 'take' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "take", you also need to provide "orderBy"'
+      : 'skip' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "skip", you also need to provide "orderBy"'
+      : ByValid extends True
+      ? {}
+      : {
+          [P in OrderFields]: P extends ByFields
+            ? never
+            : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+        }[OrderFields]
+    >(args: SubsetIntersection<T, VaultAccessLogGroupByArgs, OrderByArg> & InputErrors): {} extends InputErrors ? GetVaultAccessLogGroupByPayload<T> : Prisma.PrismaPromise<InputErrors>
+  /**
+   * Fields of the VaultAccessLog model
+   */
+  readonly fields: VaultAccessLogFieldRefs;
+  }
+
+  /**
+   * The delegate class that acts as a "Promise-like" for VaultAccessLog.
+   * Why is this prefixed with `Prisma__`?
+   * Because we want to prevent naming conflicts as mentioned in
+   * https://github.com/prisma/prisma-client-js/issues/707
+   */
+  export interface Prisma__VaultAccessLogClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> extends Prisma.PrismaPromise<T> {
+    readonly [Symbol.toStringTag]: "PrismaPromise"
+    /**
+     * Attaches callbacks for the resolution and/or rejection of the Promise.
+     * @param onfulfilled The callback to execute when the Promise is resolved.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of which ever callback is executed.
+     */
+    then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): $Utils.JsPromise<TResult1 | TResult2>
+    /**
+     * Attaches a callback for only the rejection of the Promise.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of the callback.
+     */
+    catch<TResult = never>(onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | undefined | null): $Utils.JsPromise<T | TResult>
+    /**
+     * Attaches a callback that is invoked when the Promise is settled (fulfilled or rejected). The
+     * resolved value cannot be modified from the callback.
+     * @param onfinally The callback to execute when the Promise is settled (fulfilled or rejected).
+     * @returns A Promise for the completion of the callback.
+     */
+    finally(onfinally?: (() => void) | undefined | null): $Utils.JsPromise<T>
+  }
+
+
+
+
+  /**
+   * Fields of the VaultAccessLog model
+   */ 
+  interface VaultAccessLogFieldRefs {
+    readonly id: FieldRef<"VaultAccessLog", 'String'>
+    readonly projectSlug: FieldRef<"VaultAccessLog", 'String'>
+    readonly key: FieldRef<"VaultAccessLog", 'String'>
+    readonly accessor: FieldRef<"VaultAccessLog", 'String'>
+    readonly missionId: FieldRef<"VaultAccessLog", 'String'>
+    readonly stepId: FieldRef<"VaultAccessLog", 'String'>
+    readonly accessedAt: FieldRef<"VaultAccessLog", 'DateTime'>
+  }
+    
+
+  // Custom InputTypes
+  /**
+   * VaultAccessLog findUnique
+   */
+  export type VaultAccessLogFindUniqueArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the VaultAccessLog
+     */
+    select?: VaultAccessLogSelect<ExtArgs> | null
+    /**
+     * Filter, which VaultAccessLog to fetch.
+     */
+    where: VaultAccessLogWhereUniqueInput
+  }
+
+  /**
+   * VaultAccessLog findUniqueOrThrow
+   */
+  export type VaultAccessLogFindUniqueOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the VaultAccessLog
+     */
+    select?: VaultAccessLogSelect<ExtArgs> | null
+    /**
+     * Filter, which VaultAccessLog to fetch.
+     */
+    where: VaultAccessLogWhereUniqueInput
+  }
+
+  /**
+   * VaultAccessLog findFirst
+   */
+  export type VaultAccessLogFindFirstArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the VaultAccessLog
+     */
+    select?: VaultAccessLogSelect<ExtArgs> | null
+    /**
+     * Filter, which VaultAccessLog to fetch.
+     */
+    where?: VaultAccessLogWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of VaultAccessLogs to fetch.
+     */
+    orderBy?: VaultAccessLogOrderByWithRelationInput | VaultAccessLogOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for VaultAccessLogs.
+     */
+    cursor?: VaultAccessLogWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` VaultAccessLogs from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` VaultAccessLogs.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of VaultAccessLogs.
+     */
+    distinct?: VaultAccessLogScalarFieldEnum | VaultAccessLogScalarFieldEnum[]
+  }
+
+  /**
+   * VaultAccessLog findFirstOrThrow
+   */
+  export type VaultAccessLogFindFirstOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the VaultAccessLog
+     */
+    select?: VaultAccessLogSelect<ExtArgs> | null
+    /**
+     * Filter, which VaultAccessLog to fetch.
+     */
+    where?: VaultAccessLogWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of VaultAccessLogs to fetch.
+     */
+    orderBy?: VaultAccessLogOrderByWithRelationInput | VaultAccessLogOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for VaultAccessLogs.
+     */
+    cursor?: VaultAccessLogWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` VaultAccessLogs from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` VaultAccessLogs.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of VaultAccessLogs.
+     */
+    distinct?: VaultAccessLogScalarFieldEnum | VaultAccessLogScalarFieldEnum[]
+  }
+
+  /**
+   * VaultAccessLog findMany
+   */
+  export type VaultAccessLogFindManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the VaultAccessLog
+     */
+    select?: VaultAccessLogSelect<ExtArgs> | null
+    /**
+     * Filter, which VaultAccessLogs to fetch.
+     */
+    where?: VaultAccessLogWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of VaultAccessLogs to fetch.
+     */
+    orderBy?: VaultAccessLogOrderByWithRelationInput | VaultAccessLogOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for listing VaultAccessLogs.
+     */
+    cursor?: VaultAccessLogWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` VaultAccessLogs from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` VaultAccessLogs.
+     */
+    skip?: number
+    distinct?: VaultAccessLogScalarFieldEnum | VaultAccessLogScalarFieldEnum[]
+  }
+
+  /**
+   * VaultAccessLog create
+   */
+  export type VaultAccessLogCreateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the VaultAccessLog
+     */
+    select?: VaultAccessLogSelect<ExtArgs> | null
+    /**
+     * The data needed to create a VaultAccessLog.
+     */
+    data: XOR<VaultAccessLogCreateInput, VaultAccessLogUncheckedCreateInput>
+  }
+
+  /**
+   * VaultAccessLog createMany
+   */
+  export type VaultAccessLogCreateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to create many VaultAccessLogs.
+     */
+    data: VaultAccessLogCreateManyInput | VaultAccessLogCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * VaultAccessLog createManyAndReturn
+   */
+  export type VaultAccessLogCreateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the VaultAccessLog
+     */
+    select?: VaultAccessLogSelectCreateManyAndReturn<ExtArgs> | null
+    /**
+     * The data used to create many VaultAccessLogs.
+     */
+    data: VaultAccessLogCreateManyInput | VaultAccessLogCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * VaultAccessLog update
+   */
+  export type VaultAccessLogUpdateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the VaultAccessLog
+     */
+    select?: VaultAccessLogSelect<ExtArgs> | null
+    /**
+     * The data needed to update a VaultAccessLog.
+     */
+    data: XOR<VaultAccessLogUpdateInput, VaultAccessLogUncheckedUpdateInput>
+    /**
+     * Choose, which VaultAccessLog to update.
+     */
+    where: VaultAccessLogWhereUniqueInput
+  }
+
+  /**
+   * VaultAccessLog updateMany
+   */
+  export type VaultAccessLogUpdateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to update VaultAccessLogs.
+     */
+    data: XOR<VaultAccessLogUpdateManyMutationInput, VaultAccessLogUncheckedUpdateManyInput>
+    /**
+     * Filter which VaultAccessLogs to update
+     */
+    where?: VaultAccessLogWhereInput
+  }
+
+  /**
+   * VaultAccessLog upsert
+   */
+  export type VaultAccessLogUpsertArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the VaultAccessLog
+     */
+    select?: VaultAccessLogSelect<ExtArgs> | null
+    /**
+     * The filter to search for the VaultAccessLog to update in case it exists.
+     */
+    where: VaultAccessLogWhereUniqueInput
+    /**
+     * In case the VaultAccessLog found by the `where` argument doesn't exist, create a new VaultAccessLog with this data.
+     */
+    create: XOR<VaultAccessLogCreateInput, VaultAccessLogUncheckedCreateInput>
+    /**
+     * In case the VaultAccessLog was found with the provided `where` argument, update it with this data.
+     */
+    update: XOR<VaultAccessLogUpdateInput, VaultAccessLogUncheckedUpdateInput>
+  }
+
+  /**
+   * VaultAccessLog delete
+   */
+  export type VaultAccessLogDeleteArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the VaultAccessLog
+     */
+    select?: VaultAccessLogSelect<ExtArgs> | null
+    /**
+     * Filter which VaultAccessLog to delete.
+     */
+    where: VaultAccessLogWhereUniqueInput
+  }
+
+  /**
+   * VaultAccessLog deleteMany
+   */
+  export type VaultAccessLogDeleteManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which VaultAccessLogs to delete
+     */
+    where?: VaultAccessLogWhereInput
+  }
+
+  /**
+   * VaultAccessLog without action
+   */
+  export type VaultAccessLogDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the VaultAccessLog
+     */
+    select?: VaultAccessLogSelect<ExtArgs> | null
+  }
+
+
+  /**
    * Enums
    */
 
@@ -4174,6 +5162,19 @@ export namespace Prisma {
   };
 
   export type MemoryMetaScalarFieldEnum = (typeof MemoryMetaScalarFieldEnum)[keyof typeof MemoryMetaScalarFieldEnum]
+
+
+  export const VaultAccessLogScalarFieldEnum: {
+    id: 'id',
+    projectSlug: 'projectSlug',
+    key: 'key',
+    accessor: 'accessor',
+    missionId: 'missionId',
+    stepId: 'stepId',
+    accessedAt: 'accessedAt'
+  };
+
+  export type VaultAccessLogScalarFieldEnum = (typeof VaultAccessLogScalarFieldEnum)[keyof typeof VaultAccessLogScalarFieldEnum]
 
 
   export const SortOrder: {
@@ -4566,6 +5567,68 @@ export namespace Prisma {
     updatedAt?: DateTimeWithAggregatesFilter<"MemoryMeta"> | Date | string
   }
 
+  export type VaultAccessLogWhereInput = {
+    AND?: VaultAccessLogWhereInput | VaultAccessLogWhereInput[]
+    OR?: VaultAccessLogWhereInput[]
+    NOT?: VaultAccessLogWhereInput | VaultAccessLogWhereInput[]
+    id?: StringFilter<"VaultAccessLog"> | string
+    projectSlug?: StringFilter<"VaultAccessLog"> | string
+    key?: StringFilter<"VaultAccessLog"> | string
+    accessor?: StringFilter<"VaultAccessLog"> | string
+    missionId?: StringNullableFilter<"VaultAccessLog"> | string | null
+    stepId?: StringNullableFilter<"VaultAccessLog"> | string | null
+    accessedAt?: DateTimeFilter<"VaultAccessLog"> | Date | string
+  }
+
+  export type VaultAccessLogOrderByWithRelationInput = {
+    id?: SortOrder
+    projectSlug?: SortOrder
+    key?: SortOrder
+    accessor?: SortOrder
+    missionId?: SortOrderInput | SortOrder
+    stepId?: SortOrderInput | SortOrder
+    accessedAt?: SortOrder
+  }
+
+  export type VaultAccessLogWhereUniqueInput = Prisma.AtLeast<{
+    id?: string
+    AND?: VaultAccessLogWhereInput | VaultAccessLogWhereInput[]
+    OR?: VaultAccessLogWhereInput[]
+    NOT?: VaultAccessLogWhereInput | VaultAccessLogWhereInput[]
+    projectSlug?: StringFilter<"VaultAccessLog"> | string
+    key?: StringFilter<"VaultAccessLog"> | string
+    accessor?: StringFilter<"VaultAccessLog"> | string
+    missionId?: StringNullableFilter<"VaultAccessLog"> | string | null
+    stepId?: StringNullableFilter<"VaultAccessLog"> | string | null
+    accessedAt?: DateTimeFilter<"VaultAccessLog"> | Date | string
+  }, "id">
+
+  export type VaultAccessLogOrderByWithAggregationInput = {
+    id?: SortOrder
+    projectSlug?: SortOrder
+    key?: SortOrder
+    accessor?: SortOrder
+    missionId?: SortOrderInput | SortOrder
+    stepId?: SortOrderInput | SortOrder
+    accessedAt?: SortOrder
+    _count?: VaultAccessLogCountOrderByAggregateInput
+    _max?: VaultAccessLogMaxOrderByAggregateInput
+    _min?: VaultAccessLogMinOrderByAggregateInput
+  }
+
+  export type VaultAccessLogScalarWhereWithAggregatesInput = {
+    AND?: VaultAccessLogScalarWhereWithAggregatesInput | VaultAccessLogScalarWhereWithAggregatesInput[]
+    OR?: VaultAccessLogScalarWhereWithAggregatesInput[]
+    NOT?: VaultAccessLogScalarWhereWithAggregatesInput | VaultAccessLogScalarWhereWithAggregatesInput[]
+    id?: StringWithAggregatesFilter<"VaultAccessLog"> | string
+    projectSlug?: StringWithAggregatesFilter<"VaultAccessLog"> | string
+    key?: StringWithAggregatesFilter<"VaultAccessLog"> | string
+    accessor?: StringWithAggregatesFilter<"VaultAccessLog"> | string
+    missionId?: StringNullableWithAggregatesFilter<"VaultAccessLog"> | string | null
+    stepId?: StringNullableWithAggregatesFilter<"VaultAccessLog"> | string | null
+    accessedAt?: DateTimeWithAggregatesFilter<"VaultAccessLog"> | Date | string
+  }
+
   export type MissionCreateInput = {
     id?: string
     projectId: string
@@ -4882,6 +5945,76 @@ export namespace Prisma {
     notes?: NullableStringFieldUpdateOperationsInput | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type VaultAccessLogCreateInput = {
+    id?: string
+    projectSlug: string
+    key: string
+    accessor?: string
+    missionId?: string | null
+    stepId?: string | null
+    accessedAt?: Date | string
+  }
+
+  export type VaultAccessLogUncheckedCreateInput = {
+    id?: string
+    projectSlug: string
+    key: string
+    accessor?: string
+    missionId?: string | null
+    stepId?: string | null
+    accessedAt?: Date | string
+  }
+
+  export type VaultAccessLogUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectSlug?: StringFieldUpdateOperationsInput | string
+    key?: StringFieldUpdateOperationsInput | string
+    accessor?: StringFieldUpdateOperationsInput | string
+    missionId?: NullableStringFieldUpdateOperationsInput | string | null
+    stepId?: NullableStringFieldUpdateOperationsInput | string | null
+    accessedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type VaultAccessLogUncheckedUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectSlug?: StringFieldUpdateOperationsInput | string
+    key?: StringFieldUpdateOperationsInput | string
+    accessor?: StringFieldUpdateOperationsInput | string
+    missionId?: NullableStringFieldUpdateOperationsInput | string | null
+    stepId?: NullableStringFieldUpdateOperationsInput | string | null
+    accessedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type VaultAccessLogCreateManyInput = {
+    id?: string
+    projectSlug: string
+    key: string
+    accessor?: string
+    missionId?: string | null
+    stepId?: string | null
+    accessedAt?: Date | string
+  }
+
+  export type VaultAccessLogUpdateManyMutationInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectSlug?: StringFieldUpdateOperationsInput | string
+    key?: StringFieldUpdateOperationsInput | string
+    accessor?: StringFieldUpdateOperationsInput | string
+    missionId?: NullableStringFieldUpdateOperationsInput | string | null
+    stepId?: NullableStringFieldUpdateOperationsInput | string | null
+    accessedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type VaultAccessLogUncheckedUpdateManyInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectSlug?: StringFieldUpdateOperationsInput | string
+    key?: StringFieldUpdateOperationsInput | string
+    accessor?: StringFieldUpdateOperationsInput | string
+    missionId?: NullableStringFieldUpdateOperationsInput | string | null
+    stepId?: NullableStringFieldUpdateOperationsInput | string | null
+    accessedAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
   export type StringFilter<$PrismaModel = never> = {
@@ -5290,6 +6423,36 @@ export namespace Prisma {
 
   export type MemoryMetaSumOrderByAggregateInput = {
     accessCount?: SortOrder
+  }
+
+  export type VaultAccessLogCountOrderByAggregateInput = {
+    id?: SortOrder
+    projectSlug?: SortOrder
+    key?: SortOrder
+    accessor?: SortOrder
+    missionId?: SortOrder
+    stepId?: SortOrder
+    accessedAt?: SortOrder
+  }
+
+  export type VaultAccessLogMaxOrderByAggregateInput = {
+    id?: SortOrder
+    projectSlug?: SortOrder
+    key?: SortOrder
+    accessor?: SortOrder
+    missionId?: SortOrder
+    stepId?: SortOrder
+    accessedAt?: SortOrder
+  }
+
+  export type VaultAccessLogMinOrderByAggregateInput = {
+    id?: SortOrder
+    projectSlug?: SortOrder
+    key?: SortOrder
+    accessor?: SortOrder
+    missionId?: SortOrder
+    stepId?: SortOrder
+    accessedAt?: SortOrder
   }
 
   export type MissionStepCreateNestedManyWithoutMissionInput = {
@@ -5831,6 +6994,10 @@ export namespace Prisma {
      * @deprecated Use MemoryMetaDefaultArgs instead
      */
     export type MemoryMetaArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = MemoryMetaDefaultArgs<ExtArgs>
+    /**
+     * @deprecated Use VaultAccessLogDefaultArgs instead
+     */
+    export type VaultAccessLogArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = VaultAccessLogDefaultArgs<ExtArgs>
 
   /**
    * Batch Payload for updateMany & deleteMany & createMany
