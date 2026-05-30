@@ -14,11 +14,17 @@ import { ApprovalGatesModule } from './approval-gates/approval-gates.module'
 import { WorkflowModule } from './workflow/workflow.module'
 import { QaEngineModule } from './qa-engine/qa-engine.module'
 import { DocumentationEngineModule } from './documentation-engine/documentation-engine.module'
+import { CostControllerModule } from './cost-controller/cost-controller.module'
+import { ObservabilityModule } from './observability/observability.module'
+import { ResourceManagerModule } from './resource-manager/resource-manager.module'
+import { MissionSchedulerModule } from './mission-scheduler/mission-scheduler.module'
 
 @Module({
   imports: [
     CoreModule,
     LlmModule,
+    CostControllerModule,
+    ObservabilityModule,
     AiRouterModule,
     MemoryModule,
     ContextEngineModule,
@@ -32,6 +38,8 @@ import { DocumentationEngineModule } from './documentation-engine/documentation-
     WorkflowModule,
     QaEngineModule,
     DocumentationEngineModule,
+    ResourceManagerModule,
+    MissionSchedulerModule,
   ],
 })
 export class AppModule {}

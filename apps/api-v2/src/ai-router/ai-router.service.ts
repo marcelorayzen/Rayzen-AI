@@ -76,10 +76,16 @@ export class AiRouterService {
   private readonly logger = new Logger(AiRouterService.name)
   private readonly baseUrl: string
   private readonly masterKey: string
+  private costController: import('../cost-controller/cost-controller.service').CostControllerService | null = null
 
   constructor() {
     this.baseUrl = (process.env.LITELLM_BASE_URL ?? 'http://litellm:4000/v1').replace(/\/$/, '')
     this.masterKey = process.env.LITELLM_MASTER_KEY ?? ''
+  }
+
+  // Injected lazily to avoid circular dependency
+  setCostController(svc: import('../cost-controller/cost-controller.service').CostControllerService) {
+    this.costController = svc
   }
 
   selectTier(req: AIRequest): TierConfig {
@@ -141,6 +147,16 @@ export class AiRouterService {
       const durationMs = Date.now() - t0
 
       this.logger.debug(`tier=${tier.tier} model=${tier.model} tokens=${tokensIn}+${tokensOut} cost=$${costUsd.toFixed(6)} ${durationMs}ms`)
+
+      // Record cost asynchronously (fire-and-forget)
+      if (this.costController && req.projectId) {
+        void this.costController.record({
+          projectId: req.projectId,
+          model:     data.model ?? tier.model,
+          tokensIn, tokensOut, costUsd,
+          module: 'ai-router',
+        }).catch(() => null)
+      }
 
       return {
         content,

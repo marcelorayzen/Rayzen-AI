@@ -221,6 +221,61 @@ exports.Prisma.ApprovalGateScalarFieldEnum = {
   updatedAt: 'updatedAt'
 };
 
+exports.Prisma.CostRecordScalarFieldEnum = {
+  id: 'id',
+  projectId: 'projectId',
+  missionId: 'missionId',
+  stepId: 'stepId',
+  model: 'model',
+  tokensIn: 'tokensIn',
+  tokensOut: 'tokensOut',
+  costUsd: 'costUsd',
+  module: 'module',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.CostBudgetScalarFieldEnum = {
+  id: 'id',
+  projectId: 'projectId',
+  daily: 'daily',
+  monthly: 'monthly',
+  perMission: 'perMission',
+  alertAt: 'alertAt',
+  blockAt: 'blockAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.TraceSpanScalarFieldEnum = {
+  id: 'id',
+  traceId: 'traceId',
+  spanId: 'spanId',
+  parentSpanId: 'parentSpanId',
+  service: 'service',
+  operation: 'operation',
+  startedAt: 'startedAt',
+  endedAt: 'endedAt',
+  durationMs: 'durationMs',
+  status: 'status',
+  attributes: 'attributes',
+  error: 'error',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.ScheduledMissionScalarFieldEnum = {
+  id: 'id',
+  missionId: 'missionId',
+  priority: 'priority',
+  dependsOn: 'dependsOn',
+  scheduledAt: 'scheduledAt',
+  recurrence: 'recurrence',
+  queuedAt: 'queuedAt',
+  startedAt: 'startedAt',
+  pausedAt: 'pausedAt',
+  state: 'state',
+  status: 'status'
+};
+
 exports.Prisma.SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -259,7 +314,11 @@ exports.Prisma.ModelName = {
   VaultAccessLog: 'VaultAccessLog',
   KnowledgeNode: 'KnowledgeNode',
   KnowledgeEdge: 'KnowledgeEdge',
-  ApprovalGate: 'ApprovalGate'
+  ApprovalGate: 'ApprovalGate',
+  CostRecord: 'CostRecord',
+  CostBudget: 'CostBudget',
+  TraceSpan: 'TraceSpan',
+  ScheduledMission: 'ScheduledMission'
 };
 
 /**

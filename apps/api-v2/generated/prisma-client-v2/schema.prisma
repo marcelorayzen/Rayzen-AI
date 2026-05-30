@@ -161,3 +161,81 @@ model ApprovalGate {
   @@map("approval_gates")
   @@schema("v2")
 }
+
+// ─── Cost Controller ──────────────────────────────────────────────────────────
+
+model CostRecord {
+  id        String   @id @default(uuid())
+  projectId String   @map("project_id")
+  missionId String?  @map("mission_id")
+  stepId    String?  @map("step_id")
+  model     String
+  tokensIn  Int      @default(0) @map("tokens_in")
+  tokensOut Int      @default(0) @map("tokens_out")
+  costUsd   Float    @map("cost_usd")
+  module    String   @default("ai-router")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([projectId, createdAt])
+  @@index([missionId])
+  @@map("cost_records")
+  @@schema("v2")
+}
+
+model CostBudget {
+  id         String   @id @default(uuid())
+  projectId  String   @unique @map("project_id")
+  daily      Float?
+  monthly    Float?
+  perMission Float?   @map("per_mission")
+  alertAt    Float    @default(0.8) @map("alert_at")
+  blockAt    Float    @default(1.0) @map("block_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("cost_budgets")
+  @@schema("v2")
+}
+
+// ─── Observability ────────────────────────────────────────────────────────────
+
+model TraceSpan {
+  id           String    @id @default(uuid())
+  traceId      String    @map("trace_id")
+  spanId       String    @unique @map("span_id")
+  parentSpanId String?   @map("parent_span_id")
+  service      String
+  operation    String
+  startedAt    DateTime  @map("started_at")
+  endedAt      DateTime? @map("ended_at")
+  durationMs   Int?      @map("duration_ms")
+  status       String    @default("ok") // ok|error|timeout
+  attributes   Json      @default("{}")
+  error        String?
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@index([traceId])
+  @@index([startedAt])
+  @@map("trace_spans")
+  @@schema("v2")
+}
+
+// ─── Mission Scheduler ────────────────────────────────────────────────────────
+
+model ScheduledMission {
+  id          String    @id @default(uuid())
+  missionId   String    @unique @map("mission_id")
+  priority    String    @default("normal") // critical|high|normal|low
+  dependsOn   String[]  @map("depends_on")
+  scheduledAt DateTime? @map("scheduled_at")
+  recurrence  String?
+  queuedAt    DateTime  @default(now()) @map("queued_at")
+  startedAt   DateTime? @map("started_at")
+  pausedAt    DateTime? @map("paused_at")
+  state       Json?
+  status      String    @default("queued") // queued|running|paused|done|failed
+
+  @@index([status, priority, queuedAt])
+  @@map("scheduled_missions")
+  @@schema("v2")
+}

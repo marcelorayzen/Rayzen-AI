@@ -48,6 +48,26 @@ export type KnowledgeEdge = $Result.DefaultSelection<Prisma.$KnowledgeEdgePayloa
  * 
  */
 export type ApprovalGate = $Result.DefaultSelection<Prisma.$ApprovalGatePayload>
+/**
+ * Model CostRecord
+ * 
+ */
+export type CostRecord = $Result.DefaultSelection<Prisma.$CostRecordPayload>
+/**
+ * Model CostBudget
+ * 
+ */
+export type CostBudget = $Result.DefaultSelection<Prisma.$CostBudgetPayload>
+/**
+ * Model TraceSpan
+ * 
+ */
+export type TraceSpan = $Result.DefaultSelection<Prisma.$TraceSpanPayload>
+/**
+ * Model ScheduledMission
+ * 
+ */
+export type ScheduledMission = $Result.DefaultSelection<Prisma.$ScheduledMissionPayload>
 
 /**
  * ##  Prisma Client ʲˢ
@@ -241,6 +261,46 @@ export class PrismaClient<
     * ```
     */
   get approvalGate(): Prisma.ApprovalGateDelegate<ExtArgs>;
+
+  /**
+   * `prisma.costRecord`: Exposes CRUD operations for the **CostRecord** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more CostRecords
+    * const costRecords = await prisma.costRecord.findMany()
+    * ```
+    */
+  get costRecord(): Prisma.CostRecordDelegate<ExtArgs>;
+
+  /**
+   * `prisma.costBudget`: Exposes CRUD operations for the **CostBudget** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more CostBudgets
+    * const costBudgets = await prisma.costBudget.findMany()
+    * ```
+    */
+  get costBudget(): Prisma.CostBudgetDelegate<ExtArgs>;
+
+  /**
+   * `prisma.traceSpan`: Exposes CRUD operations for the **TraceSpan** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more TraceSpans
+    * const traceSpans = await prisma.traceSpan.findMany()
+    * ```
+    */
+  get traceSpan(): Prisma.TraceSpanDelegate<ExtArgs>;
+
+  /**
+   * `prisma.scheduledMission`: Exposes CRUD operations for the **ScheduledMission** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more ScheduledMissions
+    * const scheduledMissions = await prisma.scheduledMission.findMany()
+    * ```
+    */
+  get scheduledMission(): Prisma.ScheduledMissionDelegate<ExtArgs>;
 }
 
 export namespace Prisma {
@@ -688,7 +748,11 @@ export namespace Prisma {
     VaultAccessLog: 'VaultAccessLog',
     KnowledgeNode: 'KnowledgeNode',
     KnowledgeEdge: 'KnowledgeEdge',
-    ApprovalGate: 'ApprovalGate'
+    ApprovalGate: 'ApprovalGate',
+    CostRecord: 'CostRecord',
+    CostBudget: 'CostBudget',
+    TraceSpan: 'TraceSpan',
+    ScheduledMission: 'ScheduledMission'
   };
 
   export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -704,7 +768,7 @@ export namespace Prisma {
 
   export type TypeMap<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, ClientOptions = {}> = {
     meta: {
-      modelProps: "mission" | "missionStep" | "memoryMeta" | "vaultAccessLog" | "knowledgeNode" | "knowledgeEdge" | "approvalGate"
+      modelProps: "mission" | "missionStep" | "memoryMeta" | "vaultAccessLog" | "knowledgeNode" | "knowledgeEdge" | "approvalGate" | "costRecord" | "costBudget" | "traceSpan" | "scheduledMission"
       txIsolationLevel: Prisma.TransactionIsolationLevel
     }
     model: {
@@ -1195,6 +1259,286 @@ export namespace Prisma {
           count: {
             args: Prisma.ApprovalGateCountArgs<ExtArgs>
             result: $Utils.Optional<ApprovalGateCountAggregateOutputType> | number
+          }
+        }
+      }
+      CostRecord: {
+        payload: Prisma.$CostRecordPayload<ExtArgs>
+        fields: Prisma.CostRecordFieldRefs
+        operations: {
+          findUnique: {
+            args: Prisma.CostRecordFindUniqueArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$CostRecordPayload> | null
+          }
+          findUniqueOrThrow: {
+            args: Prisma.CostRecordFindUniqueOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$CostRecordPayload>
+          }
+          findFirst: {
+            args: Prisma.CostRecordFindFirstArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$CostRecordPayload> | null
+          }
+          findFirstOrThrow: {
+            args: Prisma.CostRecordFindFirstOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$CostRecordPayload>
+          }
+          findMany: {
+            args: Prisma.CostRecordFindManyArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$CostRecordPayload>[]
+          }
+          create: {
+            args: Prisma.CostRecordCreateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$CostRecordPayload>
+          }
+          createMany: {
+            args: Prisma.CostRecordCreateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          createManyAndReturn: {
+            args: Prisma.CostRecordCreateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$CostRecordPayload>[]
+          }
+          delete: {
+            args: Prisma.CostRecordDeleteArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$CostRecordPayload>
+          }
+          update: {
+            args: Prisma.CostRecordUpdateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$CostRecordPayload>
+          }
+          deleteMany: {
+            args: Prisma.CostRecordDeleteManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateMany: {
+            args: Prisma.CostRecordUpdateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          upsert: {
+            args: Prisma.CostRecordUpsertArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$CostRecordPayload>
+          }
+          aggregate: {
+            args: Prisma.CostRecordAggregateArgs<ExtArgs>
+            result: $Utils.Optional<AggregateCostRecord>
+          }
+          groupBy: {
+            args: Prisma.CostRecordGroupByArgs<ExtArgs>
+            result: $Utils.Optional<CostRecordGroupByOutputType>[]
+          }
+          count: {
+            args: Prisma.CostRecordCountArgs<ExtArgs>
+            result: $Utils.Optional<CostRecordCountAggregateOutputType> | number
+          }
+        }
+      }
+      CostBudget: {
+        payload: Prisma.$CostBudgetPayload<ExtArgs>
+        fields: Prisma.CostBudgetFieldRefs
+        operations: {
+          findUnique: {
+            args: Prisma.CostBudgetFindUniqueArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$CostBudgetPayload> | null
+          }
+          findUniqueOrThrow: {
+            args: Prisma.CostBudgetFindUniqueOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$CostBudgetPayload>
+          }
+          findFirst: {
+            args: Prisma.CostBudgetFindFirstArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$CostBudgetPayload> | null
+          }
+          findFirstOrThrow: {
+            args: Prisma.CostBudgetFindFirstOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$CostBudgetPayload>
+          }
+          findMany: {
+            args: Prisma.CostBudgetFindManyArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$CostBudgetPayload>[]
+          }
+          create: {
+            args: Prisma.CostBudgetCreateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$CostBudgetPayload>
+          }
+          createMany: {
+            args: Prisma.CostBudgetCreateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          createManyAndReturn: {
+            args: Prisma.CostBudgetCreateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$CostBudgetPayload>[]
+          }
+          delete: {
+            args: Prisma.CostBudgetDeleteArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$CostBudgetPayload>
+          }
+          update: {
+            args: Prisma.CostBudgetUpdateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$CostBudgetPayload>
+          }
+          deleteMany: {
+            args: Prisma.CostBudgetDeleteManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateMany: {
+            args: Prisma.CostBudgetUpdateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          upsert: {
+            args: Prisma.CostBudgetUpsertArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$CostBudgetPayload>
+          }
+          aggregate: {
+            args: Prisma.CostBudgetAggregateArgs<ExtArgs>
+            result: $Utils.Optional<AggregateCostBudget>
+          }
+          groupBy: {
+            args: Prisma.CostBudgetGroupByArgs<ExtArgs>
+            result: $Utils.Optional<CostBudgetGroupByOutputType>[]
+          }
+          count: {
+            args: Prisma.CostBudgetCountArgs<ExtArgs>
+            result: $Utils.Optional<CostBudgetCountAggregateOutputType> | number
+          }
+        }
+      }
+      TraceSpan: {
+        payload: Prisma.$TraceSpanPayload<ExtArgs>
+        fields: Prisma.TraceSpanFieldRefs
+        operations: {
+          findUnique: {
+            args: Prisma.TraceSpanFindUniqueArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$TraceSpanPayload> | null
+          }
+          findUniqueOrThrow: {
+            args: Prisma.TraceSpanFindUniqueOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$TraceSpanPayload>
+          }
+          findFirst: {
+            args: Prisma.TraceSpanFindFirstArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$TraceSpanPayload> | null
+          }
+          findFirstOrThrow: {
+            args: Prisma.TraceSpanFindFirstOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$TraceSpanPayload>
+          }
+          findMany: {
+            args: Prisma.TraceSpanFindManyArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$TraceSpanPayload>[]
+          }
+          create: {
+            args: Prisma.TraceSpanCreateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$TraceSpanPayload>
+          }
+          createMany: {
+            args: Prisma.TraceSpanCreateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          createManyAndReturn: {
+            args: Prisma.TraceSpanCreateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$TraceSpanPayload>[]
+          }
+          delete: {
+            args: Prisma.TraceSpanDeleteArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$TraceSpanPayload>
+          }
+          update: {
+            args: Prisma.TraceSpanUpdateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$TraceSpanPayload>
+          }
+          deleteMany: {
+            args: Prisma.TraceSpanDeleteManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateMany: {
+            args: Prisma.TraceSpanUpdateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          upsert: {
+            args: Prisma.TraceSpanUpsertArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$TraceSpanPayload>
+          }
+          aggregate: {
+            args: Prisma.TraceSpanAggregateArgs<ExtArgs>
+            result: $Utils.Optional<AggregateTraceSpan>
+          }
+          groupBy: {
+            args: Prisma.TraceSpanGroupByArgs<ExtArgs>
+            result: $Utils.Optional<TraceSpanGroupByOutputType>[]
+          }
+          count: {
+            args: Prisma.TraceSpanCountArgs<ExtArgs>
+            result: $Utils.Optional<TraceSpanCountAggregateOutputType> | number
+          }
+        }
+      }
+      ScheduledMission: {
+        payload: Prisma.$ScheduledMissionPayload<ExtArgs>
+        fields: Prisma.ScheduledMissionFieldRefs
+        operations: {
+          findUnique: {
+            args: Prisma.ScheduledMissionFindUniqueArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ScheduledMissionPayload> | null
+          }
+          findUniqueOrThrow: {
+            args: Prisma.ScheduledMissionFindUniqueOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ScheduledMissionPayload>
+          }
+          findFirst: {
+            args: Prisma.ScheduledMissionFindFirstArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ScheduledMissionPayload> | null
+          }
+          findFirstOrThrow: {
+            args: Prisma.ScheduledMissionFindFirstOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ScheduledMissionPayload>
+          }
+          findMany: {
+            args: Prisma.ScheduledMissionFindManyArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ScheduledMissionPayload>[]
+          }
+          create: {
+            args: Prisma.ScheduledMissionCreateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ScheduledMissionPayload>
+          }
+          createMany: {
+            args: Prisma.ScheduledMissionCreateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          createManyAndReturn: {
+            args: Prisma.ScheduledMissionCreateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ScheduledMissionPayload>[]
+          }
+          delete: {
+            args: Prisma.ScheduledMissionDeleteArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ScheduledMissionPayload>
+          }
+          update: {
+            args: Prisma.ScheduledMissionUpdateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ScheduledMissionPayload>
+          }
+          deleteMany: {
+            args: Prisma.ScheduledMissionDeleteManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateMany: {
+            args: Prisma.ScheduledMissionUpdateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          upsert: {
+            args: Prisma.ScheduledMissionUpsertArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$ScheduledMissionPayload>
+          }
+          aggregate: {
+            args: Prisma.ScheduledMissionAggregateArgs<ExtArgs>
+            result: $Utils.Optional<AggregateScheduledMission>
+          }
+          groupBy: {
+            args: Prisma.ScheduledMissionGroupByArgs<ExtArgs>
+            result: $Utils.Optional<ScheduledMissionGroupByOutputType>[]
+          }
+          count: {
+            args: Prisma.ScheduledMissionCountArgs<ExtArgs>
+            result: $Utils.Optional<ScheduledMissionCountAggregateOutputType> | number
           }
         }
       }
@@ -8454,6 +8798,3908 @@ export namespace Prisma {
 
 
   /**
+   * Model CostRecord
+   */
+
+  export type AggregateCostRecord = {
+    _count: CostRecordCountAggregateOutputType | null
+    _avg: CostRecordAvgAggregateOutputType | null
+    _sum: CostRecordSumAggregateOutputType | null
+    _min: CostRecordMinAggregateOutputType | null
+    _max: CostRecordMaxAggregateOutputType | null
+  }
+
+  export type CostRecordAvgAggregateOutputType = {
+    tokensIn: number | null
+    tokensOut: number | null
+    costUsd: number | null
+  }
+
+  export type CostRecordSumAggregateOutputType = {
+    tokensIn: number | null
+    tokensOut: number | null
+    costUsd: number | null
+  }
+
+  export type CostRecordMinAggregateOutputType = {
+    id: string | null
+    projectId: string | null
+    missionId: string | null
+    stepId: string | null
+    model: string | null
+    tokensIn: number | null
+    tokensOut: number | null
+    costUsd: number | null
+    module: string | null
+    createdAt: Date | null
+  }
+
+  export type CostRecordMaxAggregateOutputType = {
+    id: string | null
+    projectId: string | null
+    missionId: string | null
+    stepId: string | null
+    model: string | null
+    tokensIn: number | null
+    tokensOut: number | null
+    costUsd: number | null
+    module: string | null
+    createdAt: Date | null
+  }
+
+  export type CostRecordCountAggregateOutputType = {
+    id: number
+    projectId: number
+    missionId: number
+    stepId: number
+    model: number
+    tokensIn: number
+    tokensOut: number
+    costUsd: number
+    module: number
+    createdAt: number
+    _all: number
+  }
+
+
+  export type CostRecordAvgAggregateInputType = {
+    tokensIn?: true
+    tokensOut?: true
+    costUsd?: true
+  }
+
+  export type CostRecordSumAggregateInputType = {
+    tokensIn?: true
+    tokensOut?: true
+    costUsd?: true
+  }
+
+  export type CostRecordMinAggregateInputType = {
+    id?: true
+    projectId?: true
+    missionId?: true
+    stepId?: true
+    model?: true
+    tokensIn?: true
+    tokensOut?: true
+    costUsd?: true
+    module?: true
+    createdAt?: true
+  }
+
+  export type CostRecordMaxAggregateInputType = {
+    id?: true
+    projectId?: true
+    missionId?: true
+    stepId?: true
+    model?: true
+    tokensIn?: true
+    tokensOut?: true
+    costUsd?: true
+    module?: true
+    createdAt?: true
+  }
+
+  export type CostRecordCountAggregateInputType = {
+    id?: true
+    projectId?: true
+    missionId?: true
+    stepId?: true
+    model?: true
+    tokensIn?: true
+    tokensOut?: true
+    costUsd?: true
+    module?: true
+    createdAt?: true
+    _all?: true
+  }
+
+  export type CostRecordAggregateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which CostRecord to aggregate.
+     */
+    where?: CostRecordWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of CostRecords to fetch.
+     */
+    orderBy?: CostRecordOrderByWithRelationInput | CostRecordOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the start position
+     */
+    cursor?: CostRecordWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` CostRecords from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` CostRecords.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Count returned CostRecords
+    **/
+    _count?: true | CostRecordCountAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to average
+    **/
+    _avg?: CostRecordAvgAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to sum
+    **/
+    _sum?: CostRecordSumAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the minimum value
+    **/
+    _min?: CostRecordMinAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the maximum value
+    **/
+    _max?: CostRecordMaxAggregateInputType
+  }
+
+  export type GetCostRecordAggregateType<T extends CostRecordAggregateArgs> = {
+        [P in keyof T & keyof AggregateCostRecord]: P extends '_count' | 'count'
+      ? T[P] extends true
+        ? number
+        : GetScalarType<T[P], AggregateCostRecord[P]>
+      : GetScalarType<T[P], AggregateCostRecord[P]>
+  }
+
+
+
+
+  export type CostRecordGroupByArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: CostRecordWhereInput
+    orderBy?: CostRecordOrderByWithAggregationInput | CostRecordOrderByWithAggregationInput[]
+    by: CostRecordScalarFieldEnum[] | CostRecordScalarFieldEnum
+    having?: CostRecordScalarWhereWithAggregatesInput
+    take?: number
+    skip?: number
+    _count?: CostRecordCountAggregateInputType | true
+    _avg?: CostRecordAvgAggregateInputType
+    _sum?: CostRecordSumAggregateInputType
+    _min?: CostRecordMinAggregateInputType
+    _max?: CostRecordMaxAggregateInputType
+  }
+
+  export type CostRecordGroupByOutputType = {
+    id: string
+    projectId: string
+    missionId: string | null
+    stepId: string | null
+    model: string
+    tokensIn: number
+    tokensOut: number
+    costUsd: number
+    module: string
+    createdAt: Date
+    _count: CostRecordCountAggregateOutputType | null
+    _avg: CostRecordAvgAggregateOutputType | null
+    _sum: CostRecordSumAggregateOutputType | null
+    _min: CostRecordMinAggregateOutputType | null
+    _max: CostRecordMaxAggregateOutputType | null
+  }
+
+  type GetCostRecordGroupByPayload<T extends CostRecordGroupByArgs> = Prisma.PrismaPromise<
+    Array<
+      PickEnumerable<CostRecordGroupByOutputType, T['by']> &
+        {
+          [P in ((keyof T) & (keyof CostRecordGroupByOutputType))]: P extends '_count'
+            ? T[P] extends boolean
+              ? number
+              : GetScalarType<T[P], CostRecordGroupByOutputType[P]>
+            : GetScalarType<T[P], CostRecordGroupByOutputType[P]>
+        }
+      >
+    >
+
+
+  export type CostRecordSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    projectId?: boolean
+    missionId?: boolean
+    stepId?: boolean
+    model?: boolean
+    tokensIn?: boolean
+    tokensOut?: boolean
+    costUsd?: boolean
+    module?: boolean
+    createdAt?: boolean
+  }, ExtArgs["result"]["costRecord"]>
+
+  export type CostRecordSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    projectId?: boolean
+    missionId?: boolean
+    stepId?: boolean
+    model?: boolean
+    tokensIn?: boolean
+    tokensOut?: boolean
+    costUsd?: boolean
+    module?: boolean
+    createdAt?: boolean
+  }, ExtArgs["result"]["costRecord"]>
+
+  export type CostRecordSelectScalar = {
+    id?: boolean
+    projectId?: boolean
+    missionId?: boolean
+    stepId?: boolean
+    model?: boolean
+    tokensIn?: boolean
+    tokensOut?: boolean
+    costUsd?: boolean
+    module?: boolean
+    createdAt?: boolean
+  }
+
+
+  export type $CostRecordPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    name: "CostRecord"
+    objects: {}
+    scalars: $Extensions.GetPayloadResult<{
+      id: string
+      projectId: string
+      missionId: string | null
+      stepId: string | null
+      model: string
+      tokensIn: number
+      tokensOut: number
+      costUsd: number
+      module: string
+      createdAt: Date
+    }, ExtArgs["result"]["costRecord"]>
+    composites: {}
+  }
+
+  type CostRecordGetPayload<S extends boolean | null | undefined | CostRecordDefaultArgs> = $Result.GetResult<Prisma.$CostRecordPayload, S>
+
+  type CostRecordCountArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = 
+    Omit<CostRecordFindManyArgs, 'select' | 'include' | 'distinct'> & {
+      select?: CostRecordCountAggregateInputType | true
+    }
+
+  export interface CostRecordDelegate<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> {
+    [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['model']['CostRecord'], meta: { name: 'CostRecord' } }
+    /**
+     * Find zero or one CostRecord that matches the filter.
+     * @param {CostRecordFindUniqueArgs} args - Arguments to find a CostRecord
+     * @example
+     * // Get one CostRecord
+     * const costRecord = await prisma.costRecord.findUnique({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUnique<T extends CostRecordFindUniqueArgs>(args: SelectSubset<T, CostRecordFindUniqueArgs<ExtArgs>>): Prisma__CostRecordClient<$Result.GetResult<Prisma.$CostRecordPayload<ExtArgs>, T, "findUnique"> | null, null, ExtArgs>
+
+    /**
+     * Find one CostRecord that matches the filter or throw an error with `error.code='P2025'` 
+     * if no matches were found.
+     * @param {CostRecordFindUniqueOrThrowArgs} args - Arguments to find a CostRecord
+     * @example
+     * // Get one CostRecord
+     * const costRecord = await prisma.costRecord.findUniqueOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUniqueOrThrow<T extends CostRecordFindUniqueOrThrowArgs>(args: SelectSubset<T, CostRecordFindUniqueOrThrowArgs<ExtArgs>>): Prisma__CostRecordClient<$Result.GetResult<Prisma.$CostRecordPayload<ExtArgs>, T, "findUniqueOrThrow">, never, ExtArgs>
+
+    /**
+     * Find the first CostRecord that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {CostRecordFindFirstArgs} args - Arguments to find a CostRecord
+     * @example
+     * // Get one CostRecord
+     * const costRecord = await prisma.costRecord.findFirst({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirst<T extends CostRecordFindFirstArgs>(args?: SelectSubset<T, CostRecordFindFirstArgs<ExtArgs>>): Prisma__CostRecordClient<$Result.GetResult<Prisma.$CostRecordPayload<ExtArgs>, T, "findFirst"> | null, null, ExtArgs>
+
+    /**
+     * Find the first CostRecord that matches the filter or
+     * throw `PrismaKnownClientError` with `P2025` code if no matches were found.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {CostRecordFindFirstOrThrowArgs} args - Arguments to find a CostRecord
+     * @example
+     * // Get one CostRecord
+     * const costRecord = await prisma.costRecord.findFirstOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirstOrThrow<T extends CostRecordFindFirstOrThrowArgs>(args?: SelectSubset<T, CostRecordFindFirstOrThrowArgs<ExtArgs>>): Prisma__CostRecordClient<$Result.GetResult<Prisma.$CostRecordPayload<ExtArgs>, T, "findFirstOrThrow">, never, ExtArgs>
+
+    /**
+     * Find zero or more CostRecords that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {CostRecordFindManyArgs} args - Arguments to filter and select certain fields only.
+     * @example
+     * // Get all CostRecords
+     * const costRecords = await prisma.costRecord.findMany()
+     * 
+     * // Get first 10 CostRecords
+     * const costRecords = await prisma.costRecord.findMany({ take: 10 })
+     * 
+     * // Only select the `id`
+     * const costRecordWithIdOnly = await prisma.costRecord.findMany({ select: { id: true } })
+     * 
+     */
+    findMany<T extends CostRecordFindManyArgs>(args?: SelectSubset<T, CostRecordFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$CostRecordPayload<ExtArgs>, T, "findMany">>
+
+    /**
+     * Create a CostRecord.
+     * @param {CostRecordCreateArgs} args - Arguments to create a CostRecord.
+     * @example
+     * // Create one CostRecord
+     * const CostRecord = await prisma.costRecord.create({
+     *   data: {
+     *     // ... data to create a CostRecord
+     *   }
+     * })
+     * 
+     */
+    create<T extends CostRecordCreateArgs>(args: SelectSubset<T, CostRecordCreateArgs<ExtArgs>>): Prisma__CostRecordClient<$Result.GetResult<Prisma.$CostRecordPayload<ExtArgs>, T, "create">, never, ExtArgs>
+
+    /**
+     * Create many CostRecords.
+     * @param {CostRecordCreateManyArgs} args - Arguments to create many CostRecords.
+     * @example
+     * // Create many CostRecords
+     * const costRecord = await prisma.costRecord.createMany({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     *     
+     */
+    createMany<T extends CostRecordCreateManyArgs>(args?: SelectSubset<T, CostRecordCreateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create many CostRecords and returns the data saved in the database.
+     * @param {CostRecordCreateManyAndReturnArgs} args - Arguments to create many CostRecords.
+     * @example
+     * // Create many CostRecords
+     * const costRecord = await prisma.costRecord.createManyAndReturn({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Create many CostRecords and only return the `id`
+     * const costRecordWithIdOnly = await prisma.costRecord.createManyAndReturn({ 
+     *   select: { id: true },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    createManyAndReturn<T extends CostRecordCreateManyAndReturnArgs>(args?: SelectSubset<T, CostRecordCreateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$CostRecordPayload<ExtArgs>, T, "createManyAndReturn">>
+
+    /**
+     * Delete a CostRecord.
+     * @param {CostRecordDeleteArgs} args - Arguments to delete one CostRecord.
+     * @example
+     * // Delete one CostRecord
+     * const CostRecord = await prisma.costRecord.delete({
+     *   where: {
+     *     // ... filter to delete one CostRecord
+     *   }
+     * })
+     * 
+     */
+    delete<T extends CostRecordDeleteArgs>(args: SelectSubset<T, CostRecordDeleteArgs<ExtArgs>>): Prisma__CostRecordClient<$Result.GetResult<Prisma.$CostRecordPayload<ExtArgs>, T, "delete">, never, ExtArgs>
+
+    /**
+     * Update one CostRecord.
+     * @param {CostRecordUpdateArgs} args - Arguments to update one CostRecord.
+     * @example
+     * // Update one CostRecord
+     * const costRecord = await prisma.costRecord.update({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    update<T extends CostRecordUpdateArgs>(args: SelectSubset<T, CostRecordUpdateArgs<ExtArgs>>): Prisma__CostRecordClient<$Result.GetResult<Prisma.$CostRecordPayload<ExtArgs>, T, "update">, never, ExtArgs>
+
+    /**
+     * Delete zero or more CostRecords.
+     * @param {CostRecordDeleteManyArgs} args - Arguments to filter CostRecords to delete.
+     * @example
+     * // Delete a few CostRecords
+     * const { count } = await prisma.costRecord.deleteMany({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     * 
+     */
+    deleteMany<T extends CostRecordDeleteManyArgs>(args?: SelectSubset<T, CostRecordDeleteManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more CostRecords.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {CostRecordUpdateManyArgs} args - Arguments to update one or more rows.
+     * @example
+     * // Update many CostRecords
+     * const costRecord = await prisma.costRecord.updateMany({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    updateMany<T extends CostRecordUpdateManyArgs>(args: SelectSubset<T, CostRecordUpdateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create or update one CostRecord.
+     * @param {CostRecordUpsertArgs} args - Arguments to update or create a CostRecord.
+     * @example
+     * // Update or create a CostRecord
+     * const costRecord = await prisma.costRecord.upsert({
+     *   create: {
+     *     // ... data to create a CostRecord
+     *   },
+     *   update: {
+     *     // ... in case it already exists, update
+     *   },
+     *   where: {
+     *     // ... the filter for the CostRecord we want to update
+     *   }
+     * })
+     */
+    upsert<T extends CostRecordUpsertArgs>(args: SelectSubset<T, CostRecordUpsertArgs<ExtArgs>>): Prisma__CostRecordClient<$Result.GetResult<Prisma.$CostRecordPayload<ExtArgs>, T, "upsert">, never, ExtArgs>
+
+
+    /**
+     * Count the number of CostRecords.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {CostRecordCountArgs} args - Arguments to filter CostRecords to count.
+     * @example
+     * // Count the number of CostRecords
+     * const count = await prisma.costRecord.count({
+     *   where: {
+     *     // ... the filter for the CostRecords we want to count
+     *   }
+     * })
+    **/
+    count<T extends CostRecordCountArgs>(
+      args?: Subset<T, CostRecordCountArgs>,
+    ): Prisma.PrismaPromise<
+      T extends $Utils.Record<'select', any>
+        ? T['select'] extends true
+          ? number
+          : GetScalarType<T['select'], CostRecordCountAggregateOutputType>
+        : number
+    >
+
+    /**
+     * Allows you to perform aggregations operations on a CostRecord.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {CostRecordAggregateArgs} args - Select which aggregations you would like to apply and on what fields.
+     * @example
+     * // Ordered by age ascending
+     * // Where email contains prisma.io
+     * // Limited to the 10 users
+     * const aggregations = await prisma.user.aggregate({
+     *   _avg: {
+     *     age: true,
+     *   },
+     *   where: {
+     *     email: {
+     *       contains: "prisma.io",
+     *     },
+     *   },
+     *   orderBy: {
+     *     age: "asc",
+     *   },
+     *   take: 10,
+     * })
+    **/
+    aggregate<T extends CostRecordAggregateArgs>(args: Subset<T, CostRecordAggregateArgs>): Prisma.PrismaPromise<GetCostRecordAggregateType<T>>
+
+    /**
+     * Group by CostRecord.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {CostRecordGroupByArgs} args - Group by arguments.
+     * @example
+     * // Group by city, order by createdAt, get count
+     * const result = await prisma.user.groupBy({
+     *   by: ['city', 'createdAt'],
+     *   orderBy: {
+     *     createdAt: true
+     *   },
+     *   _count: {
+     *     _all: true
+     *   },
+     * })
+     * 
+    **/
+    groupBy<
+      T extends CostRecordGroupByArgs,
+      HasSelectOrTake extends Or<
+        Extends<'skip', Keys<T>>,
+        Extends<'take', Keys<T>>
+      >,
+      OrderByArg extends True extends HasSelectOrTake
+        ? { orderBy: CostRecordGroupByArgs['orderBy'] }
+        : { orderBy?: CostRecordGroupByArgs['orderBy'] },
+      OrderFields extends ExcludeUnderscoreKeys<Keys<MaybeTupleToUnion<T['orderBy']>>>,
+      ByFields extends MaybeTupleToUnion<T['by']>,
+      ByValid extends Has<ByFields, OrderFields>,
+      HavingFields extends GetHavingFields<T['having']>,
+      HavingValid extends Has<ByFields, HavingFields>,
+      ByEmpty extends T['by'] extends never[] ? True : False,
+      InputErrors extends ByEmpty extends True
+      ? `Error: "by" must not be empty.`
+      : HavingValid extends False
+      ? {
+          [P in HavingFields]: P extends ByFields
+            ? never
+            : P extends string
+            ? `Error: Field "${P}" used in "having" needs to be provided in "by".`
+            : [
+                Error,
+                'Field ',
+                P,
+                ` in "having" needs to be provided in "by"`,
+              ]
+        }[HavingFields]
+      : 'take' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "take", you also need to provide "orderBy"'
+      : 'skip' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "skip", you also need to provide "orderBy"'
+      : ByValid extends True
+      ? {}
+      : {
+          [P in OrderFields]: P extends ByFields
+            ? never
+            : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+        }[OrderFields]
+    >(args: SubsetIntersection<T, CostRecordGroupByArgs, OrderByArg> & InputErrors): {} extends InputErrors ? GetCostRecordGroupByPayload<T> : Prisma.PrismaPromise<InputErrors>
+  /**
+   * Fields of the CostRecord model
+   */
+  readonly fields: CostRecordFieldRefs;
+  }
+
+  /**
+   * The delegate class that acts as a "Promise-like" for CostRecord.
+   * Why is this prefixed with `Prisma__`?
+   * Because we want to prevent naming conflicts as mentioned in
+   * https://github.com/prisma/prisma-client-js/issues/707
+   */
+  export interface Prisma__CostRecordClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> extends Prisma.PrismaPromise<T> {
+    readonly [Symbol.toStringTag]: "PrismaPromise"
+    /**
+     * Attaches callbacks for the resolution and/or rejection of the Promise.
+     * @param onfulfilled The callback to execute when the Promise is resolved.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of which ever callback is executed.
+     */
+    then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): $Utils.JsPromise<TResult1 | TResult2>
+    /**
+     * Attaches a callback for only the rejection of the Promise.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of the callback.
+     */
+    catch<TResult = never>(onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | undefined | null): $Utils.JsPromise<T | TResult>
+    /**
+     * Attaches a callback that is invoked when the Promise is settled (fulfilled or rejected). The
+     * resolved value cannot be modified from the callback.
+     * @param onfinally The callback to execute when the Promise is settled (fulfilled or rejected).
+     * @returns A Promise for the completion of the callback.
+     */
+    finally(onfinally?: (() => void) | undefined | null): $Utils.JsPromise<T>
+  }
+
+
+
+
+  /**
+   * Fields of the CostRecord model
+   */ 
+  interface CostRecordFieldRefs {
+    readonly id: FieldRef<"CostRecord", 'String'>
+    readonly projectId: FieldRef<"CostRecord", 'String'>
+    readonly missionId: FieldRef<"CostRecord", 'String'>
+    readonly stepId: FieldRef<"CostRecord", 'String'>
+    readonly model: FieldRef<"CostRecord", 'String'>
+    readonly tokensIn: FieldRef<"CostRecord", 'Int'>
+    readonly tokensOut: FieldRef<"CostRecord", 'Int'>
+    readonly costUsd: FieldRef<"CostRecord", 'Float'>
+    readonly module: FieldRef<"CostRecord", 'String'>
+    readonly createdAt: FieldRef<"CostRecord", 'DateTime'>
+  }
+    
+
+  // Custom InputTypes
+  /**
+   * CostRecord findUnique
+   */
+  export type CostRecordFindUniqueArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the CostRecord
+     */
+    select?: CostRecordSelect<ExtArgs> | null
+    /**
+     * Filter, which CostRecord to fetch.
+     */
+    where: CostRecordWhereUniqueInput
+  }
+
+  /**
+   * CostRecord findUniqueOrThrow
+   */
+  export type CostRecordFindUniqueOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the CostRecord
+     */
+    select?: CostRecordSelect<ExtArgs> | null
+    /**
+     * Filter, which CostRecord to fetch.
+     */
+    where: CostRecordWhereUniqueInput
+  }
+
+  /**
+   * CostRecord findFirst
+   */
+  export type CostRecordFindFirstArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the CostRecord
+     */
+    select?: CostRecordSelect<ExtArgs> | null
+    /**
+     * Filter, which CostRecord to fetch.
+     */
+    where?: CostRecordWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of CostRecords to fetch.
+     */
+    orderBy?: CostRecordOrderByWithRelationInput | CostRecordOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for CostRecords.
+     */
+    cursor?: CostRecordWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` CostRecords from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` CostRecords.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of CostRecords.
+     */
+    distinct?: CostRecordScalarFieldEnum | CostRecordScalarFieldEnum[]
+  }
+
+  /**
+   * CostRecord findFirstOrThrow
+   */
+  export type CostRecordFindFirstOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the CostRecord
+     */
+    select?: CostRecordSelect<ExtArgs> | null
+    /**
+     * Filter, which CostRecord to fetch.
+     */
+    where?: CostRecordWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of CostRecords to fetch.
+     */
+    orderBy?: CostRecordOrderByWithRelationInput | CostRecordOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for CostRecords.
+     */
+    cursor?: CostRecordWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` CostRecords from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` CostRecords.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of CostRecords.
+     */
+    distinct?: CostRecordScalarFieldEnum | CostRecordScalarFieldEnum[]
+  }
+
+  /**
+   * CostRecord findMany
+   */
+  export type CostRecordFindManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the CostRecord
+     */
+    select?: CostRecordSelect<ExtArgs> | null
+    /**
+     * Filter, which CostRecords to fetch.
+     */
+    where?: CostRecordWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of CostRecords to fetch.
+     */
+    orderBy?: CostRecordOrderByWithRelationInput | CostRecordOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for listing CostRecords.
+     */
+    cursor?: CostRecordWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` CostRecords from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` CostRecords.
+     */
+    skip?: number
+    distinct?: CostRecordScalarFieldEnum | CostRecordScalarFieldEnum[]
+  }
+
+  /**
+   * CostRecord create
+   */
+  export type CostRecordCreateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the CostRecord
+     */
+    select?: CostRecordSelect<ExtArgs> | null
+    /**
+     * The data needed to create a CostRecord.
+     */
+    data: XOR<CostRecordCreateInput, CostRecordUncheckedCreateInput>
+  }
+
+  /**
+   * CostRecord createMany
+   */
+  export type CostRecordCreateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to create many CostRecords.
+     */
+    data: CostRecordCreateManyInput | CostRecordCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * CostRecord createManyAndReturn
+   */
+  export type CostRecordCreateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the CostRecord
+     */
+    select?: CostRecordSelectCreateManyAndReturn<ExtArgs> | null
+    /**
+     * The data used to create many CostRecords.
+     */
+    data: CostRecordCreateManyInput | CostRecordCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * CostRecord update
+   */
+  export type CostRecordUpdateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the CostRecord
+     */
+    select?: CostRecordSelect<ExtArgs> | null
+    /**
+     * The data needed to update a CostRecord.
+     */
+    data: XOR<CostRecordUpdateInput, CostRecordUncheckedUpdateInput>
+    /**
+     * Choose, which CostRecord to update.
+     */
+    where: CostRecordWhereUniqueInput
+  }
+
+  /**
+   * CostRecord updateMany
+   */
+  export type CostRecordUpdateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to update CostRecords.
+     */
+    data: XOR<CostRecordUpdateManyMutationInput, CostRecordUncheckedUpdateManyInput>
+    /**
+     * Filter which CostRecords to update
+     */
+    where?: CostRecordWhereInput
+  }
+
+  /**
+   * CostRecord upsert
+   */
+  export type CostRecordUpsertArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the CostRecord
+     */
+    select?: CostRecordSelect<ExtArgs> | null
+    /**
+     * The filter to search for the CostRecord to update in case it exists.
+     */
+    where: CostRecordWhereUniqueInput
+    /**
+     * In case the CostRecord found by the `where` argument doesn't exist, create a new CostRecord with this data.
+     */
+    create: XOR<CostRecordCreateInput, CostRecordUncheckedCreateInput>
+    /**
+     * In case the CostRecord was found with the provided `where` argument, update it with this data.
+     */
+    update: XOR<CostRecordUpdateInput, CostRecordUncheckedUpdateInput>
+  }
+
+  /**
+   * CostRecord delete
+   */
+  export type CostRecordDeleteArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the CostRecord
+     */
+    select?: CostRecordSelect<ExtArgs> | null
+    /**
+     * Filter which CostRecord to delete.
+     */
+    where: CostRecordWhereUniqueInput
+  }
+
+  /**
+   * CostRecord deleteMany
+   */
+  export type CostRecordDeleteManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which CostRecords to delete
+     */
+    where?: CostRecordWhereInput
+  }
+
+  /**
+   * CostRecord without action
+   */
+  export type CostRecordDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the CostRecord
+     */
+    select?: CostRecordSelect<ExtArgs> | null
+  }
+
+
+  /**
+   * Model CostBudget
+   */
+
+  export type AggregateCostBudget = {
+    _count: CostBudgetCountAggregateOutputType | null
+    _avg: CostBudgetAvgAggregateOutputType | null
+    _sum: CostBudgetSumAggregateOutputType | null
+    _min: CostBudgetMinAggregateOutputType | null
+    _max: CostBudgetMaxAggregateOutputType | null
+  }
+
+  export type CostBudgetAvgAggregateOutputType = {
+    daily: number | null
+    monthly: number | null
+    perMission: number | null
+    alertAt: number | null
+    blockAt: number | null
+  }
+
+  export type CostBudgetSumAggregateOutputType = {
+    daily: number | null
+    monthly: number | null
+    perMission: number | null
+    alertAt: number | null
+    blockAt: number | null
+  }
+
+  export type CostBudgetMinAggregateOutputType = {
+    id: string | null
+    projectId: string | null
+    daily: number | null
+    monthly: number | null
+    perMission: number | null
+    alertAt: number | null
+    blockAt: number | null
+    createdAt: Date | null
+    updatedAt: Date | null
+  }
+
+  export type CostBudgetMaxAggregateOutputType = {
+    id: string | null
+    projectId: string | null
+    daily: number | null
+    monthly: number | null
+    perMission: number | null
+    alertAt: number | null
+    blockAt: number | null
+    createdAt: Date | null
+    updatedAt: Date | null
+  }
+
+  export type CostBudgetCountAggregateOutputType = {
+    id: number
+    projectId: number
+    daily: number
+    monthly: number
+    perMission: number
+    alertAt: number
+    blockAt: number
+    createdAt: number
+    updatedAt: number
+    _all: number
+  }
+
+
+  export type CostBudgetAvgAggregateInputType = {
+    daily?: true
+    monthly?: true
+    perMission?: true
+    alertAt?: true
+    blockAt?: true
+  }
+
+  export type CostBudgetSumAggregateInputType = {
+    daily?: true
+    monthly?: true
+    perMission?: true
+    alertAt?: true
+    blockAt?: true
+  }
+
+  export type CostBudgetMinAggregateInputType = {
+    id?: true
+    projectId?: true
+    daily?: true
+    monthly?: true
+    perMission?: true
+    alertAt?: true
+    blockAt?: true
+    createdAt?: true
+    updatedAt?: true
+  }
+
+  export type CostBudgetMaxAggregateInputType = {
+    id?: true
+    projectId?: true
+    daily?: true
+    monthly?: true
+    perMission?: true
+    alertAt?: true
+    blockAt?: true
+    createdAt?: true
+    updatedAt?: true
+  }
+
+  export type CostBudgetCountAggregateInputType = {
+    id?: true
+    projectId?: true
+    daily?: true
+    monthly?: true
+    perMission?: true
+    alertAt?: true
+    blockAt?: true
+    createdAt?: true
+    updatedAt?: true
+    _all?: true
+  }
+
+  export type CostBudgetAggregateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which CostBudget to aggregate.
+     */
+    where?: CostBudgetWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of CostBudgets to fetch.
+     */
+    orderBy?: CostBudgetOrderByWithRelationInput | CostBudgetOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the start position
+     */
+    cursor?: CostBudgetWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` CostBudgets from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` CostBudgets.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Count returned CostBudgets
+    **/
+    _count?: true | CostBudgetCountAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to average
+    **/
+    _avg?: CostBudgetAvgAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to sum
+    **/
+    _sum?: CostBudgetSumAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the minimum value
+    **/
+    _min?: CostBudgetMinAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the maximum value
+    **/
+    _max?: CostBudgetMaxAggregateInputType
+  }
+
+  export type GetCostBudgetAggregateType<T extends CostBudgetAggregateArgs> = {
+        [P in keyof T & keyof AggregateCostBudget]: P extends '_count' | 'count'
+      ? T[P] extends true
+        ? number
+        : GetScalarType<T[P], AggregateCostBudget[P]>
+      : GetScalarType<T[P], AggregateCostBudget[P]>
+  }
+
+
+
+
+  export type CostBudgetGroupByArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: CostBudgetWhereInput
+    orderBy?: CostBudgetOrderByWithAggregationInput | CostBudgetOrderByWithAggregationInput[]
+    by: CostBudgetScalarFieldEnum[] | CostBudgetScalarFieldEnum
+    having?: CostBudgetScalarWhereWithAggregatesInput
+    take?: number
+    skip?: number
+    _count?: CostBudgetCountAggregateInputType | true
+    _avg?: CostBudgetAvgAggregateInputType
+    _sum?: CostBudgetSumAggregateInputType
+    _min?: CostBudgetMinAggregateInputType
+    _max?: CostBudgetMaxAggregateInputType
+  }
+
+  export type CostBudgetGroupByOutputType = {
+    id: string
+    projectId: string
+    daily: number | null
+    monthly: number | null
+    perMission: number | null
+    alertAt: number
+    blockAt: number
+    createdAt: Date
+    updatedAt: Date
+    _count: CostBudgetCountAggregateOutputType | null
+    _avg: CostBudgetAvgAggregateOutputType | null
+    _sum: CostBudgetSumAggregateOutputType | null
+    _min: CostBudgetMinAggregateOutputType | null
+    _max: CostBudgetMaxAggregateOutputType | null
+  }
+
+  type GetCostBudgetGroupByPayload<T extends CostBudgetGroupByArgs> = Prisma.PrismaPromise<
+    Array<
+      PickEnumerable<CostBudgetGroupByOutputType, T['by']> &
+        {
+          [P in ((keyof T) & (keyof CostBudgetGroupByOutputType))]: P extends '_count'
+            ? T[P] extends boolean
+              ? number
+              : GetScalarType<T[P], CostBudgetGroupByOutputType[P]>
+            : GetScalarType<T[P], CostBudgetGroupByOutputType[P]>
+        }
+      >
+    >
+
+
+  export type CostBudgetSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    projectId?: boolean
+    daily?: boolean
+    monthly?: boolean
+    perMission?: boolean
+    alertAt?: boolean
+    blockAt?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+  }, ExtArgs["result"]["costBudget"]>
+
+  export type CostBudgetSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    projectId?: boolean
+    daily?: boolean
+    monthly?: boolean
+    perMission?: boolean
+    alertAt?: boolean
+    blockAt?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+  }, ExtArgs["result"]["costBudget"]>
+
+  export type CostBudgetSelectScalar = {
+    id?: boolean
+    projectId?: boolean
+    daily?: boolean
+    monthly?: boolean
+    perMission?: boolean
+    alertAt?: boolean
+    blockAt?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+  }
+
+
+  export type $CostBudgetPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    name: "CostBudget"
+    objects: {}
+    scalars: $Extensions.GetPayloadResult<{
+      id: string
+      projectId: string
+      daily: number | null
+      monthly: number | null
+      perMission: number | null
+      alertAt: number
+      blockAt: number
+      createdAt: Date
+      updatedAt: Date
+    }, ExtArgs["result"]["costBudget"]>
+    composites: {}
+  }
+
+  type CostBudgetGetPayload<S extends boolean | null | undefined | CostBudgetDefaultArgs> = $Result.GetResult<Prisma.$CostBudgetPayload, S>
+
+  type CostBudgetCountArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = 
+    Omit<CostBudgetFindManyArgs, 'select' | 'include' | 'distinct'> & {
+      select?: CostBudgetCountAggregateInputType | true
+    }
+
+  export interface CostBudgetDelegate<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> {
+    [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['model']['CostBudget'], meta: { name: 'CostBudget' } }
+    /**
+     * Find zero or one CostBudget that matches the filter.
+     * @param {CostBudgetFindUniqueArgs} args - Arguments to find a CostBudget
+     * @example
+     * // Get one CostBudget
+     * const costBudget = await prisma.costBudget.findUnique({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUnique<T extends CostBudgetFindUniqueArgs>(args: SelectSubset<T, CostBudgetFindUniqueArgs<ExtArgs>>): Prisma__CostBudgetClient<$Result.GetResult<Prisma.$CostBudgetPayload<ExtArgs>, T, "findUnique"> | null, null, ExtArgs>
+
+    /**
+     * Find one CostBudget that matches the filter or throw an error with `error.code='P2025'` 
+     * if no matches were found.
+     * @param {CostBudgetFindUniqueOrThrowArgs} args - Arguments to find a CostBudget
+     * @example
+     * // Get one CostBudget
+     * const costBudget = await prisma.costBudget.findUniqueOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUniqueOrThrow<T extends CostBudgetFindUniqueOrThrowArgs>(args: SelectSubset<T, CostBudgetFindUniqueOrThrowArgs<ExtArgs>>): Prisma__CostBudgetClient<$Result.GetResult<Prisma.$CostBudgetPayload<ExtArgs>, T, "findUniqueOrThrow">, never, ExtArgs>
+
+    /**
+     * Find the first CostBudget that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {CostBudgetFindFirstArgs} args - Arguments to find a CostBudget
+     * @example
+     * // Get one CostBudget
+     * const costBudget = await prisma.costBudget.findFirst({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirst<T extends CostBudgetFindFirstArgs>(args?: SelectSubset<T, CostBudgetFindFirstArgs<ExtArgs>>): Prisma__CostBudgetClient<$Result.GetResult<Prisma.$CostBudgetPayload<ExtArgs>, T, "findFirst"> | null, null, ExtArgs>
+
+    /**
+     * Find the first CostBudget that matches the filter or
+     * throw `PrismaKnownClientError` with `P2025` code if no matches were found.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {CostBudgetFindFirstOrThrowArgs} args - Arguments to find a CostBudget
+     * @example
+     * // Get one CostBudget
+     * const costBudget = await prisma.costBudget.findFirstOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirstOrThrow<T extends CostBudgetFindFirstOrThrowArgs>(args?: SelectSubset<T, CostBudgetFindFirstOrThrowArgs<ExtArgs>>): Prisma__CostBudgetClient<$Result.GetResult<Prisma.$CostBudgetPayload<ExtArgs>, T, "findFirstOrThrow">, never, ExtArgs>
+
+    /**
+     * Find zero or more CostBudgets that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {CostBudgetFindManyArgs} args - Arguments to filter and select certain fields only.
+     * @example
+     * // Get all CostBudgets
+     * const costBudgets = await prisma.costBudget.findMany()
+     * 
+     * // Get first 10 CostBudgets
+     * const costBudgets = await prisma.costBudget.findMany({ take: 10 })
+     * 
+     * // Only select the `id`
+     * const costBudgetWithIdOnly = await prisma.costBudget.findMany({ select: { id: true } })
+     * 
+     */
+    findMany<T extends CostBudgetFindManyArgs>(args?: SelectSubset<T, CostBudgetFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$CostBudgetPayload<ExtArgs>, T, "findMany">>
+
+    /**
+     * Create a CostBudget.
+     * @param {CostBudgetCreateArgs} args - Arguments to create a CostBudget.
+     * @example
+     * // Create one CostBudget
+     * const CostBudget = await prisma.costBudget.create({
+     *   data: {
+     *     // ... data to create a CostBudget
+     *   }
+     * })
+     * 
+     */
+    create<T extends CostBudgetCreateArgs>(args: SelectSubset<T, CostBudgetCreateArgs<ExtArgs>>): Prisma__CostBudgetClient<$Result.GetResult<Prisma.$CostBudgetPayload<ExtArgs>, T, "create">, never, ExtArgs>
+
+    /**
+     * Create many CostBudgets.
+     * @param {CostBudgetCreateManyArgs} args - Arguments to create many CostBudgets.
+     * @example
+     * // Create many CostBudgets
+     * const costBudget = await prisma.costBudget.createMany({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     *     
+     */
+    createMany<T extends CostBudgetCreateManyArgs>(args?: SelectSubset<T, CostBudgetCreateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create many CostBudgets and returns the data saved in the database.
+     * @param {CostBudgetCreateManyAndReturnArgs} args - Arguments to create many CostBudgets.
+     * @example
+     * // Create many CostBudgets
+     * const costBudget = await prisma.costBudget.createManyAndReturn({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Create many CostBudgets and only return the `id`
+     * const costBudgetWithIdOnly = await prisma.costBudget.createManyAndReturn({ 
+     *   select: { id: true },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    createManyAndReturn<T extends CostBudgetCreateManyAndReturnArgs>(args?: SelectSubset<T, CostBudgetCreateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$CostBudgetPayload<ExtArgs>, T, "createManyAndReturn">>
+
+    /**
+     * Delete a CostBudget.
+     * @param {CostBudgetDeleteArgs} args - Arguments to delete one CostBudget.
+     * @example
+     * // Delete one CostBudget
+     * const CostBudget = await prisma.costBudget.delete({
+     *   where: {
+     *     // ... filter to delete one CostBudget
+     *   }
+     * })
+     * 
+     */
+    delete<T extends CostBudgetDeleteArgs>(args: SelectSubset<T, CostBudgetDeleteArgs<ExtArgs>>): Prisma__CostBudgetClient<$Result.GetResult<Prisma.$CostBudgetPayload<ExtArgs>, T, "delete">, never, ExtArgs>
+
+    /**
+     * Update one CostBudget.
+     * @param {CostBudgetUpdateArgs} args - Arguments to update one CostBudget.
+     * @example
+     * // Update one CostBudget
+     * const costBudget = await prisma.costBudget.update({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    update<T extends CostBudgetUpdateArgs>(args: SelectSubset<T, CostBudgetUpdateArgs<ExtArgs>>): Prisma__CostBudgetClient<$Result.GetResult<Prisma.$CostBudgetPayload<ExtArgs>, T, "update">, never, ExtArgs>
+
+    /**
+     * Delete zero or more CostBudgets.
+     * @param {CostBudgetDeleteManyArgs} args - Arguments to filter CostBudgets to delete.
+     * @example
+     * // Delete a few CostBudgets
+     * const { count } = await prisma.costBudget.deleteMany({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     * 
+     */
+    deleteMany<T extends CostBudgetDeleteManyArgs>(args?: SelectSubset<T, CostBudgetDeleteManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more CostBudgets.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {CostBudgetUpdateManyArgs} args - Arguments to update one or more rows.
+     * @example
+     * // Update many CostBudgets
+     * const costBudget = await prisma.costBudget.updateMany({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    updateMany<T extends CostBudgetUpdateManyArgs>(args: SelectSubset<T, CostBudgetUpdateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create or update one CostBudget.
+     * @param {CostBudgetUpsertArgs} args - Arguments to update or create a CostBudget.
+     * @example
+     * // Update or create a CostBudget
+     * const costBudget = await prisma.costBudget.upsert({
+     *   create: {
+     *     // ... data to create a CostBudget
+     *   },
+     *   update: {
+     *     // ... in case it already exists, update
+     *   },
+     *   where: {
+     *     // ... the filter for the CostBudget we want to update
+     *   }
+     * })
+     */
+    upsert<T extends CostBudgetUpsertArgs>(args: SelectSubset<T, CostBudgetUpsertArgs<ExtArgs>>): Prisma__CostBudgetClient<$Result.GetResult<Prisma.$CostBudgetPayload<ExtArgs>, T, "upsert">, never, ExtArgs>
+
+
+    /**
+     * Count the number of CostBudgets.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {CostBudgetCountArgs} args - Arguments to filter CostBudgets to count.
+     * @example
+     * // Count the number of CostBudgets
+     * const count = await prisma.costBudget.count({
+     *   where: {
+     *     // ... the filter for the CostBudgets we want to count
+     *   }
+     * })
+    **/
+    count<T extends CostBudgetCountArgs>(
+      args?: Subset<T, CostBudgetCountArgs>,
+    ): Prisma.PrismaPromise<
+      T extends $Utils.Record<'select', any>
+        ? T['select'] extends true
+          ? number
+          : GetScalarType<T['select'], CostBudgetCountAggregateOutputType>
+        : number
+    >
+
+    /**
+     * Allows you to perform aggregations operations on a CostBudget.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {CostBudgetAggregateArgs} args - Select which aggregations you would like to apply and on what fields.
+     * @example
+     * // Ordered by age ascending
+     * // Where email contains prisma.io
+     * // Limited to the 10 users
+     * const aggregations = await prisma.user.aggregate({
+     *   _avg: {
+     *     age: true,
+     *   },
+     *   where: {
+     *     email: {
+     *       contains: "prisma.io",
+     *     },
+     *   },
+     *   orderBy: {
+     *     age: "asc",
+     *   },
+     *   take: 10,
+     * })
+    **/
+    aggregate<T extends CostBudgetAggregateArgs>(args: Subset<T, CostBudgetAggregateArgs>): Prisma.PrismaPromise<GetCostBudgetAggregateType<T>>
+
+    /**
+     * Group by CostBudget.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {CostBudgetGroupByArgs} args - Group by arguments.
+     * @example
+     * // Group by city, order by createdAt, get count
+     * const result = await prisma.user.groupBy({
+     *   by: ['city', 'createdAt'],
+     *   orderBy: {
+     *     createdAt: true
+     *   },
+     *   _count: {
+     *     _all: true
+     *   },
+     * })
+     * 
+    **/
+    groupBy<
+      T extends CostBudgetGroupByArgs,
+      HasSelectOrTake extends Or<
+        Extends<'skip', Keys<T>>,
+        Extends<'take', Keys<T>>
+      >,
+      OrderByArg extends True extends HasSelectOrTake
+        ? { orderBy: CostBudgetGroupByArgs['orderBy'] }
+        : { orderBy?: CostBudgetGroupByArgs['orderBy'] },
+      OrderFields extends ExcludeUnderscoreKeys<Keys<MaybeTupleToUnion<T['orderBy']>>>,
+      ByFields extends MaybeTupleToUnion<T['by']>,
+      ByValid extends Has<ByFields, OrderFields>,
+      HavingFields extends GetHavingFields<T['having']>,
+      HavingValid extends Has<ByFields, HavingFields>,
+      ByEmpty extends T['by'] extends never[] ? True : False,
+      InputErrors extends ByEmpty extends True
+      ? `Error: "by" must not be empty.`
+      : HavingValid extends False
+      ? {
+          [P in HavingFields]: P extends ByFields
+            ? never
+            : P extends string
+            ? `Error: Field "${P}" used in "having" needs to be provided in "by".`
+            : [
+                Error,
+                'Field ',
+                P,
+                ` in "having" needs to be provided in "by"`,
+              ]
+        }[HavingFields]
+      : 'take' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "take", you also need to provide "orderBy"'
+      : 'skip' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "skip", you also need to provide "orderBy"'
+      : ByValid extends True
+      ? {}
+      : {
+          [P in OrderFields]: P extends ByFields
+            ? never
+            : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+        }[OrderFields]
+    >(args: SubsetIntersection<T, CostBudgetGroupByArgs, OrderByArg> & InputErrors): {} extends InputErrors ? GetCostBudgetGroupByPayload<T> : Prisma.PrismaPromise<InputErrors>
+  /**
+   * Fields of the CostBudget model
+   */
+  readonly fields: CostBudgetFieldRefs;
+  }
+
+  /**
+   * The delegate class that acts as a "Promise-like" for CostBudget.
+   * Why is this prefixed with `Prisma__`?
+   * Because we want to prevent naming conflicts as mentioned in
+   * https://github.com/prisma/prisma-client-js/issues/707
+   */
+  export interface Prisma__CostBudgetClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> extends Prisma.PrismaPromise<T> {
+    readonly [Symbol.toStringTag]: "PrismaPromise"
+    /**
+     * Attaches callbacks for the resolution and/or rejection of the Promise.
+     * @param onfulfilled The callback to execute when the Promise is resolved.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of which ever callback is executed.
+     */
+    then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): $Utils.JsPromise<TResult1 | TResult2>
+    /**
+     * Attaches a callback for only the rejection of the Promise.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of the callback.
+     */
+    catch<TResult = never>(onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | undefined | null): $Utils.JsPromise<T | TResult>
+    /**
+     * Attaches a callback that is invoked when the Promise is settled (fulfilled or rejected). The
+     * resolved value cannot be modified from the callback.
+     * @param onfinally The callback to execute when the Promise is settled (fulfilled or rejected).
+     * @returns A Promise for the completion of the callback.
+     */
+    finally(onfinally?: (() => void) | undefined | null): $Utils.JsPromise<T>
+  }
+
+
+
+
+  /**
+   * Fields of the CostBudget model
+   */ 
+  interface CostBudgetFieldRefs {
+    readonly id: FieldRef<"CostBudget", 'String'>
+    readonly projectId: FieldRef<"CostBudget", 'String'>
+    readonly daily: FieldRef<"CostBudget", 'Float'>
+    readonly monthly: FieldRef<"CostBudget", 'Float'>
+    readonly perMission: FieldRef<"CostBudget", 'Float'>
+    readonly alertAt: FieldRef<"CostBudget", 'Float'>
+    readonly blockAt: FieldRef<"CostBudget", 'Float'>
+    readonly createdAt: FieldRef<"CostBudget", 'DateTime'>
+    readonly updatedAt: FieldRef<"CostBudget", 'DateTime'>
+  }
+    
+
+  // Custom InputTypes
+  /**
+   * CostBudget findUnique
+   */
+  export type CostBudgetFindUniqueArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the CostBudget
+     */
+    select?: CostBudgetSelect<ExtArgs> | null
+    /**
+     * Filter, which CostBudget to fetch.
+     */
+    where: CostBudgetWhereUniqueInput
+  }
+
+  /**
+   * CostBudget findUniqueOrThrow
+   */
+  export type CostBudgetFindUniqueOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the CostBudget
+     */
+    select?: CostBudgetSelect<ExtArgs> | null
+    /**
+     * Filter, which CostBudget to fetch.
+     */
+    where: CostBudgetWhereUniqueInput
+  }
+
+  /**
+   * CostBudget findFirst
+   */
+  export type CostBudgetFindFirstArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the CostBudget
+     */
+    select?: CostBudgetSelect<ExtArgs> | null
+    /**
+     * Filter, which CostBudget to fetch.
+     */
+    where?: CostBudgetWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of CostBudgets to fetch.
+     */
+    orderBy?: CostBudgetOrderByWithRelationInput | CostBudgetOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for CostBudgets.
+     */
+    cursor?: CostBudgetWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` CostBudgets from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` CostBudgets.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of CostBudgets.
+     */
+    distinct?: CostBudgetScalarFieldEnum | CostBudgetScalarFieldEnum[]
+  }
+
+  /**
+   * CostBudget findFirstOrThrow
+   */
+  export type CostBudgetFindFirstOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the CostBudget
+     */
+    select?: CostBudgetSelect<ExtArgs> | null
+    /**
+     * Filter, which CostBudget to fetch.
+     */
+    where?: CostBudgetWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of CostBudgets to fetch.
+     */
+    orderBy?: CostBudgetOrderByWithRelationInput | CostBudgetOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for CostBudgets.
+     */
+    cursor?: CostBudgetWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` CostBudgets from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` CostBudgets.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of CostBudgets.
+     */
+    distinct?: CostBudgetScalarFieldEnum | CostBudgetScalarFieldEnum[]
+  }
+
+  /**
+   * CostBudget findMany
+   */
+  export type CostBudgetFindManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the CostBudget
+     */
+    select?: CostBudgetSelect<ExtArgs> | null
+    /**
+     * Filter, which CostBudgets to fetch.
+     */
+    where?: CostBudgetWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of CostBudgets to fetch.
+     */
+    orderBy?: CostBudgetOrderByWithRelationInput | CostBudgetOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for listing CostBudgets.
+     */
+    cursor?: CostBudgetWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` CostBudgets from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` CostBudgets.
+     */
+    skip?: number
+    distinct?: CostBudgetScalarFieldEnum | CostBudgetScalarFieldEnum[]
+  }
+
+  /**
+   * CostBudget create
+   */
+  export type CostBudgetCreateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the CostBudget
+     */
+    select?: CostBudgetSelect<ExtArgs> | null
+    /**
+     * The data needed to create a CostBudget.
+     */
+    data: XOR<CostBudgetCreateInput, CostBudgetUncheckedCreateInput>
+  }
+
+  /**
+   * CostBudget createMany
+   */
+  export type CostBudgetCreateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to create many CostBudgets.
+     */
+    data: CostBudgetCreateManyInput | CostBudgetCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * CostBudget createManyAndReturn
+   */
+  export type CostBudgetCreateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the CostBudget
+     */
+    select?: CostBudgetSelectCreateManyAndReturn<ExtArgs> | null
+    /**
+     * The data used to create many CostBudgets.
+     */
+    data: CostBudgetCreateManyInput | CostBudgetCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * CostBudget update
+   */
+  export type CostBudgetUpdateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the CostBudget
+     */
+    select?: CostBudgetSelect<ExtArgs> | null
+    /**
+     * The data needed to update a CostBudget.
+     */
+    data: XOR<CostBudgetUpdateInput, CostBudgetUncheckedUpdateInput>
+    /**
+     * Choose, which CostBudget to update.
+     */
+    where: CostBudgetWhereUniqueInput
+  }
+
+  /**
+   * CostBudget updateMany
+   */
+  export type CostBudgetUpdateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to update CostBudgets.
+     */
+    data: XOR<CostBudgetUpdateManyMutationInput, CostBudgetUncheckedUpdateManyInput>
+    /**
+     * Filter which CostBudgets to update
+     */
+    where?: CostBudgetWhereInput
+  }
+
+  /**
+   * CostBudget upsert
+   */
+  export type CostBudgetUpsertArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the CostBudget
+     */
+    select?: CostBudgetSelect<ExtArgs> | null
+    /**
+     * The filter to search for the CostBudget to update in case it exists.
+     */
+    where: CostBudgetWhereUniqueInput
+    /**
+     * In case the CostBudget found by the `where` argument doesn't exist, create a new CostBudget with this data.
+     */
+    create: XOR<CostBudgetCreateInput, CostBudgetUncheckedCreateInput>
+    /**
+     * In case the CostBudget was found with the provided `where` argument, update it with this data.
+     */
+    update: XOR<CostBudgetUpdateInput, CostBudgetUncheckedUpdateInput>
+  }
+
+  /**
+   * CostBudget delete
+   */
+  export type CostBudgetDeleteArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the CostBudget
+     */
+    select?: CostBudgetSelect<ExtArgs> | null
+    /**
+     * Filter which CostBudget to delete.
+     */
+    where: CostBudgetWhereUniqueInput
+  }
+
+  /**
+   * CostBudget deleteMany
+   */
+  export type CostBudgetDeleteManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which CostBudgets to delete
+     */
+    where?: CostBudgetWhereInput
+  }
+
+  /**
+   * CostBudget without action
+   */
+  export type CostBudgetDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the CostBudget
+     */
+    select?: CostBudgetSelect<ExtArgs> | null
+  }
+
+
+  /**
+   * Model TraceSpan
+   */
+
+  export type AggregateTraceSpan = {
+    _count: TraceSpanCountAggregateOutputType | null
+    _avg: TraceSpanAvgAggregateOutputType | null
+    _sum: TraceSpanSumAggregateOutputType | null
+    _min: TraceSpanMinAggregateOutputType | null
+    _max: TraceSpanMaxAggregateOutputType | null
+  }
+
+  export type TraceSpanAvgAggregateOutputType = {
+    durationMs: number | null
+  }
+
+  export type TraceSpanSumAggregateOutputType = {
+    durationMs: number | null
+  }
+
+  export type TraceSpanMinAggregateOutputType = {
+    id: string | null
+    traceId: string | null
+    spanId: string | null
+    parentSpanId: string | null
+    service: string | null
+    operation: string | null
+    startedAt: Date | null
+    endedAt: Date | null
+    durationMs: number | null
+    status: string | null
+    error: string | null
+    createdAt: Date | null
+  }
+
+  export type TraceSpanMaxAggregateOutputType = {
+    id: string | null
+    traceId: string | null
+    spanId: string | null
+    parentSpanId: string | null
+    service: string | null
+    operation: string | null
+    startedAt: Date | null
+    endedAt: Date | null
+    durationMs: number | null
+    status: string | null
+    error: string | null
+    createdAt: Date | null
+  }
+
+  export type TraceSpanCountAggregateOutputType = {
+    id: number
+    traceId: number
+    spanId: number
+    parentSpanId: number
+    service: number
+    operation: number
+    startedAt: number
+    endedAt: number
+    durationMs: number
+    status: number
+    attributes: number
+    error: number
+    createdAt: number
+    _all: number
+  }
+
+
+  export type TraceSpanAvgAggregateInputType = {
+    durationMs?: true
+  }
+
+  export type TraceSpanSumAggregateInputType = {
+    durationMs?: true
+  }
+
+  export type TraceSpanMinAggregateInputType = {
+    id?: true
+    traceId?: true
+    spanId?: true
+    parentSpanId?: true
+    service?: true
+    operation?: true
+    startedAt?: true
+    endedAt?: true
+    durationMs?: true
+    status?: true
+    error?: true
+    createdAt?: true
+  }
+
+  export type TraceSpanMaxAggregateInputType = {
+    id?: true
+    traceId?: true
+    spanId?: true
+    parentSpanId?: true
+    service?: true
+    operation?: true
+    startedAt?: true
+    endedAt?: true
+    durationMs?: true
+    status?: true
+    error?: true
+    createdAt?: true
+  }
+
+  export type TraceSpanCountAggregateInputType = {
+    id?: true
+    traceId?: true
+    spanId?: true
+    parentSpanId?: true
+    service?: true
+    operation?: true
+    startedAt?: true
+    endedAt?: true
+    durationMs?: true
+    status?: true
+    attributes?: true
+    error?: true
+    createdAt?: true
+    _all?: true
+  }
+
+  export type TraceSpanAggregateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which TraceSpan to aggregate.
+     */
+    where?: TraceSpanWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of TraceSpans to fetch.
+     */
+    orderBy?: TraceSpanOrderByWithRelationInput | TraceSpanOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the start position
+     */
+    cursor?: TraceSpanWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` TraceSpans from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` TraceSpans.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Count returned TraceSpans
+    **/
+    _count?: true | TraceSpanCountAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to average
+    **/
+    _avg?: TraceSpanAvgAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to sum
+    **/
+    _sum?: TraceSpanSumAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the minimum value
+    **/
+    _min?: TraceSpanMinAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the maximum value
+    **/
+    _max?: TraceSpanMaxAggregateInputType
+  }
+
+  export type GetTraceSpanAggregateType<T extends TraceSpanAggregateArgs> = {
+        [P in keyof T & keyof AggregateTraceSpan]: P extends '_count' | 'count'
+      ? T[P] extends true
+        ? number
+        : GetScalarType<T[P], AggregateTraceSpan[P]>
+      : GetScalarType<T[P], AggregateTraceSpan[P]>
+  }
+
+
+
+
+  export type TraceSpanGroupByArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: TraceSpanWhereInput
+    orderBy?: TraceSpanOrderByWithAggregationInput | TraceSpanOrderByWithAggregationInput[]
+    by: TraceSpanScalarFieldEnum[] | TraceSpanScalarFieldEnum
+    having?: TraceSpanScalarWhereWithAggregatesInput
+    take?: number
+    skip?: number
+    _count?: TraceSpanCountAggregateInputType | true
+    _avg?: TraceSpanAvgAggregateInputType
+    _sum?: TraceSpanSumAggregateInputType
+    _min?: TraceSpanMinAggregateInputType
+    _max?: TraceSpanMaxAggregateInputType
+  }
+
+  export type TraceSpanGroupByOutputType = {
+    id: string
+    traceId: string
+    spanId: string
+    parentSpanId: string | null
+    service: string
+    operation: string
+    startedAt: Date
+    endedAt: Date | null
+    durationMs: number | null
+    status: string
+    attributes: JsonValue
+    error: string | null
+    createdAt: Date
+    _count: TraceSpanCountAggregateOutputType | null
+    _avg: TraceSpanAvgAggregateOutputType | null
+    _sum: TraceSpanSumAggregateOutputType | null
+    _min: TraceSpanMinAggregateOutputType | null
+    _max: TraceSpanMaxAggregateOutputType | null
+  }
+
+  type GetTraceSpanGroupByPayload<T extends TraceSpanGroupByArgs> = Prisma.PrismaPromise<
+    Array<
+      PickEnumerable<TraceSpanGroupByOutputType, T['by']> &
+        {
+          [P in ((keyof T) & (keyof TraceSpanGroupByOutputType))]: P extends '_count'
+            ? T[P] extends boolean
+              ? number
+              : GetScalarType<T[P], TraceSpanGroupByOutputType[P]>
+            : GetScalarType<T[P], TraceSpanGroupByOutputType[P]>
+        }
+      >
+    >
+
+
+  export type TraceSpanSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    traceId?: boolean
+    spanId?: boolean
+    parentSpanId?: boolean
+    service?: boolean
+    operation?: boolean
+    startedAt?: boolean
+    endedAt?: boolean
+    durationMs?: boolean
+    status?: boolean
+    attributes?: boolean
+    error?: boolean
+    createdAt?: boolean
+  }, ExtArgs["result"]["traceSpan"]>
+
+  export type TraceSpanSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    traceId?: boolean
+    spanId?: boolean
+    parentSpanId?: boolean
+    service?: boolean
+    operation?: boolean
+    startedAt?: boolean
+    endedAt?: boolean
+    durationMs?: boolean
+    status?: boolean
+    attributes?: boolean
+    error?: boolean
+    createdAt?: boolean
+  }, ExtArgs["result"]["traceSpan"]>
+
+  export type TraceSpanSelectScalar = {
+    id?: boolean
+    traceId?: boolean
+    spanId?: boolean
+    parentSpanId?: boolean
+    service?: boolean
+    operation?: boolean
+    startedAt?: boolean
+    endedAt?: boolean
+    durationMs?: boolean
+    status?: boolean
+    attributes?: boolean
+    error?: boolean
+    createdAt?: boolean
+  }
+
+
+  export type $TraceSpanPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    name: "TraceSpan"
+    objects: {}
+    scalars: $Extensions.GetPayloadResult<{
+      id: string
+      traceId: string
+      spanId: string
+      parentSpanId: string | null
+      service: string
+      operation: string
+      startedAt: Date
+      endedAt: Date | null
+      durationMs: number | null
+      status: string
+      attributes: Prisma.JsonValue
+      error: string | null
+      createdAt: Date
+    }, ExtArgs["result"]["traceSpan"]>
+    composites: {}
+  }
+
+  type TraceSpanGetPayload<S extends boolean | null | undefined | TraceSpanDefaultArgs> = $Result.GetResult<Prisma.$TraceSpanPayload, S>
+
+  type TraceSpanCountArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = 
+    Omit<TraceSpanFindManyArgs, 'select' | 'include' | 'distinct'> & {
+      select?: TraceSpanCountAggregateInputType | true
+    }
+
+  export interface TraceSpanDelegate<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> {
+    [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['model']['TraceSpan'], meta: { name: 'TraceSpan' } }
+    /**
+     * Find zero or one TraceSpan that matches the filter.
+     * @param {TraceSpanFindUniqueArgs} args - Arguments to find a TraceSpan
+     * @example
+     * // Get one TraceSpan
+     * const traceSpan = await prisma.traceSpan.findUnique({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUnique<T extends TraceSpanFindUniqueArgs>(args: SelectSubset<T, TraceSpanFindUniqueArgs<ExtArgs>>): Prisma__TraceSpanClient<$Result.GetResult<Prisma.$TraceSpanPayload<ExtArgs>, T, "findUnique"> | null, null, ExtArgs>
+
+    /**
+     * Find one TraceSpan that matches the filter or throw an error with `error.code='P2025'` 
+     * if no matches were found.
+     * @param {TraceSpanFindUniqueOrThrowArgs} args - Arguments to find a TraceSpan
+     * @example
+     * // Get one TraceSpan
+     * const traceSpan = await prisma.traceSpan.findUniqueOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUniqueOrThrow<T extends TraceSpanFindUniqueOrThrowArgs>(args: SelectSubset<T, TraceSpanFindUniqueOrThrowArgs<ExtArgs>>): Prisma__TraceSpanClient<$Result.GetResult<Prisma.$TraceSpanPayload<ExtArgs>, T, "findUniqueOrThrow">, never, ExtArgs>
+
+    /**
+     * Find the first TraceSpan that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {TraceSpanFindFirstArgs} args - Arguments to find a TraceSpan
+     * @example
+     * // Get one TraceSpan
+     * const traceSpan = await prisma.traceSpan.findFirst({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirst<T extends TraceSpanFindFirstArgs>(args?: SelectSubset<T, TraceSpanFindFirstArgs<ExtArgs>>): Prisma__TraceSpanClient<$Result.GetResult<Prisma.$TraceSpanPayload<ExtArgs>, T, "findFirst"> | null, null, ExtArgs>
+
+    /**
+     * Find the first TraceSpan that matches the filter or
+     * throw `PrismaKnownClientError` with `P2025` code if no matches were found.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {TraceSpanFindFirstOrThrowArgs} args - Arguments to find a TraceSpan
+     * @example
+     * // Get one TraceSpan
+     * const traceSpan = await prisma.traceSpan.findFirstOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirstOrThrow<T extends TraceSpanFindFirstOrThrowArgs>(args?: SelectSubset<T, TraceSpanFindFirstOrThrowArgs<ExtArgs>>): Prisma__TraceSpanClient<$Result.GetResult<Prisma.$TraceSpanPayload<ExtArgs>, T, "findFirstOrThrow">, never, ExtArgs>
+
+    /**
+     * Find zero or more TraceSpans that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {TraceSpanFindManyArgs} args - Arguments to filter and select certain fields only.
+     * @example
+     * // Get all TraceSpans
+     * const traceSpans = await prisma.traceSpan.findMany()
+     * 
+     * // Get first 10 TraceSpans
+     * const traceSpans = await prisma.traceSpan.findMany({ take: 10 })
+     * 
+     * // Only select the `id`
+     * const traceSpanWithIdOnly = await prisma.traceSpan.findMany({ select: { id: true } })
+     * 
+     */
+    findMany<T extends TraceSpanFindManyArgs>(args?: SelectSubset<T, TraceSpanFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$TraceSpanPayload<ExtArgs>, T, "findMany">>
+
+    /**
+     * Create a TraceSpan.
+     * @param {TraceSpanCreateArgs} args - Arguments to create a TraceSpan.
+     * @example
+     * // Create one TraceSpan
+     * const TraceSpan = await prisma.traceSpan.create({
+     *   data: {
+     *     // ... data to create a TraceSpan
+     *   }
+     * })
+     * 
+     */
+    create<T extends TraceSpanCreateArgs>(args: SelectSubset<T, TraceSpanCreateArgs<ExtArgs>>): Prisma__TraceSpanClient<$Result.GetResult<Prisma.$TraceSpanPayload<ExtArgs>, T, "create">, never, ExtArgs>
+
+    /**
+     * Create many TraceSpans.
+     * @param {TraceSpanCreateManyArgs} args - Arguments to create many TraceSpans.
+     * @example
+     * // Create many TraceSpans
+     * const traceSpan = await prisma.traceSpan.createMany({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     *     
+     */
+    createMany<T extends TraceSpanCreateManyArgs>(args?: SelectSubset<T, TraceSpanCreateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create many TraceSpans and returns the data saved in the database.
+     * @param {TraceSpanCreateManyAndReturnArgs} args - Arguments to create many TraceSpans.
+     * @example
+     * // Create many TraceSpans
+     * const traceSpan = await prisma.traceSpan.createManyAndReturn({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Create many TraceSpans and only return the `id`
+     * const traceSpanWithIdOnly = await prisma.traceSpan.createManyAndReturn({ 
+     *   select: { id: true },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    createManyAndReturn<T extends TraceSpanCreateManyAndReturnArgs>(args?: SelectSubset<T, TraceSpanCreateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$TraceSpanPayload<ExtArgs>, T, "createManyAndReturn">>
+
+    /**
+     * Delete a TraceSpan.
+     * @param {TraceSpanDeleteArgs} args - Arguments to delete one TraceSpan.
+     * @example
+     * // Delete one TraceSpan
+     * const TraceSpan = await prisma.traceSpan.delete({
+     *   where: {
+     *     // ... filter to delete one TraceSpan
+     *   }
+     * })
+     * 
+     */
+    delete<T extends TraceSpanDeleteArgs>(args: SelectSubset<T, TraceSpanDeleteArgs<ExtArgs>>): Prisma__TraceSpanClient<$Result.GetResult<Prisma.$TraceSpanPayload<ExtArgs>, T, "delete">, never, ExtArgs>
+
+    /**
+     * Update one TraceSpan.
+     * @param {TraceSpanUpdateArgs} args - Arguments to update one TraceSpan.
+     * @example
+     * // Update one TraceSpan
+     * const traceSpan = await prisma.traceSpan.update({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    update<T extends TraceSpanUpdateArgs>(args: SelectSubset<T, TraceSpanUpdateArgs<ExtArgs>>): Prisma__TraceSpanClient<$Result.GetResult<Prisma.$TraceSpanPayload<ExtArgs>, T, "update">, never, ExtArgs>
+
+    /**
+     * Delete zero or more TraceSpans.
+     * @param {TraceSpanDeleteManyArgs} args - Arguments to filter TraceSpans to delete.
+     * @example
+     * // Delete a few TraceSpans
+     * const { count } = await prisma.traceSpan.deleteMany({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     * 
+     */
+    deleteMany<T extends TraceSpanDeleteManyArgs>(args?: SelectSubset<T, TraceSpanDeleteManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more TraceSpans.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {TraceSpanUpdateManyArgs} args - Arguments to update one or more rows.
+     * @example
+     * // Update many TraceSpans
+     * const traceSpan = await prisma.traceSpan.updateMany({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    updateMany<T extends TraceSpanUpdateManyArgs>(args: SelectSubset<T, TraceSpanUpdateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create or update one TraceSpan.
+     * @param {TraceSpanUpsertArgs} args - Arguments to update or create a TraceSpan.
+     * @example
+     * // Update or create a TraceSpan
+     * const traceSpan = await prisma.traceSpan.upsert({
+     *   create: {
+     *     // ... data to create a TraceSpan
+     *   },
+     *   update: {
+     *     // ... in case it already exists, update
+     *   },
+     *   where: {
+     *     // ... the filter for the TraceSpan we want to update
+     *   }
+     * })
+     */
+    upsert<T extends TraceSpanUpsertArgs>(args: SelectSubset<T, TraceSpanUpsertArgs<ExtArgs>>): Prisma__TraceSpanClient<$Result.GetResult<Prisma.$TraceSpanPayload<ExtArgs>, T, "upsert">, never, ExtArgs>
+
+
+    /**
+     * Count the number of TraceSpans.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {TraceSpanCountArgs} args - Arguments to filter TraceSpans to count.
+     * @example
+     * // Count the number of TraceSpans
+     * const count = await prisma.traceSpan.count({
+     *   where: {
+     *     // ... the filter for the TraceSpans we want to count
+     *   }
+     * })
+    **/
+    count<T extends TraceSpanCountArgs>(
+      args?: Subset<T, TraceSpanCountArgs>,
+    ): Prisma.PrismaPromise<
+      T extends $Utils.Record<'select', any>
+        ? T['select'] extends true
+          ? number
+          : GetScalarType<T['select'], TraceSpanCountAggregateOutputType>
+        : number
+    >
+
+    /**
+     * Allows you to perform aggregations operations on a TraceSpan.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {TraceSpanAggregateArgs} args - Select which aggregations you would like to apply and on what fields.
+     * @example
+     * // Ordered by age ascending
+     * // Where email contains prisma.io
+     * // Limited to the 10 users
+     * const aggregations = await prisma.user.aggregate({
+     *   _avg: {
+     *     age: true,
+     *   },
+     *   where: {
+     *     email: {
+     *       contains: "prisma.io",
+     *     },
+     *   },
+     *   orderBy: {
+     *     age: "asc",
+     *   },
+     *   take: 10,
+     * })
+    **/
+    aggregate<T extends TraceSpanAggregateArgs>(args: Subset<T, TraceSpanAggregateArgs>): Prisma.PrismaPromise<GetTraceSpanAggregateType<T>>
+
+    /**
+     * Group by TraceSpan.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {TraceSpanGroupByArgs} args - Group by arguments.
+     * @example
+     * // Group by city, order by createdAt, get count
+     * const result = await prisma.user.groupBy({
+     *   by: ['city', 'createdAt'],
+     *   orderBy: {
+     *     createdAt: true
+     *   },
+     *   _count: {
+     *     _all: true
+     *   },
+     * })
+     * 
+    **/
+    groupBy<
+      T extends TraceSpanGroupByArgs,
+      HasSelectOrTake extends Or<
+        Extends<'skip', Keys<T>>,
+        Extends<'take', Keys<T>>
+      >,
+      OrderByArg extends True extends HasSelectOrTake
+        ? { orderBy: TraceSpanGroupByArgs['orderBy'] }
+        : { orderBy?: TraceSpanGroupByArgs['orderBy'] },
+      OrderFields extends ExcludeUnderscoreKeys<Keys<MaybeTupleToUnion<T['orderBy']>>>,
+      ByFields extends MaybeTupleToUnion<T['by']>,
+      ByValid extends Has<ByFields, OrderFields>,
+      HavingFields extends GetHavingFields<T['having']>,
+      HavingValid extends Has<ByFields, HavingFields>,
+      ByEmpty extends T['by'] extends never[] ? True : False,
+      InputErrors extends ByEmpty extends True
+      ? `Error: "by" must not be empty.`
+      : HavingValid extends False
+      ? {
+          [P in HavingFields]: P extends ByFields
+            ? never
+            : P extends string
+            ? `Error: Field "${P}" used in "having" needs to be provided in "by".`
+            : [
+                Error,
+                'Field ',
+                P,
+                ` in "having" needs to be provided in "by"`,
+              ]
+        }[HavingFields]
+      : 'take' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "take", you also need to provide "orderBy"'
+      : 'skip' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "skip", you also need to provide "orderBy"'
+      : ByValid extends True
+      ? {}
+      : {
+          [P in OrderFields]: P extends ByFields
+            ? never
+            : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+        }[OrderFields]
+    >(args: SubsetIntersection<T, TraceSpanGroupByArgs, OrderByArg> & InputErrors): {} extends InputErrors ? GetTraceSpanGroupByPayload<T> : Prisma.PrismaPromise<InputErrors>
+  /**
+   * Fields of the TraceSpan model
+   */
+  readonly fields: TraceSpanFieldRefs;
+  }
+
+  /**
+   * The delegate class that acts as a "Promise-like" for TraceSpan.
+   * Why is this prefixed with `Prisma__`?
+   * Because we want to prevent naming conflicts as mentioned in
+   * https://github.com/prisma/prisma-client-js/issues/707
+   */
+  export interface Prisma__TraceSpanClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> extends Prisma.PrismaPromise<T> {
+    readonly [Symbol.toStringTag]: "PrismaPromise"
+    /**
+     * Attaches callbacks for the resolution and/or rejection of the Promise.
+     * @param onfulfilled The callback to execute when the Promise is resolved.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of which ever callback is executed.
+     */
+    then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): $Utils.JsPromise<TResult1 | TResult2>
+    /**
+     * Attaches a callback for only the rejection of the Promise.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of the callback.
+     */
+    catch<TResult = never>(onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | undefined | null): $Utils.JsPromise<T | TResult>
+    /**
+     * Attaches a callback that is invoked when the Promise is settled (fulfilled or rejected). The
+     * resolved value cannot be modified from the callback.
+     * @param onfinally The callback to execute when the Promise is settled (fulfilled or rejected).
+     * @returns A Promise for the completion of the callback.
+     */
+    finally(onfinally?: (() => void) | undefined | null): $Utils.JsPromise<T>
+  }
+
+
+
+
+  /**
+   * Fields of the TraceSpan model
+   */ 
+  interface TraceSpanFieldRefs {
+    readonly id: FieldRef<"TraceSpan", 'String'>
+    readonly traceId: FieldRef<"TraceSpan", 'String'>
+    readonly spanId: FieldRef<"TraceSpan", 'String'>
+    readonly parentSpanId: FieldRef<"TraceSpan", 'String'>
+    readonly service: FieldRef<"TraceSpan", 'String'>
+    readonly operation: FieldRef<"TraceSpan", 'String'>
+    readonly startedAt: FieldRef<"TraceSpan", 'DateTime'>
+    readonly endedAt: FieldRef<"TraceSpan", 'DateTime'>
+    readonly durationMs: FieldRef<"TraceSpan", 'Int'>
+    readonly status: FieldRef<"TraceSpan", 'String'>
+    readonly attributes: FieldRef<"TraceSpan", 'Json'>
+    readonly error: FieldRef<"TraceSpan", 'String'>
+    readonly createdAt: FieldRef<"TraceSpan", 'DateTime'>
+  }
+    
+
+  // Custom InputTypes
+  /**
+   * TraceSpan findUnique
+   */
+  export type TraceSpanFindUniqueArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the TraceSpan
+     */
+    select?: TraceSpanSelect<ExtArgs> | null
+    /**
+     * Filter, which TraceSpan to fetch.
+     */
+    where: TraceSpanWhereUniqueInput
+  }
+
+  /**
+   * TraceSpan findUniqueOrThrow
+   */
+  export type TraceSpanFindUniqueOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the TraceSpan
+     */
+    select?: TraceSpanSelect<ExtArgs> | null
+    /**
+     * Filter, which TraceSpan to fetch.
+     */
+    where: TraceSpanWhereUniqueInput
+  }
+
+  /**
+   * TraceSpan findFirst
+   */
+  export type TraceSpanFindFirstArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the TraceSpan
+     */
+    select?: TraceSpanSelect<ExtArgs> | null
+    /**
+     * Filter, which TraceSpan to fetch.
+     */
+    where?: TraceSpanWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of TraceSpans to fetch.
+     */
+    orderBy?: TraceSpanOrderByWithRelationInput | TraceSpanOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for TraceSpans.
+     */
+    cursor?: TraceSpanWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` TraceSpans from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` TraceSpans.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of TraceSpans.
+     */
+    distinct?: TraceSpanScalarFieldEnum | TraceSpanScalarFieldEnum[]
+  }
+
+  /**
+   * TraceSpan findFirstOrThrow
+   */
+  export type TraceSpanFindFirstOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the TraceSpan
+     */
+    select?: TraceSpanSelect<ExtArgs> | null
+    /**
+     * Filter, which TraceSpan to fetch.
+     */
+    where?: TraceSpanWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of TraceSpans to fetch.
+     */
+    orderBy?: TraceSpanOrderByWithRelationInput | TraceSpanOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for TraceSpans.
+     */
+    cursor?: TraceSpanWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` TraceSpans from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` TraceSpans.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of TraceSpans.
+     */
+    distinct?: TraceSpanScalarFieldEnum | TraceSpanScalarFieldEnum[]
+  }
+
+  /**
+   * TraceSpan findMany
+   */
+  export type TraceSpanFindManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the TraceSpan
+     */
+    select?: TraceSpanSelect<ExtArgs> | null
+    /**
+     * Filter, which TraceSpans to fetch.
+     */
+    where?: TraceSpanWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of TraceSpans to fetch.
+     */
+    orderBy?: TraceSpanOrderByWithRelationInput | TraceSpanOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for listing TraceSpans.
+     */
+    cursor?: TraceSpanWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` TraceSpans from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` TraceSpans.
+     */
+    skip?: number
+    distinct?: TraceSpanScalarFieldEnum | TraceSpanScalarFieldEnum[]
+  }
+
+  /**
+   * TraceSpan create
+   */
+  export type TraceSpanCreateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the TraceSpan
+     */
+    select?: TraceSpanSelect<ExtArgs> | null
+    /**
+     * The data needed to create a TraceSpan.
+     */
+    data: XOR<TraceSpanCreateInput, TraceSpanUncheckedCreateInput>
+  }
+
+  /**
+   * TraceSpan createMany
+   */
+  export type TraceSpanCreateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to create many TraceSpans.
+     */
+    data: TraceSpanCreateManyInput | TraceSpanCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * TraceSpan createManyAndReturn
+   */
+  export type TraceSpanCreateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the TraceSpan
+     */
+    select?: TraceSpanSelectCreateManyAndReturn<ExtArgs> | null
+    /**
+     * The data used to create many TraceSpans.
+     */
+    data: TraceSpanCreateManyInput | TraceSpanCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * TraceSpan update
+   */
+  export type TraceSpanUpdateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the TraceSpan
+     */
+    select?: TraceSpanSelect<ExtArgs> | null
+    /**
+     * The data needed to update a TraceSpan.
+     */
+    data: XOR<TraceSpanUpdateInput, TraceSpanUncheckedUpdateInput>
+    /**
+     * Choose, which TraceSpan to update.
+     */
+    where: TraceSpanWhereUniqueInput
+  }
+
+  /**
+   * TraceSpan updateMany
+   */
+  export type TraceSpanUpdateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to update TraceSpans.
+     */
+    data: XOR<TraceSpanUpdateManyMutationInput, TraceSpanUncheckedUpdateManyInput>
+    /**
+     * Filter which TraceSpans to update
+     */
+    where?: TraceSpanWhereInput
+  }
+
+  /**
+   * TraceSpan upsert
+   */
+  export type TraceSpanUpsertArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the TraceSpan
+     */
+    select?: TraceSpanSelect<ExtArgs> | null
+    /**
+     * The filter to search for the TraceSpan to update in case it exists.
+     */
+    where: TraceSpanWhereUniqueInput
+    /**
+     * In case the TraceSpan found by the `where` argument doesn't exist, create a new TraceSpan with this data.
+     */
+    create: XOR<TraceSpanCreateInput, TraceSpanUncheckedCreateInput>
+    /**
+     * In case the TraceSpan was found with the provided `where` argument, update it with this data.
+     */
+    update: XOR<TraceSpanUpdateInput, TraceSpanUncheckedUpdateInput>
+  }
+
+  /**
+   * TraceSpan delete
+   */
+  export type TraceSpanDeleteArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the TraceSpan
+     */
+    select?: TraceSpanSelect<ExtArgs> | null
+    /**
+     * Filter which TraceSpan to delete.
+     */
+    where: TraceSpanWhereUniqueInput
+  }
+
+  /**
+   * TraceSpan deleteMany
+   */
+  export type TraceSpanDeleteManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which TraceSpans to delete
+     */
+    where?: TraceSpanWhereInput
+  }
+
+  /**
+   * TraceSpan without action
+   */
+  export type TraceSpanDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the TraceSpan
+     */
+    select?: TraceSpanSelect<ExtArgs> | null
+  }
+
+
+  /**
+   * Model ScheduledMission
+   */
+
+  export type AggregateScheduledMission = {
+    _count: ScheduledMissionCountAggregateOutputType | null
+    _min: ScheduledMissionMinAggregateOutputType | null
+    _max: ScheduledMissionMaxAggregateOutputType | null
+  }
+
+  export type ScheduledMissionMinAggregateOutputType = {
+    id: string | null
+    missionId: string | null
+    priority: string | null
+    scheduledAt: Date | null
+    recurrence: string | null
+    queuedAt: Date | null
+    startedAt: Date | null
+    pausedAt: Date | null
+    status: string | null
+  }
+
+  export type ScheduledMissionMaxAggregateOutputType = {
+    id: string | null
+    missionId: string | null
+    priority: string | null
+    scheduledAt: Date | null
+    recurrence: string | null
+    queuedAt: Date | null
+    startedAt: Date | null
+    pausedAt: Date | null
+    status: string | null
+  }
+
+  export type ScheduledMissionCountAggregateOutputType = {
+    id: number
+    missionId: number
+    priority: number
+    dependsOn: number
+    scheduledAt: number
+    recurrence: number
+    queuedAt: number
+    startedAt: number
+    pausedAt: number
+    state: number
+    status: number
+    _all: number
+  }
+
+
+  export type ScheduledMissionMinAggregateInputType = {
+    id?: true
+    missionId?: true
+    priority?: true
+    scheduledAt?: true
+    recurrence?: true
+    queuedAt?: true
+    startedAt?: true
+    pausedAt?: true
+    status?: true
+  }
+
+  export type ScheduledMissionMaxAggregateInputType = {
+    id?: true
+    missionId?: true
+    priority?: true
+    scheduledAt?: true
+    recurrence?: true
+    queuedAt?: true
+    startedAt?: true
+    pausedAt?: true
+    status?: true
+  }
+
+  export type ScheduledMissionCountAggregateInputType = {
+    id?: true
+    missionId?: true
+    priority?: true
+    dependsOn?: true
+    scheduledAt?: true
+    recurrence?: true
+    queuedAt?: true
+    startedAt?: true
+    pausedAt?: true
+    state?: true
+    status?: true
+    _all?: true
+  }
+
+  export type ScheduledMissionAggregateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which ScheduledMission to aggregate.
+     */
+    where?: ScheduledMissionWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of ScheduledMissions to fetch.
+     */
+    orderBy?: ScheduledMissionOrderByWithRelationInput | ScheduledMissionOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the start position
+     */
+    cursor?: ScheduledMissionWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` ScheduledMissions from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` ScheduledMissions.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Count returned ScheduledMissions
+    **/
+    _count?: true | ScheduledMissionCountAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the minimum value
+    **/
+    _min?: ScheduledMissionMinAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the maximum value
+    **/
+    _max?: ScheduledMissionMaxAggregateInputType
+  }
+
+  export type GetScheduledMissionAggregateType<T extends ScheduledMissionAggregateArgs> = {
+        [P in keyof T & keyof AggregateScheduledMission]: P extends '_count' | 'count'
+      ? T[P] extends true
+        ? number
+        : GetScalarType<T[P], AggregateScheduledMission[P]>
+      : GetScalarType<T[P], AggregateScheduledMission[P]>
+  }
+
+
+
+
+  export type ScheduledMissionGroupByArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: ScheduledMissionWhereInput
+    orderBy?: ScheduledMissionOrderByWithAggregationInput | ScheduledMissionOrderByWithAggregationInput[]
+    by: ScheduledMissionScalarFieldEnum[] | ScheduledMissionScalarFieldEnum
+    having?: ScheduledMissionScalarWhereWithAggregatesInput
+    take?: number
+    skip?: number
+    _count?: ScheduledMissionCountAggregateInputType | true
+    _min?: ScheduledMissionMinAggregateInputType
+    _max?: ScheduledMissionMaxAggregateInputType
+  }
+
+  export type ScheduledMissionGroupByOutputType = {
+    id: string
+    missionId: string
+    priority: string
+    dependsOn: string[]
+    scheduledAt: Date | null
+    recurrence: string | null
+    queuedAt: Date
+    startedAt: Date | null
+    pausedAt: Date | null
+    state: JsonValue | null
+    status: string
+    _count: ScheduledMissionCountAggregateOutputType | null
+    _min: ScheduledMissionMinAggregateOutputType | null
+    _max: ScheduledMissionMaxAggregateOutputType | null
+  }
+
+  type GetScheduledMissionGroupByPayload<T extends ScheduledMissionGroupByArgs> = Prisma.PrismaPromise<
+    Array<
+      PickEnumerable<ScheduledMissionGroupByOutputType, T['by']> &
+        {
+          [P in ((keyof T) & (keyof ScheduledMissionGroupByOutputType))]: P extends '_count'
+            ? T[P] extends boolean
+              ? number
+              : GetScalarType<T[P], ScheduledMissionGroupByOutputType[P]>
+            : GetScalarType<T[P], ScheduledMissionGroupByOutputType[P]>
+        }
+      >
+    >
+
+
+  export type ScheduledMissionSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    missionId?: boolean
+    priority?: boolean
+    dependsOn?: boolean
+    scheduledAt?: boolean
+    recurrence?: boolean
+    queuedAt?: boolean
+    startedAt?: boolean
+    pausedAt?: boolean
+    state?: boolean
+    status?: boolean
+  }, ExtArgs["result"]["scheduledMission"]>
+
+  export type ScheduledMissionSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    missionId?: boolean
+    priority?: boolean
+    dependsOn?: boolean
+    scheduledAt?: boolean
+    recurrence?: boolean
+    queuedAt?: boolean
+    startedAt?: boolean
+    pausedAt?: boolean
+    state?: boolean
+    status?: boolean
+  }, ExtArgs["result"]["scheduledMission"]>
+
+  export type ScheduledMissionSelectScalar = {
+    id?: boolean
+    missionId?: boolean
+    priority?: boolean
+    dependsOn?: boolean
+    scheduledAt?: boolean
+    recurrence?: boolean
+    queuedAt?: boolean
+    startedAt?: boolean
+    pausedAt?: boolean
+    state?: boolean
+    status?: boolean
+  }
+
+
+  export type $ScheduledMissionPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    name: "ScheduledMission"
+    objects: {}
+    scalars: $Extensions.GetPayloadResult<{
+      id: string
+      missionId: string
+      priority: string
+      dependsOn: string[]
+      scheduledAt: Date | null
+      recurrence: string | null
+      queuedAt: Date
+      startedAt: Date | null
+      pausedAt: Date | null
+      state: Prisma.JsonValue | null
+      status: string
+    }, ExtArgs["result"]["scheduledMission"]>
+    composites: {}
+  }
+
+  type ScheduledMissionGetPayload<S extends boolean | null | undefined | ScheduledMissionDefaultArgs> = $Result.GetResult<Prisma.$ScheduledMissionPayload, S>
+
+  type ScheduledMissionCountArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = 
+    Omit<ScheduledMissionFindManyArgs, 'select' | 'include' | 'distinct'> & {
+      select?: ScheduledMissionCountAggregateInputType | true
+    }
+
+  export interface ScheduledMissionDelegate<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> {
+    [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['model']['ScheduledMission'], meta: { name: 'ScheduledMission' } }
+    /**
+     * Find zero or one ScheduledMission that matches the filter.
+     * @param {ScheduledMissionFindUniqueArgs} args - Arguments to find a ScheduledMission
+     * @example
+     * // Get one ScheduledMission
+     * const scheduledMission = await prisma.scheduledMission.findUnique({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUnique<T extends ScheduledMissionFindUniqueArgs>(args: SelectSubset<T, ScheduledMissionFindUniqueArgs<ExtArgs>>): Prisma__ScheduledMissionClient<$Result.GetResult<Prisma.$ScheduledMissionPayload<ExtArgs>, T, "findUnique"> | null, null, ExtArgs>
+
+    /**
+     * Find one ScheduledMission that matches the filter or throw an error with `error.code='P2025'` 
+     * if no matches were found.
+     * @param {ScheduledMissionFindUniqueOrThrowArgs} args - Arguments to find a ScheduledMission
+     * @example
+     * // Get one ScheduledMission
+     * const scheduledMission = await prisma.scheduledMission.findUniqueOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUniqueOrThrow<T extends ScheduledMissionFindUniqueOrThrowArgs>(args: SelectSubset<T, ScheduledMissionFindUniqueOrThrowArgs<ExtArgs>>): Prisma__ScheduledMissionClient<$Result.GetResult<Prisma.$ScheduledMissionPayload<ExtArgs>, T, "findUniqueOrThrow">, never, ExtArgs>
+
+    /**
+     * Find the first ScheduledMission that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ScheduledMissionFindFirstArgs} args - Arguments to find a ScheduledMission
+     * @example
+     * // Get one ScheduledMission
+     * const scheduledMission = await prisma.scheduledMission.findFirst({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirst<T extends ScheduledMissionFindFirstArgs>(args?: SelectSubset<T, ScheduledMissionFindFirstArgs<ExtArgs>>): Prisma__ScheduledMissionClient<$Result.GetResult<Prisma.$ScheduledMissionPayload<ExtArgs>, T, "findFirst"> | null, null, ExtArgs>
+
+    /**
+     * Find the first ScheduledMission that matches the filter or
+     * throw `PrismaKnownClientError` with `P2025` code if no matches were found.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ScheduledMissionFindFirstOrThrowArgs} args - Arguments to find a ScheduledMission
+     * @example
+     * // Get one ScheduledMission
+     * const scheduledMission = await prisma.scheduledMission.findFirstOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirstOrThrow<T extends ScheduledMissionFindFirstOrThrowArgs>(args?: SelectSubset<T, ScheduledMissionFindFirstOrThrowArgs<ExtArgs>>): Prisma__ScheduledMissionClient<$Result.GetResult<Prisma.$ScheduledMissionPayload<ExtArgs>, T, "findFirstOrThrow">, never, ExtArgs>
+
+    /**
+     * Find zero or more ScheduledMissions that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ScheduledMissionFindManyArgs} args - Arguments to filter and select certain fields only.
+     * @example
+     * // Get all ScheduledMissions
+     * const scheduledMissions = await prisma.scheduledMission.findMany()
+     * 
+     * // Get first 10 ScheduledMissions
+     * const scheduledMissions = await prisma.scheduledMission.findMany({ take: 10 })
+     * 
+     * // Only select the `id`
+     * const scheduledMissionWithIdOnly = await prisma.scheduledMission.findMany({ select: { id: true } })
+     * 
+     */
+    findMany<T extends ScheduledMissionFindManyArgs>(args?: SelectSubset<T, ScheduledMissionFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$ScheduledMissionPayload<ExtArgs>, T, "findMany">>
+
+    /**
+     * Create a ScheduledMission.
+     * @param {ScheduledMissionCreateArgs} args - Arguments to create a ScheduledMission.
+     * @example
+     * // Create one ScheduledMission
+     * const ScheduledMission = await prisma.scheduledMission.create({
+     *   data: {
+     *     // ... data to create a ScheduledMission
+     *   }
+     * })
+     * 
+     */
+    create<T extends ScheduledMissionCreateArgs>(args: SelectSubset<T, ScheduledMissionCreateArgs<ExtArgs>>): Prisma__ScheduledMissionClient<$Result.GetResult<Prisma.$ScheduledMissionPayload<ExtArgs>, T, "create">, never, ExtArgs>
+
+    /**
+     * Create many ScheduledMissions.
+     * @param {ScheduledMissionCreateManyArgs} args - Arguments to create many ScheduledMissions.
+     * @example
+     * // Create many ScheduledMissions
+     * const scheduledMission = await prisma.scheduledMission.createMany({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     *     
+     */
+    createMany<T extends ScheduledMissionCreateManyArgs>(args?: SelectSubset<T, ScheduledMissionCreateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create many ScheduledMissions and returns the data saved in the database.
+     * @param {ScheduledMissionCreateManyAndReturnArgs} args - Arguments to create many ScheduledMissions.
+     * @example
+     * // Create many ScheduledMissions
+     * const scheduledMission = await prisma.scheduledMission.createManyAndReturn({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Create many ScheduledMissions and only return the `id`
+     * const scheduledMissionWithIdOnly = await prisma.scheduledMission.createManyAndReturn({ 
+     *   select: { id: true },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    createManyAndReturn<T extends ScheduledMissionCreateManyAndReturnArgs>(args?: SelectSubset<T, ScheduledMissionCreateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$ScheduledMissionPayload<ExtArgs>, T, "createManyAndReturn">>
+
+    /**
+     * Delete a ScheduledMission.
+     * @param {ScheduledMissionDeleteArgs} args - Arguments to delete one ScheduledMission.
+     * @example
+     * // Delete one ScheduledMission
+     * const ScheduledMission = await prisma.scheduledMission.delete({
+     *   where: {
+     *     // ... filter to delete one ScheduledMission
+     *   }
+     * })
+     * 
+     */
+    delete<T extends ScheduledMissionDeleteArgs>(args: SelectSubset<T, ScheduledMissionDeleteArgs<ExtArgs>>): Prisma__ScheduledMissionClient<$Result.GetResult<Prisma.$ScheduledMissionPayload<ExtArgs>, T, "delete">, never, ExtArgs>
+
+    /**
+     * Update one ScheduledMission.
+     * @param {ScheduledMissionUpdateArgs} args - Arguments to update one ScheduledMission.
+     * @example
+     * // Update one ScheduledMission
+     * const scheduledMission = await prisma.scheduledMission.update({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    update<T extends ScheduledMissionUpdateArgs>(args: SelectSubset<T, ScheduledMissionUpdateArgs<ExtArgs>>): Prisma__ScheduledMissionClient<$Result.GetResult<Prisma.$ScheduledMissionPayload<ExtArgs>, T, "update">, never, ExtArgs>
+
+    /**
+     * Delete zero or more ScheduledMissions.
+     * @param {ScheduledMissionDeleteManyArgs} args - Arguments to filter ScheduledMissions to delete.
+     * @example
+     * // Delete a few ScheduledMissions
+     * const { count } = await prisma.scheduledMission.deleteMany({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     * 
+     */
+    deleteMany<T extends ScheduledMissionDeleteManyArgs>(args?: SelectSubset<T, ScheduledMissionDeleteManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more ScheduledMissions.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ScheduledMissionUpdateManyArgs} args - Arguments to update one or more rows.
+     * @example
+     * // Update many ScheduledMissions
+     * const scheduledMission = await prisma.scheduledMission.updateMany({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    updateMany<T extends ScheduledMissionUpdateManyArgs>(args: SelectSubset<T, ScheduledMissionUpdateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create or update one ScheduledMission.
+     * @param {ScheduledMissionUpsertArgs} args - Arguments to update or create a ScheduledMission.
+     * @example
+     * // Update or create a ScheduledMission
+     * const scheduledMission = await prisma.scheduledMission.upsert({
+     *   create: {
+     *     // ... data to create a ScheduledMission
+     *   },
+     *   update: {
+     *     // ... in case it already exists, update
+     *   },
+     *   where: {
+     *     // ... the filter for the ScheduledMission we want to update
+     *   }
+     * })
+     */
+    upsert<T extends ScheduledMissionUpsertArgs>(args: SelectSubset<T, ScheduledMissionUpsertArgs<ExtArgs>>): Prisma__ScheduledMissionClient<$Result.GetResult<Prisma.$ScheduledMissionPayload<ExtArgs>, T, "upsert">, never, ExtArgs>
+
+
+    /**
+     * Count the number of ScheduledMissions.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ScheduledMissionCountArgs} args - Arguments to filter ScheduledMissions to count.
+     * @example
+     * // Count the number of ScheduledMissions
+     * const count = await prisma.scheduledMission.count({
+     *   where: {
+     *     // ... the filter for the ScheduledMissions we want to count
+     *   }
+     * })
+    **/
+    count<T extends ScheduledMissionCountArgs>(
+      args?: Subset<T, ScheduledMissionCountArgs>,
+    ): Prisma.PrismaPromise<
+      T extends $Utils.Record<'select', any>
+        ? T['select'] extends true
+          ? number
+          : GetScalarType<T['select'], ScheduledMissionCountAggregateOutputType>
+        : number
+    >
+
+    /**
+     * Allows you to perform aggregations operations on a ScheduledMission.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ScheduledMissionAggregateArgs} args - Select which aggregations you would like to apply and on what fields.
+     * @example
+     * // Ordered by age ascending
+     * // Where email contains prisma.io
+     * // Limited to the 10 users
+     * const aggregations = await prisma.user.aggregate({
+     *   _avg: {
+     *     age: true,
+     *   },
+     *   where: {
+     *     email: {
+     *       contains: "prisma.io",
+     *     },
+     *   },
+     *   orderBy: {
+     *     age: "asc",
+     *   },
+     *   take: 10,
+     * })
+    **/
+    aggregate<T extends ScheduledMissionAggregateArgs>(args: Subset<T, ScheduledMissionAggregateArgs>): Prisma.PrismaPromise<GetScheduledMissionAggregateType<T>>
+
+    /**
+     * Group by ScheduledMission.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {ScheduledMissionGroupByArgs} args - Group by arguments.
+     * @example
+     * // Group by city, order by createdAt, get count
+     * const result = await prisma.user.groupBy({
+     *   by: ['city', 'createdAt'],
+     *   orderBy: {
+     *     createdAt: true
+     *   },
+     *   _count: {
+     *     _all: true
+     *   },
+     * })
+     * 
+    **/
+    groupBy<
+      T extends ScheduledMissionGroupByArgs,
+      HasSelectOrTake extends Or<
+        Extends<'skip', Keys<T>>,
+        Extends<'take', Keys<T>>
+      >,
+      OrderByArg extends True extends HasSelectOrTake
+        ? { orderBy: ScheduledMissionGroupByArgs['orderBy'] }
+        : { orderBy?: ScheduledMissionGroupByArgs['orderBy'] },
+      OrderFields extends ExcludeUnderscoreKeys<Keys<MaybeTupleToUnion<T['orderBy']>>>,
+      ByFields extends MaybeTupleToUnion<T['by']>,
+      ByValid extends Has<ByFields, OrderFields>,
+      HavingFields extends GetHavingFields<T['having']>,
+      HavingValid extends Has<ByFields, HavingFields>,
+      ByEmpty extends T['by'] extends never[] ? True : False,
+      InputErrors extends ByEmpty extends True
+      ? `Error: "by" must not be empty.`
+      : HavingValid extends False
+      ? {
+          [P in HavingFields]: P extends ByFields
+            ? never
+            : P extends string
+            ? `Error: Field "${P}" used in "having" needs to be provided in "by".`
+            : [
+                Error,
+                'Field ',
+                P,
+                ` in "having" needs to be provided in "by"`,
+              ]
+        }[HavingFields]
+      : 'take' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "take", you also need to provide "orderBy"'
+      : 'skip' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "skip", you also need to provide "orderBy"'
+      : ByValid extends True
+      ? {}
+      : {
+          [P in OrderFields]: P extends ByFields
+            ? never
+            : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+        }[OrderFields]
+    >(args: SubsetIntersection<T, ScheduledMissionGroupByArgs, OrderByArg> & InputErrors): {} extends InputErrors ? GetScheduledMissionGroupByPayload<T> : Prisma.PrismaPromise<InputErrors>
+  /**
+   * Fields of the ScheduledMission model
+   */
+  readonly fields: ScheduledMissionFieldRefs;
+  }
+
+  /**
+   * The delegate class that acts as a "Promise-like" for ScheduledMission.
+   * Why is this prefixed with `Prisma__`?
+   * Because we want to prevent naming conflicts as mentioned in
+   * https://github.com/prisma/prisma-client-js/issues/707
+   */
+  export interface Prisma__ScheduledMissionClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> extends Prisma.PrismaPromise<T> {
+    readonly [Symbol.toStringTag]: "PrismaPromise"
+    /**
+     * Attaches callbacks for the resolution and/or rejection of the Promise.
+     * @param onfulfilled The callback to execute when the Promise is resolved.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of which ever callback is executed.
+     */
+    then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): $Utils.JsPromise<TResult1 | TResult2>
+    /**
+     * Attaches a callback for only the rejection of the Promise.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of the callback.
+     */
+    catch<TResult = never>(onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | undefined | null): $Utils.JsPromise<T | TResult>
+    /**
+     * Attaches a callback that is invoked when the Promise is settled (fulfilled or rejected). The
+     * resolved value cannot be modified from the callback.
+     * @param onfinally The callback to execute when the Promise is settled (fulfilled or rejected).
+     * @returns A Promise for the completion of the callback.
+     */
+    finally(onfinally?: (() => void) | undefined | null): $Utils.JsPromise<T>
+  }
+
+
+
+
+  /**
+   * Fields of the ScheduledMission model
+   */ 
+  interface ScheduledMissionFieldRefs {
+    readonly id: FieldRef<"ScheduledMission", 'String'>
+    readonly missionId: FieldRef<"ScheduledMission", 'String'>
+    readonly priority: FieldRef<"ScheduledMission", 'String'>
+    readonly dependsOn: FieldRef<"ScheduledMission", 'String[]'>
+    readonly scheduledAt: FieldRef<"ScheduledMission", 'DateTime'>
+    readonly recurrence: FieldRef<"ScheduledMission", 'String'>
+    readonly queuedAt: FieldRef<"ScheduledMission", 'DateTime'>
+    readonly startedAt: FieldRef<"ScheduledMission", 'DateTime'>
+    readonly pausedAt: FieldRef<"ScheduledMission", 'DateTime'>
+    readonly state: FieldRef<"ScheduledMission", 'Json'>
+    readonly status: FieldRef<"ScheduledMission", 'String'>
+  }
+    
+
+  // Custom InputTypes
+  /**
+   * ScheduledMission findUnique
+   */
+  export type ScheduledMissionFindUniqueArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ScheduledMission
+     */
+    select?: ScheduledMissionSelect<ExtArgs> | null
+    /**
+     * Filter, which ScheduledMission to fetch.
+     */
+    where: ScheduledMissionWhereUniqueInput
+  }
+
+  /**
+   * ScheduledMission findUniqueOrThrow
+   */
+  export type ScheduledMissionFindUniqueOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ScheduledMission
+     */
+    select?: ScheduledMissionSelect<ExtArgs> | null
+    /**
+     * Filter, which ScheduledMission to fetch.
+     */
+    where: ScheduledMissionWhereUniqueInput
+  }
+
+  /**
+   * ScheduledMission findFirst
+   */
+  export type ScheduledMissionFindFirstArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ScheduledMission
+     */
+    select?: ScheduledMissionSelect<ExtArgs> | null
+    /**
+     * Filter, which ScheduledMission to fetch.
+     */
+    where?: ScheduledMissionWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of ScheduledMissions to fetch.
+     */
+    orderBy?: ScheduledMissionOrderByWithRelationInput | ScheduledMissionOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for ScheduledMissions.
+     */
+    cursor?: ScheduledMissionWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` ScheduledMissions from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` ScheduledMissions.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of ScheduledMissions.
+     */
+    distinct?: ScheduledMissionScalarFieldEnum | ScheduledMissionScalarFieldEnum[]
+  }
+
+  /**
+   * ScheduledMission findFirstOrThrow
+   */
+  export type ScheduledMissionFindFirstOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ScheduledMission
+     */
+    select?: ScheduledMissionSelect<ExtArgs> | null
+    /**
+     * Filter, which ScheduledMission to fetch.
+     */
+    where?: ScheduledMissionWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of ScheduledMissions to fetch.
+     */
+    orderBy?: ScheduledMissionOrderByWithRelationInput | ScheduledMissionOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for ScheduledMissions.
+     */
+    cursor?: ScheduledMissionWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` ScheduledMissions from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` ScheduledMissions.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of ScheduledMissions.
+     */
+    distinct?: ScheduledMissionScalarFieldEnum | ScheduledMissionScalarFieldEnum[]
+  }
+
+  /**
+   * ScheduledMission findMany
+   */
+  export type ScheduledMissionFindManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ScheduledMission
+     */
+    select?: ScheduledMissionSelect<ExtArgs> | null
+    /**
+     * Filter, which ScheduledMissions to fetch.
+     */
+    where?: ScheduledMissionWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of ScheduledMissions to fetch.
+     */
+    orderBy?: ScheduledMissionOrderByWithRelationInput | ScheduledMissionOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for listing ScheduledMissions.
+     */
+    cursor?: ScheduledMissionWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` ScheduledMissions from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` ScheduledMissions.
+     */
+    skip?: number
+    distinct?: ScheduledMissionScalarFieldEnum | ScheduledMissionScalarFieldEnum[]
+  }
+
+  /**
+   * ScheduledMission create
+   */
+  export type ScheduledMissionCreateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ScheduledMission
+     */
+    select?: ScheduledMissionSelect<ExtArgs> | null
+    /**
+     * The data needed to create a ScheduledMission.
+     */
+    data: XOR<ScheduledMissionCreateInput, ScheduledMissionUncheckedCreateInput>
+  }
+
+  /**
+   * ScheduledMission createMany
+   */
+  export type ScheduledMissionCreateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to create many ScheduledMissions.
+     */
+    data: ScheduledMissionCreateManyInput | ScheduledMissionCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * ScheduledMission createManyAndReturn
+   */
+  export type ScheduledMissionCreateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ScheduledMission
+     */
+    select?: ScheduledMissionSelectCreateManyAndReturn<ExtArgs> | null
+    /**
+     * The data used to create many ScheduledMissions.
+     */
+    data: ScheduledMissionCreateManyInput | ScheduledMissionCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * ScheduledMission update
+   */
+  export type ScheduledMissionUpdateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ScheduledMission
+     */
+    select?: ScheduledMissionSelect<ExtArgs> | null
+    /**
+     * The data needed to update a ScheduledMission.
+     */
+    data: XOR<ScheduledMissionUpdateInput, ScheduledMissionUncheckedUpdateInput>
+    /**
+     * Choose, which ScheduledMission to update.
+     */
+    where: ScheduledMissionWhereUniqueInput
+  }
+
+  /**
+   * ScheduledMission updateMany
+   */
+  export type ScheduledMissionUpdateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to update ScheduledMissions.
+     */
+    data: XOR<ScheduledMissionUpdateManyMutationInput, ScheduledMissionUncheckedUpdateManyInput>
+    /**
+     * Filter which ScheduledMissions to update
+     */
+    where?: ScheduledMissionWhereInput
+  }
+
+  /**
+   * ScheduledMission upsert
+   */
+  export type ScheduledMissionUpsertArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ScheduledMission
+     */
+    select?: ScheduledMissionSelect<ExtArgs> | null
+    /**
+     * The filter to search for the ScheduledMission to update in case it exists.
+     */
+    where: ScheduledMissionWhereUniqueInput
+    /**
+     * In case the ScheduledMission found by the `where` argument doesn't exist, create a new ScheduledMission with this data.
+     */
+    create: XOR<ScheduledMissionCreateInput, ScheduledMissionUncheckedCreateInput>
+    /**
+     * In case the ScheduledMission was found with the provided `where` argument, update it with this data.
+     */
+    update: XOR<ScheduledMissionUpdateInput, ScheduledMissionUncheckedUpdateInput>
+  }
+
+  /**
+   * ScheduledMission delete
+   */
+  export type ScheduledMissionDeleteArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ScheduledMission
+     */
+    select?: ScheduledMissionSelect<ExtArgs> | null
+    /**
+     * Filter which ScheduledMission to delete.
+     */
+    where: ScheduledMissionWhereUniqueInput
+  }
+
+  /**
+   * ScheduledMission deleteMany
+   */
+  export type ScheduledMissionDeleteManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which ScheduledMissions to delete
+     */
+    where?: ScheduledMissionWhereInput
+  }
+
+  /**
+   * ScheduledMission without action
+   */
+  export type ScheduledMissionDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the ScheduledMission
+     */
+    select?: ScheduledMissionSelect<ExtArgs> | null
+  }
+
+
+  /**
    * Enums
    */
 
@@ -8585,6 +12831,73 @@ export namespace Prisma {
   };
 
   export type ApprovalGateScalarFieldEnum = (typeof ApprovalGateScalarFieldEnum)[keyof typeof ApprovalGateScalarFieldEnum]
+
+
+  export const CostRecordScalarFieldEnum: {
+    id: 'id',
+    projectId: 'projectId',
+    missionId: 'missionId',
+    stepId: 'stepId',
+    model: 'model',
+    tokensIn: 'tokensIn',
+    tokensOut: 'tokensOut',
+    costUsd: 'costUsd',
+    module: 'module',
+    createdAt: 'createdAt'
+  };
+
+  export type CostRecordScalarFieldEnum = (typeof CostRecordScalarFieldEnum)[keyof typeof CostRecordScalarFieldEnum]
+
+
+  export const CostBudgetScalarFieldEnum: {
+    id: 'id',
+    projectId: 'projectId',
+    daily: 'daily',
+    monthly: 'monthly',
+    perMission: 'perMission',
+    alertAt: 'alertAt',
+    blockAt: 'blockAt',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt'
+  };
+
+  export type CostBudgetScalarFieldEnum = (typeof CostBudgetScalarFieldEnum)[keyof typeof CostBudgetScalarFieldEnum]
+
+
+  export const TraceSpanScalarFieldEnum: {
+    id: 'id',
+    traceId: 'traceId',
+    spanId: 'spanId',
+    parentSpanId: 'parentSpanId',
+    service: 'service',
+    operation: 'operation',
+    startedAt: 'startedAt',
+    endedAt: 'endedAt',
+    durationMs: 'durationMs',
+    status: 'status',
+    attributes: 'attributes',
+    error: 'error',
+    createdAt: 'createdAt'
+  };
+
+  export type TraceSpanScalarFieldEnum = (typeof TraceSpanScalarFieldEnum)[keyof typeof TraceSpanScalarFieldEnum]
+
+
+  export const ScheduledMissionScalarFieldEnum: {
+    id: 'id',
+    missionId: 'missionId',
+    priority: 'priority',
+    dependsOn: 'dependsOn',
+    scheduledAt: 'scheduledAt',
+    recurrence: 'recurrence',
+    queuedAt: 'queuedAt',
+    startedAt: 'startedAt',
+    pausedAt: 'pausedAt',
+    state: 'state',
+    status: 'status'
+  };
+
+  export type ScheduledMissionScalarFieldEnum = (typeof ScheduledMissionScalarFieldEnum)[keyof typeof ScheduledMissionScalarFieldEnum]
 
 
   export const SortOrder: {
@@ -9309,6 +13622,335 @@ export namespace Prisma {
     updatedAt?: DateTimeWithAggregatesFilter<"ApprovalGate"> | Date | string
   }
 
+  export type CostRecordWhereInput = {
+    AND?: CostRecordWhereInput | CostRecordWhereInput[]
+    OR?: CostRecordWhereInput[]
+    NOT?: CostRecordWhereInput | CostRecordWhereInput[]
+    id?: StringFilter<"CostRecord"> | string
+    projectId?: StringFilter<"CostRecord"> | string
+    missionId?: StringNullableFilter<"CostRecord"> | string | null
+    stepId?: StringNullableFilter<"CostRecord"> | string | null
+    model?: StringFilter<"CostRecord"> | string
+    tokensIn?: IntFilter<"CostRecord"> | number
+    tokensOut?: IntFilter<"CostRecord"> | number
+    costUsd?: FloatFilter<"CostRecord"> | number
+    module?: StringFilter<"CostRecord"> | string
+    createdAt?: DateTimeFilter<"CostRecord"> | Date | string
+  }
+
+  export type CostRecordOrderByWithRelationInput = {
+    id?: SortOrder
+    projectId?: SortOrder
+    missionId?: SortOrderInput | SortOrder
+    stepId?: SortOrderInput | SortOrder
+    model?: SortOrder
+    tokensIn?: SortOrder
+    tokensOut?: SortOrder
+    costUsd?: SortOrder
+    module?: SortOrder
+    createdAt?: SortOrder
+  }
+
+  export type CostRecordWhereUniqueInput = Prisma.AtLeast<{
+    id?: string
+    AND?: CostRecordWhereInput | CostRecordWhereInput[]
+    OR?: CostRecordWhereInput[]
+    NOT?: CostRecordWhereInput | CostRecordWhereInput[]
+    projectId?: StringFilter<"CostRecord"> | string
+    missionId?: StringNullableFilter<"CostRecord"> | string | null
+    stepId?: StringNullableFilter<"CostRecord"> | string | null
+    model?: StringFilter<"CostRecord"> | string
+    tokensIn?: IntFilter<"CostRecord"> | number
+    tokensOut?: IntFilter<"CostRecord"> | number
+    costUsd?: FloatFilter<"CostRecord"> | number
+    module?: StringFilter<"CostRecord"> | string
+    createdAt?: DateTimeFilter<"CostRecord"> | Date | string
+  }, "id">
+
+  export type CostRecordOrderByWithAggregationInput = {
+    id?: SortOrder
+    projectId?: SortOrder
+    missionId?: SortOrderInput | SortOrder
+    stepId?: SortOrderInput | SortOrder
+    model?: SortOrder
+    tokensIn?: SortOrder
+    tokensOut?: SortOrder
+    costUsd?: SortOrder
+    module?: SortOrder
+    createdAt?: SortOrder
+    _count?: CostRecordCountOrderByAggregateInput
+    _avg?: CostRecordAvgOrderByAggregateInput
+    _max?: CostRecordMaxOrderByAggregateInput
+    _min?: CostRecordMinOrderByAggregateInput
+    _sum?: CostRecordSumOrderByAggregateInput
+  }
+
+  export type CostRecordScalarWhereWithAggregatesInput = {
+    AND?: CostRecordScalarWhereWithAggregatesInput | CostRecordScalarWhereWithAggregatesInput[]
+    OR?: CostRecordScalarWhereWithAggregatesInput[]
+    NOT?: CostRecordScalarWhereWithAggregatesInput | CostRecordScalarWhereWithAggregatesInput[]
+    id?: StringWithAggregatesFilter<"CostRecord"> | string
+    projectId?: StringWithAggregatesFilter<"CostRecord"> | string
+    missionId?: StringNullableWithAggregatesFilter<"CostRecord"> | string | null
+    stepId?: StringNullableWithAggregatesFilter<"CostRecord"> | string | null
+    model?: StringWithAggregatesFilter<"CostRecord"> | string
+    tokensIn?: IntWithAggregatesFilter<"CostRecord"> | number
+    tokensOut?: IntWithAggregatesFilter<"CostRecord"> | number
+    costUsd?: FloatWithAggregatesFilter<"CostRecord"> | number
+    module?: StringWithAggregatesFilter<"CostRecord"> | string
+    createdAt?: DateTimeWithAggregatesFilter<"CostRecord"> | Date | string
+  }
+
+  export type CostBudgetWhereInput = {
+    AND?: CostBudgetWhereInput | CostBudgetWhereInput[]
+    OR?: CostBudgetWhereInput[]
+    NOT?: CostBudgetWhereInput | CostBudgetWhereInput[]
+    id?: StringFilter<"CostBudget"> | string
+    projectId?: StringFilter<"CostBudget"> | string
+    daily?: FloatNullableFilter<"CostBudget"> | number | null
+    monthly?: FloatNullableFilter<"CostBudget"> | number | null
+    perMission?: FloatNullableFilter<"CostBudget"> | number | null
+    alertAt?: FloatFilter<"CostBudget"> | number
+    blockAt?: FloatFilter<"CostBudget"> | number
+    createdAt?: DateTimeFilter<"CostBudget"> | Date | string
+    updatedAt?: DateTimeFilter<"CostBudget"> | Date | string
+  }
+
+  export type CostBudgetOrderByWithRelationInput = {
+    id?: SortOrder
+    projectId?: SortOrder
+    daily?: SortOrderInput | SortOrder
+    monthly?: SortOrderInput | SortOrder
+    perMission?: SortOrderInput | SortOrder
+    alertAt?: SortOrder
+    blockAt?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type CostBudgetWhereUniqueInput = Prisma.AtLeast<{
+    id?: string
+    projectId?: string
+    AND?: CostBudgetWhereInput | CostBudgetWhereInput[]
+    OR?: CostBudgetWhereInput[]
+    NOT?: CostBudgetWhereInput | CostBudgetWhereInput[]
+    daily?: FloatNullableFilter<"CostBudget"> | number | null
+    monthly?: FloatNullableFilter<"CostBudget"> | number | null
+    perMission?: FloatNullableFilter<"CostBudget"> | number | null
+    alertAt?: FloatFilter<"CostBudget"> | number
+    blockAt?: FloatFilter<"CostBudget"> | number
+    createdAt?: DateTimeFilter<"CostBudget"> | Date | string
+    updatedAt?: DateTimeFilter<"CostBudget"> | Date | string
+  }, "id" | "projectId">
+
+  export type CostBudgetOrderByWithAggregationInput = {
+    id?: SortOrder
+    projectId?: SortOrder
+    daily?: SortOrderInput | SortOrder
+    monthly?: SortOrderInput | SortOrder
+    perMission?: SortOrderInput | SortOrder
+    alertAt?: SortOrder
+    blockAt?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+    _count?: CostBudgetCountOrderByAggregateInput
+    _avg?: CostBudgetAvgOrderByAggregateInput
+    _max?: CostBudgetMaxOrderByAggregateInput
+    _min?: CostBudgetMinOrderByAggregateInput
+    _sum?: CostBudgetSumOrderByAggregateInput
+  }
+
+  export type CostBudgetScalarWhereWithAggregatesInput = {
+    AND?: CostBudgetScalarWhereWithAggregatesInput | CostBudgetScalarWhereWithAggregatesInput[]
+    OR?: CostBudgetScalarWhereWithAggregatesInput[]
+    NOT?: CostBudgetScalarWhereWithAggregatesInput | CostBudgetScalarWhereWithAggregatesInput[]
+    id?: StringWithAggregatesFilter<"CostBudget"> | string
+    projectId?: StringWithAggregatesFilter<"CostBudget"> | string
+    daily?: FloatNullableWithAggregatesFilter<"CostBudget"> | number | null
+    monthly?: FloatNullableWithAggregatesFilter<"CostBudget"> | number | null
+    perMission?: FloatNullableWithAggregatesFilter<"CostBudget"> | number | null
+    alertAt?: FloatWithAggregatesFilter<"CostBudget"> | number
+    blockAt?: FloatWithAggregatesFilter<"CostBudget"> | number
+    createdAt?: DateTimeWithAggregatesFilter<"CostBudget"> | Date | string
+    updatedAt?: DateTimeWithAggregatesFilter<"CostBudget"> | Date | string
+  }
+
+  export type TraceSpanWhereInput = {
+    AND?: TraceSpanWhereInput | TraceSpanWhereInput[]
+    OR?: TraceSpanWhereInput[]
+    NOT?: TraceSpanWhereInput | TraceSpanWhereInput[]
+    id?: StringFilter<"TraceSpan"> | string
+    traceId?: StringFilter<"TraceSpan"> | string
+    spanId?: StringFilter<"TraceSpan"> | string
+    parentSpanId?: StringNullableFilter<"TraceSpan"> | string | null
+    service?: StringFilter<"TraceSpan"> | string
+    operation?: StringFilter<"TraceSpan"> | string
+    startedAt?: DateTimeFilter<"TraceSpan"> | Date | string
+    endedAt?: DateTimeNullableFilter<"TraceSpan"> | Date | string | null
+    durationMs?: IntNullableFilter<"TraceSpan"> | number | null
+    status?: StringFilter<"TraceSpan"> | string
+    attributes?: JsonFilter<"TraceSpan">
+    error?: StringNullableFilter<"TraceSpan"> | string | null
+    createdAt?: DateTimeFilter<"TraceSpan"> | Date | string
+  }
+
+  export type TraceSpanOrderByWithRelationInput = {
+    id?: SortOrder
+    traceId?: SortOrder
+    spanId?: SortOrder
+    parentSpanId?: SortOrderInput | SortOrder
+    service?: SortOrder
+    operation?: SortOrder
+    startedAt?: SortOrder
+    endedAt?: SortOrderInput | SortOrder
+    durationMs?: SortOrderInput | SortOrder
+    status?: SortOrder
+    attributes?: SortOrder
+    error?: SortOrderInput | SortOrder
+    createdAt?: SortOrder
+  }
+
+  export type TraceSpanWhereUniqueInput = Prisma.AtLeast<{
+    id?: string
+    spanId?: string
+    AND?: TraceSpanWhereInput | TraceSpanWhereInput[]
+    OR?: TraceSpanWhereInput[]
+    NOT?: TraceSpanWhereInput | TraceSpanWhereInput[]
+    traceId?: StringFilter<"TraceSpan"> | string
+    parentSpanId?: StringNullableFilter<"TraceSpan"> | string | null
+    service?: StringFilter<"TraceSpan"> | string
+    operation?: StringFilter<"TraceSpan"> | string
+    startedAt?: DateTimeFilter<"TraceSpan"> | Date | string
+    endedAt?: DateTimeNullableFilter<"TraceSpan"> | Date | string | null
+    durationMs?: IntNullableFilter<"TraceSpan"> | number | null
+    status?: StringFilter<"TraceSpan"> | string
+    attributes?: JsonFilter<"TraceSpan">
+    error?: StringNullableFilter<"TraceSpan"> | string | null
+    createdAt?: DateTimeFilter<"TraceSpan"> | Date | string
+  }, "id" | "spanId">
+
+  export type TraceSpanOrderByWithAggregationInput = {
+    id?: SortOrder
+    traceId?: SortOrder
+    spanId?: SortOrder
+    parentSpanId?: SortOrderInput | SortOrder
+    service?: SortOrder
+    operation?: SortOrder
+    startedAt?: SortOrder
+    endedAt?: SortOrderInput | SortOrder
+    durationMs?: SortOrderInput | SortOrder
+    status?: SortOrder
+    attributes?: SortOrder
+    error?: SortOrderInput | SortOrder
+    createdAt?: SortOrder
+    _count?: TraceSpanCountOrderByAggregateInput
+    _avg?: TraceSpanAvgOrderByAggregateInput
+    _max?: TraceSpanMaxOrderByAggregateInput
+    _min?: TraceSpanMinOrderByAggregateInput
+    _sum?: TraceSpanSumOrderByAggregateInput
+  }
+
+  export type TraceSpanScalarWhereWithAggregatesInput = {
+    AND?: TraceSpanScalarWhereWithAggregatesInput | TraceSpanScalarWhereWithAggregatesInput[]
+    OR?: TraceSpanScalarWhereWithAggregatesInput[]
+    NOT?: TraceSpanScalarWhereWithAggregatesInput | TraceSpanScalarWhereWithAggregatesInput[]
+    id?: StringWithAggregatesFilter<"TraceSpan"> | string
+    traceId?: StringWithAggregatesFilter<"TraceSpan"> | string
+    spanId?: StringWithAggregatesFilter<"TraceSpan"> | string
+    parentSpanId?: StringNullableWithAggregatesFilter<"TraceSpan"> | string | null
+    service?: StringWithAggregatesFilter<"TraceSpan"> | string
+    operation?: StringWithAggregatesFilter<"TraceSpan"> | string
+    startedAt?: DateTimeWithAggregatesFilter<"TraceSpan"> | Date | string
+    endedAt?: DateTimeNullableWithAggregatesFilter<"TraceSpan"> | Date | string | null
+    durationMs?: IntNullableWithAggregatesFilter<"TraceSpan"> | number | null
+    status?: StringWithAggregatesFilter<"TraceSpan"> | string
+    attributes?: JsonWithAggregatesFilter<"TraceSpan">
+    error?: StringNullableWithAggregatesFilter<"TraceSpan"> | string | null
+    createdAt?: DateTimeWithAggregatesFilter<"TraceSpan"> | Date | string
+  }
+
+  export type ScheduledMissionWhereInput = {
+    AND?: ScheduledMissionWhereInput | ScheduledMissionWhereInput[]
+    OR?: ScheduledMissionWhereInput[]
+    NOT?: ScheduledMissionWhereInput | ScheduledMissionWhereInput[]
+    id?: StringFilter<"ScheduledMission"> | string
+    missionId?: StringFilter<"ScheduledMission"> | string
+    priority?: StringFilter<"ScheduledMission"> | string
+    dependsOn?: StringNullableListFilter<"ScheduledMission">
+    scheduledAt?: DateTimeNullableFilter<"ScheduledMission"> | Date | string | null
+    recurrence?: StringNullableFilter<"ScheduledMission"> | string | null
+    queuedAt?: DateTimeFilter<"ScheduledMission"> | Date | string
+    startedAt?: DateTimeNullableFilter<"ScheduledMission"> | Date | string | null
+    pausedAt?: DateTimeNullableFilter<"ScheduledMission"> | Date | string | null
+    state?: JsonNullableFilter<"ScheduledMission">
+    status?: StringFilter<"ScheduledMission"> | string
+  }
+
+  export type ScheduledMissionOrderByWithRelationInput = {
+    id?: SortOrder
+    missionId?: SortOrder
+    priority?: SortOrder
+    dependsOn?: SortOrder
+    scheduledAt?: SortOrderInput | SortOrder
+    recurrence?: SortOrderInput | SortOrder
+    queuedAt?: SortOrder
+    startedAt?: SortOrderInput | SortOrder
+    pausedAt?: SortOrderInput | SortOrder
+    state?: SortOrderInput | SortOrder
+    status?: SortOrder
+  }
+
+  export type ScheduledMissionWhereUniqueInput = Prisma.AtLeast<{
+    id?: string
+    missionId?: string
+    AND?: ScheduledMissionWhereInput | ScheduledMissionWhereInput[]
+    OR?: ScheduledMissionWhereInput[]
+    NOT?: ScheduledMissionWhereInput | ScheduledMissionWhereInput[]
+    priority?: StringFilter<"ScheduledMission"> | string
+    dependsOn?: StringNullableListFilter<"ScheduledMission">
+    scheduledAt?: DateTimeNullableFilter<"ScheduledMission"> | Date | string | null
+    recurrence?: StringNullableFilter<"ScheduledMission"> | string | null
+    queuedAt?: DateTimeFilter<"ScheduledMission"> | Date | string
+    startedAt?: DateTimeNullableFilter<"ScheduledMission"> | Date | string | null
+    pausedAt?: DateTimeNullableFilter<"ScheduledMission"> | Date | string | null
+    state?: JsonNullableFilter<"ScheduledMission">
+    status?: StringFilter<"ScheduledMission"> | string
+  }, "id" | "missionId">
+
+  export type ScheduledMissionOrderByWithAggregationInput = {
+    id?: SortOrder
+    missionId?: SortOrder
+    priority?: SortOrder
+    dependsOn?: SortOrder
+    scheduledAt?: SortOrderInput | SortOrder
+    recurrence?: SortOrderInput | SortOrder
+    queuedAt?: SortOrder
+    startedAt?: SortOrderInput | SortOrder
+    pausedAt?: SortOrderInput | SortOrder
+    state?: SortOrderInput | SortOrder
+    status?: SortOrder
+    _count?: ScheduledMissionCountOrderByAggregateInput
+    _max?: ScheduledMissionMaxOrderByAggregateInput
+    _min?: ScheduledMissionMinOrderByAggregateInput
+  }
+
+  export type ScheduledMissionScalarWhereWithAggregatesInput = {
+    AND?: ScheduledMissionScalarWhereWithAggregatesInput | ScheduledMissionScalarWhereWithAggregatesInput[]
+    OR?: ScheduledMissionScalarWhereWithAggregatesInput[]
+    NOT?: ScheduledMissionScalarWhereWithAggregatesInput | ScheduledMissionScalarWhereWithAggregatesInput[]
+    id?: StringWithAggregatesFilter<"ScheduledMission"> | string
+    missionId?: StringWithAggregatesFilter<"ScheduledMission"> | string
+    priority?: StringWithAggregatesFilter<"ScheduledMission"> | string
+    dependsOn?: StringNullableListFilter<"ScheduledMission">
+    scheduledAt?: DateTimeNullableWithAggregatesFilter<"ScheduledMission"> | Date | string | null
+    recurrence?: StringNullableWithAggregatesFilter<"ScheduledMission"> | string | null
+    queuedAt?: DateTimeWithAggregatesFilter<"ScheduledMission"> | Date | string
+    startedAt?: DateTimeNullableWithAggregatesFilter<"ScheduledMission"> | Date | string | null
+    pausedAt?: DateTimeNullableWithAggregatesFilter<"ScheduledMission"> | Date | string | null
+    state?: JsonNullableWithAggregatesFilter<"ScheduledMission">
+    status?: StringWithAggregatesFilter<"ScheduledMission"> | string
+  }
+
   export type MissionCreateInput = {
     id?: string
     projectId: string
@@ -10011,6 +14653,391 @@ export namespace Prisma {
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
+  export type CostRecordCreateInput = {
+    id?: string
+    projectId: string
+    missionId?: string | null
+    stepId?: string | null
+    model: string
+    tokensIn?: number
+    tokensOut?: number
+    costUsd: number
+    module?: string
+    createdAt?: Date | string
+  }
+
+  export type CostRecordUncheckedCreateInput = {
+    id?: string
+    projectId: string
+    missionId?: string | null
+    stepId?: string | null
+    model: string
+    tokensIn?: number
+    tokensOut?: number
+    costUsd: number
+    module?: string
+    createdAt?: Date | string
+  }
+
+  export type CostRecordUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    missionId?: NullableStringFieldUpdateOperationsInput | string | null
+    stepId?: NullableStringFieldUpdateOperationsInput | string | null
+    model?: StringFieldUpdateOperationsInput | string
+    tokensIn?: IntFieldUpdateOperationsInput | number
+    tokensOut?: IntFieldUpdateOperationsInput | number
+    costUsd?: FloatFieldUpdateOperationsInput | number
+    module?: StringFieldUpdateOperationsInput | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type CostRecordUncheckedUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    missionId?: NullableStringFieldUpdateOperationsInput | string | null
+    stepId?: NullableStringFieldUpdateOperationsInput | string | null
+    model?: StringFieldUpdateOperationsInput | string
+    tokensIn?: IntFieldUpdateOperationsInput | number
+    tokensOut?: IntFieldUpdateOperationsInput | number
+    costUsd?: FloatFieldUpdateOperationsInput | number
+    module?: StringFieldUpdateOperationsInput | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type CostRecordCreateManyInput = {
+    id?: string
+    projectId: string
+    missionId?: string | null
+    stepId?: string | null
+    model: string
+    tokensIn?: number
+    tokensOut?: number
+    costUsd: number
+    module?: string
+    createdAt?: Date | string
+  }
+
+  export type CostRecordUpdateManyMutationInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    missionId?: NullableStringFieldUpdateOperationsInput | string | null
+    stepId?: NullableStringFieldUpdateOperationsInput | string | null
+    model?: StringFieldUpdateOperationsInput | string
+    tokensIn?: IntFieldUpdateOperationsInput | number
+    tokensOut?: IntFieldUpdateOperationsInput | number
+    costUsd?: FloatFieldUpdateOperationsInput | number
+    module?: StringFieldUpdateOperationsInput | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type CostRecordUncheckedUpdateManyInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    missionId?: NullableStringFieldUpdateOperationsInput | string | null
+    stepId?: NullableStringFieldUpdateOperationsInput | string | null
+    model?: StringFieldUpdateOperationsInput | string
+    tokensIn?: IntFieldUpdateOperationsInput | number
+    tokensOut?: IntFieldUpdateOperationsInput | number
+    costUsd?: FloatFieldUpdateOperationsInput | number
+    module?: StringFieldUpdateOperationsInput | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type CostBudgetCreateInput = {
+    id?: string
+    projectId: string
+    daily?: number | null
+    monthly?: number | null
+    perMission?: number | null
+    alertAt?: number
+    blockAt?: number
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type CostBudgetUncheckedCreateInput = {
+    id?: string
+    projectId: string
+    daily?: number | null
+    monthly?: number | null
+    perMission?: number | null
+    alertAt?: number
+    blockAt?: number
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type CostBudgetUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    daily?: NullableFloatFieldUpdateOperationsInput | number | null
+    monthly?: NullableFloatFieldUpdateOperationsInput | number | null
+    perMission?: NullableFloatFieldUpdateOperationsInput | number | null
+    alertAt?: FloatFieldUpdateOperationsInput | number
+    blockAt?: FloatFieldUpdateOperationsInput | number
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type CostBudgetUncheckedUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    daily?: NullableFloatFieldUpdateOperationsInput | number | null
+    monthly?: NullableFloatFieldUpdateOperationsInput | number | null
+    perMission?: NullableFloatFieldUpdateOperationsInput | number | null
+    alertAt?: FloatFieldUpdateOperationsInput | number
+    blockAt?: FloatFieldUpdateOperationsInput | number
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type CostBudgetCreateManyInput = {
+    id?: string
+    projectId: string
+    daily?: number | null
+    monthly?: number | null
+    perMission?: number | null
+    alertAt?: number
+    blockAt?: number
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type CostBudgetUpdateManyMutationInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    daily?: NullableFloatFieldUpdateOperationsInput | number | null
+    monthly?: NullableFloatFieldUpdateOperationsInput | number | null
+    perMission?: NullableFloatFieldUpdateOperationsInput | number | null
+    alertAt?: FloatFieldUpdateOperationsInput | number
+    blockAt?: FloatFieldUpdateOperationsInput | number
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type CostBudgetUncheckedUpdateManyInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    projectId?: StringFieldUpdateOperationsInput | string
+    daily?: NullableFloatFieldUpdateOperationsInput | number | null
+    monthly?: NullableFloatFieldUpdateOperationsInput | number | null
+    perMission?: NullableFloatFieldUpdateOperationsInput | number | null
+    alertAt?: FloatFieldUpdateOperationsInput | number
+    blockAt?: FloatFieldUpdateOperationsInput | number
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type TraceSpanCreateInput = {
+    id?: string
+    traceId: string
+    spanId: string
+    parentSpanId?: string | null
+    service: string
+    operation: string
+    startedAt: Date | string
+    endedAt?: Date | string | null
+    durationMs?: number | null
+    status?: string
+    attributes?: JsonNullValueInput | InputJsonValue
+    error?: string | null
+    createdAt?: Date | string
+  }
+
+  export type TraceSpanUncheckedCreateInput = {
+    id?: string
+    traceId: string
+    spanId: string
+    parentSpanId?: string | null
+    service: string
+    operation: string
+    startedAt: Date | string
+    endedAt?: Date | string | null
+    durationMs?: number | null
+    status?: string
+    attributes?: JsonNullValueInput | InputJsonValue
+    error?: string | null
+    createdAt?: Date | string
+  }
+
+  export type TraceSpanUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    traceId?: StringFieldUpdateOperationsInput | string
+    spanId?: StringFieldUpdateOperationsInput | string
+    parentSpanId?: NullableStringFieldUpdateOperationsInput | string | null
+    service?: StringFieldUpdateOperationsInput | string
+    operation?: StringFieldUpdateOperationsInput | string
+    startedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    endedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    durationMs?: NullableIntFieldUpdateOperationsInput | number | null
+    status?: StringFieldUpdateOperationsInput | string
+    attributes?: JsonNullValueInput | InputJsonValue
+    error?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type TraceSpanUncheckedUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    traceId?: StringFieldUpdateOperationsInput | string
+    spanId?: StringFieldUpdateOperationsInput | string
+    parentSpanId?: NullableStringFieldUpdateOperationsInput | string | null
+    service?: StringFieldUpdateOperationsInput | string
+    operation?: StringFieldUpdateOperationsInput | string
+    startedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    endedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    durationMs?: NullableIntFieldUpdateOperationsInput | number | null
+    status?: StringFieldUpdateOperationsInput | string
+    attributes?: JsonNullValueInput | InputJsonValue
+    error?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type TraceSpanCreateManyInput = {
+    id?: string
+    traceId: string
+    spanId: string
+    parentSpanId?: string | null
+    service: string
+    operation: string
+    startedAt: Date | string
+    endedAt?: Date | string | null
+    durationMs?: number | null
+    status?: string
+    attributes?: JsonNullValueInput | InputJsonValue
+    error?: string | null
+    createdAt?: Date | string
+  }
+
+  export type TraceSpanUpdateManyMutationInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    traceId?: StringFieldUpdateOperationsInput | string
+    spanId?: StringFieldUpdateOperationsInput | string
+    parentSpanId?: NullableStringFieldUpdateOperationsInput | string | null
+    service?: StringFieldUpdateOperationsInput | string
+    operation?: StringFieldUpdateOperationsInput | string
+    startedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    endedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    durationMs?: NullableIntFieldUpdateOperationsInput | number | null
+    status?: StringFieldUpdateOperationsInput | string
+    attributes?: JsonNullValueInput | InputJsonValue
+    error?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type TraceSpanUncheckedUpdateManyInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    traceId?: StringFieldUpdateOperationsInput | string
+    spanId?: StringFieldUpdateOperationsInput | string
+    parentSpanId?: NullableStringFieldUpdateOperationsInput | string | null
+    service?: StringFieldUpdateOperationsInput | string
+    operation?: StringFieldUpdateOperationsInput | string
+    startedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    endedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    durationMs?: NullableIntFieldUpdateOperationsInput | number | null
+    status?: StringFieldUpdateOperationsInput | string
+    attributes?: JsonNullValueInput | InputJsonValue
+    error?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type ScheduledMissionCreateInput = {
+    id?: string
+    missionId: string
+    priority?: string
+    dependsOn?: ScheduledMissionCreatedependsOnInput | string[]
+    scheduledAt?: Date | string | null
+    recurrence?: string | null
+    queuedAt?: Date | string
+    startedAt?: Date | string | null
+    pausedAt?: Date | string | null
+    state?: NullableJsonNullValueInput | InputJsonValue
+    status?: string
+  }
+
+  export type ScheduledMissionUncheckedCreateInput = {
+    id?: string
+    missionId: string
+    priority?: string
+    dependsOn?: ScheduledMissionCreatedependsOnInput | string[]
+    scheduledAt?: Date | string | null
+    recurrence?: string | null
+    queuedAt?: Date | string
+    startedAt?: Date | string | null
+    pausedAt?: Date | string | null
+    state?: NullableJsonNullValueInput | InputJsonValue
+    status?: string
+  }
+
+  export type ScheduledMissionUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    missionId?: StringFieldUpdateOperationsInput | string
+    priority?: StringFieldUpdateOperationsInput | string
+    dependsOn?: ScheduledMissionUpdatedependsOnInput | string[]
+    scheduledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    recurrence?: NullableStringFieldUpdateOperationsInput | string | null
+    queuedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    startedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    pausedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    state?: NullableJsonNullValueInput | InputJsonValue
+    status?: StringFieldUpdateOperationsInput | string
+  }
+
+  export type ScheduledMissionUncheckedUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    missionId?: StringFieldUpdateOperationsInput | string
+    priority?: StringFieldUpdateOperationsInput | string
+    dependsOn?: ScheduledMissionUpdatedependsOnInput | string[]
+    scheduledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    recurrence?: NullableStringFieldUpdateOperationsInput | string | null
+    queuedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    startedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    pausedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    state?: NullableJsonNullValueInput | InputJsonValue
+    status?: StringFieldUpdateOperationsInput | string
+  }
+
+  export type ScheduledMissionCreateManyInput = {
+    id?: string
+    missionId: string
+    priority?: string
+    dependsOn?: ScheduledMissionCreatedependsOnInput | string[]
+    scheduledAt?: Date | string | null
+    recurrence?: string | null
+    queuedAt?: Date | string
+    startedAt?: Date | string | null
+    pausedAt?: Date | string | null
+    state?: NullableJsonNullValueInput | InputJsonValue
+    status?: string
+  }
+
+  export type ScheduledMissionUpdateManyMutationInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    missionId?: StringFieldUpdateOperationsInput | string
+    priority?: StringFieldUpdateOperationsInput | string
+    dependsOn?: ScheduledMissionUpdatedependsOnInput | string[]
+    scheduledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    recurrence?: NullableStringFieldUpdateOperationsInput | string | null
+    queuedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    startedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    pausedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    state?: NullableJsonNullValueInput | InputJsonValue
+    status?: StringFieldUpdateOperationsInput | string
+  }
+
+  export type ScheduledMissionUncheckedUpdateManyInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    missionId?: StringFieldUpdateOperationsInput | string
+    priority?: StringFieldUpdateOperationsInput | string
+    dependsOn?: ScheduledMissionUpdatedependsOnInput | string[]
+    scheduledAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    recurrence?: NullableStringFieldUpdateOperationsInput | string | null
+    queuedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    startedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    pausedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+    state?: NullableJsonNullValueInput | InputJsonValue
+    status?: StringFieldUpdateOperationsInput | string
+  }
+
   export type StringFilter<$PrismaModel = never> = {
     equals?: string | StringFieldRefInput<$PrismaModel>
     in?: string[] | ListStringFieldRefInput<$PrismaModel>
@@ -10656,6 +15683,228 @@ export namespace Prisma {
     updatedAt?: SortOrder
   }
 
+  export type CostRecordCountOrderByAggregateInput = {
+    id?: SortOrder
+    projectId?: SortOrder
+    missionId?: SortOrder
+    stepId?: SortOrder
+    model?: SortOrder
+    tokensIn?: SortOrder
+    tokensOut?: SortOrder
+    costUsd?: SortOrder
+    module?: SortOrder
+    createdAt?: SortOrder
+  }
+
+  export type CostRecordAvgOrderByAggregateInput = {
+    tokensIn?: SortOrder
+    tokensOut?: SortOrder
+    costUsd?: SortOrder
+  }
+
+  export type CostRecordMaxOrderByAggregateInput = {
+    id?: SortOrder
+    projectId?: SortOrder
+    missionId?: SortOrder
+    stepId?: SortOrder
+    model?: SortOrder
+    tokensIn?: SortOrder
+    tokensOut?: SortOrder
+    costUsd?: SortOrder
+    module?: SortOrder
+    createdAt?: SortOrder
+  }
+
+  export type CostRecordMinOrderByAggregateInput = {
+    id?: SortOrder
+    projectId?: SortOrder
+    missionId?: SortOrder
+    stepId?: SortOrder
+    model?: SortOrder
+    tokensIn?: SortOrder
+    tokensOut?: SortOrder
+    costUsd?: SortOrder
+    module?: SortOrder
+    createdAt?: SortOrder
+  }
+
+  export type CostRecordSumOrderByAggregateInput = {
+    tokensIn?: SortOrder
+    tokensOut?: SortOrder
+    costUsd?: SortOrder
+  }
+
+  export type CostBudgetCountOrderByAggregateInput = {
+    id?: SortOrder
+    projectId?: SortOrder
+    daily?: SortOrder
+    monthly?: SortOrder
+    perMission?: SortOrder
+    alertAt?: SortOrder
+    blockAt?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type CostBudgetAvgOrderByAggregateInput = {
+    daily?: SortOrder
+    monthly?: SortOrder
+    perMission?: SortOrder
+    alertAt?: SortOrder
+    blockAt?: SortOrder
+  }
+
+  export type CostBudgetMaxOrderByAggregateInput = {
+    id?: SortOrder
+    projectId?: SortOrder
+    daily?: SortOrder
+    monthly?: SortOrder
+    perMission?: SortOrder
+    alertAt?: SortOrder
+    blockAt?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type CostBudgetMinOrderByAggregateInput = {
+    id?: SortOrder
+    projectId?: SortOrder
+    daily?: SortOrder
+    monthly?: SortOrder
+    perMission?: SortOrder
+    alertAt?: SortOrder
+    blockAt?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type CostBudgetSumOrderByAggregateInput = {
+    daily?: SortOrder
+    monthly?: SortOrder
+    perMission?: SortOrder
+    alertAt?: SortOrder
+    blockAt?: SortOrder
+  }
+
+  export type IntNullableFilter<$PrismaModel = never> = {
+    equals?: number | IntFieldRefInput<$PrismaModel> | null
+    in?: number[] | ListIntFieldRefInput<$PrismaModel> | null
+    notIn?: number[] | ListIntFieldRefInput<$PrismaModel> | null
+    lt?: number | IntFieldRefInput<$PrismaModel>
+    lte?: number | IntFieldRefInput<$PrismaModel>
+    gt?: number | IntFieldRefInput<$PrismaModel>
+    gte?: number | IntFieldRefInput<$PrismaModel>
+    not?: NestedIntNullableFilter<$PrismaModel> | number | null
+  }
+
+  export type TraceSpanCountOrderByAggregateInput = {
+    id?: SortOrder
+    traceId?: SortOrder
+    spanId?: SortOrder
+    parentSpanId?: SortOrder
+    service?: SortOrder
+    operation?: SortOrder
+    startedAt?: SortOrder
+    endedAt?: SortOrder
+    durationMs?: SortOrder
+    status?: SortOrder
+    attributes?: SortOrder
+    error?: SortOrder
+    createdAt?: SortOrder
+  }
+
+  export type TraceSpanAvgOrderByAggregateInput = {
+    durationMs?: SortOrder
+  }
+
+  export type TraceSpanMaxOrderByAggregateInput = {
+    id?: SortOrder
+    traceId?: SortOrder
+    spanId?: SortOrder
+    parentSpanId?: SortOrder
+    service?: SortOrder
+    operation?: SortOrder
+    startedAt?: SortOrder
+    endedAt?: SortOrder
+    durationMs?: SortOrder
+    status?: SortOrder
+    error?: SortOrder
+    createdAt?: SortOrder
+  }
+
+  export type TraceSpanMinOrderByAggregateInput = {
+    id?: SortOrder
+    traceId?: SortOrder
+    spanId?: SortOrder
+    parentSpanId?: SortOrder
+    service?: SortOrder
+    operation?: SortOrder
+    startedAt?: SortOrder
+    endedAt?: SortOrder
+    durationMs?: SortOrder
+    status?: SortOrder
+    error?: SortOrder
+    createdAt?: SortOrder
+  }
+
+  export type TraceSpanSumOrderByAggregateInput = {
+    durationMs?: SortOrder
+  }
+
+  export type IntNullableWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: number | IntFieldRefInput<$PrismaModel> | null
+    in?: number[] | ListIntFieldRefInput<$PrismaModel> | null
+    notIn?: number[] | ListIntFieldRefInput<$PrismaModel> | null
+    lt?: number | IntFieldRefInput<$PrismaModel>
+    lte?: number | IntFieldRefInput<$PrismaModel>
+    gt?: number | IntFieldRefInput<$PrismaModel>
+    gte?: number | IntFieldRefInput<$PrismaModel>
+    not?: NestedIntNullableWithAggregatesFilter<$PrismaModel> | number | null
+    _count?: NestedIntNullableFilter<$PrismaModel>
+    _avg?: NestedFloatNullableFilter<$PrismaModel>
+    _sum?: NestedIntNullableFilter<$PrismaModel>
+    _min?: NestedIntNullableFilter<$PrismaModel>
+    _max?: NestedIntNullableFilter<$PrismaModel>
+  }
+
+  export type ScheduledMissionCountOrderByAggregateInput = {
+    id?: SortOrder
+    missionId?: SortOrder
+    priority?: SortOrder
+    dependsOn?: SortOrder
+    scheduledAt?: SortOrder
+    recurrence?: SortOrder
+    queuedAt?: SortOrder
+    startedAt?: SortOrder
+    pausedAt?: SortOrder
+    state?: SortOrder
+    status?: SortOrder
+  }
+
+  export type ScheduledMissionMaxOrderByAggregateInput = {
+    id?: SortOrder
+    missionId?: SortOrder
+    priority?: SortOrder
+    scheduledAt?: SortOrder
+    recurrence?: SortOrder
+    queuedAt?: SortOrder
+    startedAt?: SortOrder
+    pausedAt?: SortOrder
+    status?: SortOrder
+  }
+
+  export type ScheduledMissionMinOrderByAggregateInput = {
+    id?: SortOrder
+    missionId?: SortOrder
+    priority?: SortOrder
+    scheduledAt?: SortOrder
+    recurrence?: SortOrder
+    queuedAt?: SortOrder
+    startedAt?: SortOrder
+    pausedAt?: SortOrder
+    status?: SortOrder
+  }
+
   export type MissionStepCreateNestedManyWithoutMissionInput = {
     create?: XOR<MissionStepCreateWithoutMissionInput, MissionStepUncheckedCreateWithoutMissionInput> | MissionStepCreateWithoutMissionInput[] | MissionStepUncheckedCreateWithoutMissionInput[]
     connectOrCreate?: MissionStepCreateOrConnectWithoutMissionInput | MissionStepCreateOrConnectWithoutMissionInput[]
@@ -10871,6 +16120,23 @@ export namespace Prisma {
     upsert?: KnowledgeNodeUpsertWithoutInEdgesInput
     connect?: KnowledgeNodeWhereUniqueInput
     update?: XOR<XOR<KnowledgeNodeUpdateToOneWithWhereWithoutInEdgesInput, KnowledgeNodeUpdateWithoutInEdgesInput>, KnowledgeNodeUncheckedUpdateWithoutInEdgesInput>
+  }
+
+  export type NullableIntFieldUpdateOperationsInput = {
+    set?: number | null
+    increment?: number
+    decrement?: number
+    multiply?: number
+    divide?: number
+  }
+
+  export type ScheduledMissionCreatedependsOnInput = {
+    set: string[]
+  }
+
+  export type ScheduledMissionUpdatedependsOnInput = {
+    set?: string[]
+    push?: string | string[]
   }
 
   export type NestedStringFilter<$PrismaModel = never> = {
@@ -11119,6 +16385,22 @@ export namespace Prisma {
     _sum?: NestedFloatFilter<$PrismaModel>
     _min?: NestedFloatFilter<$PrismaModel>
     _max?: NestedFloatFilter<$PrismaModel>
+  }
+
+  export type NestedIntNullableWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: number | IntFieldRefInput<$PrismaModel> | null
+    in?: number[] | ListIntFieldRefInput<$PrismaModel> | null
+    notIn?: number[] | ListIntFieldRefInput<$PrismaModel> | null
+    lt?: number | IntFieldRefInput<$PrismaModel>
+    lte?: number | IntFieldRefInput<$PrismaModel>
+    gt?: number | IntFieldRefInput<$PrismaModel>
+    gte?: number | IntFieldRefInput<$PrismaModel>
+    not?: NestedIntNullableWithAggregatesFilter<$PrismaModel> | number | null
+    _count?: NestedIntNullableFilter<$PrismaModel>
+    _avg?: NestedFloatNullableFilter<$PrismaModel>
+    _sum?: NestedIntNullableFilter<$PrismaModel>
+    _min?: NestedIntNullableFilter<$PrismaModel>
+    _max?: NestedIntNullableFilter<$PrismaModel>
   }
 
   export type MissionStepCreateWithoutMissionInput = {
@@ -11700,6 +16982,22 @@ export namespace Prisma {
      * @deprecated Use ApprovalGateDefaultArgs instead
      */
     export type ApprovalGateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = ApprovalGateDefaultArgs<ExtArgs>
+    /**
+     * @deprecated Use CostRecordDefaultArgs instead
+     */
+    export type CostRecordArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = CostRecordDefaultArgs<ExtArgs>
+    /**
+     * @deprecated Use CostBudgetDefaultArgs instead
+     */
+    export type CostBudgetArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = CostBudgetDefaultArgs<ExtArgs>
+    /**
+     * @deprecated Use TraceSpanDefaultArgs instead
+     */
+    export type TraceSpanArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = TraceSpanDefaultArgs<ExtArgs>
+    /**
+     * @deprecated Use ScheduledMissionDefaultArgs instead
+     */
+    export type ScheduledMissionArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = ScheduledMissionDefaultArgs<ExtArgs>
 
   /**
    * Batch Payload for updateMany & deleteMany & createMany
