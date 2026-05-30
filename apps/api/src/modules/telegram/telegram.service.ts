@@ -1,7 +1,6 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy, Inject, forwardRef } from '@nestjs/common'
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../../prisma/prisma.service'
-import { OrchestratorService } from '../orchestrator/orchestrator.service'
 import { ProjectService } from '../project/project.service'
 import { ProjectStateService } from '../project-state/project-state.service'
 import { GraphService } from '../graph/graph.service'
@@ -12,6 +11,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
   private readonly token: string
   private readonly chatId: string
   private readonly baseUrl: string
+  private readonly apiUrl: string
   private offset = 0
   private pollTimer: NodeJS.Timeout | null = null
   private replyHandler: ((text: string) => void) | null = null
@@ -19,8 +19,6 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
-    @Inject(forwardRef(() => OrchestratorService))
-    private readonly orchestrator: OrchestratorService,
     private readonly projectSvc: ProjectService,
     private readonly stateSvc: ProjectStateService,
     private readonly graphSvc: GraphService,
@@ -28,6 +26,9 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     this.token  = this.config.get<string>('TELEGRAM_BOT_TOKEN') ?? ''
     this.chatId = this.config.get<string>('TELEGRAM_CHAT_ID')  ?? ''
     this.baseUrl = `https://api.telegram.org/bot${this.token}`
+    // Call orchestrate via HTTP to avoid circular dependency with OrchestratorModule
+    const port = this.config.get<string>('API_PORT') ?? '3001'
+    this.apiUrl = `http://localhost:${port}`
   }
 
   onModuleInit() {
@@ -92,6 +93,23 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     })
   }
 
+  // ─── Orchestrate via HTTP (avoids circular dep) ───────────────────────────────
+
+  private async orchestrate(prompt: string, sessionId: string, projectId?: string): Promise<string> {
+    const jwt = this.config.get<string>('TELEGRAM_API_TOKEN') ?? ''
+    const res = await fetch(`${this.apiUrl}/orchestrate`, {
+      method:  'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization:  `Bearer ${jwt}`,
+      },
+      body: JSON.stringify({ prompt, sessionId, projectId }),
+    })
+    if (!res.ok) throw new Error(`Orchestrate failed: ${res.status}`)
+    const data = await res.json() as { reply?: string }
+    return data.reply ?? 'Sem resposta.'
+  }
+
   // ─── Command Router ───────────────────────────────────────────────────────────
 
   private async handleCommand(cmd: string, args: string, chatId: string, session: { sessionId: string; projectId: string | null }) {
@@ -104,7 +122,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           '/projeto — selecionar projeto ativo',
           '/status — estado atual do projeto',
           '/goal — meta ativa e progresso',
-          '/eventos [n] — últimos N eventos (padrão 10)',
+          `/eventos [n] — últimos N eventos (padrão 10)`,
           '/checkpoint — disparar checkpoint de sessão',
           '/ajuda — esta mensagem',
           '',
@@ -120,7 +138,6 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         }
         const list = projects.map((p, i) => `${i + 1}. ${p.name} — \`${p.id.slice(0, 8)}\``).join('\n')
         await this.send(`*Projetos disponíveis:*\n${list}\n\nResponda com o número para selecionar.`, chatId)
-        // Set handler to capture next message as project selection
         this.replyHandler = async (reply: string) => {
           this.clearReplyHandler()
           const idx = parseInt(reply.trim()) - 1
@@ -189,13 +206,12 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         if (!pid) { await this.send('Nenhum projeto selecionado. Use /projeto.', chatId); break }
         await this.send('⏳ Disparando checkpoint...', chatId)
         try {
-          const result = await this.orchestrator.handleMessage(
+          const reply = await this.orchestrate(
             'Faça um checkpoint completo desta sessão de trabalho.',
             session.sessionId,
             pid,
-            'checkpoint',
           )
-          await this.send(`✅ Checkpoint concluído.\n${(result.reply ?? '').slice(0, 400)}`, chatId)
+          await this.send(`✅ Checkpoint concluído.\n${reply.slice(0, 400)}`, chatId)
         } catch {
           await this.send('Erro ao disparar checkpoint.', chatId)
         }
@@ -236,7 +252,6 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
     if (!text || fromId !== this.chatId) return
 
-    // Supervised session reply handler takes priority
     if (this.replyHandler) {
       this.replyHandler(text)
       return
@@ -244,25 +259,18 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
     const session = await this.getOrCreateSession(fromId)
 
-    // Slash command
     if (text.startsWith('/')) {
       const [cmd, ...rest] = text.split(' ')
       await this.handleCommand(cmd.toLowerCase(), rest.join(' '), fromId, session)
       return
     }
 
-    // Free text → Orchestrator
     try {
       await this.send('💭 Processando...', fromId)
-      const result = await this.orchestrator.handleMessage(
-        text,
-        session.sessionId,
-        session.projectId ?? undefined,
-      )
-      const reply = result.reply ?? 'Sem resposta.'
+      const reply = await this.orchestrate(text, session.sessionId, session.projectId ?? undefined)
       await this.send(reply.slice(0, 4000), fromId)
     } catch (e) {
-      this.logger.error('Orchestrator error', e)
+      this.logger.error('Orchestrate error', e)
       await this.send('Erro ao processar mensagem. Tente novamente.', fromId)
     }
   }
@@ -270,8 +278,5 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
 
 interface TelegramUpdate {
   update_id: number
-  message?: {
-    text?: string
-    chat?: { id: number }
-  }
+  message?: { text?: string; chat?: { id: number } }
 }
