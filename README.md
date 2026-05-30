@@ -209,9 +209,9 @@ Veja [docs/architecture.md](docs/architecture.md) para o catálogo completo de m
 
 ## Confiabilidade
 
-**198 testes em 18 suites** (179 unit + 19 E2E), aplicados no CI:
+**217 testes em 23 suites** (198 unit + 19 E2E), aplicados no CI:
 
-**Testes unitários (154):**
+**Testes unitários (198 em 20 suites):**
 
 | Módulo | O que é testado |
 |---|---|

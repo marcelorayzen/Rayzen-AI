@@ -10,6 +10,7 @@ import { ValidationService } from '../../validation/validation.service'
 import { PrismaService } from '../../../prisma/prisma.service'
 import { EventService } from '../../event/event.service'
 import { MetricsService } from '../../metrics/metrics.service'
+import { AgentSessionService } from '../../agent-session/agent-session.service'
 
 const mockLLM = {
   chat: {
@@ -91,6 +92,10 @@ describe('OrchestratorService', () => {
             llmTokensTotal: { inc: jest.fn() },
             llmRequestDuration: { observe: jest.fn() },
           },
+        },
+        {
+          provide: AgentSessionService,
+          useValue: { create: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile()
