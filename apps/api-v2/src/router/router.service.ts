@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { LlmService } from '../llm/llm.service'
 import { MissionService } from '../mission/mission.service'
 import { V1BridgeService } from '../core/v1-bridge.service'
+import { ContextEngineService, WorkMode } from '../context-engine/context-engine.service'
 import { RouteRequestDto, RouteDecision, DecisionType } from './dto/route-request.dto'
 
 const CLASSIFY_SYSTEM = `You are a routing classifier for an AI engineering system.
@@ -44,7 +45,23 @@ export class RouterService {
     private readonly llm: LlmService,
     private readonly missions: MissionService,
     private readonly v1Bridge: V1BridgeService,
+    private readonly ctxEngine: ContextEngineService,
   ) {}
+
+  /**
+   * Context Broker: builds the compressed project context and injects it into
+   * the LLM prompt instead of forcing the user to re-explain the project.
+   * Returns empty string on failure — context is an enhancement, never a hard dependency.
+   */
+  private async brokerContext(projectId: string, query: string, mode: WorkMode): Promise<string> {
+    try {
+      const ctx = await this.ctxEngine.build({ projectId, query, mode })
+      return ctx.text
+    } catch (e) {
+      this.logger.warn(`broker context failed: ${e}`)
+      return ''
+    }
+  }
 
   async route(dto: RouteRequestDto): Promise<RouteDecision & { result?: unknown }> {
     const mode = dto.mode ?? 'auto'
@@ -117,13 +134,22 @@ export class RouterService {
   ): Promise<RouteDecision & { result?: unknown }> {
     const title = (decision.payload.suggestedTitle as string) || dto.content.slice(0, 80)
 
+    // Context Broker: ground the planner in the real project state, goal, planning and blockers
+    const brokerCtx = await this.brokerContext(dto.projectId, dto.content, 'architecture')
+
     // Plan steps via LLM
     let steps: Array<{ title: string; prompt: string; executor: string; skillId?: string }> = []
     let planRaw = ''
     try {
       const planResult = await this.llm.chat([
         { role: 'system', content: PLAN_SYSTEM },
-        { role: 'user', content: `Objective: "${dto.content}"\n\nProject ID: ${dto.projectId}` },
+        {
+          role: 'user',
+          content: `Objective: "${dto.content}"\n\nProject ID: ${dto.projectId}` +
+            (brokerCtx
+              ? `\n\nProject context (ground the plan in this; respect active blockers and current stage):\n${brokerCtx}`
+              : ''),
+        },
       ], { model: 'gpt-4o', temperature: 0.2 })
       planRaw = planResult.content
 
@@ -158,7 +184,7 @@ export class RouterService {
     return {
       ...decision,
       target:  mission.id,
-      payload: { missionId: mission.id, stepsCount: steps.length },
+      payload: { missionId: mission.id, stepsCount: steps.length, contextChars: brokerCtx.length },
       result:  missionWithSteps,
     }
   }
@@ -167,14 +193,10 @@ export class RouterService {
     decision: RouteDecision,
     dto: RouteRequestDto,
   ): Promise<RouteDecision & { result?: unknown }> {
-    // Fetch context for better response
+    // Context Broker: inject the compressed project context (state, memory, recent activity)
     let systemPrompt = 'You are Rayzen AI, a helpful engineering assistant.'
-    try {
-      const state = await this.v1Bridge.getProjectState(dto.projectId)
-      if (state) {
-        systemPrompt += `\n\nProject context:\n- Stage: ${state.stage ?? 'unknown'}\n- Objective: ${state.objective ?? 'N/A'}`
-      }
-    } catch { /* ignore */ }
+    const brokerCtx = await this.brokerContext(dto.projectId, dto.content, 'study')
+    if (brokerCtx) systemPrompt += `\n\nProject context:\n${brokerCtx}`
 
     const result = await this.llm.chat([
       { role: 'system', content: systemPrompt },

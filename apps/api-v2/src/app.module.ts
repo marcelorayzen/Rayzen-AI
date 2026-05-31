@@ -3,6 +3,7 @@ import { CoreModule } from './core/core.module'
 import { LlmModule } from './llm/llm.module'
 import { MissionModule } from './mission/mission.module'
 import { RouterModule } from './router/router.module'
+import { ConversationModule } from './conversation/conversation.module'
 import { MemoryModule } from './memory/memory.module'
 import { AiRouterModule } from './ai-router/ai-router.module'
 import { ContextEngineModule } from './context-engine/context-engine.module'
@@ -31,6 +32,7 @@ import { SpecialistModule } from './specialists/specialist.module'
     ContextEngineModule,
     MissionModule,
     RouterModule,
+    ConversationModule,
     SkillEngineModule,
     VaultModule,
     KnowledgeModule,

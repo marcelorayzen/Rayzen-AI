@@ -1,0 +1,266 @@
+'use client'
+
+import { useCallback, useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
+import { API_URL, V2_URL } from '../../lib/api-url'
+import { authHeaders } from '../../lib/api-client'
+import { ContextBadge } from './components/ContextBadge'
+
+interface Project { id: string; name: string; status: string }
+
+interface FeedMessage { role: 'user' | 'assistant'; content: string }
+
+type StepStatus = 'pending' | 'running' | 'done' | 'failed' | 'skipped'
+interface MissionStep { id: string; title: string; status: StepStatus; executor: string }
+interface Mission { id: string; title: string; objective: string; status: string; steps: MissionStep[] }
+
+interface ChatMessageResponse {
+  sessionId: string
+  reply: string
+  status: 'gathering' | 'ready' | 'executing' | 'done'
+  readyToExecute: boolean
+  refinedObjective?: string
+}
+
+interface RouteResult {
+  type: 'mission' | 'skill' | 'ai' | 'clarification'
+  reasoning: string
+  payload: { missionId?: string; note?: string; question?: string }
+  result?: Mission | { answer?: string }
+}
+
+interface ExecuteResponse {
+  sessionId: string
+  contextPreview: { estimatedTokens: number; sectionsIncluded: string[]; totalChars: number }
+  route: RouteResult
+}
+
+const STEP_COLOR: Record<StepStatus, string> = {
+  pending: 'var(--hud-dim)',
+  running: 'var(--hud-cyan)',
+  done:    '#22c55e',
+  failed:  '#ef4444',
+  skipped: 'var(--hud-text-2)',
+}
+
+export default function WorkPanelPage() {
+  const [projects, setProjects] = useState<Project[]>([])
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
+  const [feed, setFeed] = useState<FeedMessage[]>([])
+  const [input, setInput] = useState('')
+  const [sessionId, setSessionId] = useState<string | null>(null)
+  const [readyToExecute, setReadyToExecute] = useState(false)
+  const [refinedObjective, setRefinedObjective] = useState<string | undefined>()
+  const [sending, setSending] = useState(false)
+  const [executing, setExecuting] = useState(false)
+  const [mission, setMission] = useState<Mission | null>(null)
+  const [runningWorkflow, setRunningWorkflow] = useState(false)
+  const [note, setNote] = useState<string | null>(null)
+
+  const feedEndRef = useRef<HTMLDivElement>(null)
+
+  // Carrega projetos e restaura o projeto ativo do localStorage (mesma chave do painel principal)
+  useEffect(() => {
+    const saved = localStorage.getItem('rayzen_active_project_id')
+    fetch(`${API_URL}/projects`, { headers: authHeaders() })
+      .then((r) => r.json())
+      .then((d: unknown) => {
+        const list = Array.isArray(d) ? (d as Project[]) : []
+        setProjects(list)
+        const exists = saved && list.some((p) => p.id === saved)
+        setActiveProjectId(exists ? saved : (list.find((p) => p.status === 'active') ?? list[0])?.id ?? null)
+      })
+      .catch(() => setProjects([]))
+  }, [])
+
+  useEffect(() => {
+    feedEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [feed])
+
+  const selectProject = useCallback((id: string) => {
+    setActiveProjectId(id)
+    localStorage.setItem('rayzen_active_project_id', id)
+    // troca de projeto reinicia a conversa
+    setSessionId(null); setFeed([]); setMission(null); setReadyToExecute(false); setRefinedObjective(undefined)
+  }, [])
+
+  const sendMessage = useCallback(async () => {
+    if (!activeProjectId || !input.trim() || sending) return
+    const content = input.trim()
+    setInput('')
+    setFeed((f) => [...f, { role: 'user', content }])
+    setSending(true)
+    setNote(null)
+    try {
+      const res = await fetch(`${V2_URL}/chat/message`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ projectId: activeProjectId, content, sessionId: sessionId ?? undefined }),
+      })
+      if (!res.ok) { setNote(`Erro ao enviar (HTTP ${res.status})`); return }
+      const data = await res.json() as ChatMessageResponse
+      setSessionId(data.sessionId)
+      setReadyToExecute(data.readyToExecute)
+      setRefinedObjective(data.refinedObjective)
+      setFeed((f) => [...f, { role: 'assistant', content: data.reply }])
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : 'falha ao enviar')
+    } finally { setSending(false) }
+  }, [activeProjectId, input, sessionId, sending])
+
+  const pollMission = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`${V2_URL}/missions/${id}`, { headers: authHeaders() })
+      if (res.ok) setMission(await res.json() as Mission)
+    } catch { /* silencioso */ }
+  }, [])
+
+  const execute = useCallback(async () => {
+    if (!sessionId || executing) return
+    setExecuting(true)
+    setNote(null)
+    try {
+      const res = await fetch(`${V2_URL}/chat/execute`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ sessionId }),
+      })
+      if (!res.ok) { setNote(`Erro ao executar (HTTP ${res.status})`); return }
+      const data = await res.json() as ExecuteResponse
+      const route = data.route
+      if (route.type === 'mission' && route.result && 'steps' in route.result) {
+        setMission(route.result)
+        setFeed((f) => [...f, { role: 'assistant', content: `Missão criada com ${route.result && 'steps' in route.result ? route.result.steps.length : 0} etapas. Contexto comprimido: ≈${data.contextPreview.estimatedTokens} tokens.` }])
+      } else if (route.type === 'ai' && route.result && 'answer' in route.result) {
+        setFeed((f) => [...f, { role: 'assistant', content: route.result && 'answer' in route.result ? (route.result.answer ?? '') : '' }])
+      } else {
+        setFeed((f) => [...f, { role: 'assistant', content: route.payload.question ?? route.payload.note ?? route.reasoning }])
+      }
+      setReadyToExecute(false)
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : 'falha ao executar')
+    } finally { setExecuting(false) }
+  }, [sessionId, executing])
+
+  const runWorkflow = useCallback(async () => {
+    if (!mission || !activeProjectId || runningWorkflow) return
+    setRunningWorkflow(true)
+    try {
+      await fetch(`${V2_URL}/workflows/missions/${mission.id}/execute`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ projectId: activeProjectId }),
+      })
+    } catch { /* silencioso */ }
+    finally {
+      setRunningWorkflow(false)
+      await pollMission(mission.id)
+    }
+  }, [mission, activeProjectId, runningWorkflow, pollMission])
+
+  // Polling enquanto a missão está rodando
+  useEffect(() => {
+    if (!mission || mission.status !== 'active') return
+    const t = setInterval(() => void pollMission(mission.id), 3000)
+    return () => clearInterval(t)
+  }, [mission, pollMission])
+
+  return (
+    <div style={{ maxWidth: 760, margin: '0 auto', padding: '20px 16px', minHeight: '100vh', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Header */}
+      <div className="hud-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span className="hud-title">RAYZEN</span>
+          <span style={{ color: 'var(--hud-dim)' }}>·</span>
+          <select
+            value={activeProjectId ?? ''}
+            onChange={(e) => selectProject(e.target.value)}
+            className="hud-input"
+            style={{ padding: '4px 8px', fontSize: 13 }}
+          >
+            {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </div>
+        <Link href="/" className="hud-btn" style={{ fontSize: 12 }}>← painel</Link>
+      </div>
+
+      {/* Objetivo ativo / refinado */}
+      {refinedObjective && (
+        <div className="hud-surface" style={{ padding: '8px 12px', fontSize: 13 }}>
+          <span style={{ color: 'var(--hud-text-2)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>Objetivo</span>
+          <div style={{ marginTop: 2 }}>{refinedObjective}</div>
+        </div>
+      )}
+
+      {/* Context Badge */}
+      <ContextBadge projectId={activeProjectId} query={refinedObjective ?? input} />
+
+      {/* Conversa */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto', minHeight: 200 }}>
+        {feed.length === 0 && (
+          <div className="hud-empty" style={{ margin: 'auto', textAlign: 'center', color: 'var(--hud-dim)' }}>
+            Fale em português o que você quer fazer.<br />O Rayzen estrutura, comprime o contexto e dispara a missão.
+          </div>
+        )}
+        {feed.map((m, i) => (
+          <div key={i} className={m.role === 'user' ? 'hud-msg-user' : 'hud-msg-ai'}>
+            {m.content}
+          </div>
+        ))}
+        {sending && <div className="hud-msg-ai hud-pulse" style={{ color: 'var(--hud-dim)' }}>pensando…</div>}
+        <div ref={feedEndRef} />
+      </div>
+
+      {/* Timeline da missão */}
+      {mission && (
+        <div className="hud-card" style={{ padding: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>{mission.title}</span>
+            <button
+              className="hud-btn hud-btn-primary"
+              style={{ fontSize: 12 }}
+              onClick={runWorkflow}
+              disabled={runningWorkflow || mission.status === 'active'}
+            >
+              {runningWorkflow ? 'executando…' : mission.status === 'active' ? 'rodando' : 'executar workflow'}
+            </button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {mission.steps.map((s) => (
+              <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: STEP_COLOR[s.status], flexShrink: 0 }} />
+                <span style={{ color: s.status === 'pending' ? 'var(--hud-text-2)' : 'var(--hud-text)' }}>{s.title}</span>
+                <span style={{ marginLeft: 'auto', color: 'var(--hud-dim)', fontSize: 11 }}>{s.executor}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {note && <div style={{ color: '#ef4444', fontSize: 12 }}>{note}</div>}
+
+      {/* Input */}
+      <div className="hud-input-bar" style={{ display: 'flex', gap: 8 }}>
+        <input
+          className="hud-input"
+          style={{ flex: 1 }}
+          placeholder={activeProjectId ? 'quero…' : 'selecione um projeto'}
+          value={input}
+          disabled={!activeProjectId}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void sendMessage() } }}
+        />
+        <button className="hud-btn" onClick={sendMessage} disabled={sending || !input.trim()}>enviar</button>
+        <button
+          className="hud-btn hud-btn-primary"
+          onClick={execute}
+          disabled={executing || !sessionId}
+          title={readyToExecute ? 'pronto para executar' : 'executa o que foi conversado'}
+          style={readyToExecute ? { boxShadow: '0 0 0 1px var(--hud-cyan-40)' } : undefined}
+        >
+          {executing ? 'estruturando…' : 'executar'}
+        </button>
+      </div>
+    </div>
+  )
+}

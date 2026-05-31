@@ -1,5 +1,5 @@
-import { Controller, Post, Get, Delete, Body, Param, UseGuards, HttpCode } from '@nestjs/common'
-import { ApiTags, ApiBearerAuth } from '@nestjs/swagger'
+import { Controller, Post, Get, Delete, Body, Param, Query, UseGuards, HttpCode } from '@nestjs/common'
+import { ApiTags, ApiBearerAuth, ApiQuery } from '@nestjs/swagger'
 import { IsString, IsNotEmpty, IsOptional, IsIn, IsArray, IsNumber } from 'class-validator'
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 import { ContextEngineService, WorkMode, ContextSection } from './context-engine.service'
@@ -48,6 +48,27 @@ export class ContextEngineController {
   @HttpCode(200)
   build(@Body() dto: ContextBuildDto) {
     return this.ctx.build(dto)
+  }
+
+  /**
+   * Transparency endpoint: previews the exact compressed context the Broker would
+   * inject into the agent/LLM prompt, plus a token estimate. Powers the Work Panel ContextBadge.
+   */
+  @Get('preview')
+  @ApiQuery({ name: 'projectId', required: true })
+  @ApiQuery({ name: 'mode', required: false, enum: ['implementation', 'debugging', 'review', 'architecture', 'study'] })
+  @ApiQuery({ name: 'query', required: false })
+  async preview(
+    @Query('projectId') projectId: string,
+    @Query('mode') mode?: WorkMode,
+    @Query('query') query?: string,
+  ) {
+    const built = await this.ctx.build({ projectId, mode, query })
+    return {
+      ...built,
+      estimatedTokens: Math.ceil(built.totalChars / 4),
+      sectionsIncluded: Object.keys(built.sections),
+    }
   }
 
   @Delete('cache/:projectId')
