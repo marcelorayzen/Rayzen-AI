@@ -34,6 +34,13 @@ export class AgentSessionController {
     return this.svc.pollReply(id)
   }
 
+  @Post(':id/answer')
+  @ApiOperation({ summary: 'Usuário responde/aprova pela web — equivale ao reply do Telegram' })
+  async answer(@Param('id') id: string, @Body() body: { reply: string }) {
+    await this.svc.submitReply(id, body.reply)
+    return { ok: true }
+  }
+
   @Post(':id/complete')
   @ApiOperation({ summary: 'Claude concluiu — envia resumo + preview URL pelo Telegram' })
   complete(@Param('id') id: string, @Body() body: { summary: string; previewUrl?: string }) {

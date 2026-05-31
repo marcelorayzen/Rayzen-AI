@@ -47,7 +47,12 @@ export class AgentSessionService {
   async postQuestion(id: string, question: string, requiresApproval = false, approvalOptions?: string[]) {
     const session = await this.prisma.agentSession.update({
       where: { id },
-      data: { pendingQuestion: question, status: 'waiting' },
+      data: {
+        pendingQuestion: question,
+        status: 'waiting',
+        pendingRequiresApproval: requiresApproval,
+        pendingApprovalOptions: approvalOptions ?? undefined,
+      },
     })
 
     const preview = question.length > 300 ? question.slice(-300) + '…' : question
@@ -70,7 +75,13 @@ export class AgentSessionService {
 
     await this.prisma.agentSession.update({
       where: { id },
-      data: { pendingReply: reply, pendingQuestion: null, status: 'active' },
+      data: {
+        pendingReply: reply,
+        pendingQuestion: null,
+        status: 'active',
+        pendingRequiresApproval: false,
+        pendingApprovalOptions: undefined,
+      },
     })
   }
 

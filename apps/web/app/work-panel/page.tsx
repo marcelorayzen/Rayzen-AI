@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { API_URL, V2_URL } from '../../lib/api-url'
 import { authHeaders } from '../../lib/api-client'
 import { ContextBadge } from './components/ContextBadge'
+import { ApprovalCard } from './components/ApprovalCard'
 
 interface Project { id: string; name: string; status: string }
 
@@ -13,6 +14,16 @@ interface FeedMessage { role: 'user' | 'assistant'; content: string }
 type StepStatus = 'pending' | 'running' | 'done' | 'failed' | 'skipped'
 interface MissionStep { id: string; title: string; status: StepStatus; executor: string }
 interface Mission { id: string; title: string; objective: string; status: string; steps: MissionStep[] }
+
+interface SupervisedSession {
+  id: string
+  status: 'active' | 'waiting' | 'completed' | 'error'
+  pendingQuestion: string | null
+  pendingRequiresApproval: boolean
+  pendingApprovalOptions: string[] | null
+  summary: string | null
+  previewUrl: string | null
+}
 
 interface ChatMessageResponse {
   sessionId: string
@@ -55,6 +66,9 @@ export default function WorkPanelPage() {
   const [executing, setExecuting] = useState(false)
   const [mission, setMission] = useState<Mission | null>(null)
   const [runningWorkflow, setRunningWorkflow] = useState(false)
+  const [supSession, setSupSession] = useState<SupervisedSession | null>(null)
+  const [launchingAssisted, setLaunchingAssisted] = useState(false)
+  const [replyingApproval, setReplyingApproval] = useState(false)
   const [note, setNote] = useState<string | null>(null)
 
   const feedEndRef = useRef<HTMLDivElement>(null)
@@ -165,6 +179,56 @@ export default function WorkPanelPage() {
     return () => clearInterval(t)
   }, [mission, pollMission])
 
+  // ===== Sessão supervisionada (Claude Code real, com aprovação por etapa) =====
+  const launchAssisted = useCallback(async () => {
+    if (!activeProjectId || launchingAssisted) return
+    const prompt = (refinedObjective ?? feed.filter((m) => m.role === 'user').at(-1)?.content ?? '').trim()
+    if (!prompt) { setNote('Converse primeiro para definir o objetivo'); return }
+    setLaunchingAssisted(true)
+    setNote(null)
+    try {
+      const res = await fetch(`${API_URL}/agent/session`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ projectId: activeProjectId, prompt }),
+      })
+      if (!res.ok) { setNote(`Erro ao iniciar sessão assistida (HTTP ${res.status})`); return }
+      const data = await res.json() as SupervisedSession
+      setSupSession(data)
+      setFeed((f) => [...f, { role: 'assistant', content: 'Sessão assistida iniciada — o Claude Code está executando. Vou pausar a cada etapa para sua aprovação.' }])
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : 'falha ao iniciar sessão assistida')
+    } finally { setLaunchingAssisted(false) }
+  }, [activeProjectId, launchingAssisted, refinedObjective, feed])
+
+  const answerApproval = useCallback(async (reply: string) => {
+    if (!supSession || replyingApproval) return
+    setReplyingApproval(true)
+    // otimista: limpa a pergunta para esconder o card até o próximo poll
+    setSupSession((s) => s ? { ...s, status: 'active', pendingQuestion: null } : s)
+    try {
+      await fetch(`${API_URL}/agent/session/${supSession.id}/answer`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ reply }),
+      })
+    } catch { /* o poll reconcilia */ }
+    finally { setReplyingApproval(false) }
+  }, [supSession, replyingApproval])
+
+  // Polling da sessão supervisionada enquanto ativa/aguardando
+  useEffect(() => {
+    if (!supSession || (supSession.status !== 'active' && supSession.status !== 'waiting')) return
+    const id = supSession.id
+    const t = setInterval(async () => {
+      try {
+        const res = await fetch(`${API_URL}/agent/session/${id}`, { headers: authHeaders() })
+        if (res.ok) setSupSession(await res.json() as SupervisedSession)
+      } catch { /* silencioso */ }
+    }, 3000)
+    return () => clearInterval(t)
+  }, [supSession])
+
   return (
     <div style={{ maxWidth: 760, margin: '0 auto', padding: '20px 16px', minHeight: '100vh', display: 'flex', flexDirection: 'column', gap: 14 }}>
       {/* Header */}
@@ -237,6 +301,38 @@ export default function WorkPanelPage() {
         </div>
       )}
 
+      {/* Sessão assistida (Claude Code) — status + aprovação por etapa */}
+      {supSession && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {supSession.status === 'waiting' && supSession.pendingQuestion && (
+            <ApprovalCard
+              question={supSession.pendingQuestion}
+              requiresApproval={supSession.pendingRequiresApproval}
+              options={supSession.pendingApprovalOptions ?? []}
+              busy={replyingApproval}
+              onReply={answerApproval}
+            />
+          )}
+          {supSession.status === 'active' && (
+            <div className="hud-surface hud-pulse" style={{ padding: '8px 12px', fontSize: 12, color: 'var(--hud-text-2)' }}>
+              ⚙ Claude Code executando…
+            </div>
+          )}
+          {supSession.status === 'completed' && (
+            <div className="hud-card" style={{ padding: 12, fontSize: 13, borderColor: '#22c55e' }}>
+              <div style={{ color: '#22c55e', fontSize: 11, textTransform: 'uppercase', marginBottom: 4 }}>✓ sessão concluída</div>
+              <div style={{ whiteSpace: 'pre-wrap' }}>{supSession.summary}</div>
+              {supSession.previewUrl && <a href={supSession.previewUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--hud-cyan)' }}>🔗 preview</a>}
+            </div>
+          )}
+          {supSession.status === 'error' && (
+            <div className="hud-card" style={{ padding: 12, fontSize: 13, borderColor: '#ef4444', color: '#ef4444' }}>
+              ✗ erro: {supSession.summary}
+            </div>
+          )}
+        </div>
+      )}
+
       {note && <div style={{ color: '#ef4444', fontSize: 12 }}>{note}</div>}
 
       {/* Input */}
@@ -259,6 +355,14 @@ export default function WorkPanelPage() {
           style={readyToExecute ? { boxShadow: '0 0 0 1px var(--hud-cyan-40)' } : undefined}
         >
           {executing ? 'estruturando…' : 'executar'}
+        </button>
+        <button
+          className="hud-btn"
+          onClick={launchAssisted}
+          disabled={launchingAssisted || !activeProjectId || (!!supSession && (supSession.status === 'active' || supSession.status === 'waiting'))}
+          title="Executa via Claude Code real, pausando a cada etapa para aprovação"
+        >
+          {launchingAssisted ? 'iniciando…' : 'assistido'}
         </button>
       </div>
     </div>

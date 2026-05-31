@@ -417,6 +417,8 @@ model AgentSession {
   claudePrompt    String   @map("claude_prompt")
   pendingQuestion String?  @map("pending_question")
   pendingReply    String?  @map("pending_reply")
+  pendingRequiresApproval Boolean @default(false) @map("pending_requires_approval")
+  pendingApprovalOptions  Json?   @map("pending_approval_options")
   previewUrl      String?  @map("preview_url")
   summary         String?
   createdAt       DateTime @default(now()) @map("created_at")
