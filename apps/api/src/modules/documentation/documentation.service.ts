@@ -48,10 +48,11 @@ Liste apenas decisões reais identificadas no histórico. Se não houver data pr
   next_actions: (ctx) => `Com base no contexto abaixo, escreva um documento markdown "Próximas Ações".
 
 REGRAS ESTRITAS:
-1. A seção "## Estado atual do projeto" é a fonte primária e mais confiável — use seus "Próximos passos" como lista base.
-2. Sínteses de sessão contêm itens frequentemente JÁ CONCLUÍDOS. Só reutilize um item de síntese se ele TAMBÉM aparece no estado atual ou há evidência nos eventos recentes de que ainda está pendente.
-3. Se um tema aparece nos eventos recentes como algo feito (ex: "Edit: synthesis.service.ts", "Bash: deploy"), trate como concluído — não coloque na lista.
-4. Não inclua itens genéricos ou vagas como "Testar integração" sem evidência de que está pendente agora.
+1. A "## Meta ativa (Goal Graph)" e seus "Critérios pendentes" são a fonte primária — derive as próximas ações deles e dos "Próximos passos" do Estado atual.
+2. NUNCA transforme descrição de comando/diagnóstico em ação (ex: "Testar API", "Pegar id via SSH", "Confirmar imports", "Diagnosticar X"). Esses são execução passada, não intenção do projeto.
+3. Sínteses contêm itens frequentemente JÁ CONCLUÍDOS. Só reutilize se aparecer também no estado atual/meta como pendente.
+4. Se um tema aparece nos eventos como feito (ex: "Edit: arquivo.ts", "Bash: deploy"), trate como concluído — não liste.
+5. Não inclua itens genéricos sem evidência de que estão pendentes agora.
 
 ${ctx}
 
@@ -133,7 +134,7 @@ export class DocumentationService {
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
 
     // Coletar contexto com IDs rastreáveis
-    const [artifacts, events, projectState] = await Promise.all([
+    const [artifacts, events, projectState, activeGoal] = await Promise.all([
       this.prisma.sessionArtifact.findMany({
         where: { projectId, createdAt: { gte: thirtyDaysAgo } },
         orderBy: { createdAt: 'desc' },
@@ -145,12 +146,21 @@ export class DocumentationService {
           memoryClass: { in: ['consolidated', 'working', 'inbox'] },
         },
         orderBy: { ts: 'desc' },
-        take: 50,
+        take: 60,
       }),
       opts._preloadedState !== undefined
         ? Promise.resolve(opts._preloadedState)
         : this.prisma.projectState.findUnique({ where: { projectId } }),
+      this.prisma.projectGoal.findFirst({
+        where: { projectId, status: { not: 'achieved' } },
+        orderBy: { createdAt: 'desc' },
+      }),
     ])
+
+    // Ruído operacional: comandos de diagnóstico não viram "próximas ações"
+    const NOISE_CMD = /\b(curl|grep|cat|echo|ssh|scp|ls|head|tail|sed|awk|wc|diff|find|jq|ping|node -e|python3?|printf|sleep|docker compose (ps|logs|exec)|git (status|log|diff|ls-files)|test|check|listar|verificar|ver |conferir|diagnostic|inspecionar)\b/i
+    const isNoise = (e: typeof events[number]): boolean =>
+      e.intent !== 'decision' && e.type === 'execution' && NOISE_CMD.test(String(e.content))
 
     const sourceIds = [
       ...artifacts.map(a => a.id),
@@ -170,7 +180,8 @@ export class DocumentationService {
     }).join('\n\n')
 
     const eventLines = events
-      .filter(e => e.type !== 'message')
+      .filter(e => e.type !== 'message' && !isNoise(e))
+      .slice(0, 40)
       .map(e => `- [${new Date(e.ts).toLocaleDateString('pt-BR')}] [${e.intent ?? e.source}/${e.type}] ${e.content}`)
       .join('\n')
 
@@ -187,9 +198,20 @@ export class DocumentationService {
         ? `**Blockers:** ${(projectState.blockers as Array<{title:string}>).map(b => b.title ?? b).join('; ')}` : '',
     ].filter(Boolean).join('\n') : ''
 
+    // Meta ativa do Goal Graph — âncora das próximas ações (critérios pendentes)
+    let goalLines = ''
+    if (activeGoal) {
+      const criteria = (activeGoal.successCriteria as Array<{ text: string; done: boolean }> | null) ?? []
+      const pending = criteria.filter(c => !c.done).map(c => `- [ ] ${c.text}`).join('\n')
+      goalLines = [
+        `**Meta:** ${activeGoal.title}`,
+        pending && `**Critérios pendentes (base para próximas ações):**\n${pending}`,
+      ].filter(Boolean).join('\n')
+    }
+
     const context = [
       `# Projeto: ${project.name}`,
-      project.goals && `**Objetivos:** ${project.goals}`,
+      goalLines ? `## Meta ativa (Goal Graph)\n${goalLines}` : (project.goals && `**Objetivos:** ${project.goals}`),
       stateLines && `## Estado atual do projeto\n${stateLines}`,
       synthLines && `## Sínteses de sessão\n${synthLines}`,
       eventLines && `## Eventos recentes\n${eventLines}`,
