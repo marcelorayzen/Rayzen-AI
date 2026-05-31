@@ -61,7 +61,7 @@ export class WorkflowEngineService {
   async execute(missionId: string, projectId: string): Promise<{ completed: number; failed: number; pending: number; docsGenerated: DocType[] }> {
     const mission = await this.missions.findOne(missionId)
     if (!['pending', 'active'].includes(mission.status)) {
-      return { completed: 0, failed: 0, pending: 0 }
+      return { completed: 0, failed: 0, pending: 0, docsGenerated: [] }
     }
 
     if (mission.status === 'pending') {
