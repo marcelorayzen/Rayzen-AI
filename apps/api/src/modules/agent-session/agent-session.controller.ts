@@ -20,9 +20,12 @@ export class AgentSessionController {
   }
 
   @Post(':id/question')
-  @ApiOperation({ summary: 'Claude fez uma pergunta — notifica Telegram e aguarda resposta' })
-  postQuestion(@Param('id') id: string, @Body() body: { question: string }) {
-    return this.svc.postQuestion(id, body.question)
+  @ApiOperation({ summary: 'Claude fez uma pergunta ou concluiu uma etapa — notifica e aguarda resposta/aprovação' })
+  postQuestion(
+    @Param('id') id: string,
+    @Body() body: { question: string; requiresApproval?: boolean; approvalOptions?: string[] },
+  ) {
+    return this.svc.postQuestion(id, body.question, body.requiresApproval, body.approvalOptions)
   }
 
   @Get(':id/reply')

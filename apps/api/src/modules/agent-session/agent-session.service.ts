@@ -44,14 +44,22 @@ export class AgentSessionService {
     return session
   }
 
-  async postQuestion(id: string, question: string) {
+  async postQuestion(id: string, question: string, requiresApproval = false, approvalOptions?: string[]) {
     const session = await this.prisma.agentSession.update({
       where: { id },
       data: { pendingQuestion: question, status: 'waiting' },
     })
 
     const preview = question.length > 300 ? question.slice(-300) + '…' : question
-    await this.telegram.send(`❓ *Claude pergunta:*\n\n${preview}`)
+
+    if (requiresApproval) {
+      const opts = (approvalOptions ?? ['Aprovado, continue', 'Rejeitar e corrigir', 'Modificar instrução'])
+        .map((o, i) => `${i + 1}. ${o}`)
+        .join('\n')
+      await this.telegram.send(`⏸️ *Etapa concluída — aprovação necessária:*\n\n${preview}\n\n*Responda:*\n${opts}`)
+    } else {
+      await this.telegram.send(`❓ *Claude pergunta:*\n\n${preview}`)
+    }
 
     return session
   }
