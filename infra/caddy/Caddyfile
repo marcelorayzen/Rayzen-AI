@@ -22,10 +22,6 @@ api.rayzen.com.br {
 	}
 }
 
-20.251.146.221.nip.io {
-	reverse_proxy mcp-http:3102
-}
-
 :80 {
 	handle /preview/* {
 		uri strip_prefix /preview
