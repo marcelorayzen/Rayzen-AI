@@ -149,7 +149,7 @@ rayzen-ai/
 │       │   ├── poller.ts       # setInterval 3s → GET /tasks/pending
 │       │   ├── executor.ts     # dispatcher de actions
 │       │   ├── security/whitelist.ts   # CRÍTICO — nunca bypassar
-│       │   └── actions/        # 27 actions implementadas
+│       │   └── actions/        # 34 actions implementadas
 │       └── watchdog.ps1        # legado do modo local
 ├── packages/types/src/index.ts # Task, Document, ChatMessage
 ├── scripts/
@@ -303,6 +303,7 @@ Toda nova ação **deve** ser adicionada a `apps/agent/src/security/whitelist.ts
 | `jarvis:get_data_quality` | `get-data-quality.ts` | summary/score/history/rules/results |
 | `jarvis:run_graphify` | `run-graphify.ts` | roda graphify update + envia relatório para API |
 | `jarvis:graphify_sync` | `graphify-sync.ts` | roda graphify update + gera sumário de módulos por arquivos tocados |
+| `jarvis:supervised_session` | `supervised-session.ts` | agente autônomo (loop Claude API, máx. iterações) — risco alto |
 
 ### Adicionar nova ação
 

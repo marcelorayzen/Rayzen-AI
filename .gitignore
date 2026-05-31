@@ -66,3 +66,7 @@ docs/presentation/
 
 # Graphify — grafo gerado localmente (regenerado com `graphify update .`)
 graphify-out/
+
+# Prisma client gerado (regenerado via db:generate no build)
+apps/api-v2/generated/
+apps/api-v2/src/generated/
