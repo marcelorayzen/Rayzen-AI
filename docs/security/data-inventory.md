@@ -1,15 +1,11 @@
 # Inventário de Dados Sensíveis
 
 > 🤖 **GERADO** por `scripts/scan-secrets.mjs` (`pnpm scan:secrets`) — não edite à mão.
-> Gerado em: 2026-05-30T23:40:43.721Z · Escopo: arquivos versionados (git ls-files)
+> Gerado em: 2026-05-31T14:32:10.954Z · Escopo: arquivos versionados (git ls-files)
 
 ## 1. Segredos detectados em arquivos versionados
 
-🔴 **1 ocorrência(s)** — revisar e mover para o Vault / env:
-
-| Arquivo | Linha | Tipo | Amostra (redatada) |
-|---|---|---|---|
-| `infra/caddy/Caddyfile` | 25 | Public IPv4 | `20.2******.221` |
+✅ Nenhum segredo detectado em arquivos versionados.
 
 ## 2. Arquivos que contêm segredos (devem estar gitignored)
 
