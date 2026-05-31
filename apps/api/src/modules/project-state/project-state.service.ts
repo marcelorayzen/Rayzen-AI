@@ -88,12 +88,12 @@ export class ProjectStateService {
     const project = await this.prisma.project.findUnique({ where: { id: projectId } })
     if (!project) throw new NotFoundException('Projeto não encontrado')
 
-    // Coletar contexto: eventos recentes + artefatos de síntese + documentos gerados
-    const [events, artifacts, docs, existing] = await Promise.all([
+    // Coletar contexto: eventos recentes + artefatos de síntese + documentos gerados + meta ativa
+    const [events, artifacts, docs, existing, activeGoal] = await Promise.all([
       this.prisma.event.findMany({
         where: { projectId },
         orderBy: { ts: 'desc' },
-        take: 80,
+        take: 120,
       }),
       this.prisma.sessionArtifact.findMany({
         where: { projectId },
@@ -104,9 +104,27 @@ export class ProjectStateService {
         where: { projectId },
       }),
       this.prisma.projectState.findUnique({ where: { projectId } }),
+      this.prisma.projectGoal.findFirst({
+        where: { projectId, status: { not: 'achieved' } },
+        orderBy: { createdAt: 'desc' },
+      }),
     ])
 
-    const eventsText = events
+    // Ruído operacional: comandos de diagnóstico/leitura não são sinal estratégico.
+    // Decisões e edições de código são sinal; comandos Bash/PowerShell de inspeção
+    // (curl, grep, cat, ssh, ls, test, status...) afogam o objetivo se entrarem crus.
+    const NOISE_CMD = /\b(curl|grep|cat|echo|ssh|scp|ls|head|tail|sed|awk|wc|diff|find|jq|ping|node -e|python3?|printf|sleep|docker compose (ps|logs|exec)|git (status|log|diff|ls-files)|test|check|listar|verificar|ver |conferir|diagnostic|inspecionar)\b/i
+    const isNoise = (e: typeof events[number]): boolean => {
+      if (e.intent === 'decision') return false           // decisão = sinal máximo
+      if (e.type !== 'execution') return false             // edits/notes = sinal
+      return NOISE_CMD.test(String(e.content))             // execution de diagnóstico = ruído
+    }
+
+    const signalEvents = events.filter(e => !isNoise(e))
+    const noiseCount = events.length - signalEvents.length
+
+    const eventsText = signalEvents
+      .slice(0, 80)
       .map(e => {
         const meta = e.metadata as Record<string, unknown> | null
         const modules = (meta?.['graphify'] as { modules?: string[] } | null)?.modules
@@ -114,6 +132,7 @@ export class ProjectStateService {
         return `[${e.ts.toISOString().slice(0, 16)}] [${e.intent ?? e.type}]${modulePart} ${e.content}`
       })
       .join('\n')
+      + (noiseCount > 0 ? `\n(${noiseCount} comandos operacionais/diagnóstico omitidos — não são sinal estratégico)` : '')
 
     // Módulos mais ativos recentemente (derivado do metadata graphify dos eventos)
     const moduleCounts: Record<string, number> = {}
@@ -142,11 +161,26 @@ export class ProjectStateService {
     const existingFocus = existing?.activeFocus ?? ''
     const existingDod = existing?.definitionOfDone ?? ''
 
+    // Meta ativa do Goal Graph — âncora estratégica primária (não sofre com ruído de eventos)
+    let goalText = ''
+    if (activeGoal) {
+      const criteria = (activeGoal.successCriteria as Array<{ text: string; done: boolean }> | null) ?? []
+      const pending = criteria.filter(c => !c.done).map(c => `- [ ] ${c.text}`).join('\n')
+      const doneC = criteria.filter(c => c.done).map(c => `- [x] ${c.text}`).join('\n')
+      goalText = `META ATIVA (Goal Graph): ${activeGoal.title}
+${activeGoal.description ?? ''}
+Critérios já concluídos:
+${doneC || '(nenhum)'}
+Critérios pendentes:
+${pending || '(nenhum)'}`
+    }
+
     const prompt = `Analise o estado atual deste projeto de software e retorne JSON estruturado.
 
 Projeto: ${project.name}
 Descrição: ${project.description ?? 'não informada'}
-Goals: ${project.goals ?? 'não informados'}
+
+${goalText || `Goals: ${project.goals ?? 'não informados'}`}
 
 ${activeModules ? `Módulos mais ativos recentemente (por nº de eventos):\n${activeModules}\n` : ''}
 Eventos recentes (mais novo primeiro, com módulos de código tocados quando disponível):
@@ -177,10 +211,11 @@ Retorne APENAS JSON válido neste formato (sem markdown, sem texto extra):
 }
 
 Regras:
-- objective: o que o projeto está tentando alcançar AGORA baseado nos eventos mais recentes
+- objective: quando há META ATIVA, o objetivo DEVE refletir a meta e seus critérios pendentes — não invente objetivo a partir de comandos operacionais. Os eventos mostram o PROGRESSO rumo à meta, não a substituem. Sem meta, derive dos eventos.
+- IGNORE descrições de comandos de diagnóstico/inspeção como objetivo ou próximo passo (ex: "testar API", "verificar X", "pegar id via SSH" são execução, não intenção do projeto)
 - stage: fase atual real com base na atividade observada
 - blockers: apenas impedimentos ATIVOS identificados nos eventos recentes
-- nextSteps: derive EXCLUSIVAMENTE dos eventos e sínteses mais recentes — não repita itens antigos já concluídos
+- nextSteps: derive dos critérios PENDENTES da meta ativa + eventos/sínteses recentes — não repita itens já concluídos nem liste comandos de diagnóstico
 - riskLevel: "high" se há blockers críticos, "medium" se há riscos mas progresso, "low" se tudo flui
 - milestones: derive dos eventos e goals, máximo 5; marque como "done" os que aparecem concluídos nos eventos
 - backlog: itens pendentes derivados dos eventos recentes, máximo 10
