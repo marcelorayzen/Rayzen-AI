@@ -119,16 +119,18 @@ export class RouterService {
 
     // Plan steps via LLM
     let steps: Array<{ title: string; prompt: string; executor: string; skillId?: string }> = []
+    let planRaw = ''
     try {
       const planResult = await this.llm.chat([
         { role: 'system', content: PLAN_SYSTEM },
         { role: 'user', content: `Objective: "${dto.content}"\n\nProject ID: ${dto.projectId}` },
       ], { model: 'gpt-4o', temperature: 0.2 })
+      planRaw = planResult.content
 
-      const parsed = this.llm.extractJson(planResult.content) as { steps: typeof steps }
+      const parsed = this.llm.extractJson(planRaw) as { steps: typeof steps }
       steps = parsed.steps ?? []
     } catch (e) {
-      this.logger.warn(`plan parse error: ${e} | raw: ${planResult.content.slice(0, 300)}`)
+      this.logger.warn(`plan parse error: ${e} | raw: ${planRaw.slice(0, 300)}`)
     }
 
     // Create Mission
