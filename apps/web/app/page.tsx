@@ -1355,6 +1355,18 @@ export default function Home() {
                     </div>
                   </div>
                   <div className="px-4 py-3 space-y-1.5">
+                    {selectedMission.status === 'done' && (
+                      <div className="mb-2 flex items-center gap-2 px-1 py-1.5 bg-emerald-950/40 rounded-lg border border-emerald-900/50">
+                        <span className="text-emerald-400 text-xs">✓</span>
+                        <span className="text-[11px] text-emerald-300">Documentação gerada automaticamente</span>
+                        <button
+                          onClick={() => { setMissionsOpen(false); openDocs() }}
+                          className="ml-auto text-[10px] text-zinc-400 hover:text-zinc-200 underline"
+                        >
+                          ver docs
+                        </button>
+                      </div>
+                    )}
                     {selectedMission.steps.length === 0 && (
                       <div className="py-3 space-y-2">
                         <p className="text-xs text-zinc-500 text-center">

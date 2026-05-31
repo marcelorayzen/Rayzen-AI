@@ -3,6 +3,7 @@ import { MissionService } from '../mission/mission.service'
 import { SkillEngineService } from '../skill-engine/skill-engine.service'
 import { AiRouterService } from '../ai-router/ai-router.service'
 import { SpecialistService } from '../specialists/specialist.service'
+import { DocumentationEngineService, DocType } from '../documentation-engine/documentation-engine.service'
 
 type StepStatus = 'pending' | 'running' | 'done' | 'failed' | 'skipped'
 
@@ -53,10 +54,11 @@ export class WorkflowEngineService {
     private readonly skillEngine:  SkillEngineService,
     private readonly aiRouter:     AiRouterService,
     private readonly specialists:  SpecialistService,
+    private readonly docs:         DocumentationEngineService,
   ) {}
 
   // Execute all pending steps respecting DAG dependencies
-  async execute(missionId: string, projectId: string): Promise<{ completed: number; failed: number; pending: number }> {
+  async execute(missionId: string, projectId: string): Promise<{ completed: number; failed: number; pending: number; docsGenerated: DocType[] }> {
     const mission = await this.missions.findOne(missionId)
     if (!['pending', 'active'].includes(mission.status)) {
       return { completed: 0, failed: 0, pending: 0 }
@@ -67,7 +69,7 @@ export class WorkflowEngineService {
     }
 
     const steps = mission.steps as Step[]
-    const stats  = { completed: 0, failed: 0, pending: 0 }
+    const stats: { completed: number; failed: number; pending: number; docsGenerated: DocType[] } = { completed: 0, failed: 0, pending: 0, docsGenerated: [] }
 
     // Topological sort — find steps that can run now
     const canRun = (step: Step) => {
@@ -104,8 +106,18 @@ export class WorkflowEngineService {
     }
 
     // Transition mission status
-    if (stats.failed > 0)                      await this.missions.transition(missionId, 'failed').catch(() => null)
-    else if (stats.pending === 0)              await this.missions.transition(missionId, 'done').catch(() => null)
+    if (stats.failed > 0) {
+      await this.missions.transition(missionId, 'failed').catch(() => null)
+    } else if (stats.pending === 0) {
+      await this.missions.transition(missionId, 'done').catch(() => null)
+      // Fire-and-forget: docs gerados em background após missão concluída
+      void this.docs.onMissionCompleted(missionId, projectId)
+        .then((types) => {
+          this.logger.log(`Docs gerados para missão ${missionId}: ${types.join(', ')}`)
+          stats.docsGenerated = types
+        })
+        .catch((e) => this.logger.warn(`doc generation failed for ${missionId}: ${e}`))
+    }
 
     return stats
   }

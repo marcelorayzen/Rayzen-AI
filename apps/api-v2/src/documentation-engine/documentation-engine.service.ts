@@ -9,14 +9,15 @@ export type DocType =
   | 'work_journal'  | 'data_map'       | 'architecture'
   | 'mission_report'
 
-// Docs generated per mission type
+// Docs gerados por tipo de missão (chave = templateType aplicado)
 const MISSION_DOC_MAP: Record<string, DocType[]> = {
   implementation: ['work_journal', 'decisions_log', 'mission_report'],
   architecture:   ['architecture',  'decisions_log', 'mission_report'],
   debugging:      ['work_journal',  'mission_report'],
-  review:         ['decisions_log', 'next_actions'],
-  research:       ['decisions_log'],
-  default:        ['mission_report'],
+  review:         ['decisions_log', 'next_actions', 'mission_report'],
+  research:       ['decisions_log', 'mission_report'],
+  // Default: missão concluída sem template explícito
+  default:        ['mission_report', 'decisions_log', 'next_actions'],
 }
 
 @Injectable()
@@ -30,12 +31,12 @@ export class DocumentationEngineService {
     private readonly memory:   MemoryService,
   ) {}
 
-  // Trigger docs generation when a mission completes
-  async onMissionCompleted(missionId: string, projectId: string): Promise<DocType[]> {
-    const mission  = await this.missions.findOne(missionId)
-    const docTypes = MISSION_DOC_MAP[mission.status] ?? MISSION_DOC_MAP.default
+  // Trigger docs generation when a mission completes.
+  // templateType can optionally be passed to select richer doc set.
+  async onMissionCompleted(missionId: string, projectId: string, templateType?: string): Promise<DocType[]> {
+    const docTypes = MISSION_DOC_MAP[templateType ?? ''] ?? MISSION_DOC_MAP.default
 
-    this.logger.log(`Mission ${missionId} completed — generating docs: ${docTypes.join(', ')}`)
+    this.logger.log(`Mission ${missionId} done — generating docs: ${docTypes.join(', ')}`)
     await this.generate(missionId, projectId, docTypes)
     return docTypes
   }
