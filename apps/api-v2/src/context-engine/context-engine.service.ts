@@ -115,12 +115,17 @@ export class ContextEngineService {
       case 'active_goal': {
         const goal = await this.v1Bridge.getProjectGoal(req.projectId)
         if (!goal) return ''
-        const criteria = goal.successCriteria
-          ? (goal.successCriteria as Array<{ description: string; done: boolean }>)
-              .map((c) => `- [${c.done ? 'x' : ' '}] ${c.description}`)
+        const criteria = Array.isArray(goal.successCriteria)
+          ? (goal.successCriteria as Array<Record<string, unknown>>)
+              .map((c) => {
+                const text = nodeLabel(c)
+                const done = Boolean(c.done ?? c.completed ?? c.checked)
+                return text ? `- [${done ? 'x' : ' '}] ${text}` : ''
+              })
+              .filter(Boolean)
               .join('\n')
           : ''
-        return `Goal: ${goal.title}\n${criteria}`
+        return `Goal: ${goal.title}${criteria ? `\n${criteria}` : ''}`
       }
 
       case 'recent_events': {
@@ -133,11 +138,15 @@ export class ContextEngineService {
       case 'planning': {
         const state = await this.v1Bridge.getProjectState(req.projectId)
         if (!state) return ''
-        const ms = (state.milestones as string[] | null) ?? []
-        const ns = (state.nextSteps as string[] | null) ?? []
+        const ms = Array.isArray(state.milestones) ? state.milestones : []
+        const ns = Array.isArray(state.nextSteps) ? state.nextSteps : []
+        const renderMilestone = (m: unknown): string => {
+          const status = m && typeof m === 'object' ? (m as Record<string, unknown>).status : undefined
+          return `- ${nodeLabel(m)}${status ? ` (${String(status)})` : ''}`
+        }
         const parts = [
-          ms.length ? `Milestones:\n${ms.map((m) => `- ${m}`).join('\n')}` : '',
-          ns.length ? `Next steps:\n${ns.map((n) => `- ${n}`).join('\n')}` : '',
+          ms.length ? `Milestones:\n${ms.map(renderMilestone).join('\n')}` : '',
+          ns.length ? `Next steps:\n${ns.map((n) => `- ${nodeLabel(n)}`).join('\n')}` : '',
         ].filter(Boolean)
         return parts.join('\n\n')
       }
@@ -145,8 +154,8 @@ export class ContextEngineService {
       case 'blockers': {
         const state = await this.v1Bridge.getProjectState(req.projectId)
         if (!state) return ''
-        const bl = (state.blockers as string[] | null) ?? []
-        return bl.length ? bl.map((b) => `- ${b}`).join('\n') : 'No active blockers.'
+        const bl = Array.isArray(state.blockers) ? state.blockers : []
+        return bl.length ? bl.map((b) => `- ${nodeLabel(b)}`).join('\n') : 'No active blockers.'
       }
 
       case 'memory_relevant': {
@@ -166,6 +175,18 @@ export class ContextEngineService {
         return ''
     }
   }
+}
+
+// State JSON fields (milestones, nextSteps, successCriteria, blockers) may hold
+// strings or objects ({id,title,status} / {id,text,done}). Extract a human label robustly.
+function nodeLabel(item: unknown): string {
+  if (typeof item === 'string') return item
+  if (item && typeof item === 'object') {
+    const o = item as Record<string, unknown>
+    const label = o.title ?? o.description ?? o.text ?? o.name ?? o.label
+    if (typeof label === 'string') return label
+  }
+  return ''
 }
 
 function sectionLabel(s: ContextSection): string {
