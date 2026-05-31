@@ -66,11 +66,33 @@ export class LlmService {
   }
 
   extractJson(text: string): unknown {
-    // Remove code fences
-    const stripped = text.replace(/^```(?:json)?\s*/m, '').replace(/\s*```$/m, '').trim()
-    // Find first {...} or [...]
-    const match = stripped.match(/(\{[\s\S]*\}|\[[\s\S]*\])/)
-    if (!match) throw new Error('No JSON found in LLM response')
-    return JSON.parse(match[1])
+    // Strip <think>...</think> reasoning blocks (llama/DeepSeek variants)
+    let clean = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
+    // Remove single code fence wrapper
+    clean = clean.replace(/^```(?:json|javascript|js)?\s*/im, '').replace(/\s*```$/m, '').trim()
+
+    // Walk forward to first { or [, then balance brackets ignoring strings
+    const start = clean.search(/[{[]/)
+    if (start === -1) throw new Error('No JSON found in LLM response')
+
+    const opener = clean[start]
+    const closer = opener === '{' ? '}' : ']'
+    let depth = 0
+    let inString = false
+    let escape = false
+
+    for (let i = start; i < clean.length; i++) {
+      const c = clean[i]
+      if (escape)              { escape = false; continue }
+      if (c === '\\' && inString) { escape = true; continue }
+      if (c === '"')           { inString = !inString; continue }
+      if (inString)            continue
+      if (c === opener)        depth++
+      else if (c === closer) {
+        depth--
+        if (depth === 0) return JSON.parse(clean.slice(start, i + 1))
+      }
+    }
+    throw new Error('Unbalanced JSON in LLM response')
   }
 }

@@ -128,7 +128,7 @@ export class RouterService {
       const parsed = this.llm.extractJson(planResult.content) as { steps: typeof steps }
       steps = parsed.steps ?? []
     } catch (e) {
-      this.logger.warn(`plan parse error: ${e}`)
+      this.logger.warn(`plan parse error: ${e} | raw: ${planResult.content.slice(0, 300)}`)
     }
 
     // Create Mission
