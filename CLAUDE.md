@@ -1,227 +1,91 @@
 # Rayzen AI — Developer Guide
 
-> Full personal workflow is in `CLAUDE.local.md` (gitignored, private repo only).
+> Workflow pessoal e operação em `CLAUDE.local.md` (gitignored). Manual de uso em `docs/manual-de-uso.md`.
 
 ---
 
-## What is this
+## O que é
 
-Personal AI platform with semantic memory, automation, document generation, QA, data quality and assisted execution. TypeScript monorepo with pnpm workspaces.
+Plataforma pessoal de IA com memória semântica, automação, geração de documentos, QA, qualidade de dados e execução assistida. Monorepo TypeScript com pnpm workspaces.
 
-**Repository:** `github.com/marcelorayzen/Rayzen-AI`
-**Main branch:** `main`
+**Duas gerações coexistindo:**
+- **V1** — `apps/api` (:3101), assistente + automação, schema Postgres `public`. Uso diário.
+- **V2** — `apps/api-v2` (:3103, prefixo `/v2`), Mission Oriented Engineering System, schema `v2`. Construída, em adoção. Design em `blueprints/`.
 
 ---
 
 ## Stack
 
-| Layer | Technology |
-|---|---|
-| Frontend | Next.js 16 App Router |
-| Backend | NestJS 10 + Fastify adapter |
-| LLM proxy | LiteLLM — `gpt-4o` and `gpt-4o-mini` aliases |
-| Database | PostgreSQL 16 + pgvector |
-| Cache / Queue | Redis 7 + BullMQ 5 |
-| ORM | Prisma 5 (21 models) |
-| Graph UI | @xyflow/react v12 |
-| PDF | Puppeteer 22 |
-| DOCX | docxtemplater 3 |
-| Embeddings | Jina AI (vector 1024) |
-| Local agent | Node.js 20/22 LTS + TypeScript |
-| Infra | Docker Compose v2 · Azure VM |
+Next.js 16 · NestJS 10 + Fastify · LiteLLM (proxy LLM) · PostgreSQL 16 + pgvector · Redis 7 + BullMQ 5 · Prisma 5 · @xyflow/react (grafo) · Puppeteer (PDF) · docxtemplater (DOCX) · Jina embeddings (1024) · Node 20/22 (agent) · Docker Compose · Azure VM.
 
-**LiteLLM aliases:**
-- `gpt-4o` → Groq llama-3.3-70b (primary) + Claude Sonnet (fallback)
-- `gpt-4o-mini` → Groq llama-3.1-8b (primary) + Claude Haiku (fallback)
-- `gpt-4o-premium` → Claude Sonnet direct
-- `gpt-4o-mini-premium` → Claude Haiku direct
-
-> Claude does not support `response_format: json_object` — use robust JSON extraction (strip code fences + regex).
+**LiteLLM:** `gpt-4o`→Groq llama-3.3-70b (fallback Claude Sonnet) · `gpt-4o-mini`→Groq 8b · `gpt-4o-premium`→Claude Sonnet direto.
+> Claude não suporta `response_format: json_object` — usar extração robusta (strip code fences + regex).
 
 ---
 
-## Monorepo structure
+## Estrutura
 
 ```
 rayzen-ai/
 ├── apps/
-│   ├── api/                    # NestJS + Fastify
-│   │   ├── src/modules/        # 28 modules
-│   │   └── prisma/schema.prisma
+│   ├── api/                    # NestJS V1 (28 módulos) · prisma/schema.prisma
+│   ├── api-v2/                 # NestJS V2 (19 módulos, schema v2)
 │   ├── web/                    # Next.js App Router
 │   └── agent/
 │       ├── src/
-│       │   ├── index.ts        # entry point — poll loop
-│       │   ├── poller.ts       # setInterval 3s → GET /tasks/pending
-│       │   ├── executor.ts     # action dispatcher
-│       │   ├── security/whitelist.ts   # CRITICAL — never bypass
-│       │   ├── actions/        # 34 actions implemented
-│       │   └── mcp/            # MCP servers (stdio + HTTP)
-│       └── hooks/              # Claude Code hook (gitignored config)
-├── packages/types/src/index.ts # Task, Document, ChatMessage
-├── infra/
-│   ├── nginx/
-│   ├── caddy/Caddyfile         # HTTPS reverse proxy for MCP
-│   └── litellm/config.yaml
-└── CLAUDE.md
+│       │   ├── poller.ts · executor.ts
+│       │   ├── security/whitelist.ts   # CRÍTICO — 34 ações, nunca bypassar
+│       │   ├── actions/                # implementações jarvis:*
+│       │   └── mcp/                    # MCP stdio + HTTP
+│       └── hooks/rayzen-hook.mjs       # captura eventos → POST /events/cli
+├── blueprints/                 # design da V2 (24 docs)
+├── docs/                       # manual-de-uso.md · agent-actions.md · security/
+└── infra/                      # nginx · caddy · litellm
 ```
 
 ---
 
-## Essential commands
+## Comandos essenciais
 
 ```bash
-# Setup
 pnpm install
-cp .env.example .env
-
-# Development
-pnpm dev:api                    # API → :3101
-pnpm dev:web                    # Web → :3100
-pnpm --filter agent dev
-
-# Database
-pnpm db:migrate
-pnpm --filter api db:generate   # required after schema changes
-pnpm db:studio
-
-# Quality
-pnpm typecheck
-pnpm lint
-pnpm test
-
-# Build
-pnpm --filter api build
-pnpm --filter agent build
+pnpm dev:api          # API → :3101
+pnpm dev:web          # Web → :3100
+pnpm --filter api db:generate   # após mudança no schema
+pnpm typecheck · lint · test    # 198 testes unit (api)
+pnpm gen:catalog      # regenera docs/agent-actions.md a partir do código
+pnpm scan:secrets     # varre segredos em arquivos versionados
 ```
 
 ---
 
-## API modules
+## Referências (em vez de tabelas inline)
 
-| Module | Key routes |
+| Quer saber | Onde |
 |---|---|
-| auth | `POST /auth/login` |
-| orchestrator | `POST /orchestrate`, `POST /orchestrate/stream` |
-| event | `POST /events`, `POST /events/cli`, `GET /events` |
-| memory | `POST /memory/index`, `POST /memory/search`, `GET /memory/documents` |
-| brain | `POST /brain/index`, `POST /brain/search` |
-| project | `GET/POST /projects`, `PATCH /projects/:id` |
-| project-state | `GET /projects/:id/state`, `POST /projects/:id/state/refresh` |
-| synthesis | `POST /synthesis/session`, `POST /synthesis/checkpoint` |
-| documentation | `POST /documentation/generate/:projectId`, `GET /documentation/:projectId` |
-| wiki | `GET/PUT /wiki/:slug` |
-| agent-bridge | `GET /tasks/pending`, `PATCH /tasks/:id` |
-| graph | `GET /projects/:id/graph`, `POST /projects/:id/graph/goal` |
-| qa | `POST /qa/reports/ingest` |
-| data-quality | `POST /data-quality/rules`, `GET /data-quality/score` |
-| data-catalog | `POST /data-catalog/assets`, `GET /data-catalog/lineage/:assetId` |
-| content-engine | `POST /content-engine/generate` |
-| notion | `GET /notion/search`, `POST /notion/pages` |
-| health | `GET /projects/:id/health` |
-| proactive | `GET /projects/:id/recommendations` |
+| Como usar o sistema (painéis, checkpoint, fluxo) | `docs/manual-de-uso.md` |
+| Rotas completas da API V1 / V2 | `blueprints/` + Swagger `/docs`, `/v2/docs` |
+| Ações do agent + matriz de risco | `docs/agent-actions.md` (gerado por `pnpm gen:catalog`) |
+| Modelos de dados | `apps/api/prisma/schema.prisma` · `apps/api-v2/prisma/schema.prisma` |
+| Arquitetura V2 (engines) | `blueprints/` (24 documentos) |
+| Dados sensíveis | `docs/security/data-inventory.md` (gerado por `pnpm scan:secrets`) |
 
 ---
 
-## Agent actions (whitelist)
+## Regras de desenvolvimento
 
-34 actions — every new action **must** be added to `apps/agent/src/security/whitelist.ts`.
-
-| Action | File |
-|---|---|
-| `jarvis:open_app` | open-app.ts |
-| `jarvis:open_url` | open-url.ts |
-| `jarvis:open_vscode` | open-vscode.ts |
-| `jarvis:list_dir` | list-dir.ts |
-| `jarvis:file_search` | file-search.ts |
-| `jarvis:organize_downloads` | organize-downloads.ts |
-| `jarvis:create_project_folder` | create-project-folder.ts |
-| `jarvis:get_system_info` | get-system-info.ts |
-| `jarvis:screenshot` | screenshot.ts |
-| `jarvis:notify` | notify.ts |
-| `jarvis:clipboard_read` | clipboard.ts |
-| `jarvis:clipboard_write` | clipboard.ts |
-| `jarvis:git_status` | git.ts |
-| `jarvis:git_log` | git.ts |
-| `jarvis:git_branch` | git.ts |
-| `jarvis:git_commit` | git.ts |
-| `jarvis:run_command` | terminal.ts |
-| `jarvis:run_tests` | run-tests.ts |
-| `jarvis:inspect_schema` | inspect-schema.ts |
-| `jarvis:docker_ps` | docker.ts |
-| `jarvis:docker_start` | docker.ts |
-| `jarvis:docker_stop` | docker.ts |
-| `jarvis:docker_logs` | docker.ts |
-| `jarvis:parse_test_report` | parse-test-report.ts |
-| `jarvis:get_qa_summary` | get-qa-summary.ts |
-| `jarvis:capture_test_failure` | capture-test-failure.ts |
-| `jarvis:read_emails` | outlook.ts |
-| `jarvis:send_email` | outlook.ts |
-| `jarvis:get_calendar` | outlook-calendar.ts |
-| `jarvis:restart_api` | restart-api.ts |
-| `jarvis:get_data_quality` | get-data-quality.ts |
-| `jarvis:run_graphify` | run-graphify.ts |
-| `jarvis:graphify_sync` | graphify-sync.ts |
-| `jarvis:supervised_session` | supervised-session.ts |
-
-Adding a new action:
-```typescript
-// 1. apps/agent/src/security/whitelist.ts — add 'jarvis:new_action'
-// 2. apps/agent/src/actions/new-action.ts — implement
-// 3. apps/agent/src/executor.ts — import + switch case
-// 4. __tests__/new-action.spec.ts — security tests
-```
-
----
-
-## MCP Server
-
-Two MCP servers available:
-
-| Server | File | Transport | Use |
-|---|---|---|---|
-| stdio | `apps/agent/src/mcp/rayzen-mcp.mjs` | stdio | Claude Code (local) |
-| HTTP | `apps/agent/src/mcp/rayzen-mcp-http.mjs` | StreamableHTTP | Claude Desktop (remote) |
-
-HTTP server runs as `mcp-http` Docker service, exposed via Caddy (HTTPS).
-
-13 tools: `rayzen_get_state`, `rayzen_get_resume`, `rayzen_get_goal`, `rayzen_get_wiki`, `rayzen_add_event`, `rayzen_search_memory`, `rayzen_checkpoint`, `rayzen_update_planning`, `rayzen_get_events`, `rayzen_blueprint_preview`, `rayzen_blueprint_import`, `rayzen_blueprint_import_markdown`, `rayzen_blueprint_import_file`.
-
----
-
-## Prisma models
-
-`Project`, `ProjectDocument`, `ProjectDocumentVersion`, `SessionArtifact`, `Event`, `ProjectRecommendation`, `ProjectState`, `ProjectHealthScore`, `Document`, `WikiPage`, `WikiPageVersion`, `WikiSourceReference`, `TaskLog`, `ConversationMessage`, `TestRun`, `DataQualityRule`, `DataQualityResult`, `SchemaSnapshot`, `DataAsset`, `DataLineageEdge`, `ProjectGoal`, `AgentAuditLog`
-
----
-
-## LLM models per module
-
-| Module | Model | Temp |
-|---|---|---|
-| Orchestrator (classify) | gpt-4o-mini | 0 |
-| Orchestrator (chat) | gpt-4o | 0.7 |
-| Doc Engine | gpt-4o | 0.3 |
-| ProjectState refresh | gpt-4o-premium | 0.2 |
-| Synthesis / Checkpoint | gpt-4o | 0.3 |
-| Gap Analysis | gpt-4o-mini | 0.2 |
-| Brain synthesis | gpt-4o-mini | 0.3 |
-
----
-
-## Development rules
-
-- TypeScript 100% — no explicit `any`, no plain `.js`
-- Each NestJS module has its own system prompt — never use a generic one
-- Log `tokens_used` and `duration_ms` on every LiteLLM call
-- Always proxy through LiteLLM — never call OpenAI/Anthropic directly
-- Agent whitelist is non-negotiable — actions outside it are silently rejected
-- Path traversal (`../`) always blocked in list-dir and similar actions
-- Medium/high risk actions: `dryRun: true` before executing
-- After any Prisma schema change: run `pnpm --filter api db:generate`
+- TypeScript 100% — sem `any` explícito, sem `.js` puro
+- Cada módulo NestJS tem system prompt próprio — nunca genérico
+- Logar `tokens_used` e `duration_ms` em toda chamada LiteLLM
+- Sempre via LiteLLM — nunca apontar direto p/ OpenAI/Anthropic
+- Agent whitelist é inegociável — ações fora são silenciosamente rejeitadas
+- Path traversal (`../`) sempre bloqueado em list-dir e similares
+- Ações de risco médio/alto: `dryRun: true` antes de executar
+- Após mudança no schema Prisma: `pnpm --filter api db:generate`
+- V2: schema `v2` isolado; V1BridgeService só lê `public`, nunca escreve
 
 ---
 
 ## graphify
 
-Knowledge graph at `graphify-out/`. Run `graphify query "<question>"` for codebase questions. Run `graphify update .` after modifying code.
+Grafo de código em `graphify-out/`. Para perguntas de codebase: `graphify query "<pergunta>"` (subgrafo escopo, mais barato que grep amplo). `graphify path "<A>" "<B>"` para relações. Após modificar código: `graphify update .` (AST-only, sem custo de API).
