@@ -113,7 +113,7 @@ export class ProjectStateService {
     // Ruído operacional: comandos de diagnóstico/leitura não são sinal estratégico.
     // Decisões e edições de código são sinal; comandos Bash/PowerShell de inspeção
     // (curl, grep, cat, ssh, ls, test, status...) afogam o objetivo se entrarem crus.
-    const NOISE_CMD = /\b(curl|grep|cat|echo|ssh|scp|ls|head|tail|sed|awk|wc|diff|find|jq|ping|node -e|python3?|printf|sleep|docker compose (ps|logs|exec)|git (status|log|diff|ls-files)|test|check|listar|verificar|ver |conferir|diagnostic|inspecionar)\b/i
+    const NOISE_CMD = /\b(curl|grep|cat|echo|ssh|scp|ls|head|tail|sed|awk|wc|diff|find|jq|ping|node -e|python3?|printf|sleep|docker compose (ps|logs|exec)|git (status|log|diff|ls-files)|test|testar|check|checar|listar|verificar|ver |conferir|diagnostic|inspecionar)\b/i
     const isNoise = (e: typeof events[number]): boolean => {
       if (e.intent === 'decision') return false           // decisão = sinal máximo
       if (e.type !== 'execution') return false             // edits/notes = sinal

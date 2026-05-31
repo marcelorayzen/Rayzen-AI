@@ -158,7 +158,7 @@ export class DocumentationService {
     ])
 
     // Ruído operacional: comandos de diagnóstico não viram "próximas ações"
-    const NOISE_CMD = /\b(curl|grep|cat|echo|ssh|scp|ls|head|tail|sed|awk|wc|diff|find|jq|ping|node -e|python3?|printf|sleep|docker compose (ps|logs|exec)|git (status|log|diff|ls-files)|test|check|listar|verificar|ver |conferir|diagnostic|inspecionar)\b/i
+    const NOISE_CMD = /\b(curl|grep|cat|echo|ssh|scp|ls|head|tail|sed|awk|wc|diff|find|jq|ping|node -e|python3?|printf|sleep|docker compose (ps|logs|exec)|git (status|log|diff|ls-files)|test|testar|check|checar|listar|verificar|ver |conferir|diagnostic|inspecionar)\b/i
     const isNoise = (e: typeof events[number]): boolean =>
       e.intent !== 'decision' && e.type === 'execution' && NOISE_CMD.test(String(e.content))
 
