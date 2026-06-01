@@ -6,7 +6,7 @@ import { openVscode } from './actions/open-vscode'
 import { listDir } from './actions/list-dir'
 import { fileSearch } from './actions/file-search'
 import { organizeDownloads } from './actions/organize-downloads'
-import { createProjectFolder } from './actions/create-project-folder'
+import { createProjectFolder, SpecData } from './actions/create-project-folder'
 import { getSystemInfo } from './actions/get-system-info'
 import { takeScreenshot } from './actions/screenshot'
 import { notify } from './actions/notify'
@@ -53,7 +53,7 @@ export async function executeTask(task: Task): Promise<unknown> {
     case 'jarvis:list_dir':        return listDir(p as { path: string })
     case 'jarvis:file_search':     return fileSearch(p as { query: string; path?: string })
     case 'jarvis:organize_downloads': return organizeDownloads(p as { path: string; dryRun?: boolean })
-    case 'jarvis:create_project_folder': return createProjectFolder(p as { name: string; root?: string; template?: 'blank' | 'node' | 'nextjs' | 'python' | 'rayzen'; brief?: string; openVscode?: boolean; dryRun?: boolean })
+    case 'jarvis:create_project_folder': return createProjectFolder(p as { name: string; root?: string; template?: 'blank' | 'node' | 'nextjs' | 'python' | 'rayzen'; brief?: string; spec?: SpecData; openVscode?: boolean; dryRun?: boolean })
 
     // Sistema
     case 'jarvis:get_system_info': return getSystemInfo()

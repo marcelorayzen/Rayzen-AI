@@ -67,7 +67,7 @@ async function registerInRayzen(name: string, repoSlug: string): Promise<string 
   })
 }
 
-interface SpecData {
+export interface SpecData {
   problem: string
   solution: string
   personas: Array<{ name: string; role: string; pain: string; expectation: string }>
@@ -82,57 +82,22 @@ interface SpecData {
   diaryEntry: string
 }
 
+/**
+ * Gera a spec a partir do brief.
+ * O agent desktop NÃO alcança o LiteLLM (bind 127.0.0.1 na VPS), então delega a
+ * geração para a api-v2 (`/v2/discovery/spec-from-brief`), que roda onde o LiteLLM
+ * está acessível. O Caddy roteia `${AGENT_API_URL}/v2/*` → api-v2.
+ */
 async function generateSpecFromBrief(name: string, brief: string): Promise<SpecData | null> {
   const agentUrl = process.env.AGENT_API_URL ?? 'http://localhost:3101'
-  // LiteLLM corre na mesma VPS, porta 4100
-  const litellmBase = agentUrl.replace(/:3101\/?$/, ':4100')
-  const litellmUrl = `${litellmBase}/v1/chat/completions`
   const token = process.env.AGENT_TOKEN ?? ''
   if (!token) return null
 
-  const body = JSON.stringify({
-    model: 'gpt-4o-mini',
-    messages: [
-      {
-        role: 'system',
-        content: `Você é um analista de produto e arquiteto de software. Dado o nome e a ideia de um projeto, gere um JSON de especificação estruturada.
-
-Retorne APENAS JSON válido com esta estrutura exata:
-{
-  "problem": "descrição do problema em 2-3 frases",
-  "solution": "proposta de valor em 2-3 frases",
-  "personas": [
-    { "name": "Nome da Persona", "role": "cargo/papel", "pain": "dor principal", "expectation": "o que espera do produto" }
-  ],
-  "mvpFeatures": ["feature 1", "feature 2", "feature 3"],
-  "outOfScope": ["o que não entra no MVP"],
-  "successCriteria": ["critério mensurável 1", "critério 2", "critério 3"],
-  "stack": [
-    { "layer": "Frontend", "tech": "tecnologia" },
-    { "layer": "Backend", "tech": "tecnologia" },
-    { "layer": "Banco de dados", "tech": "tecnologia" }
-  ],
-  "decisions": [
-    { "decision": "escolha técnica", "choice": "o que foi escolhido", "reason": "por quê" }
-  ],
-  "phase1Name": "Nome da Fase 1",
-  "phase1Items": ["item 1", "item 2", "item 3"],
-  "phase1Criterion": "critério de done da fase 1 em 1 frase verificável",
-  "diaryEntry": "resumo em 2 frases do que é o projeto e por que foi iniciado"
-}
-
-Seja específico e técnico. Derive stack e decisões do que estiver descrito no brief. Se stack não for mencionada, sugira a mais adequada para o tipo de projeto.`,
-      },
-      {
-        role: 'user',
-        content: `Projeto: ${name}\n\nIdeia/Brief:\n${brief}`,
-      },
-    ],
-    temperature: 0.2,
-  })
+  const body = JSON.stringify({ name, brief })
+  const url = `${agentUrl.replace(/\/+$/, '')}/v2/discovery/spec-from-brief`
 
   return new Promise((resolve_) => {
-    const parsed = new URL(litellmUrl)
+    const parsed = new URL(url)
     const isHttps = parsed.protocol === 'https:'
     const lib = isHttps ? httpsRequest : request
 
@@ -151,23 +116,14 @@ Seja específico e técnico. Derive stack e decisões do que estiver descrito no
       res.on('data', (d) => { data += d })
       res.on('end', () => {
         try {
-          const json = JSON.parse(data)
-          const content = json?.choices?.[0]?.message?.content ?? ''
-          const fenced = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)
-          const candidate = (fenced?.[1] ?? content).trim()
-          const start = candidate.search(/\{/)
-          const end = candidate.lastIndexOf('}')
-          if (start >= 0 && end > start) {
-            resolve_(JSON.parse(candidate.slice(start, end + 1)) as SpecData)
-          } else {
-            resolve_(null)
-          }
+          if (!res.statusCode || res.statusCode >= 400) { resolve_(null); return }
+          resolve_(JSON.parse(data) as SpecData)
         } catch { resolve_(null) }
       })
     })
 
     req.on('error', () => resolve_(null))
-    req.setTimeout(30000, () => { req.destroy(); resolve_(null) })
+    req.setTimeout(45000, () => { req.destroy(); resolve_(null) })
     req.write(body)
     req.end()
   })
@@ -655,6 +611,7 @@ export async function createProjectFolder(payload: {
   root?: string
   template?: ProjectTemplate
   brief?: string
+  spec?: SpecData
   openVscode?: boolean
   dryRun?: boolean
 }): Promise<{
@@ -707,9 +664,10 @@ export async function createProjectFolder(payload: {
     // 1. Registrar no Rayzen API
     const projectId = await registerInRayzen(name, repoSlug) ?? undefined
 
-    // 2. Gerar spec via LLM se brief foi fornecido
-    let spec: SpecData | null = null
-    if (payload.brief) {
+    // 2. Spec: usa a fornecida (Blueprint já revisado) ou gera a partir do brief.
+    //    Spec pronta evita 2ª chamada de LLM e reflete exatamente o que o Marcelo aprovou.
+    let spec: SpecData | null = payload.spec ?? null
+    if (!spec && payload.brief) {
       spec = await generateSpecFromBrief(name, payload.brief)
     }
 

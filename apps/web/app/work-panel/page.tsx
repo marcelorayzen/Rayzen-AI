@@ -260,7 +260,10 @@ export default function WorkPanelPage() {
             {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </div>
-        <Link href="/" className="hud-btn" style={{ fontSize: 12 }}>← painel</Link>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Link href="/discovery" className="hud-btn" style={{ fontSize: 12 }}>+ novo projeto</Link>
+          <Link href="/" className="hud-btn" style={{ fontSize: 12 }}>← painel</Link>
+        </div>
       </div>
 
       {/* Objetivo ativo / refinado */}

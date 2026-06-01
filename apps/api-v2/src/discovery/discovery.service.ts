@@ -36,6 +36,42 @@ export interface DiscoverySession {
   updatedAt:   string
 }
 
+/** Espelha o SpecData consumido pelo agent (create_project_folder template=rayzen). */
+export interface ProjectSpec {
+  problem:         string
+  solution:        string
+  personas:        Array<{ name: string; role: string; pain: string; expectation: string }>
+  mvpFeatures:     string[]
+  outOfScope:      string[]
+  successCriteria: string[]
+  stack:           Array<{ layer: string; tech: string }>
+  decisions:       Array<{ decision: string; choice: string; reason: string }>
+  phase1Name:      string
+  phase1Items:     string[]
+  phase1Criterion: string
+  diaryEntry:      string
+}
+
+const SPEC_SYSTEM = `Você é um analista de produto e arquiteto de software. Dado o nome e a ideia de um projeto, gere um JSON de especificação estruturada.
+
+Retorne APENAS JSON válido com esta estrutura exata:
+{
+  "problem": "descrição do problema em 2-3 frases",
+  "solution": "proposta de valor em 2-3 frases",
+  "personas": [{ "name": "Nome", "role": "cargo/papel", "pain": "dor principal", "expectation": "o que espera do produto" }],
+  "mvpFeatures": ["feature 1", "feature 2", "feature 3"],
+  "outOfScope": ["o que não entra no MVP"],
+  "successCriteria": ["critério mensurável 1", "critério 2", "critério 3"],
+  "stack": [{ "layer": "Frontend", "tech": "tecnologia" }, { "layer": "Backend", "tech": "tecnologia" }, { "layer": "Banco de dados", "tech": "tecnologia" }],
+  "decisions": [{ "decision": "escolha técnica", "choice": "o que foi escolhido", "reason": "por quê" }],
+  "phase1Name": "Nome da Fase 1",
+  "phase1Items": ["item 1", "item 2", "item 3"],
+  "phase1Criterion": "critério de done da fase 1 em 1 frase verificável",
+  "diaryEntry": "resumo em 2 frases do que é o projeto e por que foi iniciado"
+}
+
+Seja específico e técnico. Derive stack e decisões do brief. Se a stack não for mencionada, sugira a mais adequada ao tipo de projeto.`
+
 const DISCOVERY_SYSTEM = `Você é o Rayzen em MODO DESCOBERTA, conduzindo a entrevista de intake de um projeto novo (geralmente de um cliente).
 Seu objetivo é colher, por conversa natural em português, o suficiente para montar um Blueprint: problema, processo atual, usuários/personas, integrações existentes, regras de negócio e restrições.
 
@@ -132,6 +168,55 @@ export class DiscoveryService {
       }
     }
     throw new ServiceUnavailableException('Não foi possível gerar o Blueprint agora (LLM indisponível/limite). Tente novamente em instantes.')
+  }
+
+  /**
+   * Gera a especificação estruturada do projeto a partir de um brief.
+   * Roda no servidor (LiteLLM acessível na VPS) — o agent desktop NÃO alcança o LiteLLM
+   * direto, então delega aqui em vez de chamar :4100 localmente.
+   */
+  async specFromBrief(name: string, brief: string): Promise<ProjectSpec> {
+    const messages = [
+      { role: 'system' as const, content: SPEC_SYSTEM },
+      { role: 'user' as const, content: `Projeto: ${name}\n\nIdeia/Brief:\n${brief}` },
+    ]
+    const models = ['gpt-4o-mini', 'gpt-4o-premium']
+    for (const model of models) {
+      try {
+        const result = await this.llm.chat(messages, { model, temperature: 0.2, maxTokens: 2000 })
+        return this.llm.extractJson(result.content) as ProjectSpec
+      } catch (e) {
+        this.logger.warn(`spec via ${model} falhou: ${e}`)
+      }
+    }
+    throw new ServiceUnavailableException('Não foi possível gerar a especificação agora (LLM indisponível/limite).')
+  }
+
+  /** Converte um Blueprint já revisado em ProjectSpec — sem nova chamada de LLM. */
+  blueprintToSpec(bp: Blueprint): ProjectSpec {
+    const must = bp.requirements.filter((r) => r.priority === 'must')
+    const phaseItems = (must.length ? must : bp.requirements).map((r) => r.description)
+    return {
+      problem:  bp.problem,
+      solution: bp.solution,
+      personas: bp.personas,
+      mvpFeatures: phaseItems.slice(0, 8),
+      outOfScope: bp.requirements.filter((r) => r.priority === 'could').map((r) => r.description),
+      successCriteria: bp.painPoints
+        .filter((p) => p.severity === 'high' || p.severity === 'critical')
+        .map((p) => `Resolver: ${p.description}`)
+        .slice(0, 5),
+      stack: bp.stack,
+      decisions: bp.stack.map((s) => ({
+        decision: `${s.layer}`,
+        choice: s.tech,
+        reason: 'Adequação ao problema e à stack do projeto.',
+      })),
+      phase1Name: `MVP — ${bp.projectName || 'Fase 1'}`,
+      phase1Items: phaseItems.slice(0, 5),
+      phase1Criterion: must[0]?.description ?? bp.solution,
+      diaryEntry: bp.contextSummary || `${bp.projectName}: ${bp.problem}`,
+    }
   }
 
   get(sessionId: string): DiscoverySession {

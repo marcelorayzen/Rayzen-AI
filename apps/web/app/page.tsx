@@ -2815,6 +2815,13 @@ export default function Home() {
               work panel
             </a>
           )}
+          <a
+            href="/discovery"
+            className="hud-nav"
+            title="Descoberta — entrevista de intake, Blueprint e criação do projeto (padrão Rayzen)"
+          >
+            novo projeto
+          </a>
           {activeProjectId && (
             <button
               onClick={openQA}
