@@ -5,6 +5,7 @@ import { BullModule } from '@nestjs/bull'
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler'
 import { APP_GUARD } from '@nestjs/core'
 import { AuthModule } from './modules/auth/auth.module'
+import { JwtAuthGuard } from './modules/auth/jwt-auth.guard'
 import { ConfigurationModule } from './modules/configuration/configuration.module'
 import { OrchestratorModule } from './modules/orchestrator/orchestrator.module'
 import { AgentBridgeModule } from './modules/agent-bridge/agent-bridge.module'
@@ -80,6 +81,9 @@ import { AgentSessionModule } from './modules/agent-session/agent-session.module
     TelegramModule,
     AgentSessionModule,
   ],
-  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+  ],
 })
 export class AppModule {}

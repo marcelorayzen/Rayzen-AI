@@ -112,6 +112,13 @@ export class AgentSessionService {
     return { ok: true }
   }
 
+  async appendLog(id: string, chunk: string) {
+    const sess = await this.prisma.agentSession.findUnique({ where: { id }, select: { liveLog: true } })
+    if (!sess) return
+    const combined = ((sess.liveLog ?? '') + chunk).slice(-6000)
+    await this.prisma.agentSession.update({ where: { id }, data: { liveLog: combined } })
+  }
+
   async error(id: string, message: string) {
     await this.prisma.agentSession.update({
       where: { id },

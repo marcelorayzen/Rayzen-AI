@@ -4,6 +4,7 @@ import { SkipThrottle } from '@nestjs/throttler'
 import { AgentBridgeService } from './agent-bridge.service'
 import { AuditLogService } from './audit-log.service'
 import { AgentTokenGuard } from './agent-token.guard'
+import { Public } from '../auth/public.decorator'
 import { MetricsService } from '../metrics/metrics.service'
 import { AgentRole, TaskStatus } from '@rayzen/types'
 import { IsString, IsOptional, IsBoolean, IsNumber, IsIn } from 'class-validator'
@@ -27,6 +28,7 @@ class UpdateTaskDto {
   @IsOptional() @IsString() actor?: string
 }
 
+@Public()
 @SkipThrottle()
 @ApiTags('agent')
 @UseGuards(AgentTokenGuard)

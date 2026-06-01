@@ -1,8 +1,7 @@
-import { Controller, Get, Header, UseGuards } from '@nestjs/common'
+import { Controller, Get, Header } from '@nestjs/common'
 import { ApiTags, ApiOperation } from '@nestjs/swagger'
 import { SkipThrottle } from '@nestjs/throttler'
 import { MetricsService } from './metrics.service'
-import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 
 @SkipThrottle()
 @ApiTags('observability')
@@ -11,7 +10,6 @@ export class MetricsController {
   constructor(private readonly metrics: MetricsService) {}
 
   @Get()
-  @UseGuards(JwtAuthGuard)
   @Header('Content-Type', 'text/plain; version=0.0.4; charset=utf-8')
   @ApiOperation({ summary: 'Prometheus metrics — requer JWT' })
   async getMetrics(): Promise<string> {

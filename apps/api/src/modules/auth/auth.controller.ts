@@ -3,6 +3,7 @@ import { ApiTags } from '@nestjs/swagger'
 import { Throttle } from '@nestjs/throttler'
 import { AuthService } from './auth.service'
 import { IsString, MinLength } from 'class-validator'
+import { Public } from './public.decorator'
 
 class LoginDto {
   @IsString()
@@ -10,6 +11,7 @@ class LoginDto {
   password!: string
 }
 
+@Public()
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {

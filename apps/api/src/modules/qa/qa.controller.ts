@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Query, Param, UseGuards, UnauthorizedExcep
 import { ApiTags, ApiOperation } from '@nestjs/swagger'
 import { QaService, SaveTestRunDto } from './qa.service'
 import { AgentTokenGuard } from '../agent-bridge/agent-token.guard'
+import { Public } from '../auth/public.decorator'
 
 @ApiTags('qa')
 @Controller('qa')
@@ -64,6 +65,7 @@ export class QaController {
     return this.qa.getSummary(projectId)
   }
 
+  @Public()
   @Post('reports/ingest')
   @UseGuards(AgentTokenGuard)
   @ApiOperation({ summary: 'Ingest de relatório via CI/CD (GitHub Actions, GitLab, Jenkins)' })

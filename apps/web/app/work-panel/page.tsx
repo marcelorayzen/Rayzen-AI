@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useLayoutEffect } from 'react'
 import Link from 'next/link'
 import { API_URL, V2_URL } from '../../lib/api-url'
 import { authHeaders } from '../../lib/api-client'
@@ -23,6 +23,7 @@ interface SupervisedSession {
   pendingApprovalOptions: string[] | null
   summary: string | null
   previewUrl: string | null
+  liveLog: string | null
 }
 
 interface ChatMessageResponse {
@@ -72,6 +73,7 @@ export default function WorkPanelPage() {
   const [note, setNote] = useState<string | null>(null)
 
   const feedEndRef = useRef<HTMLDivElement>(null)
+  const logEndRef  = useRef<HTMLDivElement>(null)
 
   // Carrega projetos e restaura o projeto ativo do localStorage (mesma chave do painel principal)
   useEffect(() => {
@@ -90,6 +92,12 @@ export default function WorkPanelPage() {
   useEffect(() => {
     feedEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [feed])
+
+  // Auto-scroll do terminal ao vivo — síncrono para não piscar
+  useLayoutEffect(() => {
+    const el = logEndRef.current?.parentElement
+    if (el) el.scrollTop = el.scrollHeight
+  }, [supSession?.liveLog])
 
   const selectProject = useCallback((id: string) => {
     setActiveProjectId(id)
@@ -332,8 +340,23 @@ export default function WorkPanelPage() {
             />
           )}
           {supSession.status === 'active' && (
-            <div className="hud-surface hud-pulse" style={{ padding: '8px 12px', fontSize: 12, color: 'var(--hud-text-2)' }}>
-              ⚙ Claude Code executando…
+            <div className="hud-surface" style={{ padding: '8px 12px' }}>
+              <div className="hud-pulse" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--hud-cyan)', marginBottom: 6 }}>
+                ⚙ Claude Code executando…
+              </div>
+              {supSession.liveLog ? (
+                <pre style={{
+                  margin: 0, padding: '8px 10px', fontSize: 11, lineHeight: 1.5,
+                  background: 'var(--hud-bg)', borderRadius: 4, overflowY: 'auto',
+                  maxHeight: 240, whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+                  color: 'var(--hud-text-2)', fontFamily: 'monospace',
+                }}>
+                  {supSession.liveLog}
+                  <div ref={logEndRef} />
+                </pre>
+              ) : (
+                <div style={{ fontSize: 11, color: 'var(--hud-dim)' }}>aguardando output…</div>
+              )}
             </div>
           )}
           {supSession.status === 'completed' && (

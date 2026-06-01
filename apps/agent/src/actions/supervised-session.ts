@@ -1,10 +1,13 @@
 import { spawn } from 'child_process'
+import { execSync } from 'child_process'
 import { copyFileSync, mkdirSync, readdirSync, statSync } from 'fs'
 import { join, resolve } from 'path'
 
 const API_URL = process.env.AGENT_API_URL ?? 'http://localhost:3101'
 const TOKEN = process.env.AGENT_TOKEN ?? ''
 const MAX_ITERATIONS = 20
+// Intervalo entre envios de log ao vivo: agrupa chunks para não saturar a API
+const LOG_FLUSH_MS = 800
 
 type AnalysisType = 'question' | 'step_completed' | 'completion' | 'error' | 'noise'
 
@@ -49,7 +52,6 @@ function analyzeOutput(text: string): { type: AnalysisType; content: string } {
   // 2) Fallback heurístico — caso o Claude esqueça o marcador
   const lastLine = clean.split('\n').filter(Boolean).at(-1) ?? ''
 
-  // Pergunta direta do Claude ao usuário
   const isQuestion = lastLine.endsWith('?')
     || /\b(qual|escolha|prefere|confirmar|posso|devo|quer|gostaria|como devo|o que você)\b/i.test(lastLine)
   if (isQuestion) return { type: 'question', content: clean.slice(-800) }
@@ -57,12 +59,10 @@ function analyzeOutput(text: string): { type: AnalysisType; content: string } {
   const hasError = /\b(Error:|exception|falhou|failed|ENOENT|EACCES|cannot|undefined is not)\b/.test(clean)
     && !/test.*pass/i.test(clean)
 
-  // Conclusão total da missão — sinais fortes de fim
   const isComplete = /(missão concluída|tudo pronto|implementação completa|missão completa)/i.test(clean)
     && !hasError
   if (isComplete) return { type: 'completion', content: clean.slice(-800) }
 
-  // Etapa concluída — Claude terminou uma parte e aguarda aprovação para seguir
   const isStepDone = /(✅|concluí|finalizei|implementei|criei|adicionei|atualizei|ajustei|corrigi)/i.test(clean)
     && !hasError
   if (isStepDone) return { type: 'step_completed', content: clean.slice(-800) }
@@ -98,25 +98,66 @@ async function pollReply(sessionId: string, timeoutMs = 30 * 60 * 1000): Promise
   return null
 }
 
-function runClaude(prompt: string, cwd: string): Promise<string> {
+/** Captura o git diff --stat HEAD (mudanças staged + unstaged vs último commit). */
+function getGitDiff(cwd: string): string {
+  try {
+    const stat = execSync('git diff --stat HEAD', { cwd, timeout: 5000, encoding: 'utf8' }).trim()
+    if (stat) return stat
+    // Nenhuma mudança vs HEAD — tenta status short (arquivos não-tracked)
+    return execSync('git status --short', { cwd, timeout: 5000, encoding: 'utf8' }).trim()
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * Executa Claude com streaming ao vivo de stdout → API (/agent/session/:id/log).
+ * Agrupa chunks num buffer e faz flush a cada LOG_FLUSH_MS para não saturar a API.
+ */
+function runClaude(prompt: string, cwd: string, sessionId: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = []
+    const allChunks: Buffer[] = []
+    let logBuffer = ''
+    let flushTimer: ReturnType<typeof setTimeout> | null = null
+
+    const flushLog = () => {
+      if (!logBuffer) return
+      const chunk = logBuffer
+      logBuffer = ''
+      // fire-and-forget — falhas de log não interrompem a execução
+      apiPost(`/agent/session/${sessionId}/log`, { chunk: stripAnsi(chunk) }).catch(() => null)
+    }
+
     const proc = spawn('claude', ['-p', prompt, '--dangerously-skip-permissions'], {
       cwd,
       env: { ...process.env },
       stdio: ['ignore', 'pipe', 'pipe'],
     })
 
-    proc.stdout.on('data', (d: Buffer) => chunks.push(d))
-    proc.stderr.on('data', (d: Buffer) => chunks.push(d))
+    proc.stdout.on('data', (d: Buffer) => {
+      allChunks.push(d)
+      logBuffer += d.toString('utf8')
+      if (!flushTimer) {
+        flushTimer = setTimeout(() => { flushTimer = null; flushLog() }, LOG_FLUSH_MS)
+      }
+    })
+
+    proc.stderr.on('data', (d: Buffer) => {
+      allChunks.push(d)
+    })
 
     proc.on('close', (code) => {
-      const output = Buffer.concat(chunks).toString('utf8')
+      if (flushTimer) { clearTimeout(flushTimer); flushTimer = null }
+      flushLog() // flush final
+      const output = Buffer.concat(allChunks).toString('utf8')
       if (code === 0) resolve(output)
       else reject(new Error(output || `claude exited with code ${code}`))
     })
 
-    proc.on('error', reject)
+    proc.on('error', (err) => {
+      if (flushTimer) { clearTimeout(flushTimer); flushTimer = null }
+      reject(err)
+    })
   })
 }
 
@@ -145,8 +186,6 @@ export async function supervisedSession(payload: {
   const { sessionId, prompt, projectPath, previewOutputPath } = payload
   const cwd = projectPath ?? process.cwd()
 
-  // O prompt já chega com o contexto comprimido do Rayzen (injetado no launch).
-  // Prefixamos o protocolo de marcadores para a detecção de etapas ser determinística.
   const basePrompt = `${PROTOCOL}\n\n${prompt}`
   let context = basePrompt
   let iteration = 0
@@ -156,7 +195,7 @@ export async function supervisedSession(payload: {
     let output: string
 
     try {
-      output = await runClaude(context, cwd)
+      output = await runClaude(context, cwd, sessionId)
     } catch (err) {
       const msg = (err as Error).message.slice(0, 300)
       await apiPost(`/agent/session/${sessionId}/error`, { message: msg })
@@ -177,9 +216,14 @@ export async function supervisedSession(payload: {
     }
 
     if (type === 'step_completed') {
-      // Etapa concluída → pausa OBRIGATÓRIA para aprovação do usuário
+      // Captura o diff desta etapa para exibição no ApprovalCard
+      const diff = getGitDiff(cwd)
+      const question = diff
+        ? `${content}\n\n---DIFF---\n${diff}`
+        : content
+
       await apiPost(`/agent/session/${sessionId}/question`, {
-        question: content,
+        question,
         requiresApproval: true,
         approvalOptions: ['Aprovado, continue', 'Rejeitar e corrigir', 'Modificar instrução'],
       })
@@ -213,7 +257,7 @@ export async function supervisedSession(payload: {
       return { ok: false, sessionId }
     }
 
-    // noise — if Claude exited with 0 and no recognized pattern, treat as completion
+    // noise — Claude saiu com 0 mas sem padrão reconhecido → trata como conclusão
     if (output.trim().length > 50) {
       await apiPost(`/agent/session/${sessionId}/complete`, { summary: output.slice(-500) })
       return { ok: true, sessionId }

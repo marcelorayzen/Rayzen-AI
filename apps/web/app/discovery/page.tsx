@@ -69,9 +69,16 @@ export default function DiscoveryPage() {
       })
       if (!res.ok) { setNote(`Erro ao enviar (HTTP ${res.status})`); return }
       const data = await res.json() as MessageResponse
+      const wasReady = enoughInfo
       setSessionId(data.sessionId)
       setEnoughInfo(data.enoughInfo)
-      setFeed((f) => [...f, { role: 'assistant', content: data.reply }])
+      setFeed((f) => {
+        const next = [...f, { role: 'assistant' as const, content: data.reply }]
+        if (data.enoughInfo && !wasReady) {
+          next.push({ role: 'assistant', content: '✓ Tenho o suficiente para montar o Blueprint. Adicione mais detalhes se quiser, ou clique em "gerar Blueprint".' })
+        }
+        return next
+      })
     } catch (e) {
       setNote(e instanceof Error ? e.message : 'falha ao enviar')
     } finally { setSending(false) }

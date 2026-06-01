@@ -421,6 +421,7 @@ model AgentSession {
   pendingApprovalOptions  Json?   @map("pending_approval_options")
   previewUrl      String?  @map("preview_url")
   summary         String?
+  liveLog         String?  @map("live_log")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 

@@ -47,6 +47,12 @@ export class AgentSessionController {
     return this.svc.complete(id, body.summary, body.previewUrl)
   }
 
+  @Post(':id/log')
+  @ApiOperation({ summary: 'Agent envia chunk de stdout ao vivo — acumula em liveLog (últimos 6KB)' })
+  appendLog(@Param('id') id: string, @Body() body: { chunk: string }) {
+    return this.svc.appendLog(id, body.chunk ?? '')
+  }
+
   @Post(':id/error')
   @ApiOperation({ summary: 'Erro crítico — notifica Telegram' })
   error(@Param('id') id: string, @Body() body: { message: string }) {
