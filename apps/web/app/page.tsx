@@ -561,6 +561,7 @@ export default function Home() {
   const [costsData, setCostsData] = useState<CostSummary | null>(null)
   const [costsLoading, setCostsLoading] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
+  const [resumeCopied, setResumeCopied] = useState(false)
   const [blueprintOpen, setBlueprintOpen] = useState(false)
   const [blueprintCopied, setBlueprintCopied] = useState<string | null>(null)
   const [blueprintTab, setBlueprintTab] = useState<'templates' | 'history' | 'upload'>('templates')
@@ -3405,6 +3406,28 @@ markdown: """
                 <span className="text-zinc-300 font-semibold text-[11px] uppercase tracking-wider">Comandos rápidos</span>
                 <button onClick={() => setHelpOpen(false)} className="text-zinc-600 hover:text-zinc-400 text-base leading-none">×</button>
               </div>
+              {activeProjectId && (() => {
+                const resumeKit = `rayzen_get_resume(projectId: ${activeProjectId})\nrayzen_get_goal(projectId: ${activeProjectId})`
+                return (
+                  <div className="mb-3 border-b border-zinc-800 pb-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-zinc-400 text-[10px] uppercase tracking-wider">🔄 Retomar em nova sessão (Claude Code)</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void navigator.clipboard?.writeText(resumeKit)
+                          setResumeCopied(true)
+                          setTimeout(() => setResumeCopied(false), 1500)
+                        }}
+                        className="hud-btn text-[10px] px-2 py-0.5"
+                      >
+                        {resumeCopied ? 'copiado ✓' : 'copiar'}
+                      </button>
+                    </div>
+                    <pre className="text-zinc-400 bg-zinc-950 rounded-lg p-2 text-[10px] whitespace-pre-wrap break-all font-mono">{resumeKit}</pre>
+                  </div>
+                )
+              })()}
               <div className="grid grid-cols-2 gap-x-6 gap-y-1">
                 {([
                   { label: '📁 Novo projeto completo', cmd: 'crie o projeto |nome| brief:\n|descreva a ideia aqui|' },
