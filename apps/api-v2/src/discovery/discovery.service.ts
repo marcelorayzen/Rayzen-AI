@@ -112,8 +112,8 @@ export class DiscoveryService {
 
     const transcript = sess.messages.map((m) => `${m.role === 'user' ? 'Cliente' : 'Rayzen'}: ${m.content}`).join('\n')
     const messages = [
-      { role: 'system', content: BLUEPRINT_SYSTEM },
-      { role: 'user', content: `Projeto: ${sess.projectName ?? '(a definir)'}\n\nTranscrição da descoberta:\n${transcript}` },
+      { role: 'system' as const, content: BLUEPRINT_SYSTEM },
+      { role: 'user' as const, content: `Projeto: ${sess.projectName ?? '(a definir)'}\n\nTranscrição da descoberta:\n${transcript}` },
     ]
 
     // Premium (Claude direto) para qualidade do output estruturado; cai pro mini se indisponível.
