@@ -4,6 +4,7 @@ import { LlmModule } from './llm/llm.module'
 import { MissionModule } from './mission/mission.module'
 import { RouterModule } from './router/router.module'
 import { ConversationModule } from './conversation/conversation.module'
+import { DiscoveryModule } from './discovery/discovery.module'
 import { MemoryModule } from './memory/memory.module'
 import { AiRouterModule } from './ai-router/ai-router.module'
 import { ContextEngineModule } from './context-engine/context-engine.module'
@@ -33,6 +34,7 @@ import { SpecialistModule } from './specialists/specialist.module'
     MissionModule,
     RouterModule,
     ConversationModule,
+    DiscoveryModule,
     SkillEngineModule,
     VaultModule,
     KnowledgeModule,
