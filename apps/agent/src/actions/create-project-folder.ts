@@ -7,6 +7,10 @@ import { request as httpsRequest } from 'node:https'
 
 const HOME = process.env.USERPROFILE ?? process.env.HOME ?? ''
 
+// Raiz do monorepo rayzen-ai, ancorada na localização deste arquivo (robusto a cwd).
+// Em src/actions (dev) e dist/actions (build) são 4 níveis acima: actions → (dist|src) → agent → apps → rayzen-ai.
+const RAYZEN_ROOT = resolve(join(__dirname, '..', '..', '..', '..'))
+
 const SAFE_ROOTS = [
   join(HOME, 'Desktop', 'Projects'),
   join(HOME, 'Projects'),
@@ -131,7 +135,7 @@ async function generateSpecFromBrief(name: string, brief: string): Promise<SpecD
 
 function readTemplateFile(filename: string): string | null {
   try {
-    const path = join(process.cwd(), 'docs', 'templates', filename)
+    const path = join(RAYZEN_ROOT, 'docs', 'templates', filename)
     if (existsSync(path)) return readFileSync(path, 'utf8')
   } catch {}
   return null
@@ -720,7 +724,6 @@ export async function createProjectFolder(payload: {
     await writeFile(join(projectPath, 'README.md'), buildReadme(name, spec, repoSlug))
 
     // 11. .claude/settings.json com MCP config
-    const rayzenRoot = resolve(join(__dirname, '..', '..', '..', '..', '..'))
     const apiUrl = process.env.AGENT_API_URL ?? 'http://localhost:3101'
     await writeFile(
       join(projectPath, '.claude', 'settings.json'),
@@ -728,7 +731,7 @@ export async function createProjectFolder(payload: {
         mcpServers: {
           rayzen: {
             command: 'node',
-            args: [join(rayzenRoot, 'apps', 'agent', 'dist', 'mcp-server.js')],
+            args: [join(RAYZEN_ROOT, 'apps', 'agent', 'dist', 'mcp-server.js')],
             env: {
               AGENT_API_URL: apiUrl,
               AGENT_TOKEN: process.env.AGENT_TOKEN ?? '<JWT_TOKEN>',
