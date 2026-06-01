@@ -2806,6 +2806,15 @@ export default function Home() {
             </button>
           )}
           {activeProjectId && (
+            <a
+              href="/work-panel"
+              className="hud-nav"
+              title="Work Panel — conversa, contexto comprimido e execução assistida com aprovação por etapa"
+            >
+              work panel
+            </a>
+          )}
+          {activeProjectId && (
             <button
               onClick={openQA}
               className="hud-nav"
