@@ -83,7 +83,7 @@ export default function DiscoveryPage() {
     try {
       const res = await fetch(`${V2_URL}/discovery/${sessionId}/blueprint`, {
         method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        headers: authHeaders(), // sem body → não enviar Content-Type: application/json (Fastify rejeita corpo vazio)
       })
       if (!res.ok) { setNote(`Erro ao gerar Blueprint (HTTP ${res.status})`); return }
       setBlueprint(await res.json() as Blueprint)
@@ -99,7 +99,7 @@ export default function DiscoveryPage() {
       // 1. Blueprint revisado → ProjectSpec (server-side, sem nova chamada de LLM)
       const specRes = await fetch(`${V2_URL}/discovery/${sessionId}/spec`, {
         method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        headers: authHeaders(), // sem body
       })
       if (!specRes.ok) { setNote(`Erro ao montar a spec (HTTP ${specRes.status})`); return }
       const spec = await specRes.json() as ProjectSpec

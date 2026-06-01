@@ -123,15 +123,23 @@ export class DiscoveryService {
     let reply = 'Pode me contar um pouco mais?'
     let enoughInfo = false
     try {
+      // gpt-4o (llama 70b) segue o formato JSON bem melhor que o 8b — menos fallback genérico.
       const result = await this.llm.chat(
         [{ role: 'system', content: DISCOVERY_SYSTEM }, ...sess.messages.map((m) => ({ role: m.role, content: m.content }))],
-        { model: 'gpt-4o-mini', temperature: 0.3 },
+        { model: 'gpt-4o', temperature: 0.4 },
       )
-      const parsed = this.llm.extractJson(result.content) as { reply?: string; enoughInfo?: boolean }
-      reply = parsed.reply ?? reply
-      enoughInfo = Boolean(parsed.enoughInfo)
+      try {
+        const parsed = this.llm.extractJson(result.content) as { reply?: string; enoughInfo?: boolean }
+        reply = parsed.reply ?? reply
+        enoughInfo = Boolean(parsed.enoughInfo)
+      } catch {
+        // Modelo respondeu em texto puro (sem JSON): usa a fala real dele em vez do fallback genérico.
+        const raw = result.content?.replace(/```[\s\S]*?```/g, '').trim()
+        if (raw) reply = raw
+        this.logger.warn('discovery: resposta sem JSON, usando texto cru como reply')
+      }
     } catch (e) {
-      this.logger.warn(`discovery message parse error: ${e}`)
+      this.logger.warn(`discovery message LLM error: ${e}`)
     }
 
     sess.messages.push({ role: 'assistant', content: reply, ts: new Date().toISOString() })
