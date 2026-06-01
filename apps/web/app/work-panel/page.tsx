@@ -187,10 +187,25 @@ export default function WorkPanelPage() {
     setLaunchingAssisted(true)
     setNote(null)
     try {
+      // Broker → Claude real: monta o contexto comprimido e injeta no prompt da sessão
+      let contextText = ''
+      try {
+        const cres = await fetch(`${V2_URL}/context/build`, {
+          method: 'POST',
+          headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ projectId: activeProjectId, query: prompt, mode: 'implementation' }),
+        })
+        if (cres.ok) contextText = ((await cres.json()) as { text?: string }).text ?? ''
+      } catch { /* contexto é melhoria, não bloqueia */ }
+
+      const enrichedPrompt = contextText
+        ? `## Contexto do projeto (fornecido pelo Rayzen — use, não re-explique)\n${contextText}\n\n## Tarefa\n${prompt}`
+        : prompt
+
       const res = await fetch(`${API_URL}/agent/session`, {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ projectId: activeProjectId, prompt }),
+        body: JSON.stringify({ projectId: activeProjectId, prompt: enrichedPrompt }),
       })
       if (!res.ok) { setNote(`Erro ao iniciar sessão assistida (HTTP ${res.status})`); return }
       const data = await res.json() as SupervisedSession

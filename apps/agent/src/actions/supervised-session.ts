@@ -8,6 +8,24 @@ const MAX_ITERATIONS = 20
 
 type AnalysisType = 'question' | 'step_completed' | 'completion' | 'error' | 'noise'
 
+// Protocolo de marcadores: instrui o Claude a sinalizar o estado de forma determinística,
+// em vez de o Rayzen adivinhar por regex. Injetado no início de cada prompt do supervised loop.
+const PROTOCOL = [
+  '[PROTOCOLO RAYZEN — obrigatório]',
+  'Trabalhe em etapas pequenas. Ao final de CADA resposta, escreva em linha própria UM marcador:',
+  '- [[RAYZEN:STEP_DONE]] — concluiu uma etapa e deve aguardar aprovação antes de seguir.',
+  '- [[RAYZEN:QUESTION]] seguido da pergunta — precisa de uma decisão do usuário.',
+  '- [[RAYZEN:DONE]] — a missão inteira está concluída.',
+  '- [[RAYZEN:ERROR]] seguido da mensagem — um erro impede continuar.',
+  'Pare após cada etapa com [[RAYZEN:STEP_DONE]] e aguarde a resposta.',
+].join('\n')
+
+const MARKER = /\[\[RAYZEN:(STEP_DONE|QUESTION|DONE|ERROR)\]\]/i
+
+function stripMarkers(s: string): string {
+  return s.replace(/\[\[RAYZEN:[A-Z_]+\]\]/gi, '').trim()
+}
+
 function stripAnsi(text: string): string {
   // eslint-disable-next-line no-control-regex
   return text.replace(/\x1b\[[0-9;]*[mGKHFJA-Z]/g, '').replace(/\x1b\][^\x07]*\x07/g, '')
@@ -17,6 +35,18 @@ function analyzeOutput(text: string): { type: AnalysisType; content: string } {
   const clean = stripAnsi(text).trim()
   if (!clean) return { type: 'noise', content: '' }
 
+  // 1) Marcadores explícitos do protocolo — determinístico, prioritário
+  const m = clean.match(MARKER)
+  if (m) {
+    const kind = m[1].toUpperCase()
+    const content = stripMarkers(clean).slice(-800)
+    if (kind === 'DONE')      return { type: 'completion',     content }
+    if (kind === 'ERROR')     return { type: 'error',          content: content.slice(-400) }
+    if (kind === 'QUESTION')  return { type: 'question',       content }
+    if (kind === 'STEP_DONE') return { type: 'step_completed', content }
+  }
+
+  // 2) Fallback heurístico — caso o Claude esqueça o marcador
   const lastLine = clean.split('\n').filter(Boolean).at(-1) ?? ''
 
   // Pergunta direta do Claude ao usuário
@@ -115,7 +145,10 @@ export async function supervisedSession(payload: {
   const { sessionId, prompt, projectPath, previewOutputPath } = payload
   const cwd = projectPath ?? process.cwd()
 
-  let context = prompt
+  // O prompt já chega com o contexto comprimido do Rayzen (injetado no launch).
+  // Prefixamos o protocolo de marcadores para a detecção de etapas ser determinística.
+  const basePrompt = `${PROTOCOL}\n\n${prompt}`
+  let context = basePrompt
   let iteration = 0
 
   while (iteration < MAX_ITERATIONS) {
@@ -136,9 +169,9 @@ export async function supervisedSession(payload: {
       await apiPost(`/agent/session/${sessionId}/question`, { question: content, requiresApproval: false })
       const reply = await pollReply(sessionId)
       if (reply) {
-        context = `${prompt}\n\n[Resposta anterior do usuário]: ${reply}\n\n[Continuar a implementação]`
+        context = `${basePrompt}\n\n[Resposta anterior do usuário]: ${reply}\n\n[Continuar a implementação]`
       } else {
-        context = `${prompt}\n\n[O usuário não respondeu a tempo — use o melhor julgamento para continuar]`
+        context = `${basePrompt}\n\n[O usuário não respondeu a tempo — use o melhor julgamento para continuar]`
       }
       continue
     }
@@ -153,11 +186,11 @@ export async function supervisedSession(payload: {
       const reply = await pollReply(sessionId)
 
       if (!reply || /\b(aprovad|continu|ok|sim|pode)\b/i.test(reply)) {
-        context = `${prompt}\n\n[Progresso até aqui]:\n${content}\n\n[O usuário APROVOU esta etapa. Continue com a próxima etapa.]`
+        context = `${basePrompt}\n\n[Progresso até aqui]:\n${content}\n\n[O usuário APROVOU esta etapa. Continue com a próxima etapa.]`
       } else if (/\b(rejeit|corrig|desfa|undo|refaz|errado)\b/i.test(reply)) {
-        context = `${prompt}\n\n[Progresso até aqui]:\n${content}\n\n[O usuário REJEITOU esta etapa. Desfaça o que foi feito nela e tente uma abordagem diferente.]`
+        context = `${basePrompt}\n\n[Progresso até aqui]:\n${content}\n\n[O usuário REJEITOU esta etapa. Desfaça o que foi feito nela e tente uma abordagem diferente.]`
       } else {
-        context = `${prompt}\n\n[Progresso até aqui]:\n${content}\n\n[Instrução modificada pelo usuário]: ${reply}\n\n[Aplique a modificação e continue.]`
+        context = `${basePrompt}\n\n[Progresso até aqui]:\n${content}\n\n[Instrução modificada pelo usuário]: ${reply}\n\n[Aplique a modificação e continue.]`
       }
       continue
     }
