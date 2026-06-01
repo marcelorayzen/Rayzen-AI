@@ -11,7 +11,9 @@ import { AuthService } from './auth.service'
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         secret: config.get('JWT_SECRET'),
-        signOptions: { expiresIn: '8h' },
+        // 30d para alinhar com o max-age do cookie no web — evita expirar
+        // silenciosamente no meio do uso (rotas não-guardadas mascaram o 401).
+        signOptions: { expiresIn: '30d' },
       }),
     }),
   ],
