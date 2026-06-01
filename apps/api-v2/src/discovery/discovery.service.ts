@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common'
+import { Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common'
 import { randomUUID } from 'crypto'
 import { LlmService } from '../llm/llm.service'
 
@@ -111,20 +111,27 @@ export class DiscoveryService {
     if (!sess) throw new NotFoundException(`Discovery session ${sessionId} not found`)
 
     const transcript = sess.messages.map((m) => `${m.role === 'user' ? 'Cliente' : 'Rayzen'}: ${m.content}`).join('\n')
-    const result = await this.llm.chat(
-      [
-        { role: 'system', content: BLUEPRINT_SYSTEM },
-        { role: 'user', content: `Projeto: ${sess.projectName ?? '(a definir)'}\n\nTranscrição da descoberta:\n${transcript}` },
-      ],
-      { model: 'gpt-4o', temperature: 0.2, maxTokens: 2000 },
-    )
+    const messages = [
+      { role: 'system', content: BLUEPRINT_SYSTEM },
+      { role: 'user', content: `Projeto: ${sess.projectName ?? '(a definir)'}\n\nTranscrição da descoberta:\n${transcript}` },
+    ]
 
-    const blueprint = this.llm.extractJson(result.content) as Blueprint
-    if (sess.projectName && !blueprint.projectName) blueprint.projectName = sess.projectName
-    sess.blueprint = blueprint
-    sess.status = 'blueprint_ready'
-    sess.updatedAt = new Date().toISOString()
-    return blueprint
+    // Premium (Claude direto) para qualidade do output estruturado; cai pro mini se indisponível.
+    const models = ['gpt-4o-premium', 'gpt-4o-mini']
+    for (const model of models) {
+      try {
+        const result = await this.llm.chat(messages, { model, temperature: 0.2, maxTokens: 2500 })
+        const blueprint = this.llm.extractJson(result.content) as Blueprint
+        if (sess.projectName && !blueprint.projectName) blueprint.projectName = sess.projectName
+        sess.blueprint = blueprint
+        sess.status = 'blueprint_ready'
+        sess.updatedAt = new Date().toISOString()
+        return blueprint
+      } catch (e) {
+        this.logger.warn(`blueprint via ${model} falhou: ${e}`)
+      }
+    }
+    throw new ServiceUnavailableException('Não foi possível gerar o Blueprint agora (LLM indisponível/limite). Tente novamente em instantes.')
   }
 
   get(sessionId: string): DiscoverySession {
