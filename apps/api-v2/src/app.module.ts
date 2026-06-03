@@ -21,6 +21,7 @@ import { ObservabilityModule } from './observability/observability.module'
 import { ResourceManagerModule } from './resource-manager/resource-manager.module'
 import { MissionSchedulerModule } from './mission-scheduler/mission-scheduler.module'
 import { SpecialistModule } from './specialists/specialist.module'
+import { PolicyEngineModule } from './policy-engine/policy-engine.module'
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { SpecialistModule } from './specialists/specialist.module'
     ResourceManagerModule,
     MissionSchedulerModule,
     SpecialistModule,
+    PolicyEngineModule,
   ],
 })
 export class AppModule {}

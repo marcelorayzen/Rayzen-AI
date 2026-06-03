@@ -237,6 +237,25 @@ model DiscoverySession {
   @@map("discovery_sessions")
 }
 
+// ─── Policy Engine ────────────────────────────────────────────────────────────
+
+model PolicyRule {
+  id          String   @id @default(uuid())
+  projectId   String?  @map("project_id")     // null = regra de sistema (default); valor = override por projeto
+  name        String                           // memory_requires_source | code_requires_adr | deployment_requires_review | low_confidence_knowledge
+  description String
+  enabled     Boolean  @default(true)
+  action      String   @default("warn")        // warn | block | gate
+  config      Json     @default("{}")          // thresholds e condições específicas por regra
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([projectId, enabled])
+  @@index([name])
+  @@schema("v2")
+  @@map("policy_rules")
+}
+
 // ─── Mission Scheduler ────────────────────────────────────────────────────────
 
 model ScheduledMission {

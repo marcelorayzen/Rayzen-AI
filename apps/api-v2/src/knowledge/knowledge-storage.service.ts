@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, ForbiddenException } from '@nestjs/common'
 import { PrismaV2Service } from '../core/prisma-v2.service'
 import { KnowledgeGovernanceService, KnowledgeOrigin } from './knowledge-governance.service'
+import { PolicyEngineService } from '../policy-engine/policy-engine.service'
 
 export type EntityType = 'module' | 'rule' | 'entity' | 'adr' | 'flow' | 'file' | 'concept'
 
@@ -27,6 +28,7 @@ export class KnowledgeStorageService {
   constructor(
     private readonly prisma:      PrismaV2Service,
     private readonly governance:  KnowledgeGovernanceService,
+    private readonly policyEngine: PolicyEngineService,
   ) {}
 
   async upsertNode(dto: CreateNodeDto) {
@@ -39,14 +41,36 @@ export class KnowledgeStorageService {
       origin:      dto.origin,
     })
 
-    // Enriquece metadata com resultado do ECC
+    // Policy Engine: verifica regras de governança
+    const policy = await this.policyEngine.evaluate({
+      operation: 'knowledge_add',
+      projectId: dto.projectId,
+      data: {
+        origin:     dto.origin,
+        trustScore: gov.trustScore,
+        label:      dto.label,
+        type:       dto.type,
+      },
+    })
+
+    if (!policy.allowed) {
+      const reason = policy.violations.map((v) => v.message).join('; ')
+      throw new ForbiddenException(`PolicyEngine bloqueou a operação: ${reason}`)
+    }
+
+    // Enriquece metadata com resultado do ECC + avisos de política
     const eccMeta = gov.hasConflict
       ? { conflict: true, conflictDetail: gov.conflictDetail, checkedAt: new Date().toISOString() }
       : undefined
 
+    const policyWarnings = policy.warnings.length > 0
+      ? policy.warnings.map((w) => ({ rule: w.rule, message: w.message }))
+      : undefined
+
     const metadata = {
       ...(dto.metadata ?? {}),
-      ...(eccMeta ? { ecc: eccMeta } : {}),
+      ...(eccMeta         ? { ecc: eccMeta } : {}),
+      ...(policyWarnings  ? { policyWarnings } : {}),
     }
 
     const existing = gov.existingNodeId
