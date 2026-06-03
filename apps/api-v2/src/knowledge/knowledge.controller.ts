@@ -19,8 +19,8 @@ class AddNodeDto {
   @IsNotEmpty()
   projectId!: string
 
-  @ApiProperty({ enum: ['module','rule','entity','adr','flow','file','concept'] })
-  @IsIn(['module','rule','entity','adr','flow','file','concept'])
+  @ApiProperty({ enum: ['module','rule','entity','adr','flow','file','concept','requirement','decision','test'] })
+  @IsIn(['module','rule','entity','adr','flow','file','concept','requirement','decision','test'])
   type!: EntityType
 
   @ApiProperty()

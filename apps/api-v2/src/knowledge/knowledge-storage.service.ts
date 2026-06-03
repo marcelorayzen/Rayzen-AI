@@ -3,7 +3,9 @@ import { PrismaV2Service } from '../core/prisma-v2.service'
 import { KnowledgeGovernanceService, KnowledgeOrigin } from './knowledge-governance.service'
 import { PolicyEngineService } from '../policy-engine/policy-engine.service'
 
-export type EntityType = 'module' | 'rule' | 'entity' | 'adr' | 'flow' | 'file' | 'concept'
+export type EntityType =
+  | 'module' | 'rule' | 'entity' | 'adr' | 'flow' | 'file' | 'concept'
+  | 'requirement' | 'decision' | 'test'
 
 export interface CreateNodeDto {
   projectId:    string
