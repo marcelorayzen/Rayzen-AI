@@ -1,8 +1,6 @@
 'use client'
 
-export const dynamic = 'force-dynamic'
-
-import { useCallback, useEffect, useRef, useState, useLayoutEffect } from 'react'
+import { useCallback, useEffect, useRef, useState, useLayoutEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { API_URL, V2_URL } from '../../lib/api-url'
@@ -58,8 +56,21 @@ const STEP_COLOR: Record<StepStatus, string> = {
   skipped: 'var(--hud-text-2)',
 }
 
-export default function WorkPanelPage() {
+/** Lê ?session=<id> da URL e dispara o carregamento — precisa de Suspense no pai. */
+function SessionParamLoader({ onSession }: { onSession: (s: SupervisedSession) => void }) {
   const searchParams = useSearchParams()
+  useEffect(() => {
+    const id = searchParams.get('session')
+    if (!id) return
+    fetch(`${API_URL}/agent/session/${id}`, { headers: authHeaders() })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data: SupervisedSession | null) => { if (data) onSession(data) })
+      .catch(() => null)
+  }, [searchParams, onSession])
+  return null
+}
+
+export default function WorkPanelPage() {
   const [projects, setProjects] = useState<Project[]>([])
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
   const [feed, setFeed] = useState<FeedMessage[]>([])
@@ -78,16 +89,6 @@ export default function WorkPanelPage() {
 
   const feedEndRef = useRef<HTMLDivElement>(null)
   const logEndRef  = useRef<HTMLDivElement>(null)
-
-  // Se chegou via redirect do discovery (?session=<id>), carrega a sessão supervisionada direto
-  useEffect(() => {
-    const sessionParam = searchParams.get('session')
-    if (!sessionParam) return
-    fetch(`${API_URL}/agent/session/${sessionParam}`, { headers: authHeaders() })
-      .then((r) => r.ok ? r.json() : null)
-      .then((data: SupervisedSession | null) => { if (data) setSupSession(data) })
-      .catch(() => null)
-  }, [searchParams])
 
   // Carrega projetos e restaura o projeto ativo do localStorage (mesma chave do painel principal)
   useEffect(() => {
@@ -268,6 +269,7 @@ export default function WorkPanelPage() {
 
   return (
     <div style={{ maxWidth: 760, margin: '0 auto', padding: '20px 16px', minHeight: '100vh', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <Suspense fallback={null}><SessionParamLoader onSession={setSupSession} /></Suspense>
       {/* Header */}
       <div className="hud-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
