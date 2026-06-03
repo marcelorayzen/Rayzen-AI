@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useLayoutEffect } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { API_URL, V2_URL } from '../../lib/api-url'
 import { authHeaders } from '../../lib/api-client'
 import { ContextBadge } from './components/ContextBadge'
@@ -56,6 +57,7 @@ const STEP_COLOR: Record<StepStatus, string> = {
 }
 
 export default function WorkPanelPage() {
+  const searchParams = useSearchParams()
   const [projects, setProjects] = useState<Project[]>([])
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
   const [feed, setFeed] = useState<FeedMessage[]>([])
@@ -74,6 +76,16 @@ export default function WorkPanelPage() {
 
   const feedEndRef = useRef<HTMLDivElement>(null)
   const logEndRef  = useRef<HTMLDivElement>(null)
+
+  // Se chegou via redirect do discovery (?session=<id>), carrega a sessão supervisionada direto
+  useEffect(() => {
+    const sessionParam = searchParams.get('session')
+    if (!sessionParam) return
+    fetch(`${API_URL}/agent/session/${sessionParam}`, { headers: authHeaders() })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data: SupervisedSession | null) => { if (data) setSupSession(data) })
+      .catch(() => null)
+  }, [searchParams])
 
   // Carrega projetos e restaura o projeto ativo do localStorage (mesma chave do painel principal)
   useEffect(() => {
