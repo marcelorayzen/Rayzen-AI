@@ -24,7 +24,7 @@ export interface SkillDefinition {
 // runtime 'agent-desktop' → dispatched to desktop agent via V1 execution API
 // runtime 'agent-server'  → dispatched to server agent via V1 execution API
 // runtime 'in-process'    → executed directly in api-v2 (not yet implemented, Fase 3)
-const SKILL_DEFINITIONS: SkillDefinition[] = [
+export const SKILL_DEFINITIONS_EXPORT: SkillDefinition[] = [
   { id: 'jarvis:open_app',             name: 'Open Application',      description: 'Opens an application on the desktop',                  category: 'system',     risk: 'low',    runtime: 'agent-desktop', version: '1.0', inputSchema: { app: 'string' }, outputSchema: {} },
   { id: 'jarvis:open_url',             name: 'Open URL',              description: 'Opens a URL in the default browser',                   category: 'browser',    risk: 'low',    runtime: 'agent-desktop', version: '1.0', inputSchema: { url: 'string' }, outputSchema: {} },
   { id: 'jarvis:open_vscode',          name: 'Open VS Code',          description: 'Opens a folder in VS Code',                            category: 'editor',     risk: 'none',   runtime: 'agent-desktop', version: '1.0', inputSchema: { path: 'string' }, outputSchema: {} },
@@ -64,7 +64,7 @@ export class SkillRegistry {
   private readonly skills = new Map<string, SkillDefinition>()
 
   constructor() {
-    for (const skill of SKILL_DEFINITIONS) {
+    for (const skill of SKILL_DEFINITIONS_EXPORT) {
       this.skills.set(skill.id, skill)
     }
   }

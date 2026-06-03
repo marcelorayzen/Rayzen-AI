@@ -256,6 +256,50 @@ model PolicyRule {
   @@map("policy_rules")
 }
 
+// ─── Skill Engine (SkillOpt) ──────────────────────────────────────────────────
+
+model SkillAsset {
+  id           String   @id @default(uuid())
+  skillId      String   @unique @map("skill_id")   // matches SkillDefinition.id (e.g. jarvis:git_commit)
+  name         String
+  description  String
+  category     String
+  risk         String   @default("none")            // none | low | medium | high
+  runtime      String   @default("agent-desktop")   // in-process | agent-desktop | agent-server
+  version      String   @default("1.0")
+  inputSchema  Json     @default("{}") @map("input_schema")
+  outputSchema Json     @default("{}") @map("output_schema")
+  enabled      Boolean  @default(true)
+  builtIn      Boolean  @default(false) @map("built_in")  // true = sincronizado do registry estático
+  tags         String[]
+  owner        String?
+  estimatedMs  Int?     @map("estimated_ms")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([category, enabled])
+  @@index([builtIn])
+  @@schema("v2")
+  @@map("skill_assets")
+}
+
+model SkillUsageLog {
+  id         String   @id @default(uuid())
+  skillId    String   @map("skill_id")
+  projectId  String?  @map("project_id")
+  missionId  String?  @map("mission_id")
+  stepId     String?  @map("step_id")
+  success    Boolean
+  durationMs Int      @map("duration_ms")
+  error      String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([skillId, createdAt])
+  @@index([projectId, createdAt])
+  @@schema("v2")
+  @@map("skill_usage_logs")
+}
+
 // ─── Mission Scheduler ────────────────────────────────────────────────────────
 
 model ScheduledMission {
