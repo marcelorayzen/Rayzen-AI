@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common'
 import { randomUUID } from 'crypto'
 import { LlmService } from '../llm/llm.service'
+import { PrismaV2Service } from '../core/prisma-v2.service'
 
 export type DiscoveryStatus = 'gathering' | 'ready' | 'blueprint_ready'
 
@@ -22,8 +23,8 @@ export interface Blueprint {
   integrations:  string[]
   opportunities: Array<{ title: string; description: string; value: 'low' | 'medium' | 'high'; effort: 'low' | 'medium' | 'high' }>
   stack:         Array<{ layer: string; tech: string }>
-  brief:         string   // passado ao create_project_folder template=rayzen
-  contextSummary: string  // resumo denso pro Context Broker / ProjectState inicial
+  brief:         string
+  contextSummary: string
 }
 
 export interface DiscoverySession {
@@ -104,9 +105,11 @@ Responda SOMENTE com JSON válido nesta estrutura:
 @Injectable()
 export class DiscoveryService {
   private readonly logger = new Logger(DiscoveryService.name)
-  private readonly sessions = new Map<string, DiscoverySession>()
 
-  constructor(private readonly llm: LlmService) {}
+  constructor(
+    private readonly llm: LlmService,
+    private readonly prisma: PrismaV2Service,
+  ) {}
 
   /** Conversa de descoberta — acumula respostas e sinaliza quando há contexto suficiente. */
   async message(content: string, sessionId?: string, projectName?: string): Promise<{
@@ -115,17 +118,22 @@ export class DiscoveryService {
     status: DiscoveryStatus
     enoughInfo: boolean
   }> {
-    const sess = (sessionId && this.sessions.get(sessionId)) || this.createSession(projectName)
-    if (projectName && !sess.projectName) sess.projectName = projectName
+    const sess = sessionId
+      ? await this.loadOrCreate(sessionId, projectName)
+      : await this.createSession(projectName)
 
-    sess.messages.push({ role: 'user', content, ts: new Date().toISOString() })
+    if (projectName && !sess.projectName) {
+      await this.prisma.discoverySession.update({ where: { id: sess.id }, data: { projectName } })
+      sess.projectName = projectName
+    }
+
+    const messages = [...sess.messages, { role: 'user' as const, content, ts: new Date().toISOString() }]
 
     let reply = 'Pode me contar um pouco mais?'
     let enoughInfo = false
     try {
-      // gpt-4o (llama 70b) segue o formato JSON bem melhor que o 8b — menos fallback genérico.
       const result = await this.llm.chat(
-        [{ role: 'system', content: DISCOVERY_SYSTEM }, ...sess.messages.map((m) => ({ role: m.role, content: m.content }))],
+        [{ role: 'system', content: DISCOVERY_SYSTEM }, ...messages.map((m) => ({ role: m.role, content: m.content }))],
         { model: 'gpt-4o', temperature: 0.4 },
       )
       try {
@@ -133,7 +141,6 @@ export class DiscoveryService {
         reply = parsed.reply ?? reply
         enoughInfo = Boolean(parsed.enoughInfo)
       } catch {
-        // Modelo respondeu em texto puro (sem JSON): usa a fala real dele em vez do fallback genérico.
         const raw = result.content?.replace(/```[\s\S]*?```/g, '').trim()
         if (raw) reply = raw
         this.logger.warn('discovery: resposta sem JSON, usando texto cru como reply')
@@ -142,17 +149,23 @@ export class DiscoveryService {
       this.logger.warn(`discovery message LLM error: ${e}`)
     }
 
-    sess.messages.push({ role: 'assistant', content: reply, ts: new Date().toISOString() })
-    sess.status = enoughInfo ? 'ready' : 'gathering'
-    sess.updatedAt = new Date().toISOString()
+    const allMessages: DiscoveryMessage[] = [
+      ...messages,
+      { role: 'assistant', content: reply, ts: new Date().toISOString() },
+    ]
+    const status: DiscoveryStatus = enoughInfo ? 'ready' : 'gathering'
 
-    return { sessionId: sess.id, reply, status: sess.status, enoughInfo }
+    await this.prisma.discoverySession.update({
+      where: { id: sess.id },
+      data: { messages: allMessages as unknown as object[], status },
+    })
+
+    return { sessionId: sess.id, reply, status, enoughInfo }
   }
 
-  /** Consolida a entrevista num Blueprint estruturado (para revisão do Marcelo antes de aplicar). */
+  /** Consolida a entrevista num Blueprint estruturado (para revisão antes de aplicar). */
   async generateBlueprint(sessionId: string): Promise<Blueprint> {
-    const sess = this.sessions.get(sessionId)
-    if (!sess) throw new NotFoundException(`Discovery session ${sessionId} not found`)
+    const sess = await this.load(sessionId)
 
     const transcript = sess.messages.map((m) => `${m.role === 'user' ? 'Cliente' : 'Rayzen'}: ${m.content}`).join('\n')
     const messages = [
@@ -160,16 +173,18 @@ export class DiscoveryService {
       { role: 'user' as const, content: `Projeto: ${sess.projectName ?? '(a definir)'}\n\nTranscrição da descoberta:\n${transcript}` },
     ]
 
-    // Premium (Claude direto) para qualidade do output estruturado; cai pro mini se indisponível.
     const models = ['gpt-4o-premium', 'gpt-4o-mini']
     for (const model of models) {
       try {
         const result = await this.llm.chat(messages, { model, temperature: 0.2, maxTokens: 2500 })
         const blueprint = this.llm.extractJson(result.content) as Blueprint
         if (sess.projectName && !blueprint.projectName) blueprint.projectName = sess.projectName
-        sess.blueprint = blueprint
-        sess.status = 'blueprint_ready'
-        sess.updatedAt = new Date().toISOString()
+
+        await this.prisma.discoverySession.update({
+          where: { id: sess.id },
+          data: { blueprint: blueprint as object, status: 'blueprint_ready' },
+        })
+
         return blueprint
       } catch (e) {
         this.logger.warn(`blueprint via ${model} falhou: ${e}`)
@@ -227,23 +242,47 @@ export class DiscoveryService {
     }
   }
 
-  get(sessionId: string): DiscoverySession {
-    const sess = this.sessions.get(sessionId)
-    if (!sess) throw new NotFoundException(`Discovery session ${sessionId} not found`)
-    return sess
+  async get(sessionId: string): Promise<DiscoverySession> {
+    return this.load(sessionId)
   }
 
-  private createSession(projectName?: string): DiscoverySession {
-    const now = new Date().toISOString()
-    const sess: DiscoverySession = {
-      id: randomUUID(),
-      projectName,
-      status: 'gathering',
-      messages: [],
-      createdAt: now,
-      updatedAt: now,
+  private async load(sessionId: string): Promise<DiscoverySession> {
+    const row = await this.prisma.discoverySession.findUnique({ where: { id: sessionId } })
+    if (!row) throw new NotFoundException(`Discovery session ${sessionId} not found`)
+    return this.rowToSession(row)
+  }
+
+  private async loadOrCreate(sessionId: string, projectName?: string): Promise<DiscoverySession> {
+    const row = await this.prisma.discoverySession.findUnique({ where: { id: sessionId } })
+    if (row) return this.rowToSession(row)
+    return this.createSession(projectName)
+  }
+
+  private async createSession(projectName?: string): Promise<DiscoverySession> {
+    const id = randomUUID()
+    const row = await this.prisma.discoverySession.create({
+      data: { id, projectName, status: 'gathering', messages: [] },
+    })
+    return this.rowToSession(row)
+  }
+
+  private rowToSession(row: {
+    id: string
+    projectName: string | null
+    status: string
+    messages: unknown
+    blueprint: unknown
+    createdAt: Date
+    updatedAt: Date
+  }): DiscoverySession {
+    return {
+      id: row.id,
+      projectName: row.projectName ?? undefined,
+      status: row.status as DiscoveryStatus,
+      messages: (row.messages as DiscoveryMessage[]) ?? [],
+      blueprint: row.blueprint ? (row.blueprint as Blueprint) : undefined,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
     }
-    this.sessions.set(sess.id, sess)
-    return sess
   }
 }

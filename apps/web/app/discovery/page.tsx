@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { API_URL, V2_URL } from '../../lib/api-url'
 import { authHeaders } from '../../lib/api-client'
 
@@ -33,14 +34,68 @@ interface CreateResult {
   projectId?: string
   repoSlug?: string
   filesGenerated?: string[]
+  needsExtractionSession?: boolean
 }
+
+type CreationMode = 'new' | 'extract'
 
 const SEV_COLOR: Record<string, string> = {
   critical: '#ef4444', high: '#f59e0b', medium: 'var(--hud-cyan)', low: 'var(--hud-dim)',
 }
 
+/** Monta o prompt de extração enviado ao Claude Code na sessão supervisionada. */
+function buildExtractionPrompt(bp: Blueprint, sourceRepo: string): string {
+  const stack = bp.stack.map(s => `${s.layer}: ${s.tech}`).join(', ')
+  const modules = ['core', 'catalog', 'customers', 'orders', 'inventory', 'pos', 'finance']
+  return `Você é um engenheiro de software realizando uma extração de produto: transformando a implementação de um cliente em um produto multi-tenant reutilizável.
+
+## Contexto
+- **Produto:** ${bp.projectName}
+- **Problema que resolve:** ${bp.problem}
+- **Solução:** ${bp.solution}
+- **Stack:** ${stack}
+- **Repo fonte (já copiado para este diretório):** ${sourceRepo}
+
+## Plano de extração em 5 fases — execute uma por vez e aguarde aprovação
+
+### Fase 1 — Limpeza de identidade
+Substituir todas as referências específicas do cliente por termos genéricos/configuráveis.
+- Identifique strings hardcoded (nome do cliente, marca, WhatsApp fixo, endereço fixo, cores fixas, logo fixo)
+- Substitua por variáveis de ambiente ou configurações de banco
+- Commit: \`chore: limpeza de identidade — referências do cliente removidas\`
+
+### Fase 2 — Conceito de Tenant
+Adicionar suporte multi-tenant nas tabelas principais. Se usar Prisma/SQL:
+- Adicionar \`tenant_id\` (UUID, NOT NULL) nas tabelas: products, categories, customers, orders, order_items, stock_movements, users, settings
+- Adicionar índices em \`tenant_id\` nas tabelas de acesso frequente
+- Criar migration
+- Commit: \`feat: adicionar tenant_id nas tabelas principais\`
+
+### Fase 3 — Tabela de configurações por tenant
+Criar tabela \`store_settings\` (ou equivalente na stack usada) com campos:
+tenant_id, store_name, logo_url, primary_color, secondary_color, whatsapp, email, address, delivery_enabled, ecommerce_enabled, pos_enabled
+- Commit: \`feat: store_settings — configurações por tenant\`
+
+### Fase 4 — Reorganização em módulos
+Reorganizar o código em módulos separados por domínio:
+${modules.map(m => `- \`src/modules/${m}/\` com actions/, components/, schemas/, services/, repositories/`).join('\n')}
+Mover arquivos existentes para os módulos corretos. Não precisa criar tudo — organize o que já existe.
+- Commit: \`refactor: modularização por domínio de negócio\`
+
+### Fase 5 — Documentação e setup
+- Atualizar README.md com nome do produto, visão geral e setup
+- Verificar se .env.example tem todas as variáveis necessárias (incluindo TENANT_ID para dev)
+- Commit: \`docs: README e .env.example atualizados para produto multi-tenant\`
+
+---
+Comece pela Fase 1. Ao concluir cada fase, escreva [[RAYZEN:STEP_DONE]] e aguarde aprovação antes de continuar.`
+}
+
 export default function DiscoveryPage() {
+  const router = useRouter()
   const [projectName, setProjectName] = useState('')
+  const [mode, setMode] = useState<CreationMode>('new')
+  const [sourceRepo, setSourceRepo] = useState('')
   const [feed, setFeed] = useState<DiscoveryMsg[]>([])
   const [input, setInput] = useState('')
   const [sessionId, setSessionId] = useState<string | null>(null)
@@ -82,7 +137,7 @@ export default function DiscoveryPage() {
     } catch (e) {
       setNote(e instanceof Error ? e.message : 'falha ao enviar')
     } finally { setSending(false) }
-  }, [input, sessionId, sending, projectName])
+  }, [input, sessionId, sending, projectName, enoughInfo])
 
   const generateBlueprint = useCallback(async () => {
     if (!sessionId || generating) return
@@ -90,7 +145,7 @@ export default function DiscoveryPage() {
     try {
       const res = await fetch(`${V2_URL}/discovery/${sessionId}/blueprint`, {
         method: 'POST',
-        headers: authHeaders(), // sem body → não enviar Content-Type: application/json (Fastify rejeita corpo vazio)
+        headers: authHeaders(),
       })
       if (!res.ok) { setNote(`Erro ao gerar Blueprint (HTTP ${res.status})`); return }
       setBlueprint(await res.json() as Blueprint)
@@ -103,32 +158,49 @@ export default function DiscoveryPage() {
     if (!sessionId || !blueprint || creating) return
     setCreating(true); setNote(null)
     try {
-      // 1. Blueprint revisado → ProjectSpec (server-side, sem nova chamada de LLM)
+      // 1. Gera spec a partir do blueprint revisado
       const specRes = await fetch(`${V2_URL}/discovery/${sessionId}/spec`, {
         method: 'POST',
-        headers: authHeaders(), // sem body
+        headers: authHeaders(),
       })
       if (!specRes.ok) { setNote(`Erro ao montar a spec (HTTP ${specRes.status})`); return }
       const spec = await specRes.json() as ProjectSpec
 
-      // 2. Dispara o agent desktop: cria pasta + docs + git + hook (padrão Rayzen)
+      // 2. Cria a pasta do projeto
+      const dispatchPayload = mode === 'extract'
+        ? { action: 'create_project_folder', payload: { name: blueprint.projectName, template: 'extract_from_client', sourceRepo: sourceRepo.trim(), brief: blueprint.brief, spec } }
+        : { action: 'create_project_folder', payload: { name: blueprint.projectName, template: 'rayzen', brief: blueprint.brief, spec } }
+
       const dispatchRes = await fetch(`${API_URL}/execution/dispatch`, {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({
-          action: 'create_project_folder',
-          payload: { name: blueprint.projectName, template: 'rayzen', brief: blueprint.brief, spec },
-        }),
+        body: JSON.stringify(dispatchPayload),
       })
       if (!dispatchRes.ok) {
         setNote(`Erro ao criar projeto (HTTP ${dispatchRes.status}). O agent desktop está rodando?`)
         return
       }
-      setResult(await dispatchRes.json() as CreateResult)
+      const createResult = await dispatchRes.json() as CreateResult
+      setResult(createResult)
+
+      // 3. Se extract_from_client, inicia sessão supervisionada de extração e redireciona
+      if (createResult.needsExtractionSession && createResult.projectId) {
+        const prompt = buildExtractionPrompt(blueprint, sourceRepo.trim())
+        const sessionRes = await fetch(`${API_URL}/agent/session`, {
+          method: 'POST',
+          headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ projectId: createResult.projectId, prompt }),
+        })
+        if (sessionRes.ok) {
+          const sess = await sessionRes.json() as { id: string }
+          router.push(`/work-panel?session=${sess.id}`)
+          return
+        }
+      }
     } catch (e) {
       setNote(e instanceof Error ? e.message : 'falha ao criar projeto')
     } finally { setCreating(false) }
-  }, [sessionId, blueprint, creating])
+  }, [sessionId, blueprint, creating, mode, sourceRepo, router])
 
   return (
     <div style={{ maxWidth: 760, margin: '0 auto', padding: '20px 16px', minHeight: '100vh', display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -144,13 +216,52 @@ export default function DiscoveryPage() {
 
       {!result && (
         <>
+          {/* Modo de criação */}
+          <div className="hud-surface" style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <span style={{ color: 'var(--hud-text-2)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>Modo</span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                className={mode === 'new' ? 'hud-btn hud-btn-primary' : 'hud-btn'}
+                style={{ fontSize: 12 }}
+                onClick={() => setMode('new')}
+              >
+                Novo projeto
+              </button>
+              <button
+                className={mode === 'extract' ? 'hud-btn hud-btn-primary' : 'hud-btn'}
+                style={{ fontSize: 12 }}
+                onClick={() => setMode('extract')}
+              >
+                Extrair de implementação existente
+              </button>
+            </div>
+
+            {mode === 'extract' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ color: 'var(--hud-text-2)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Caminho do repositório fonte
+                </span>
+                <input
+                  className="hud-input"
+                  style={{ width: '100%' }}
+                  placeholder="ex.: C:\Users\marce\Desktop\Projects\vb-ferragens"
+                  value={sourceRepo}
+                  onChange={(e) => setSourceRepo(e.target.value)}
+                />
+                <span style={{ fontSize: 11, color: 'var(--hud-dim)' }}>
+                  O código será copiado para o novo projeto. Uma sessão supervisionada executará a extração (limpeza de identidade, multi-tenant, modularização).
+                </span>
+              </div>
+            )}
+          </div>
+
           {/* Nome do projeto */}
           <div className="hud-surface" style={{ padding: '8px 12px' }}>
             <span style={{ color: 'var(--hud-text-2)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>Nome do projeto</span>
             <input
               className="hud-input"
               style={{ width: '100%', marginTop: 4 }}
-              placeholder="ex.: Tarefas Casa"
+              placeholder="ex.: Rayzen Commerce Platform"
               value={projectName}
               onChange={(e) => setProjectName(e.target.value)}
             />
@@ -160,7 +271,9 @@ export default function DiscoveryPage() {
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto', minHeight: 180 }}>
             {feed.length === 0 && (
               <div className="hud-empty" style={{ margin: 'auto', textAlign: 'center', color: 'var(--hud-dim)' }}>
-                Conte a ideia ou a dor do cliente.<br />O Rayzen conduz a entrevista e monta o Blueprint.
+                {mode === 'extract'
+                  ? 'Descreva o produto que quer extrair e qual cliente serviu de base.\nO Rayzen conduz a entrevista e monta o Blueprint.'
+                  : 'Conte a ideia ou a dor do cliente.\nO Rayzen conduz a entrevista e monta o Blueprint.'}
               </div>
             )}
             {feed.map((m, i) => (
@@ -203,6 +316,13 @@ export default function DiscoveryPage() {
             <span style={{ fontSize: 15, fontWeight: 600 }}>{blueprint.projectName}</span>
             <span style={{ fontSize: 11, color: 'var(--hud-dim)' }}>{blueprint.segment}</span>
           </div>
+
+          {mode === 'extract' && sourceRepo && (
+            <div style={{ fontSize: 12, padding: '6px 10px', background: 'var(--hud-bg)', borderRadius: 4, color: 'var(--hud-text-2)' }}>
+              Extração de <code style={{ fontSize: 11 }}>{sourceRepo}</code>
+              <span style={{ color: 'var(--hud-dim)', marginLeft: 8 }}>→ sessão supervisionada executará as 5 fases automaticamente</span>
+            </div>
+          )}
 
           <Section title="Problema">{blueprint.problem}</Section>
           <Section title="Solução">{blueprint.solution}</Section>
@@ -271,14 +391,20 @@ export default function DiscoveryPage() {
 
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
             <button className="hud-btn" onClick={() => setBlueprint(null)} disabled={creating}>continuar conversa</button>
-            <button className="hud-btn hud-btn-primary" onClick={approveAndCreate} disabled={creating}>
-              {creating ? 'criando projeto…' : 'aprovar e criar projeto'}
+            <button
+              className="hud-btn hud-btn-primary"
+              onClick={approveAndCreate}
+              disabled={creating || (mode === 'extract' && !sourceRepo.trim())}
+            >
+              {creating
+                ? (mode === 'extract' ? 'copiando e iniciando extração…' : 'criando projeto…')
+                : (mode === 'extract' ? 'aprovar e iniciar extração' : 'aprovar e criar projeto')}
             </button>
           </div>
         </div>
       )}
 
-      {/* Resultado da criação */}
+      {/* Resultado da criação (modo new — extract redireciona direto pro work-panel) */}
       {result && (
         <div className="hud-card" style={{ padding: 16, borderColor: '#22c55e', display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ color: '#22c55e', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>✓ projeto criado</div>

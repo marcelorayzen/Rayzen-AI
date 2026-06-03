@@ -57,8 +57,8 @@ export class DiscoveryController {
   @Post(':sessionId/spec')
   @HttpCode(200)
   @ApiOperation({ summary: 'Converte o Blueprint revisado da sessão em ProjectSpec (sem nova chamada de LLM)' })
-  spec(@Param('sessionId') sessionId: string) {
-    const sess = this.discovery.get(sessionId)
+  async spec(@Param('sessionId') sessionId: string) {
+    const sess = await this.discovery.get(sessionId)
     if (!sess.blueprint) {
       throw new NotFoundException(`Sessão ${sessionId} ainda não tem Blueprint; gere o Blueprint antes.`)
     }
@@ -74,7 +74,7 @@ export class DiscoveryController {
 
   @Get(':sessionId')
   @ApiOperation({ summary: 'Estado da sessão de descoberta' })
-  get(@Param('sessionId') sessionId: string) {
+  async get(@Param('sessionId') sessionId: string) {
     return this.discovery.get(sessionId)
   }
 }

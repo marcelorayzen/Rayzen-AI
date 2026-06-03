@@ -1,7 +1,7 @@
 import { execSync } from 'child_process'
 import { resolve, join } from 'path'
 import { existsSync, readFileSync } from 'fs'
-import { mkdir, writeFile } from 'fs/promises'
+import { mkdir, writeFile, cp } from 'fs/promises'
 import { request } from 'node:http'
 import { request as httpsRequest } from 'node:https'
 
@@ -18,7 +18,7 @@ const SAFE_ROOTS = [
   'D:\\Projects',
 ]
 
-export type ProjectTemplate = 'blank' | 'node' | 'nextjs' | 'python' | 'rayzen'
+export type ProjectTemplate = 'blank' | 'node' | 'nextjs' | 'python' | 'rayzen' | 'extract_from_client'
 
 const TEMPLATE_DIRS: Record<ProjectTemplate, string[]> = {
   blank: [],
@@ -26,6 +26,7 @@ const TEMPLATE_DIRS: Record<ProjectTemplate, string[]> = {
   nextjs: ['app', 'components', 'public'],
   python: ['src', 'tests', 'data'],
   rayzen: ['src', 'tests', 'docs', 'docs/specs', 'docs/adr', '.claude'],
+  extract_from_client: ['docs', 'docs/specs', 'docs/adr', '.claude'],
 }
 
 function toRepoSlug(name: string): string {
@@ -616,6 +617,8 @@ export async function createProjectFolder(payload: {
   template?: ProjectTemplate
   brief?: string
   spec?: SpecData
+  /** Caminho do repo fonte (template=extract_from_client). */
+  sourceRepo?: string
   openVscode?: boolean
   dryRun?: boolean
 }): Promise<{
@@ -626,6 +629,8 @@ export async function createProjectFolder(payload: {
   projectId?: string
   repoSlug?: string
   filesGenerated?: string[]
+  /** true quando o projeto precisa de uma sessão supervisionada de extração logo após. */
+  needsExtractionSession?: boolean
 }> {
   const root = payload.root ?? join(HOME, 'Desktop', 'Projects')
   const resolved = resolve(root)
@@ -809,6 +814,89 @@ ${projectId ? `O \`PROJECT_ID\` já está preenchido: \`${projectId}\`` : 'Preen
     }
 
     return { path: projectPath, created: true, dryRun: false, openedVscode, projectId, repoSlug, filesGenerated }
+  }
+
+  // Template extract_from_client: copia código-fonte do repo existente e inicializa como produto novo.
+  if (template === 'extract_from_client') {
+    if (!payload.sourceRepo) throw new Error('sourceRepo é obrigatório para template extract_from_client')
+
+    const sourceResolved = resolve(payload.sourceRepo)
+    if (!existsSync(sourceResolved)) throw new Error(`sourceRepo não encontrado: ${sourceResolved}`)
+
+    const projectId = await registerInRayzen(name, repoSlug) ?? undefined
+
+    // Copia todo o conteúdo do repo fonte, excluindo .git
+    await cp(sourceResolved, projectPath, {
+      recursive: true,
+      filter: (src) => !src.replace(/\\/g, '/').includes('/.git/') && !src.endsWith('/.git'),
+    })
+    filesGenerated.push(`(código fonte copiado de ${sourceResolved})`)
+
+    // Remove .git do destino se veio junto
+    try { execSync(`rd /s /q "${join(projectPath, '.git')}"`, { stdio: 'ignore' }) } catch {}
+    try { execSync(`rm -rf "${join(projectPath, '.git')}"`, { stdio: 'ignore' }) } catch {}
+
+    // Garante subpastas de documentação
+    for (const sub of TEMPLATE_DIRS.extract_from_client) {
+      await mkdir(join(projectPath, sub), { recursive: true })
+    }
+
+    // CLAUDE.md + RAYZEN-SETUP.md
+    await writeFile(join(projectPath, 'CLAUDE.md'), buildClaudeMd(name, repoSlug, projectId))
+    filesGenerated.push('CLAUDE.md')
+
+    const setupStatus = projectId
+      ? `Projeto registrado automaticamente no Rayzen!\n**projectId:** \`${projectId}\`\n**repoSlug:** \`${repoSlug}\``
+      : `Não foi possível registrar automaticamente (API offline?).\nAcesse o painel do Rayzen e crie o projeto com o nome **${name}**.`
+
+    await writeFile(
+      join(projectPath, 'RAYZEN-SETUP.md'),
+      `# Setup Rayzen AI — ${name}\n\n## Status\n\n${setupStatus}\n\n` +
+      `## Origem\n\nEste projeto foi extraído de \`${sourceResolved}\` usando o template **extract_from_client**.\n` +
+      `A extração (limpeza de identidade, multi-tenant, modularização) é realizada por sessão supervisionada.\n\n` +
+      `---\n*Gerado automaticamente via jarvis:create_project_folder template=extract_from_client*\n`,
+    )
+    filesGenerated.push('RAYZEN-SETUP.md')
+
+    // .claude/settings.json
+    const apiUrl = process.env.AGENT_API_URL ?? 'http://localhost:3101'
+    await mkdir(join(projectPath, '.claude'), { recursive: true })
+    await writeFile(
+      join(projectPath, '.claude', 'settings.json'),
+      JSON.stringify({
+        mcpServers: {
+          rayzen: {
+            command: 'node',
+            args: [join(RAYZEN_ROOT, 'apps', 'agent', 'dist', 'mcp-server.js')],
+            env: {
+              AGENT_API_URL: apiUrl,
+              AGENT_TOKEN: process.env.AGENT_TOKEN ?? '<JWT_TOKEN>',
+              PROJECT_ID: projectId ?? '<PROJECT_ID>',
+            },
+          },
+        },
+      }, null, 2),
+    )
+    filesGenerated.push('.claude/settings.json')
+
+    // Git init + commit inicial (bootstrap from source)
+    try {
+      execSync('git init', { cwd: projectPath, stdio: 'ignore' })
+      execSync('git add .', { cwd: projectPath, stdio: 'ignore' })
+      execSync(`git commit -m "chore: bootstrap from ${repoSlug.replace('rayzen-', '')} architecture"`, {
+        cwd: projectPath,
+        stdio: 'ignore',
+        env: { ...process.env, GIT_AUTHOR_NAME: 'Rayzen AI', GIT_COMMITTER_NAME: 'Rayzen AI', GIT_AUTHOR_EMAIL: 'rayzen@local', GIT_COMMITTER_EMAIL: 'rayzen@local' },
+      })
+      filesGenerated.push('.git (init + commit bootstrap)')
+    } catch { /* git não crítico */ }
+
+    let openedVscode = false
+    if (payload.openVscode !== false) {
+      try { execSync(`code "${projectPath}"`, { stdio: 'ignore' }); openedVscode = true } catch {}
+    }
+
+    return { path: projectPath, created: true, dryRun: false, openedVscode, projectId, repoSlug, filesGenerated, needsExtractionSession: true }
   }
 
   // Templates não-rayzen: estrutura simples

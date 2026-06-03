@@ -220,6 +220,21 @@ model TraceSpan {
   @@map("trace_spans")
 }
 
+// ─── Discovery Engine ─────────────────────────────────────────────────────────
+
+model DiscoverySession {
+  id          String   @id @default(uuid())
+  projectName String?  @map("project_name")
+  status      String   @default("gathering") // gathering | ready | blueprint_ready
+  messages    Json     @default("[]")
+  blueprint   Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@schema("v2")
+  @@map("discovery_sessions")
+}
+
 // ─── Mission Scheduler ────────────────────────────────────────────────────────
 
 model ScheduledMission {
