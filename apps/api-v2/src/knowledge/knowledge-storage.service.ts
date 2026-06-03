@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { PrismaV2Service } from '../core/prisma-v2.service'
+import { KnowledgeGovernanceService, KnowledgeOrigin } from './knowledge-governance.service'
 
 export type EntityType = 'module' | 'rule' | 'entity' | 'adr' | 'flow' | 'file' | 'concept'
 
@@ -9,6 +10,7 @@ export interface CreateNodeDto {
   label:        string
   description?: string
   metadata?:    Record<string, unknown>
+  origin?:      KnowledgeOrigin
 }
 
 export interface CreateEdgeDto {
@@ -22,29 +24,57 @@ export interface CreateEdgeDto {
 
 @Injectable()
 export class KnowledgeStorageService {
-  constructor(private readonly prisma: PrismaV2Service) {}
+  constructor(
+    private readonly prisma:      PrismaV2Service,
+    private readonly governance:  KnowledgeGovernanceService,
+  ) {}
 
   async upsertNode(dto: CreateNodeDto) {
-    const existing = await this.prisma.knowledgeNode.findFirst({
-      where: { projectId: dto.projectId, label: dto.label, type: dto.type },
+    // ECC: verifica consistência antes de persistir
+    const gov = await this.governance.check({
+      projectId:   dto.projectId,
+      label:       dto.label,
+      type:        dto.type,
+      description: dto.description,
+      origin:      dto.origin,
     })
+
+    // Enriquece metadata com resultado do ECC
+    const eccMeta = gov.hasConflict
+      ? { conflict: true, conflictDetail: gov.conflictDetail, checkedAt: new Date().toISOString() }
+      : undefined
+
+    const metadata = {
+      ...(dto.metadata ?? {}),
+      ...(eccMeta ? { ecc: eccMeta } : {}),
+    }
+
+    const existing = gov.existingNodeId
+      ? await this.prisma.knowledgeNode.findUnique({ where: { id: gov.existingNodeId } })
+      : null
+
     if (existing) {
       return this.prisma.knowledgeNode.update({
         where: { id: existing.id },
         data: {
           description: dto.description ?? existing.description,
-          metadata:    (dto.metadata ?? {}) as object,
+          metadata:    metadata as object,
+          confidence:  gov.trustScore,
+          origin:      dto.origin ?? existing.origin ?? undefined,
           updatedAt:   new Date(),
         },
       })
     }
+
     return this.prisma.knowledgeNode.create({
       data: {
         projectId:   dto.projectId,
         type:        dto.type,
         label:       dto.label,
         description: dto.description,
-        metadata:    (dto.metadata ?? {}) as object,
+        metadata:    metadata as object,
+        confidence:  gov.trustScore,
+        origin:      dto.origin ?? null,
       },
     })
   }

@@ -5,11 +5,12 @@ import {
 import { ApiTags, ApiBearerAuth, ApiQuery } from '@nestjs/swagger'
 import { IsString, IsNotEmpty, IsOptional, IsArray, IsNumber, IsIn, IsObject } from 'class-validator'
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
-import { KnowledgeStorageService, EntityType } from './knowledge-storage.service'
+import { KnowledgeStorageService, EntityType, CreateNodeDto } from './knowledge-storage.service'
 import { KnowledgeQueryService } from './knowledge-query.service'
 import { KnowledgeExtractorService } from './knowledge-extractor.service'
 import { KnowledgeImpactService } from './knowledge-impact.service'
 import { KnowledgeGraphBuilderService } from './knowledge-graph-builder.service'
+import { KnowledgeGovernanceService } from './knowledge-governance.service'
 import { JwtAuthGuard } from '../core/auth.guard'
 
 class AddNodeDto {
@@ -36,6 +37,11 @@ class AddNodeDto {
   @IsOptional()
   @IsObject()
   metadata?: Record<string, unknown>
+
+  @ApiPropertyOptional({ enum: ['manual','extracted','inferred','document','meeting','adr'], description: 'Proveniência da informação' })
+  @IsOptional()
+  @IsString()
+  origin?: string
 }
 
 class AddEdgeDto {
@@ -136,16 +142,17 @@ class QueryDto {
 @Controller('knowledge')
 export class KnowledgeController {
   constructor(
-    private readonly storage:    KnowledgeStorageService,
+    private readonly storage:     KnowledgeStorageService,
     private readonly queryService: KnowledgeQueryService,
-    private readonly extractor:  KnowledgeExtractorService,
-    private readonly impactSvc:  KnowledgeImpactService,
-    private readonly builder:    KnowledgeGraphBuilderService,
+    private readonly extractor:   KnowledgeExtractorService,
+    private readonly impactSvc:   KnowledgeImpactService,
+    private readonly builder:     KnowledgeGraphBuilderService,
+    private readonly governance:  KnowledgeGovernanceService,
   ) {}
 
   @Post('nodes')
   addNode(@Body() dto: AddNodeDto) {
-    return this.storage.upsertNode(dto)
+    return this.storage.upsertNode(dto as CreateNodeDto)
   }
 
   @Get('graph/:projectId')
@@ -226,5 +233,11 @@ export class KnowledgeController {
   @HttpCode(200)
   build(@Param('projectId') projectId: string) {
     return this.builder.build(projectId)
+  }
+
+  @Get('conflicts/:projectId')
+  @ApiQuery({ name: 'projectId', required: true })
+  listConflicts(@Param('projectId') projectId: string) {
+    return this.governance.listConflicts(projectId)
   }
 }

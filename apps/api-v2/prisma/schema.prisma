@@ -104,6 +104,8 @@ model KnowledgeNode {
   label       String
   description String?
   metadata    Json     @default("{}")
+  confidence  Float    @default(1.0)             // 0-1 — diminui quando contradições detectadas
+  origin      String?                             // extracted|manual|inferred|document|meeting|adr
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
