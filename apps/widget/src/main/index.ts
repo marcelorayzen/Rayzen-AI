@@ -5,28 +5,35 @@ import { RayzenWsClient } from './ws-client'
 import { ClaudeLauncher } from './claude-launcher'
 import { VoiceRecorder } from './voice'
 
-// Load .env (dev mode: cwd = monorepo root)
 loadEnv({ path: join(process.cwd(), 'apps/widget/.env') })
 loadEnv({ path: join(__dirname, '../../.env') })
 
-const API_URL    = process.env.RAYZEN_API_URL    ?? 'https://api.rayzen.com.br'
-const WS_URL     = process.env.RAYZEN_WS_URL     ?? 'ws://20.251.146.221:3104/ws'
-const API_TOKEN  = process.env.RAYZEN_TOKEN       ?? ''
-const PROJECT_ID = process.env.RAYZEN_PROJECT_ID  ?? ''
+const API_URL    = process.env.RAYZEN_API_URL   ?? 'https://api.rayzen.com.br'
+const WS_URL     = process.env.RAYZEN_WS_URL    ?? 'ws://20.251.146.221:3104/ws'
+const API_TOKEN  = process.env.RAYZEN_TOKEN      ?? ''
+const PROJECT_ID = process.env.RAYZEN_PROJECT_ID ?? ''
 
 let win: BrowserWindow | null = null
 let ws:  RayzenWsClient | null = null
 const voice = new VoiceRecorder(API_URL, API_TOKEN)
 
+function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  return { Authorization: `Bearer ${API_TOKEN}`, 'Content-Type': 'application/json', ...extra }
+}
+
+async function apiFetch(path: string, init?: RequestInit) {
+  const res = await fetch(`${API_URL}${path}`, {
+    ...init,
+    headers: { ...authHeaders(), ...(init?.headers as Record<string, string> ?? {}) },
+  })
+  return res.ok ? res.json() : null
+}
+
 function createWindow() {
   win = new BrowserWindow({
-    width:  440,
-    height: 800,
-    minWidth: 380,
-    minHeight: 500,
-    frame: false,
-    transparent: true,
-    resizable: true,
+    width: 440, height: 820,
+    minWidth: 380, minHeight: 500,
+    frame: false, transparent: true, resizable: true,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       nodeIntegration: false,
@@ -47,13 +54,11 @@ function createWindow() {
 app.whenReady().then(() => {
   createWindow()
 
-  // WebSocket
   ws = new RayzenWsClient(WS_URL, API_TOKEN, PROJECT_ID, (event) => {
     win?.webContents.send('ws:event', event)
   })
   ws.connect()
 
-  // IPC handlers
   ipcMain.on('window:minimize', () => win?.minimize())
   ipcMain.on('window:close',    () => win?.hide())
 
@@ -61,43 +66,37 @@ app.whenReady().then(() => {
     shell.openExternal(`https://rayzen.com.br/work-panel?mission=${missionId}`)
   })
 
-  ipcMain.handle('claude:launch', async (_, { projectPath, objective }: { projectPath: string; objective: string }) => {
-    return ClaudeLauncher.launch(projectPath, objective)
-  })
+  ipcMain.handle('projects:fetch', () =>
+    apiFetch('/projects').catch(() => []))
 
-  ipcMain.handle('voice:transcribe', async (_, audioBuffer: ArrayBuffer) => {
-    return voice.transcribe(Buffer.from(audioBuffer))
-  })
+  ipcMain.handle('missions:fetch', (_, projectId: string) =>
+    apiFetch(`/v2/missions?projectId=${projectId}`).catch(() => []))
 
-  ipcMain.handle('missions:fetch', async (_, projectId: string) => {
+  ipcMain.handle('missions:action', (_, { id, action }: { id: string; action: string }) =>
+    apiFetch(`/v2/missions/${id}/${action}`, { method: 'POST' }).catch(() => null))
+
+  ipcMain.handle('chat:send', async (_, { projectId, content, sessionId }: { projectId: string; content: string; sessionId?: string }) => {
     try {
-      const res = await fetch(`${API_URL}/v2/missions?projectId=${projectId}`, {
-        headers: { Authorization: `Bearer ${API_TOKEN}` },
-      })
-      return res.ok ? res.json() : []
-    } catch { return [] }
-  })
-
-  ipcMain.handle('missions:action', async (_, { id, action }: { id: string; action: string }) => {
-    try {
-      const res = await fetch(`${API_URL}/v2/missions/${id}/${action}`, {
+      const res = await fetch(`${API_URL}/v2/chat/message`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${API_TOKEN}` },
+        headers: authHeaders(),
+        body: JSON.stringify({ projectId, content, sessionId }),
       })
       return res.ok ? res.json() : null
     } catch { return null }
   })
 
+  ipcMain.handle('claude:launch', (_, { projectPath, objective }: { projectPath: string; objective: string }) =>
+    ClaudeLauncher.launch(projectPath, objective))
+
+  ipcMain.handle('voice:transcribe', (_, audioBuffer: ArrayBuffer) =>
+    voice.transcribe(Buffer.from(audioBuffer)).catch(() => ''))
+
   ipcMain.handle('config:get', () => ({ apiUrl: API_URL, projectId: PROJECT_ID }))
 })
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    ws?.destroy()
-    app.quit()
-  }
+  if (process.platform !== 'darwin') { ws?.destroy(); app.quit() }
 })
 
-app.on('activate', () => {
-  if (!win) createWindow()
-})
+app.on('activate', () => { if (!win) createWindow() })
