@@ -23,6 +23,7 @@ import { MissionSchedulerModule } from './mission-scheduler/mission-scheduler.mo
 import { SpecialistModule } from './specialists/specialist.module'
 import { PolicyEngineModule } from './policy-engine/policy-engine.module'
 import { CatalogModule } from './catalog/catalog.module'
+import { EventsModule } from './gateway/events.module'
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { CatalogModule } from './catalog/catalog.module'
     SpecialistModule,
     PolicyEngineModule,
     CatalogModule,
+    EventsModule,
   ],
 })
 export class AppModule {}

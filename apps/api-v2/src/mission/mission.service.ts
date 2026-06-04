@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
+import { Injectable, NotFoundException, BadRequestException, Optional } from '@nestjs/common'
 import { PrismaV2Service } from '../core/prisma-v2.service'
 import { CreateMissionDto, CreateMissionStepDto, UpdateMissionStepDto } from './dto/create-mission.dto'
+import { EventsService } from '../gateway/events.service'
 
 // DTO fields are Record<string, unknown>; Prisma Json requires object — double cast is intentional
 const j = (v?: Record<string, unknown>): object => (v ?? {}) as object
@@ -18,10 +19,13 @@ const VALID_TRANSITIONS: Record<MissionStatus, MissionStatus[]> = {
 
 @Injectable()
 export class MissionService {
-  constructor(private readonly prisma: PrismaV2Service) {}
+  constructor(
+    private readonly prisma: PrismaV2Service,
+    @Optional() private readonly events?: EventsService,
+  ) {}
 
   async create(dto: CreateMissionDto) {
-    return this.prisma.mission.create({
+    const mission = await this.prisma.mission.create({
       data: {
         projectId:    dto.projectId,
         title:        dto.title,
@@ -32,6 +36,8 @@ export class MissionService {
       },
       include: { steps: true },
     })
+    this.events?.missionCreated(mission.projectId, { id: mission.id, title: mission.title, objective: mission.objective })
+    return mission
   }
 
   async findAll(projectId?: string) {
@@ -62,7 +68,9 @@ export class MissionService {
     if (to === 'active' && !mission.startedAt)  data.startedAt   = new Date()
     if (to === 'done'   || to === 'failed')       data.completedAt = new Date()
 
-    return this.prisma.mission.update({ where: { id }, data, include: { steps: true } })
+    const updated = await this.prisma.mission.update({ where: { id }, data, include: { steps: true } })
+    this.events?.missionUpdate(updated.projectId, { id: updated.id, title: updated.title, status: updated.status, steps: updated.steps })
+    return updated
   }
 
   async addStep(missionId: string, dto: CreateMissionStepDto) {
