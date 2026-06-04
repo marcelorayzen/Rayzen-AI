@@ -1,6 +1,3 @@
-import FormData from 'form-data'
-import fetch from 'node-fetch'
-
 export class VoiceRecorder {
   constructor(
     private readonly apiUrl: string,
@@ -8,13 +5,14 @@ export class VoiceRecorder {
   ) {}
 
   async transcribe(audioBuffer: Buffer, mimeType = 'audio/webm'): Promise<string> {
-    const ext = mimeType.includes('mp4') ? 'mp4' : 'webm'
+    const ext  = mimeType.includes('mp4') ? 'mp4' : 'webm'
+    const blob = new Blob([audioBuffer], { type: mimeType })
     const form = new FormData()
-    form.append('file', audioBuffer, { filename: `audio.${ext}`, contentType: mimeType })
+    form.append('file', blob, `audio.${ext}`)
 
     const res = await fetch(`${this.apiUrl}/voice/transcribe`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${this.token}`, ...form.getHeaders() },
+      headers: { Authorization: `Bearer ${this.token}` },
       body: form,
     })
 
