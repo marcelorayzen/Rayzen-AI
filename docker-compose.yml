@@ -152,6 +152,7 @@ services:
       V1_API_TOKEN: ${AGENT_TOKEN}
     ports:
       - '127.0.0.1:3103:3002'
+      - '0.0.0.0:3104:3104'
     depends_on:
       postgres:
         condition: service_healthy
