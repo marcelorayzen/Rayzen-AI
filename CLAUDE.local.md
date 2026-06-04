@@ -31,7 +31,7 @@ Resumo (passo a passo completo em `docs/manual-de-uso.md`):
 
 O hook detecta o projeto pelo `repoSlug` do git remote (resolução robusta: normaliza case/`-private`/`_`). Badge de saúde no painel Atividade; diagnóstico via `GET /events/hook/health`.
 
-**Token JWT (hook + AGENT_TOKEN) expira 4 de junho de 2026.** Renovar:
+**Token JWT (hook + AGENT_TOKEN) expira 4 de julho de 2026.** Renovar:
 ```bash
 curl -X POST http://<VPS_IP>:3101/auth/login -H "Content-Type: application/json" -d '{"password":"<ADMIN_PASSWORD>"}'
 # atualizar hook.config.mjs e AGENT_TOKEN no .env

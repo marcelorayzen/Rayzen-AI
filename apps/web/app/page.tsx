@@ -2821,13 +2821,7 @@ export default function Home() {
           <a href="/catalog" className="hud-nav" title="Catalog — projetos como assets formais com owner, provenance e tags">
             catalog
           </a>
-          <a
-            href="/discovery"
-            className="hud-nav"
-            title="Descoberta — entrevista de intake, Blueprint e criação do projeto (padrão Rayzen)"
-          >
-            novo projeto
-          </a>
+
           {activeProjectId && (
             <button
               onClick={openQA}
