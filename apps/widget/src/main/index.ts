@@ -1,5 +1,10 @@
-import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, shell } from 'electron'
+import { config as loadEnv } from 'dotenv'
 import path from 'path'
+import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, shell } from 'electron'
+
+// Carrega .env da pasta do widget antes de qualquer coisa
+loadEnv({ path: path.join(app.getAppPath(), '.env') })
+loadEnv({ path: path.join(process.cwd(), 'apps/widget/.env') }) // dev mode
 import { RayzenWsClient } from './ws-client'
 import { ClaudeLauncher } from './claude-launcher'
 import { VoiceRecorder } from './voice'

@@ -321,6 +321,9 @@ importers:
 
   apps/widget:
     dependencies:
+      dotenv:
+        specifier: ^16.6.1
+        version: 16.6.1
       form-data:
         specifier: ^4.0.0
         version: 4.0.5
