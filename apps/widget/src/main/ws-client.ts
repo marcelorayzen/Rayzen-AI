@@ -26,8 +26,8 @@ export class RayzenWsClient {
 
     this.ws.on('open', () => {
       this.alive = true
-      // Subscribe to project events
       this.ws?.send(JSON.stringify({ type: 'subscribe', projectIds: [this.projectId] }))
+      this.onEvent({ type: 'connected', projectId: this.projectId, payload: null })
     })
 
     this.ws.on('message', (data: Buffer) => {

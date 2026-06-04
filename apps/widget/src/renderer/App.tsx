@@ -84,10 +84,10 @@ export function App() {
   useEffect(() => {
     const off = window.rayzen.onWsEvent((raw) => {
       const event = raw as { type: string }
-      // Mark WS as online
       setWsOnline(true)
       if (wsTimerRef.current) clearTimeout(wsTimerRef.current)
-      wsTimerRef.current = setTimeout(() => setWsOnline(false), 35_000)
+      // Reset to offline after 35s of silence (except on 'connected' we keep longer)
+      wsTimerRef.current = setTimeout(() => setWsOnline(false), event.type === 'connected' ? 120_000 : 35_000)
 
       if (event.type === 'mission_update' || event.type === 'mission_created') {
         void loadMissions(projectId)
