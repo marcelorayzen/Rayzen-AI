@@ -79,9 +79,11 @@ export default function MissionPage() {
         const list = Array.isArray(d) ? (d as Project[]) : []
         setProjects(list)
         const exists = saved && list.some((p) => p.id === saved)
-        setProjectId(exists ? saved : (list.find((p) => p.status === 'active') ?? list[0])?.id ?? null)
+        const pid = (exists ? saved : (list.find((p) => p.status === 'active') ?? list[0])?.id) ?? null
+        setProjectId(pid)
+        if (!pid) setLoading(false)
       })
-      .catch(() => setProjects([]))
+      .catch(() => { setProjects([]); setLoading(false) })
   }, [])
 
   const load = useCallback(async (pid: string) => {
