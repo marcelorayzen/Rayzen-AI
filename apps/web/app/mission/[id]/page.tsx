@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { V2_URL } from '../../../lib/api-url'
 import { authHeaders } from '../../../lib/api-client'
@@ -74,6 +74,7 @@ function elapsed(from: string | null, to: string | null): string | null {
 
 export default function MissionDetailPage() {
   const params = useParams<{ id: string }>()
+  const router = useRouter()
   const id = params.id
 
   const [mission, setMission] = useState<Mission | null>(null)
@@ -184,7 +185,14 @@ export default function MissionDetailPage() {
         )}
 
         {/* Actions */}
-        <div style={{ display: 'flex', gap: 8, paddingTop: 4 }}>
+        <div style={{ display: 'flex', gap: 8, paddingTop: 4, flexWrap: 'wrap' }}>
+          <button
+            className="hud-btn hud-btn-primary"
+            onClick={() => router.push(`/work-panel?mission=${id}`)}
+            title="Abre o work-panel com o objetivo desta missão pré-carregado"
+          >
+            trabalhar
+          </button>
           {mission.status === 'pending' && (
             <button className="hud-btn hud-btn-primary" onClick={() => void action('execute', 'executar')} disabled={!!acting}>
               {acting === 'executar' ? 'executando…' : 'executar'}
