@@ -11,7 +11,11 @@ const __dir = dirname(fileURLToPath(import.meta.url))
 const cfgPath = pathToFileURL(join(__dir, '../hooks/hook.config.mjs')).href
 const { default: cfg } = await import(cfgPath)
 
-const { apiUrl, apiToken, projectId: defaultProjectId } = cfg
+// Env vars take precedence — allows extract_from_client projects to inject credentials
+// via .claude/settings.json without needing a hook.config.mjs
+const apiUrl          = process.env.AGENT_API_URL  || cfg.apiUrl
+const apiToken        = process.env.AGENT_TOKEN    || cfg.apiToken
+const defaultProjectId = process.env.PROJECT_ID || process.env.MCP_PROJECT_ID || cfg.projectId
 
 function headers(extra = {}) {
   return { Authorization: `Bearer ${apiToken}`, 'Content-Type': 'application/json', ...extra }
@@ -213,6 +217,53 @@ const TOOLS = [
     },
   },
   {
+    name: 'rayzen_create_mission',
+    description:
+      'Converte uma descrição em linguagem natural em uma Mission V2 com steps planejados por LLM e approval gates automáticos para steps de risco médio/alto. Retorna a missão criada com ID, steps e gates pendentes.',
+    inputSchema: {
+      type: 'object',
+      required: ['content'],
+      properties: {
+        content: { type: 'string', description: 'Descrição da missão em linguagem natural' },
+        projectId: { type: 'string', description: 'ID do projeto (opcional, usa o padrão do hook.config)' },
+        mode: {
+          type: 'string',
+          enum: ['auto', 'mission', 'chat'],
+          description: 'Modo de roteamento — use "mission" para forçar criação de missão (padrão: auto)',
+        },
+      },
+    },
+  },
+  {
+    name: 'rayzen_get_context',
+    description:
+      'Monta um pacote cirúrgico de contexto para a tarefa atual: ProjectState, meta ativa, planejamento, blockers e memória semântica relevante. Use no início de tarefas de implementação, debugging ou revisão para receber só o contexto que importa — evita re-explicar o estado do projeto.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: { type: 'string', description: 'ID do projeto (opcional, usa o padrão do hook.config)' },
+        mode: {
+          type: 'string',
+          enum: ['implementation', 'debugging', 'review', 'architecture', 'study'],
+          description: 'Modo de trabalho — determina quais seções são incluídas (padrão: implementation)',
+        },
+        query: { type: 'string', description: 'Consulta semântica para buscar memória relevante no Brain' },
+        maxTokens: { type: 'number', description: 'Limite de tokens do contexto gerado (padrão: 4000)' },
+      },
+    },
+  },
+  {
+    name: 'rayzen_list_specialists',
+    description:
+      'Lista os Specialist Agents disponíveis para o projeto: backend, QA, infra, devops, general e overrides por projeto. Use para descobrir quais especialistas estão ativos antes de criar uma missão.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: { type: 'string', description: 'ID do projeto (opcional, usa o padrão do hook.config)' },
+      },
+    },
+  },
+  {
     name: 'rayzen_blueprint_create_feature_plan',
     description:
       'Gera um Blueprint Markdown estruturado para uma feature usando o contexto do ProjectState do projeto. Use ANTES de implementar uma feature nova para planejar e depois importar com rayzen_blueprint_import_markdown.',
@@ -278,6 +329,27 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
 
       case 'rayzen_get_goal':
         result = await api('GET', `/projects/${pid()}/graph/goal`)
+        break
+
+      case 'rayzen_create_mission':
+        result = await api('POST', '/v2/route', {
+          content:   args.content,
+          projectId: pid(),
+          mode:      args.mode ?? 'mission',
+        })
+        break
+
+      case 'rayzen_get_context':
+        result = await api('POST', '/v2/context/build', {
+          projectId: pid(),
+          mode: args.mode ?? 'implementation',
+          query: args.query,
+          maxTokens: args.maxTokens ?? 4000,
+        })
+        break
+
+      case 'rayzen_list_specialists':
+        result = await api('GET', `/v2/specialist-agents?projectId=${pid()}`)
         break
 
       case 'rayzen_get_wiki':

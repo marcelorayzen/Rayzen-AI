@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { PrismaV2Service } from '../core/prisma-v2.service'
+import { ApprovalGatesService } from '../approval-gates/approval-gates.service'
 
 export type PolicyOperation =
   | 'knowledge_add'
@@ -21,9 +22,12 @@ export interface PolicyViolation {
 }
 
 export interface PolicyEvalResult {
-  allowed:    boolean             // false se qualquer regra tem action='block' e foi violada
-  violations: PolicyViolation[]   // block | gate
-  warnings:   PolicyViolation[]   // warn apenas
+  allowed:        boolean             // false se qualquer regra tem action='block'
+  violations:     PolicyViolation[]   // block violations — operation permanently denied
+  warnings:       PolicyViolation[]   // warn — operation continues with warning
+  gateRequired:   boolean             // true se alguma regra gate foi violada
+  gateViolations: PolicyViolation[]   // gate violations — ApprovalGate criado automaticamente
+  gateId?:        string              // ID do ApprovalGate criado (se gateRequired=true)
 }
 
 /** Pesos de origem — espelho do KnowledgeGovernanceService */
@@ -90,7 +94,10 @@ const RULE_TESTERS: Record<string, RuleTester> = {
 export class PolicyEngineService {
   private readonly logger = new Logger(PolicyEngineService.name)
 
-  constructor(private readonly prisma: PrismaV2Service) {}
+  constructor(
+    private readonly prisma: PrismaV2Service,
+    private readonly gates:  ApprovalGatesService,
+  ) {}
 
   /**
    * Avalia todas as políticas ativas (sistema + projeto) contra o contexto da operação.
@@ -113,8 +120,9 @@ export class PolicyEngineService {
       }
     }
 
-    const violations: PolicyViolation[] = []
-    const warnings:   PolicyViolation[] = []
+    const violations:     PolicyViolation[] = []
+    const gateViolations: PolicyViolation[] = []
+    const warnings:       PolicyViolation[] = []
 
     for (const rule of ruleMap.values()) {
       const tester = RULE_TESTERS[rule.name]
@@ -132,17 +140,41 @@ export class PolicyEngineService {
 
       if (action === 'warn') {
         warnings.push(violation)
+      } else if (action === 'gate') {
+        gateViolations.push(violation)
       } else {
         violations.push(violation)
       }
     }
 
-    const allowed = !violations.some((v) => v.action === 'block')
+    const allowed      = violations.length === 0
+    const gateRequired = gateViolations.length > 0
+
     if (!allowed) {
-      this.logger.warn(`PolicyEngine bloqueou operação "${ctx.operation}" em projeto ${ctx.projectId}: ${violations.map((v) => v.rule).join(', ')}`)
+      this.logger.warn(`PolicyEngine bloqueou "${ctx.operation}" em ${ctx.projectId}: ${violations.map((v) => v.rule).join(', ')}`)
     }
 
-    return { allowed, violations, warnings }
+    // Create a real ApprovalGate for each gate violation
+    let gateId: string | undefined
+    if (gateRequired) {
+      try {
+        const description = gateViolations.map((v) => v.message).join('; ')
+        const gate = await this.gates.create({
+          projectId:   ctx.projectId,
+          type:        'data_write',
+          description: `[Policy] ${ctx.operation}: ${description.slice(0, 300)}`,
+          context:     { operation: ctx.operation, rules: gateViolations.map((v) => v.rule), data: ctx.data },
+          riskLevel:   'medium',
+          autoOnExpiry: 'reject',
+        })
+        gateId = gate.id
+        this.logger.log(`PolicyEngine criou ApprovalGate ${gate.id} para "${ctx.operation}" em ${ctx.projectId}`)
+      } catch (e) {
+        this.logger.error(`PolicyEngine falhou ao criar ApprovalGate: ${e}`)
+      }
+    }
+
+    return { allowed, violations, warnings, gateRequired, gateViolations, gateId }
   }
 
   // ─── CRUD de regras ────────────────────────────────────────────────────────

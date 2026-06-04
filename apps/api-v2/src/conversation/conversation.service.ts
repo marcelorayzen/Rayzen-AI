@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto'
 import { LlmService } from '../llm/llm.service'
 import { ContextEngineService } from '../context-engine/context-engine.service'
 import { RouterService } from '../router/router.service'
+import { MemoryService } from '../memory/memory.service'
 
 export type ConversationStatus = 'gathering' | 'ready' | 'executing' | 'done'
 
@@ -54,6 +55,7 @@ export class ConversationService {
     private readonly llm:       LlmService,
     private readonly ctxEngine: ContextEngineService,
     private readonly router:    RouterService,
+    private readonly memory:    MemoryService,
   ) {}
 
   /** Fase A — conversa livre: acumula intenção e decide quando está pronto para executar. */
@@ -151,6 +153,9 @@ export class ConversationService {
     sess.status = 'done'
     sess.updatedAt = new Date().toISOString()
 
+    // Persist conversation as Brain document so it's semantically searchable in future sessions
+    void this.indexConversation(sess, route)
+
     return { sessionId: sess.id, contextPreview, route }
   }
 
@@ -171,6 +176,59 @@ export class ConversationService {
     } catch {
       return { totalChars: 0, estimatedTokens: 0, sectionsIncluded: [] }
     }
+  }
+
+  private async indexConversation(sess: ConversationSession, route: unknown): Promise<void> {
+    try {
+      const content = this.formatDocument(sess, route)
+      await this.memory.store({
+        projectId:  sess.projectId,
+        content,
+        sourcePath: `conversation/${sess.id}`,
+        sourceType: 'conversation',
+        memoryClass: 'inbox',
+      })
+      this.logger.log(`Conversation ${sess.id} indexed in Brain`)
+    } catch (e) {
+      this.logger.warn(`Failed to index conversation ${sess.id}: ${e}`)
+    }
+  }
+
+  private formatDocument(sess: ConversationSession, route: unknown): string {
+    const lines: string[] = []
+    const objective = sess.refinedObjective || sess.messages.find((m) => m.role === 'user')?.content || ''
+
+    lines.push(`# Conversa: ${objective.slice(0, 120)}`)
+    lines.push(`Data: ${sess.createdAt}`)
+    lines.push(`Sessão: ${sess.id}`)
+    lines.push('')
+    lines.push('## Mensagens')
+    for (const m of sess.messages) {
+      lines.push(`[${m.role}] ${m.content}`)
+    }
+
+    if (sess.refinedObjective) {
+      lines.push('')
+      lines.push('## Objetivo refinado')
+      lines.push(sess.refinedObjective)
+    }
+
+    if (route && typeof route === 'object') {
+      const r = route as Record<string, unknown>
+      lines.push('')
+      lines.push('## Resultado')
+      if (r.type) lines.push(`Tipo: ${r.type}`)
+      const payload = r.payload as Record<string, unknown> | undefined
+      if (payload?.missionId) lines.push(`Missão criada: ${payload.missionId}`)
+      if (payload?.stepsCount) lines.push(`Steps: ${payload.stepsCount}`)
+      if (payload?.gatesCreated) lines.push(`Gates criados: ${payload.gatesCreated}`)
+      if (typeof r.result === 'object' && r.result) {
+        const res = r.result as Record<string, unknown>
+        if (res.answer) lines.push(`Resposta: ${String(res.answer).slice(0, 500)}`)
+      }
+    }
+
+    return lines.join('\n')
   }
 
   private createSession(projectId: string): ConversationSession {

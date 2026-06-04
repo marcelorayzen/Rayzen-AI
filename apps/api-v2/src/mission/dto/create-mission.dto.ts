@@ -21,6 +21,11 @@ export class CreateMissionDto {
   @IsOptional()
   @IsObject()
   context?: Record<string, unknown>
+
+  @ApiPropertyOptional({ description: 'ID do SpecialistAgent selecionado pelo dispatcher' })
+  @IsOptional()
+  @IsString()
+  specialistId?: string
 }
 
 export class CreateMissionStepDto {

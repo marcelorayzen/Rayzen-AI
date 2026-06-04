@@ -4,6 +4,7 @@ import {
 } from '@nestjs/common'
 import { ApiTags, ApiBearerAuth, ApiQuery } from '@nestjs/swagger'
 import { MissionService } from './mission.service'
+import { MissionResultService } from './mission-result.service'
 import { CreateMissionDto, CreateMissionStepDto, UpdateMissionStepDto } from './dto/create-mission.dto'
 import { JwtAuthGuard } from '../core/auth.guard'
 
@@ -12,7 +13,10 @@ import { JwtAuthGuard } from '../core/auth.guard'
 @UseGuards(JwtAuthGuard)
 @Controller('missions')
 export class MissionController {
-  constructor(private readonly missions: MissionService) {}
+  constructor(
+    private readonly missions: MissionService,
+    private readonly result:   MissionResultService,
+  ) {}
 
   @Post()
   create(@Body() dto: CreateMissionDto) {
@@ -50,8 +54,10 @@ export class MissionController {
 
   @Post(':id/complete')
   @HttpCode(200)
-  complete(@Param('id') id: string) {
-    return this.missions.transition(id, 'done')
+  async complete(@Param('id') id: string) {
+    const mission = await this.missions.transition(id, 'done')
+    void this.result.processCompletion(id)
+    return mission
   }
 
   @Delete(':id')

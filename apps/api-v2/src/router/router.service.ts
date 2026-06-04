@@ -3,6 +3,8 @@ import { LlmService } from '../llm/llm.service'
 import { MissionService } from '../mission/mission.service'
 import { V1BridgeService } from '../core/v1-bridge.service'
 import { ContextEngineService, WorkMode } from '../context-engine/context-engine.service'
+import { ApprovalGatesService } from '../approval-gates/approval-gates.service'
+import { SpecialistAgentService } from '../specialist-agent/specialist-agent.service'
 import { RouteRequestDto, RouteDecision, DecisionType } from './dto/route-request.dto'
 
 const CLASSIFY_SYSTEM = `You are a routing classifier for an AI engineering system.
@@ -32,20 +34,28 @@ Respond with JSON only:
       "title": "short step title",
       "prompt": "detailed instructions for this step",
       "executor": "ai|skill|human",
-      "skillId": "optional skill key if executor=skill"
+      "skillId": "optional skill key if executor=skill",
+      "risk": "none|low|medium|high"
     }
   ]
-}`
+}
+
+Risk levels:
+- none/low: read-only, reversible, safe operations
+- medium: writes to files or external state, but reversible
+- high: deploys, database writes, irreversible actions, external API calls with side effects`
 
 @Injectable()
 export class RouterService {
   private readonly logger = new Logger(RouterService.name)
 
   constructor(
-    private readonly llm: LlmService,
-    private readonly missions: MissionService,
-    private readonly v1Bridge: V1BridgeService,
-    private readonly ctxEngine: ContextEngineService,
+    private readonly llm:        LlmService,
+    private readonly missions:   MissionService,
+    private readonly v1Bridge:   V1BridgeService,
+    private readonly ctxEngine:  ContextEngineService,
+    private readonly gates:      ApprovalGatesService,
+    private readonly specialists: SpecialistAgentService,
   ) {}
 
   /**
@@ -134,15 +144,23 @@ export class RouterService {
   ): Promise<RouteDecision & { result?: unknown }> {
     const title = (decision.payload.suggestedTitle as string) || dto.content.slice(0, 80)
 
-    // Context Broker: ground the planner in the real project state, goal, planning and blockers
-    const brokerCtx = await this.brokerContext(dto.projectId, dto.content, 'architecture')
+    // Dispatch to specialist + build context in parallel
+    const [specialist, brokerCtx] = await Promise.all([
+      this.specialists.findForTask(dto.content, dto.projectId).catch(() => null),
+      this.brokerContext(dto.projectId, dto.content, 'architecture'),
+    ])
+
+    // Specialist system prompt enriches the planner with domain guidance
+    const specialistSection = specialist
+      ? `\n\n## Specialist: ${specialist.name} (${specialist.domain})\n${specialist.systemPrompt}`
+      : ''
 
     // Plan steps via LLM
-    let steps: Array<{ title: string; prompt: string; executor: string; skillId?: string }> = []
+    let steps: Array<{ title: string; prompt: string; executor: string; skillId?: string; risk?: string }> = []
     let planRaw = ''
     try {
       const planResult = await this.llm.chat([
-        { role: 'system', content: PLAN_SYSTEM },
+        { role: 'system', content: PLAN_SYSTEM + specialistSection },
         {
           role: 'user',
           content: `Objective: "${dto.content}"\n\nProject ID: ${dto.projectId}` +
@@ -150,7 +168,7 @@ export class RouterService {
               ? `\n\nProject context (ground the plan in this; respect active blockers and current stage):\n${brokerCtx}`
               : ''),
         },
-      ], { model: 'gpt-4o', temperature: 0.2 })
+      ], { model: specialist?.model ?? 'gpt-4o', temperature: 0.2 })
       planRaw = planResult.content
 
       const parsed = this.llm.extractJson(planRaw) as { steps: typeof steps }
@@ -159,17 +177,19 @@ export class RouterService {
       this.logger.warn(`plan parse error: ${e} | raw: ${planRaw.slice(0, 300)}`)
     }
 
-    // Create Mission
+    // Create Mission with specialist reference
     const mission = await this.missions.create({
-      projectId: dto.projectId,
+      projectId:    dto.projectId,
       title,
-      objective: dto.content,
-      context:   dto.context,
+      objective:    dto.content,
+      context:      dto.context,
+      specialistId: specialist?.id,
     })
 
-    // Add steps
+    // Add steps and create approval gates for risky ones
+    let gatesCreated = 0
     for (const step of steps) {
-      await this.missions.addStep(mission.id, {
+      const missionStep = await this.missions.addStep(mission.id, {
         title:    step.title,
         prompt:   step.prompt,
         executor: step.executor ?? 'ai',
@@ -177,6 +197,19 @@ export class RouterService {
         input:    {},
         dependsOn: [],
       })
+
+      const risk = (step.risk ?? 'none') as 'none' | 'low' | 'medium' | 'high'
+      if (risk !== 'none' && risk !== 'low') {
+        const { required } = await this.gates.checkAndCreate(
+          risk,
+          dto.projectId,
+          mission.id,
+          missionStep.id,
+          step.title,
+          { prompt: step.prompt, executor: step.executor ?? 'ai' },
+        )
+        if (required) gatesCreated++
+      }
     }
 
     const missionWithSteps = await this.missions.findOne(mission.id)
@@ -184,7 +217,7 @@ export class RouterService {
     return {
       ...decision,
       target:  mission.id,
-      payload: { missionId: mission.id, stepsCount: steps.length, contextChars: brokerCtx.length },
+      payload: { missionId: mission.id, stepsCount: steps.length, gatesCreated, contextChars: brokerCtx.length, specialist: specialist ? { id: specialist.id, name: specialist.name, domain: specialist.domain } : null },
       result:  missionWithSteps,
     }
   }

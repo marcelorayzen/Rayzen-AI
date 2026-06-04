@@ -102,6 +102,22 @@ export class V1ApiService {
       headers: this.headers,
     })
   }
+
+  async addEvent(
+    projectId: string,
+    content: string,
+    intent: 'decision' | 'problem' | 'idea' | 'reference',
+  ): Promise<void> {
+    try {
+      await fetch(`${this.baseUrl}/events/cli`, {
+        method: 'POST',
+        headers: this.headers,
+        body: JSON.stringify({ content, intent, projectId, source: 'v2-result-loop', type: 'note' }),
+      })
+    } catch (e) {
+      this.logger.warn(`addEvent failed: ${e}`)
+    }
+  }
 }
 
 export interface MemorySearchResult {

@@ -60,7 +60,7 @@ export class KnowledgeStorageService {
       throw new ForbiddenException(`PolicyEngine bloqueou a operação: ${reason}`)
     }
 
-    // Enriquece metadata com resultado do ECC + avisos de política
+    // Enriquece metadata com resultado do ECC + avisos de política + gate info
     const eccMeta = gov.hasConflict
       ? { conflict: true, conflictDetail: gov.conflictDetail, checkedAt: new Date().toISOString() }
       : undefined
@@ -69,10 +69,15 @@ export class KnowledgeStorageService {
       ? policy.warnings.map((w) => ({ rule: w.rule, message: w.message }))
       : undefined
 
+    const gateInfo = policy.gateRequired
+      ? { required: true, gateId: policy.gateId, rules: policy.gateViolations.map((v) => v.rule) }
+      : undefined
+
     const metadata = {
       ...(dto.metadata ?? {}),
       ...(eccMeta         ? { ecc: eccMeta } : {}),
       ...(policyWarnings  ? { policyWarnings } : {}),
+      ...(gateInfo        ? { gate: gateInfo } : {}),
     }
 
     const existing = gov.existingNodeId

@@ -12,8 +12,8 @@ const TTL: Record<string, number> = {
 
 export interface CreateGateDto {
   projectId:    string
-  missionId:    string
-  stepId:       string
+  missionId?:   string   // optional — policy-triggered gates have no mission context
+  stepId?:      string   // optional — policy-triggered gates have no step context
   type:         ApprovalGateType
   description:  string
   context?:     Record<string, unknown>
@@ -32,8 +32,8 @@ export class ApprovalGatesService {
     return this.prisma.approvalGate.create({
       data: {
         projectId:    dto.projectId,
-        missionId:    dto.missionId,
-        stepId:       dto.stepId,
+        missionId:    dto.missionId ?? null,
+        stepId:       dto.stepId    ?? null,
         type:         dto.type,
         description:  dto.description,
         context:      (dto.context ?? {}) as object,
@@ -92,17 +92,20 @@ export class ApprovalGatesService {
     })
   }
 
-  // Called by SkillEngine before executing high-risk skills
+  // Called by RouterService / SkillEngine / PolicyEngine before high-risk operations
   async checkAndCreate(
     skillRisk: 'none' | 'low' | 'medium' | 'high',
-    projectId: string, missionId: string, stepId: string,
+    projectId: string, missionId: string | null, stepId: string | null,
     description: string, context: Record<string, unknown>,
   ): Promise<{ required: boolean; gate?: ReturnType<ApprovalGatesService['create']> extends Promise<infer T> ? T : never }> {
     if (skillRisk === 'none' || skillRisk === 'low') return { required: false }
 
     const type: ApprovalGateType = skillRisk === 'high' ? 'irreversible' : 'data_write'
     const gate = await this.create({
-      projectId, missionId, stepId, type, description, context,
+      projectId,
+      missionId: missionId ?? undefined,
+      stepId:    stepId    ?? undefined,
+      type, description, context,
       riskLevel:    skillRisk,
       autoOnExpiry: skillRisk === 'medium' ? 'reject' : 'pause',
     })

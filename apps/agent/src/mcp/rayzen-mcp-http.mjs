@@ -1,7 +1,7 @@
 /**
  * Rayzen MCP — HTTP/SSE transport (Claude Desktop)
  *
- * Expõe os mesmos 13 tools do rayzen-mcp.mjs via HTTP Streamable,
+ * Expõe os mesmos 15 tools do rayzen-mcp.mjs via HTTP Streamable,
  * para ser consumido pelo Claude Desktop como conector personalizado.
  *
  * Env vars:
@@ -270,6 +270,38 @@ const TOOLS = [
     },
   },
   {
+    name: 'rayzen_create_mission',
+    description:
+      'Converte uma descrição em linguagem natural em uma Mission V2 com steps planejados por LLM e approval gates automáticos para steps de risco médio/alto.',
+    inputSchema: {
+      type: 'object',
+      required: ['content'],
+      properties: {
+        content: { type: 'string', description: 'Descrição da missão em linguagem natural' },
+        projectId: { type: 'string', description: 'ID do projeto' },
+        mode: { type: 'string', enum: ['auto', 'mission', 'chat'], description: 'Modo de roteamento (padrão: mission)' },
+      },
+    },
+  },
+  {
+    name: 'rayzen_get_context',
+    description:
+      'Monta um pacote cirúrgico de contexto para a tarefa atual: ProjectState, meta ativa, planejamento, blockers e memória semântica relevante. Use no início de tarefas de implementação, debugging ou revisão para receber só o contexto que importa.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: { type: 'string', description: 'ID do projeto' },
+        mode: {
+          type: 'string',
+          enum: ['implementation', 'debugging', 'review', 'architecture', 'study'],
+          description: 'Modo de trabalho — determina quais seções são incluídas (padrão: implementation)',
+        },
+        query: { type: 'string', description: 'Consulta semântica para buscar memória relevante no Brain' },
+        maxTokens: { type: 'number', description: 'Limite de tokens do contexto gerado (padrão: 4000)' },
+      },
+    },
+  },
+  {
     name: 'rayzen_blueprint_create_feature_plan',
     description: 'Gera um Blueprint Markdown estruturado para uma feature usando o contexto do ProjectState.',
     inputSchema: {
@@ -328,6 +360,23 @@ function createMcpServer() {
 
         case 'rayzen_get_goal':
           result = await api('GET', `/projects/${pid()}/graph/goal`)
+          break
+
+        case 'rayzen_create_mission':
+          result = await api('POST', '/v2/route', {
+            content:   args.content,
+            projectId: pid(),
+            mode:      args.mode ?? 'mission',
+          })
+          break
+
+        case 'rayzen_get_context':
+          result = await api('POST', '/v2/context/build', {
+            projectId: pid(),
+            mode: args.mode ?? 'implementation',
+            query: args.query,
+            maxTokens: args.maxTokens ?? 4000,
+          })
           break
 
         case 'rayzen_get_wiki':

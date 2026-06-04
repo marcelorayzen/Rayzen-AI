@@ -23,6 +23,7 @@ model Mission {
   createdAt   DateTime  @default(now()) @map("created_at")
   startedAt   DateTime? @map("started_at")
   completedAt DateTime? @map("completed_at")
+  specialistId String?   @map("specialist_id") // FK lógico — sem constraint para evitar cascata
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
   steps MissionStep[]
@@ -143,8 +144,8 @@ model KnowledgeEdge {
 model ApprovalGate {
   id           String    @id @default(uuid())
   projectId    String    @map("project_id")
-  missionId    String    @map("mission_id")
-  stepId       String    @map("step_id")
+  missionId    String?   @map("mission_id")
+  stepId       String?   @map("step_id")
   type         String    // code_deploy|data_write|external_api|irreversible|high_cost|specialist_spawn
   description  String
   context      Json      @default("{}")
@@ -298,6 +299,28 @@ model SkillUsageLog {
   @@index([projectId, createdAt])
   @@schema("v2")
   @@map("skill_usage_logs")
+}
+
+// ─── Specialist Agent Engine ──────────────────────────────────────────────────
+
+model SpecialistAgent {
+  id           String   @id @default(uuid())
+  projectId    String?  @map("project_id")     // null = built-in global; value = project-scoped override
+  domain       String                           // backend | qa | infra | data | devops | general
+  name         String
+  description  String
+  systemPrompt String   @map("system_prompt")
+  model        String?                          // override LLM model for this specialist
+  enabled      Boolean  @default(true)
+  builtIn      Boolean  @default(false) @map("built_in")
+  capabilities String[]                         // tags: api_design | testing | docker | etc.
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([domain, enabled])
+  @@index([builtIn])
+  @@schema("v2")
+  @@map("specialist_agents")
 }
 
 // ─── Mission Scheduler ────────────────────────────────────────────────────────

@@ -23,11 +23,12 @@ export class MissionService {
   async create(dto: CreateMissionDto) {
     return this.prisma.mission.create({
       data: {
-        projectId: dto.projectId,
-        title:     dto.title,
-        objective: dto.objective,
-        context:   j(dto.context),
-        status:    'pending',
+        projectId:    dto.projectId,
+        title:        dto.title,
+        objective:    dto.objective,
+        context:      j(dto.context),
+        specialistId: dto.specialistId ?? null,
+        status:       'pending',
       },
       include: { steps: true },
     })

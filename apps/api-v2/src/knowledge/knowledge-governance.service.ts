@@ -56,6 +56,16 @@ export class KnowledgeGovernanceService {
   async check(input: GovernanceCheckInput): Promise<GovernanceResult> {
     const originWeight = ORIGIN_WEIGHT[input.origin ?? 'extracted']
 
+    // Manual entries bypass ECC — human input is the authoritative source and
+    // divergence from existing data is treated as an intentional correction, not a conflict.
+    if (input.origin === 'manual') {
+      const existing = await this.prisma.knowledgeNode.findFirst({
+        where: { projectId: input.projectId, label: input.label, type: input.type },
+        select: { id: true },
+      })
+      return { trustScore: 1.0, hasConflict: false, recommendation: 'accept', existingNodeId: existing?.id }
+    }
+
     // Busca nó existente com mesmo label+type+projeto
     const existing = await this.prisma.knowledgeNode.findFirst({
       where: { projectId: input.projectId, label: input.label, type: input.type },
