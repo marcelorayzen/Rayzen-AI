@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core'
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify'
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger'
 import { ValidationPipe } from '@nestjs/common'
+import { WsAdapter } from '@nestjs/platform-ws'
 import { AppModule } from './app.module'
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const helmet = require('@fastify/helmet')
@@ -31,6 +32,7 @@ async function bootstrap() {
     crossOriginEmbedderPolicy: false,
   })
 
+  app.useWebSocketAdapter(new WsAdapter(app))
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }))
 
   const corsEnv = process.env.CORS_ORIGINS ?? 'http://localhost:3100'
