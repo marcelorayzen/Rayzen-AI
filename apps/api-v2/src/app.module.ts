@@ -22,6 +22,7 @@ import { ResourceManagerModule } from './resource-manager/resource-manager.modul
 import { MissionSchedulerModule } from './mission-scheduler/mission-scheduler.module'
 import { SpecialistModule } from './specialists/specialist.module'
 import { PolicyEngineModule } from './policy-engine/policy-engine.module'
+import { CatalogModule } from './catalog/catalog.module'
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { PolicyEngineModule } from './policy-engine/policy-engine.module'
     MissionSchedulerModule,
     SpecialistModule,
     PolicyEngineModule,
+    CatalogModule,
   ],
 })
 export class AppModule {}

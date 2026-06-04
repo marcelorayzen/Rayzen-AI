@@ -323,6 +323,26 @@ model SpecialistAgent {
   @@map("specialist_agents")
 }
 
+// ─── Project Catalog ─────────────────────────────────────────────────────────
+
+model ProjectCatalog {
+  id          String    @id @default(uuid())
+  v1ProjectId String    @unique @map("v1_project_id")  // FK lógica para public.projects.id
+  owner       String?
+  provenance  String    @default("manual")              // manual | blueprint | discovery | import
+  tags        String[]
+  healthScore Float?    @map("health_score")            // 0-100 calculado externamente
+  metadata    Json      @default("{}")
+  archivedAt  DateTime? @map("archived_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([provenance])
+  @@index([owner])
+  @@schema("v2")
+  @@map("project_catalog")
+}
+
 // ─── Mission Scheduler ────────────────────────────────────────────────────────
 
 model ScheduledMission {
