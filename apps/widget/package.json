@@ -2,7 +2,7 @@
   "name": "@rayzen/widget",
   "version": "0.1.0",
   "description": "Rayzen AI — Desktop Widget",
-  "main": "dist/main/index.js",
+  "main": "out/main/index.js",
   "private": true,
   "scripts": {
     "dev": "electron-vite dev",
