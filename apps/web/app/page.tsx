@@ -2815,6 +2815,9 @@ export default function Home() {
               work panel
             </a>
           )}
+          <a href="/mission" className="hud-nav" title="Missions — painel central de missões V2">
+            missions
+          </a>
           <a href="/catalog" className="hud-nav" title="Catalog — projetos como assets formais com owner, provenance e tags">
             catalog
           </a>
