@@ -7,6 +7,7 @@ import { API_URL, V2_URL } from '../../lib/api-url'
 import { authHeaders } from '../../lib/api-client'
 import { ContextBadge } from './components/ContextBadge'
 import { ApprovalCard } from './components/ApprovalCard'
+import { useVoiceInput } from '../hooks/useVoiceInput'
 
 interface Project { id: string; name: string; status: string }
 
@@ -86,6 +87,10 @@ export default function WorkPanelPage() {
   const [launchingAssisted, setLaunchingAssisted] = useState(false)
   const [replyingApproval, setReplyingApproval] = useState(false)
   const [note, setNote] = useState<string | null>(null)
+
+  const { state: voiceState, start: startVoice, stop: stopVoice, error: voiceError } = useVoiceInput(
+    (text) => setInput((prev) => prev ? `${prev} ${text}` : text),
+  )
 
   const feedEndRef = useRef<HTMLDivElement>(null)
   const logEndRef  = useRef<HTMLDivElement>(null)
@@ -391,9 +396,19 @@ export default function WorkPanelPage() {
       )}
 
       {note && <div style={{ color: '#ef4444', fontSize: 12 }}>{note}</div>}
+      {voiceError && <div style={{ color: '#ef4444', fontSize: 12 }}>mic: {voiceError}</div>}
 
       {/* Input */}
       <div className="hud-input-bar" style={{ display: 'flex', gap: 8 }}>
+        <button
+          className="hud-btn"
+          title={voiceState === 'recording' ? 'parar gravação' : 'gravar voz'}
+          onClick={() => voiceState === 'recording' ? stopVoice() : void startVoice()}
+          disabled={voiceState === 'transcribing' || !activeProjectId}
+          style={voiceState === 'recording' ? { color: '#ef4444', boxShadow: '0 0 0 1px #ef4444' } : undefined}
+        >
+          {voiceState === 'recording' ? '⏹' : voiceState === 'transcribing' ? '…' : '🎙'}
+        </button>
         <input
           className="hud-input"
           style={{ flex: 1 }}
