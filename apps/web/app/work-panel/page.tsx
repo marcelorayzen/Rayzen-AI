@@ -74,9 +74,12 @@ function SessionParamLoader({ onSession }: { onSession: (s: SupervisedSession) =
 /** Lê ?mission=<id> e pré-carrega o objetivo da missão no input. */
 function MissionParamLoader({ onMission }: { onMission: (objective: string) => void }) {
   const searchParams = useSearchParams()
+  const loaded = useRef(false)
   useEffect(() => {
+    if (loaded.current) return
     const id = searchParams.get('mission')
     if (!id) return
+    loaded.current = true
     fetch(`${V2_URL}/missions/${id}`, { headers: authHeaders() })
       .then((r) => r.ok ? r.json() : null)
       .then((data: { objective?: string; title?: string } | null) => {
@@ -288,10 +291,13 @@ export default function WorkPanelPage() {
     return () => clearInterval(t)
   }, [supSession])
 
+  // Stable ref — não recria a cada render, evita loop no MissionParamLoader
+  const handleMissionLoad = useCallback((obj: string) => setInput(obj), [])
+
   return (
     <div style={{ maxWidth: 760, margin: '0 auto', padding: '20px 16px', minHeight: '100vh', display: 'flex', flexDirection: 'column', gap: 14 }}>
       <Suspense fallback={null}><SessionParamLoader onSession={setSupSession} /></Suspense>
-      <Suspense fallback={null}><MissionParamLoader onMission={(obj) => setInput(obj)} /></Suspense>
+      <Suspense fallback={null}><MissionParamLoader onMission={handleMissionLoad} /></Suspense>
       {/* Header */}
       <div className="hud-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
