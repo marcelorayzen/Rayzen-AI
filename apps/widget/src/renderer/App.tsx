@@ -12,17 +12,20 @@ declare global {
       fetchMissions: (projectId: string) => Promise<Mission[]>
       missionAction: (id: string, action: string) => Promise<unknown>
       openInBrowser: (missionId: string) => void
-      launchClaude:  (projectPath: string, objective: string) => Promise<{ ok: boolean }>
+      launchClaude:  (repoSlug: string, objective: string) => Promise<{ ok: boolean }>
+      claudeChat:         (projectId: string, message: string, context?: { projectName: string; activeMissions: { title: string; objective: string; status: string }[] }, model?: string) => Promise<void>
+      onClaudeChunk:      (cb: (chunk: { text: string; done: boolean; error?: string }) => void) => () => void
+      clearClaudeHistory: (projectId: string) => void
       transcribe:    (buffer: ArrayBuffer) => Promise<string>
       sendChat:      (projectId: string, content: string, sessionId?: string) => Promise<ChatReply | null>
-      getConfig:     () => Promise<{ apiUrl: string; projectId: string }>
+      getConfig:     () => Promise<{ apiUrl: string; projectId: string; localRoot?: string }>
       getWsStatus:   () => Promise<boolean>
       notifyReady:   () => void
     }
   }
 }
 
-export interface Project { id: string; name: string; status: string }
+export interface Project { id: string; name: string; status: string; repoSlug?: string | null }
 
 export type MissionStatus = 'pending' | 'active' | 'paused' | 'done' | 'failed' | 'cancelled'
 
@@ -36,11 +39,13 @@ export interface Mission {
 
 interface ChatReply { sessionId: string; reply: string; status: string }
 
-type Filter = 'ativas' | 'todas'
+type Filter    = 'ativas' | 'todas'
+type ChatMode  = 'rayzen' | 'claude'
 
 export function App() {
   const [projects, setProjects]     = useState<Project[]>([])
   const [projectId, setProjectId]   = useState<string>('')
+  const [localRoot, setLocalRoot]   = useState<string>('')
   const [missions, setMissions]     = useState<Mission[]>([])
   const [filter, setFilter]         = useState<Filter>('ativas')
   const [wsOnline, setWsOnline]     = useState(false)
@@ -48,6 +53,9 @@ export function App() {
   const [sending, setSending]       = useState(false)
   const [chatReply, setChatReply]   = useState<string | null>(null)
   const [sessionId, setSessionId]   = useState<string | undefined>()
+  const [chatMode, setChatMode]     = useState<ChatMode>('claude')
+  const [claudeModel, setClaudeModel] = useState('claude-haiku-4-5-20251001')
+  const [streaming, setStreaming]   = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const wsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -57,6 +65,26 @@ export function App() {
       const list = await window.rayzen.fetchMissions(pid)
       setMissions(Array.isArray(list) ? list : [])
     } finally { setLoading(false) }
+  }, [])
+
+  // Streaming chunks do Claude
+  useEffect(() => {
+    const off = window.rayzen.onClaudeChunk((chunk) => {
+      if (chunk.error) {
+        setChatReply(`Erro: ${chunk.error}`)
+        setSending(false)
+        setStreaming(false)
+        return
+      }
+      if (chunk.done) {
+        setSending(false)
+        setStreaming(false)
+        return
+      }
+      setChatReply((prev) => (prev ?? '') + chunk.text)
+      setStreaming(true)
+    })
+    return off
   }, [])
 
   // Initial load
@@ -71,6 +99,7 @@ export function App() {
       .then(([cfg, list]) => {
         const all = Array.isArray(list) ? list : []
         setProjects(all)
+        setLocalRoot(cfg.localRoot ?? '')
         const pid = cfg.projectId || all[0]?.id || ''
         setProjectId(pid)
         if (pid) void loadMissions(pid)
@@ -114,21 +143,45 @@ export function App() {
   }
 
   const handleAction = async (id: string, action: string) => {
-    await window.rayzen.missionAction(id, action)
+    const res = await window.rayzen.missionAction(id, action)
+    if (!res) {
+      setChatReply('Erro: API não respondeu. Verifique a conexão.')
+      return
+    }
     await loadMissions(projectId)
   }
 
   const handleSendChat = async (text: string) => {
-    if (!text.trim() || !projectId || sending) return
-    setSending(true)
+    if (!text.trim() || sending || streaming) return
     setChatReply(null)
-    try {
-      const res = await window.rayzen.sendChat(projectId, text, sessionId)
-      if (res) {
-        setSessionId(res.sessionId)
-        setChatReply(res.reply)
-      }
-    } finally { setSending(false) }
+
+    if (chatMode === 'claude') {
+      setSending(true)
+      const activeProj = projects.find((p) => p.id === projectId)
+      const context = activeProj ? {
+        projectName:    activeProj.name,
+        activeMissions: missions
+          .filter((m) => m.status === 'active' || m.status === 'pending')
+          .map((m) => ({ title: m.title, objective: m.objective, status: m.status })),
+      } : undefined
+      // Não awaita — resposta chega via onClaudeChunk (streaming)
+      // setSending(false) é chamado pelo listener quando chunk.done = true
+      window.rayzen.claudeChat(projectId, text, context, claudeModel).catch((err: unknown) => {
+        setChatReply(`Erro: ${err instanceof Error ? err.message : String(err)}`)
+        setSending(false)
+        setStreaming(false)
+      })
+    } else {
+      if (!projectId) return
+      setSending(true)
+      try {
+        const res = await window.rayzen.sendChat(projectId, text, sessionId)
+        if (res) {
+          setSessionId(res.sessionId)
+          setChatReply(res.reply)
+        }
+      } finally { setSending(false) }
+    }
   }
 
   // Counts for summary
@@ -210,23 +263,51 @@ export function App() {
             missions={missions}
             filter={filter}
             onAction={handleAction}
-            onWork={(m) => window.rayzen.openInBrowser(m.id)}
+            onWork={(m) => {
+              const activeProj = projects.find((p) => p.id === projectId)
+              const repoSlug   = activeProj?.repoSlug
+              if (localRoot && repoSlug) {
+                window.rayzen.launchClaude(repoSlug, m.objective || m.title)
+                  .then((res) => { if (!res?.ok) window.rayzen.openInBrowser(m.id) })
+                  .catch(() => window.rayzen.openInBrowser(m.id))
+              } else {
+                window.rayzen.openInBrowser(m.id)
+              }
+            }}
           />
         )}
 
         {/* Chat reply */}
         {chatReply && (
           <div className="card" style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.5 }}>
-            <div style={{ fontSize: 10, color: 'var(--cyan)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Rayzen</div>
-            {chatReply}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+              <div style={{ fontSize: 10, color: chatMode === 'claude' ? 'var(--cyan)' : 'var(--yellow)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                {chatMode === 'claude' ? 'Claude' : 'Rayzen'}
+                {streaming && <span style={{ marginLeft: 4, opacity: 0.6 }}>▍</span>}
+              </div>
+              {!streaming && chatMode === 'claude' && (
+                <button
+                  onClick={() => { window.rayzen.clearClaudeHistory(projectId); setChatReply(null) }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 9, color: 'var(--dim)', fontFamily: 'inherit' }}
+                  title="limpar conversa"
+                >
+                  limpar
+                </button>
+              )}
+            </div>
+            <div style={{ whiteSpace: 'pre-wrap' }}>{chatReply}</div>
           </div>
         )}
       </div>
 
       {/* Input bar */}
       <VoiceBar
-        sending={sending}
+        sending={sending || streaming}
         onSend={handleSendChat}
+        chatMode={chatMode}
+        onModeChange={(mode) => { setChatMode(mode); setChatReply(null) }}
+        claudeModel={claudeModel}
+        onModelChange={setClaudeModel}
       />
     </div>
   )

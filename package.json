@@ -21,6 +21,10 @@
     "typescript": "^5.5.0"
   },
   "pnpm": {
+    "overrides": {
+      "@types/react": "^19",
+      "@types/react-dom": "^19"
+    },
     "onlyBuiltDependencies": [
       "@nestjs/core",
       "@prisma/client",

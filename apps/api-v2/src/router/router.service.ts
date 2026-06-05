@@ -94,12 +94,12 @@ export class RouterService {
       if (state) projectCtx = `Project stage: ${state.stage ?? 'unknown'}. Blockers: ${JSON.stringify(state.blockers ?? [])}`
     } catch { /* ignore — classification still works without context */ }
 
-    const result = await this.llm.chat([
-      { role: 'system', content: CLASSIFY_SYSTEM },
-      { role: 'user', content: `Message: "${dto.content}"\n\nProject context: ${projectCtx || 'none'}` },
-    ], { model: 'gpt-4o-mini', temperature: 0 })
-
     try {
+      const result = await this.llm.chat([
+        { role: 'system', content: CLASSIFY_SYSTEM },
+        { role: 'user', content: `Message: "${dto.content}"\n\nProject context: ${projectCtx || 'none'}` },
+      ], { model: 'gpt-4o-mini', temperature: 0 })
+
       const parsed = this.llm.extractJson(result.content) as {
         type: DecisionType
         confidence: number
@@ -116,8 +116,8 @@ export class RouterService {
         payload:    { suggestedTitle: parsed.suggestedTitle },
       }
     } catch (e) {
-      this.logger.warn(`classify parse error: ${e}`)
-      return { type: 'ai', confidence: 0.5, reasoning: 'parse fallback', target: 'chat', payload: {} }
+      this.logger.warn(`classify error (LLM or parse): ${e}`)
+      return { type: 'mission', confidence: 0.7, reasoning: 'classify fallback', target: '', payload: { suggestedTitle: dto.content.slice(0, 80) } }
     }
   }
 
@@ -200,15 +200,19 @@ export class RouterService {
 
       const risk = (step.risk ?? 'none') as 'none' | 'low' | 'medium' | 'high'
       if (risk !== 'none' && risk !== 'low') {
-        const { required } = await this.gates.checkAndCreate(
-          risk,
-          dto.projectId,
-          mission.id,
-          missionStep.id,
-          step.title,
-          { prompt: step.prompt, executor: step.executor ?? 'ai' },
-        )
-        if (required) gatesCreated++
+        try {
+          const { required } = await this.gates.checkAndCreate(
+            risk,
+            dto.projectId,
+            mission.id,
+            missionStep.id,
+            step.title,
+            { prompt: step.prompt, executor: step.executor ?? 'ai' },
+          )
+          if (required) gatesCreated++
+        } catch (e) {
+          this.logger.warn(`gate creation failed for step "${step.title}": ${e}`)
+        }
       }
     }
 

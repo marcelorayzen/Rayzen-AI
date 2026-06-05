@@ -13,12 +13,19 @@ contextBridge.exposeInMainWorld('rayzen', {
   fetchProjects:  ()                                   => ipcRenderer.invoke('projects:fetch'),
   fetchMissions:  (projectId: string)                  => ipcRenderer.invoke('missions:fetch', projectId),
   missionAction:  (id: string, action: string)         => ipcRenderer.invoke('missions:action', { id, action }),
-  openInBrowser:  (missionId: string)                  => ipcRenderer.send('mission:open-browser', missionId),
-  launchClaude:   (projectPath: string, objective: string) =>
-                    ipcRenderer.invoke('claude:launch', { projectPath, objective }),
+  openInBrowser:  (missionId: string)                        => ipcRenderer.send('mission:open-browser', missionId),
+  launchClaude:   (repoSlug: string, objective: string)      => ipcRenderer.invoke('mission:launch-claude', { repoSlug, objective }),
   transcribe:     (buffer: ArrayBuffer)                => ipcRenderer.invoke('voice:transcribe', buffer),
   sendChat:       (projectId: string, content: string, sessionId?: string) =>
                     ipcRenderer.invoke('chat:send', { projectId, content, sessionId }),
+  claudeChat: (projectId: string, message: string, context?: { projectName: string; activeMissions: { title: string; objective: string; status: string }[] }, model?: string) =>
+                ipcRenderer.invoke('claude:chat', { projectId, message, context, model }),
+  onClaudeChunk: (cb: (chunk: { text: string; done: boolean; error?: string }) => void) => {
+    const handler = (_: Electron.IpcRendererEvent, chunk: { text: string; done: boolean; error?: string }) => cb(chunk)
+    ipcRenderer.on('claude:chunk', handler)
+    return () => ipcRenderer.removeListener('claude:chunk', handler)
+  },
+  clearClaudeHistory: (projectId: string) => ipcRenderer.send('claude:clear-history', projectId),
   getConfig:      ()                                   => ipcRenderer.invoke('config:get'),
   getWsStatus:    ()                                   => ipcRenderer.invoke('ws:status'),
   notifyReady:    ()                                   => ipcRenderer.send('renderer:ready'),
