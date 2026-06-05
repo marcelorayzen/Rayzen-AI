@@ -92,7 +92,12 @@ app.whenReady().then(() => {
   ipcMain.handle('voice:transcribe', (_, audioBuffer: ArrayBuffer) =>
     voice.transcribe(Buffer.from(audioBuffer)).catch(() => ''))
 
-  ipcMain.handle('config:get', () => ({ apiUrl: API_URL, projectId: PROJECT_ID }))
+  ipcMain.handle('config:get',    () => ({ apiUrl: API_URL, projectId: PROJECT_ID }))
+  ipcMain.handle('ws:status',     () => ws?.connected ?? false)
+  ipcMain.on('renderer:ready',    () => {
+    // Renderer pronto — envia estado atual da conexão
+    if (ws?.connected) win?.webContents.send('ws:event', { type: 'connected', projectId: PROJECT_ID, payload: null })
+  })
 })
 
 app.on('window-all-closed', () => {

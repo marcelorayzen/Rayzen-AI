@@ -20,4 +20,6 @@ contextBridge.exposeInMainWorld('rayzen', {
   sendChat:       (projectId: string, content: string, sessionId?: string) =>
                     ipcRenderer.invoke('chat:send', { projectId, content, sessionId }),
   getConfig:      ()                                   => ipcRenderer.invoke('config:get'),
+  getWsStatus:    ()                                   => ipcRenderer.invoke('ws:status'),
+  notifyReady:    ()                                   => ipcRenderer.send('renderer:ready'),
 })

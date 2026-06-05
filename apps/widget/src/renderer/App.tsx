@@ -16,6 +16,8 @@ declare global {
       transcribe:    (buffer: ArrayBuffer) => Promise<string>
       sendChat:      (projectId: string, content: string, sessionId?: string) => Promise<ChatReply | null>
       getConfig:     () => Promise<{ apiUrl: string; projectId: string }>
+      getWsStatus:   () => Promise<boolean>
+      notifyReady:   () => void
     }
   }
 }
@@ -59,6 +61,12 @@ export function App() {
 
   // Initial load
   useEffect(() => {
+    // Avisa o main que o renderer está pronto (resolve timing do ws:connected)
+    window.rayzen.notifyReady()
+
+    // Pega status atual do WebSocket
+    window.rayzen.getWsStatus().then((connected) => setWsOnline(connected))
+
     Promise.all([window.rayzen.getConfig(), window.rayzen.fetchProjects()])
       .then(([cfg, list]) => {
         const all = Array.isArray(list) ? list : []
