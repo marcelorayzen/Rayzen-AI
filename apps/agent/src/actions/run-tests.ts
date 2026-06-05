@@ -169,7 +169,7 @@ export async function runTests(payload: {
   collectionPath?: string  // Newman: path to Postman collection JSON
   environment?: string     // Newman: path to environment JSON
 }): Promise<TestRunResult> {
-  const projectPath = payload.projectPath ?? 'C:\\Projects\\rayzen-ai'
+  const projectPath = payload.projectPath ?? process.cwd()
   const resolved = resolve(projectPath)
 
   if (!isUnderSafeRoot(resolved)) {

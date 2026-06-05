@@ -58,6 +58,24 @@ export const SKILL_DEFINITIONS_EXPORT: SkillDefinition[] = [
   { id: 'jarvis:get_data_quality',     name: 'Data Quality',          description: 'Returns DQ summary/score/rules for a project',         category: 'data',       risk: 'none',   runtime: 'agent-desktop', version: '1.0', inputSchema: { projectId: 'string' }, outputSchema: {} },
   { id: 'jarvis:run_graphify',         name: 'Run Graphify',          description: 'Updates the knowledge graph and sends report to API',  category: 'system',     risk: 'low',    runtime: 'agent-server',  version: '1.0', inputSchema: {}, outputSchema: {} },
   { id: 'jarvis:graphify_sync',        name: 'Graphify Sync',         description: 'Updates graph + generates architecture summary',       category: 'system',     risk: 'low',    runtime: 'agent-server',  version: '1.0', inputSchema: {}, outputSchema: {} },
+
+  // ── File Operations ────────────────────────────────────────────────────────
+  { id: 'jarvis:file_read',   name: 'File Read',   description: 'Reads a text file within safe workspace roots (max 500KB, text extensions only)', category: 'filesystem', risk: 'none',   runtime: 'agent-desktop', version: '1.0', inputSchema: { path: 'string', lines: 'object' },                            outputSchema: { content: 'string', lines: 'number' } },
+  { id: 'jarvis:file_write',  name: 'File Write',  description: 'Writes content to a file within safe workspace roots (max 200KB, no .env/.key)', category: 'filesystem', risk: 'medium', runtime: 'agent-desktop', version: '1.0', inputSchema: { path: 'string', content: 'string', dryRun: 'boolean' },      outputSchema: { bytes: 'number' } },
+  { id: 'jarvis:file_delete', name: 'File Delete', description: 'Deletes a file within safe workspace roots — requires dryRun first',            category: 'filesystem', risk: 'high',   runtime: 'agent-desktop', version: '1.0', inputSchema: { path: 'string', dryRun: 'boolean' },                          outputSchema: { deleted: 'boolean' } },
+
+  // ── Git (novos) ────────────────────────────────────────────────────────────
+  { id: 'jarvis:git_diff',   name: 'Git Diff',   description: 'Shows diff of unstaged or staged changes, optionally for a specific file', category: 'git', risk: 'none',   runtime: 'agent-desktop', version: '1.0', inputSchema: { path: 'string', staged: 'boolean', file: 'string' },            outputSchema: { diff: 'string' } },
+  { id: 'jarvis:git_add',    name: 'Git Add',    description: 'Stages specific files — avoids accidental add of .env or binary files',    category: 'git', risk: 'low',    runtime: 'agent-desktop', version: '1.0', inputSchema: { path: 'string', files: 'array', dryRun: 'boolean' },             outputSchema: { files: 'array' } },
+  { id: 'jarvis:git_pull',   name: 'Git Pull',   description: 'Pulls latest changes from remote, optionally with rebase',               category: 'git', risk: 'medium', runtime: 'agent-desktop', version: '1.0', inputSchema: { path: 'string', rebase: 'boolean', dryRun: 'boolean' },           outputSchema: { pulled: 'boolean' } },
+  { id: 'jarvis:git_push',   name: 'Git Push',   description: 'Pushes current branch to origin — dryRun shows commits ahead',          category: 'git', risk: 'medium', runtime: 'agent-desktop', version: '1.0', inputSchema: { path: 'string', branch: 'string', dryRun: 'boolean' },            outputSchema: { pushed: 'boolean' } },
+
+  // ── Prisma ─────────────────────────────────────────────────────────────────
+  { id: 'jarvis:prisma_generate', name: 'Prisma Generate', description: 'Runs prisma generate after schema changes — no DB mutations', category: 'data', risk: 'low',  runtime: 'agent-desktop', version: '1.0', inputSchema: { projectPath: 'string', schema: 'string', dryRun: 'boolean' },  outputSchema: { generated: 'boolean' } },
+  { id: 'jarvis:prisma_migrate',  name: 'Prisma Migrate',  description: 'Applies pending migrations (deploy mode only) or checks status', category: 'data', risk: 'high', runtime: 'agent-desktop', version: '1.0', inputSchema: { projectPath: 'string', mode: 'string', dryRun: 'boolean' },    outputSchema: { migrated: 'boolean' } },
+
+  // ── Supervisor ─────────────────────────────────────────────────────────────
+  { id: 'jarvis:supervised_session', name: 'Supervised Session', description: 'Launches an autonomous Claude Code session with step-by-step approval gates', category: 'system', risk: 'high', runtime: 'agent-server', version: '1.0', inputSchema: { sessionId: 'string', prompt: 'string', projectPath: 'string' }, outputSchema: { sessionId: 'string', status: 'string' } },
 ]
 
 export class SkillRegistry {

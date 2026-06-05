@@ -2,9 +2,9 @@
 
 > 🤖 **GERADO AUTOMATICAMENTE** por `scripts/gen-agent-catalog.mjs` — não edite à mão.
 > Fonte de verdade: `whitelist.ts` · Metadata: `skill-registry.ts` (V2)
-> Gerado em: 2026-05-30T23:03:13.995Z
+> Gerado em: 2026-06-05T01:09:38.664Z
 
-**Total: 34 ações** · 🔴 2 high · 🟡 5 medium · 🟢 7 low · 🟢 19 none · ⚠️ 1 sem metadata
+**Total: 43 ações** · 🔴 5 high · 🟡 8 medium · 🟢 9 low · 🟢 21 none · ⚠️ 0 sem metadata
 
 | Ação | Nome | Risco | Runtime | Categoria | Metadata |
 |---|---|---|---|---|---|
@@ -13,6 +13,9 @@
 | `jarvis:open_vscode` | Open VS Code | 🟢 none | agent-desktop | editor | ✓ |
 | `jarvis:list_dir` | List Directory | 🟢 none | agent-desktop | filesystem | ✓ |
 | `jarvis:file_search` | File Search | 🟢 none | agent-desktop | filesystem | ✓ |
+| `jarvis:file_read` | File Read | 🟢 none | agent-desktop | filesystem | ✓ |
+| `jarvis:file_write` | File Write | 🟡 medium | agent-desktop | filesystem | ✓ |
+| `jarvis:file_delete` | File Delete | 🔴 high | agent-desktop | filesystem | ✓ |
 | `jarvis:organize_downloads` | Organize Downloads | 🟡 medium | agent-desktop | filesystem | ✓ |
 | `jarvis:create_project_folder` | Create Project Folder | 🟢 low | agent-desktop | filesystem | ✓ |
 | `jarvis:get_system_info` | Get System Info | 🟢 none | agent-desktop | system | ✓ |
@@ -22,8 +25,12 @@
 | `jarvis:clipboard_write` | Write Clipboard | 🟢 none | agent-desktop | system | ✓ |
 | `jarvis:git_status` | Git Status | 🟢 none | agent-desktop | git | ✓ |
 | `jarvis:git_log` | Git Log | 🟢 none | agent-desktop | git | ✓ |
+| `jarvis:git_diff` | Git Diff | 🟢 none | agent-desktop | git | ✓ |
 | `jarvis:git_branch` | Git Branch | 🟢 low | agent-desktop | git | ✓ |
+| `jarvis:git_add` | Git Add | 🟢 low | agent-desktop | git | ✓ |
 | `jarvis:git_commit` | Git Commit | 🟡 medium | agent-desktop | git | ✓ |
+| `jarvis:git_pull` | Git Pull | 🟡 medium | agent-desktop | git | ✓ |
+| `jarvis:git_push` | Git Push | 🟡 medium | agent-desktop | git | ✓ |
 | `jarvis:run_command` | Run Command | 🟡 medium | agent-desktop | terminal | ✓ |
 | `jarvis:run_tests` | Run Tests | 🟢 low | agent-desktop | qa | ✓ |
 | `jarvis:inspect_schema` | Inspect Schema | 🟢 none | agent-desktop | data | ✓ |
@@ -31,6 +38,8 @@
 | `jarvis:get_qa_summary` | QA Summary | 🟢 none | agent-desktop | qa | ✓ |
 | `jarvis:get_data_quality` | Data Quality | 🟢 none | agent-desktop | data | ✓ |
 | `jarvis:capture_test_failure` | Capture Test Failure | 🟢 none | agent-desktop | qa | ✓ |
+| `jarvis:prisma_generate` | Prisma Generate | 🟢 low | agent-desktop | data | ✓ |
+| `jarvis:prisma_migrate` | Prisma Migrate | 🔴 high | agent-desktop | data | ✓ |
 | `jarvis:docker_ps` | Docker PS | 🟢 none | agent-server | docker | ✓ |
 | `jarvis:docker_start` | Docker Start | 🟡 medium | agent-server | docker | ✓ |
 | `jarvis:docker_stop` | Docker Stop | 🟡 medium | agent-server | docker | ✓ |
@@ -41,10 +50,6 @@
 | `jarvis:get_calendar` | Get Calendar | 🟢 none | agent-desktop | calendar | ✓ |
 | `jarvis:run_graphify` | Run Graphify | 🟢 low | agent-server | system | ✓ |
 | `jarvis:graphify_sync` | Graphify Sync | 🟢 low | agent-server | system | ✓ |
-| `jarvis:supervised_session` | — | ⚠️ indefinido | — | — | **ausente no registry** |
+| `jarvis:supervised_session` | Supervised Session | 🔴 high | agent-server | system | ✓ |
 
-## ⚠️ Ações sem definição no Skill Registry V2
-
-Estas ações existem na whitelist mas não têm metadata (risco/runtime) no registry. Adicionar em `apps/api-v2/src/skill-engine/skill-registry.ts`:
-
-- `jarvis:supervised_session` (seção: Supervisor — sessão autônoma Claude Code com bridge Telegram)
+✅ Sem drift: whitelist e registry estão sincronizados.
