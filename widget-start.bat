@@ -5,6 +5,10 @@ chcp 65001 >nul
 title Rayzen AI - Widget
 cd /d "%~dp0"
 
+REM VS Code / Claude Code propagates ELECTRON_RUN_AS_NODE=1, which prevents
+REM Electron from initializing Chromium. Must be cleared before launching widget.
+set ELECTRON_RUN_AS_NODE=
+
 echo.
 echo  Rayzen AI - Widget
 echo.
