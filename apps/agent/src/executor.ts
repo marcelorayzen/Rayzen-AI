@@ -28,6 +28,7 @@ import { runGraphify_action } from './actions/run-graphify'
 import { graphifySync } from './actions/graphify-sync'
 import { supervisedSession } from './actions/supervised-session'
 import { prismaGenerate, prismaMigrate } from './actions/prisma'
+import { browseAndScreenshot } from './actions/browse-screenshot'
 import { isActionAllowedForRole } from './role-policy'
 import { AgentRole } from '@rayzen/types'
 
@@ -46,9 +47,10 @@ export async function executeTask(task: Task): Promise<unknown> {
 
   switch (key) {
     // Apps e navegação
-    case 'jarvis:open_app':    return openApp(p as { app: string })
-    case 'jarvis:open_url':    return openUrl(p as { url: string })
-    case 'jarvis:open_vscode': return openVscode(p as { path?: string })
+    case 'jarvis:open_app':             return openApp(p as { app: string })
+    case 'jarvis:open_url':             return openUrl(p as { url: string })
+    case 'jarvis:open_vscode':          return openVscode(p as { path?: string })
+    case 'jarvis:browse_and_screenshot': return browseAndScreenshot(p as { url: string; label?: string; waitMs?: number; projectName?: string })
 
     // Arquivos
     case 'jarvis:list_dir':    return listDir(p as { path: string })

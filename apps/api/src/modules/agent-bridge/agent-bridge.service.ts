@@ -24,6 +24,12 @@ export class AgentBridgeService {
       .filter((t) => !t.targetRole || !role || t.targetRole === role)
   }
 
+  async getById(id: string): Promise<Task | null> {
+    const jobs = await this.queue.getJobs(['waiting', 'active', 'delayed', 'completed', 'failed'])
+    const job  = jobs.find((j) => j.id === id)
+    return job ? (job.data as Task) : null
+  }
+
   async updateStatus(id: string, status: TaskStatus, result?: unknown, error?: string) {
     const jobs = await this.queue.getJobs(['active', 'waiting', 'delayed', 'completed', 'failed'])
     const job = jobs.find((j) => j.id === id)

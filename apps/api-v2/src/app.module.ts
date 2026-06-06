@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common'
+import { PingController } from './ping.controller'
 import { CoreModule } from './core/core.module'
 import { LlmModule } from './llm/llm.module'
 import { MissionModule } from './mission/mission.module'
@@ -26,6 +27,7 @@ import { CatalogModule } from './catalog/catalog.module'
 import { EventsModule } from './gateway/events.module'
 
 @Module({
+  controllers: [PingController],
   imports: [
     CoreModule,
     LlmModule,

@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('rayzen', {
     return () => ipcRenderer.removeListener('claude:chunk', handler)
   },
   clearClaudeHistory: (projectId: string) => ipcRenderer.send('claude:clear-history', projectId),
+  fetchInfraHealth: ()                                 => ipcRenderer.invoke('infra:health'),
   getConfig:      ()                                   => ipcRenderer.invoke('config:get'),
   getWsStatus:    ()                                   => ipcRenderer.invoke('ws:status'),
   notifyReady:    ()                                   => ipcRenderer.send('renderer:ready'),

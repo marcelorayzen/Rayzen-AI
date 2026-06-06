@@ -1,6 +1,6 @@
 import { config as loadEnv } from 'dotenv'
 import path, { join } from 'path'
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, Notification } from 'electron'
 import { RayzenWsClient } from './ws-client'
 import { ClaudeLauncher } from './claude-launcher'
 import { ClaudeApiChat } from './claude-api-chat'
@@ -18,6 +18,41 @@ const LOCAL_ROOT = process.env.RAYZEN_LOCAL_ROOT  ?? ''
 
 let win: BrowserWindow | null = null
 let ws:  RayzenWsClient | null = null
+
+// Watchdog: tracks last known service states to detect transitions
+const lastHealthOk: Record<string, boolean> = {}
+
+async function fetchInfraHealth() {
+  try {
+    const ctrl    = new AbortController()
+    const timeout = setTimeout(() => ctrl.abort(), 5000)
+    const res     = await fetch(`${API_URL}/infra/health`, { signal: ctrl.signal })
+    clearTimeout(timeout)
+    if (!res.ok) return null
+    return res.json() as Promise<{ ok: boolean; services: Record<string, { ok: boolean }> }>
+  } catch {
+    return null
+  }
+}
+
+async function infraHealthWithWatchdog() {
+  const report = await fetchInfraHealth()
+  if (!report) return report
+
+  for (const [name, svc] of Object.entries(report.services)) {
+    const wasOk = lastHealthOk[name]
+    if (wasOk === true && !svc.ok) {
+      if (Notification.isSupported()) {
+        new Notification({
+          title: 'Rayzen — serviço caiu',
+          body:  `${name} está inacessível`,
+        }).show()
+      }
+    }
+    lastHealthOk[name] = svc.ok
+  }
+  return report
+}
 const voice = new VoiceRecorder(API_URL, API_TOKEN)
 
 function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
@@ -110,6 +145,7 @@ app.whenReady().then(() => {
   ipcMain.handle('voice:transcribe', (_, audioBuffer: ArrayBuffer) =>
     voice.transcribe(Buffer.from(audioBuffer)).catch(() => ''))
 
+  ipcMain.handle('infra:health',  () => infraHealthWithWatchdog())
   ipcMain.handle('config:get',    () => ({ apiUrl: API_URL, projectId: PROJECT_ID, localRoot: LOCAL_ROOT }))
   ipcMain.handle('ws:status',     () => ws?.connected ?? false)
   ipcMain.on('renderer:ready',    () => {

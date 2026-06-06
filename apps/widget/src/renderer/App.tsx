@@ -1,11 +1,12 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { MissionList } from './components/MissionList'
 import { VoiceBar } from './components/VoiceBar'
+import { InfraHealth, type InfraHealthReport } from './components/InfraHealth'
 
 declare global {
   interface Window {
     rayzen: {
-      minimize:      () => void
+      minimize:         () => void
       close:         () => void
       onWsEvent:     (cb: (e: unknown) => void) => () => void
       fetchProjects: () => Promise<Project[]>
@@ -18,6 +19,7 @@ declare global {
       clearClaudeHistory: (projectId: string) => void
       transcribe:    (buffer: ArrayBuffer) => Promise<string>
       sendChat:      (projectId: string, content: string, sessionId?: string) => Promise<ChatReply | null>
+      fetchInfraHealth: () => Promise<InfraHealthReport | null>
       getConfig:     () => Promise<{ apiUrl: string; projectId: string; localRoot?: string }>
       getWsStatus:   () => Promise<boolean>
       notifyReady:   () => void
@@ -56,8 +58,11 @@ export function App() {
   const [chatMode, setChatMode]     = useState<ChatMode>('claude')
   const [claudeModel, setClaudeModel] = useState('claude-haiku-4-5-20251001')
   const [streaming, setStreaming]   = useState(false)
+  const [infraHealth, setInfraHealth]   = useState<InfraHealthReport | null>(null)
+  const [infraCheckedAt, setInfraCheckedAt] = useState(0)   // Date.now() when last checked
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const wsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const infraPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const loadMissions = useCallback(async (pid: string) => {
     if (!pid) return
@@ -85,6 +90,18 @@ export function App() {
       setStreaming(true)
     })
     return off
+  }, [])
+
+  // Infra health polling
+  useEffect(() => {
+    const check = () => {
+      window.rayzen.fetchInfraHealth().then((r) => {
+        if (r) { setInfraHealth(r); setInfraCheckedAt(Date.now()) }
+      }).catch(() => null)
+    }
+    check()
+    infraPollRef.current = setInterval(check, 30_000)
+    return () => { if (infraPollRef.current) clearInterval(infraPollRef.current) }
   }, [])
 
   // Initial load
@@ -184,6 +201,9 @@ export function App() {
     }
   }
 
+  // Seconds since last infra check
+  const checkedAgo = infraCheckedAt ? Math.floor((Date.now() - infraCheckedAt) / 1000) : 0
+
   // Counts for summary
   const active  = missions.filter((m) => m.status === 'active').length
   const pending = missions.filter((m) => m.status === 'pending').length
@@ -229,6 +249,9 @@ export function App() {
           <button className="btn-close" onClick={() => window.rayzen.close()}    title="fechar" />
         </div>
       </div>
+
+      {/* Infra health bar */}
+      <InfraHealth report={infraHealth} checkedAgo={checkedAgo} />
 
       {/* Summary bar */}
       {!loading && missions.length > 0 && (

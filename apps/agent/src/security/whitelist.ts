@@ -3,6 +3,7 @@ export const ALLOWED_ACTIONS = new Set([
   'jarvis:open_app',
   'jarvis:open_url',
   'jarvis:open_vscode',
+  'jarvis:browse_and_screenshot',
 
   // Arquivos e diretórios
   'jarvis:list_dir',

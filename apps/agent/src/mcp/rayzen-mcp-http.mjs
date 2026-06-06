@@ -316,6 +316,22 @@ const TOOLS = [
       },
     },
   },
+  {
+    name: 'rayzen_agent_task',
+    description:
+      'Despacha uma tarefa para o agent desktop executar (screenshot, navegação, terminal, git, etc). ' +
+      'Aguarda resultado por até 20s.',
+    inputSchema: {
+      type: 'object',
+      required: ['action'],
+      properties: {
+        action: { type: 'string', description: 'Ex: jarvis:screenshot, jarvis:browse_and_screenshot, jarvis:run_command' },
+        payload: { type: 'object' },
+        targetRole: { type: 'string', enum: ['desktop', 'server'] },
+        waitResult: { type: 'boolean' },
+      },
+    },
+  },
 ]
 
 // ── MCP Server ───────────────────────────────────────────────────────────────
@@ -483,6 +499,38 @@ function createMcpServer() {
           } else {
             result = plan
           }
+          break
+        }
+
+        case 'rayzen_agent_task': {
+          const rawAction  = args.action ?? ''
+          const colonIdx   = rawAction.indexOf(':')
+          const module     = colonIdx > 0 ? rawAction.slice(0, colonIdx) : 'jarvis'
+          const actionName = colonIdx > 0 ? rawAction.slice(colonIdx + 1) : rawAction
+          const waitResult = args.waitResult !== false
+
+          const task = await api('POST', '/tasks', {
+            module,
+            action:     actionName,
+            payload:    args.payload ?? {},
+            targetRole: args.targetRole ?? 'desktop',
+          })
+
+          if (!waitResult) {
+            result = { taskId: task.id, status: 'dispatched' }
+            break
+          }
+
+          let polled = null
+          for (let i = 0; i < 10; i++) {
+            await new Promise((r) => setTimeout(r, 2000))
+            const current = await api('GET', `/tasks/${task.id}`).catch(() => null)
+            if (current?.status === 'done' || current?.status === 'failed') {
+              polled = current
+              break
+            }
+          }
+          result = polled ?? { taskId: task.id, status: 'timeout', note: 'Agent não respondeu em 20s' }
           break
         }
 

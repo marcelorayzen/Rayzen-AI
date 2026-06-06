@@ -1,6 +1,6 @@
 # Rayzen AI — Instruções para Claude Code (privado)
 
-> Ponto de entrada. Detalhes operacionais estão em `docs/manual-de-uso.md`.
+> Ponto de entrada. Detalhes operacionais em `docs/manual-de-uso.md`.
 > Referências completas: rotas → blueprints/ · ações do agent → `docs/agent-actions.md` · modelos → `apps/api/prisma/schema.prisma`.
 
 ---
@@ -11,25 +11,34 @@
 - **Repositório:** `github.com/marcelorayzen/rayzen-ai-private` (privado)
 - **Branch principal:** `main`
 - **Web:** `http://<VPS_IP>:3100` · **API:** `http://<VPS_IP>:3101` · **Domínio:** `rayzen.com.br`
-- **Notion root:** `359c784498d680e68a15e71c90ff9f22`
 
-Plataforma pessoal de IA com automação, memória semântica, geração de documentos, QA e execução assistida entre a VPS Azure e o PC de trabalho. Monorepo TypeScript (pnpm workspaces).
+Plataforma pessoal de IA com automação, memória semântica, geração de documentos, QA e execução assistida. Monorepo TypeScript (pnpm workspaces).
 
-**Duas gerações coexistindo:** V1 (`apps/api`, :3101, estável, uso diário) + V2 (`apps/api-v2`, :3103, prefixo `/v2`, Mission Oriented — construída, em adoção). Ver `docs/manual-de-uso.md` e `blueprints/`.
+**Duas gerações coexistindo:** V1 (`apps/api`, :3101, estável, uso diário) + V2 (`apps/api-v2`, :3103, prefixo `/v2`).
+
+---
+
+## Papéis — quem faz o quê
+
+| Quem           | Papel                                                   |
+|----------------|----------------------------------------------------------|
+| **Rayzen**     | Context broker · memória semântica · governança · QA docs |
+| **Claude Code** | Desenvolvimento · análise · code review · implementação |
+| **Agent desktop** | Executor local — browser, screenshots, terminal, git  |
+
+**Rayzen NÃO executa código.** V2 tem um motor de missões construído mas a função principal do Rayzen para o uso diário é entregar contexto comprimido, registrar decisões e armazenar artefatos QA.
 
 ---
 
 ## Setup e uso diário
 
-Resumo (passo a passo completo em `docs/manual-de-uso.md`):
-
 | Componente | Onde | Como sobe |
 |---|---|---|
-| Postgres + Redis + LiteLLM + API + Web + MCP | VPS (Docker) | `docker compose up -d` (auto-restart) |
+| Postgres + Redis + LiteLLM + API + Web + MCP | VPS (Docker) | `docker compose up -d` |
 | Agent desktop | PC de trabalho | `agent-start.bat` |
 | Hook Claude Code | Esta máquina | `.claude/settings.json` (automático) |
 
-O hook detecta o projeto pelo `repoSlug` do git remote (resolução robusta: normaliza case/`-private`/`_`). Badge de saúde no painel Atividade; diagnóstico via `GET /events/hook/health`.
+**Diagnóstico de infraestrutura:** `GET /infra/health` — retorna status de postgres, redis, litellm, api-v2, mcp e validade do JWT.
 
 **Token JWT (hook + AGENT_TOKEN) expira 4 de julho de 2026.** Renovar:
 ```bash
@@ -64,42 +73,24 @@ Next.js 16 (web) · NestJS 10 + Fastify (api) · LiteLLM (proxy) · PostgreSQL 1
 
 ## Protocolo de sessão Claude Code ↔ Rayzen
 
-**Obrigatório. Não pode ser quebrado entre sessões.**
+### Contexto automático (não requer ação manual)
+O hook `UserPromptSubmit` injeta o estado do projeto Rayzen em cada prompt automaticamente (cache 5 min, injetado como `additionalContext`). Não é necessário chamar `rayzen_get_resume()` em toda sessão.
 
-### Ao iniciar trabalho neste projeto
-Antes da primeira ação técnica, ler contexto via MCP:
-```
-rayzen_get_resume()   → o que mudou desde a última sessão, blockers ativos
-rayzen_get_goal()     → meta ativa, progresso, next best action
-```
+### Quando usar MCP manualmente
 
-### Ao iniciar uma task específica de implementação / debugging / review
-Antes de explorar o código, chamar:
-```
-rayzen_get_context(mode:'<implementation|debugging|review|architecture>', query:'<descrição da task>')
-```
-Retorna pacote cirúrgico: ProjectState + planejamento + blockers + memória semântica relevante.
-Substitui grep amplo e re-explicação de estado — use como primeiro passo antes de ler arquivos.
+| Situação | Chamar |
+|---|---|
+| Início de task complexa (implementação / debugging) | `rayzen_get_context(mode, query)` → contexto cirúrgico |
+| Decisão significativa tomada | `rayzen_add_event(type:'decision', content:'...')` |
+| Fim de sessão com código real modificado | `rayzen_checkpoint()` → fecha o loop |
+| Backlog / milestones para atualizar | `rayzen_update_planning()` |
 
-### Durante a sessão
-Ao tomar decisão significativa ou concluir entrega, registrar **intenção** (não só execução):
-```
-rayzen_add_event(type:'decision', content:'Implementado X para resolver Y — motivo: Z')
-```
-O hook captura mecanicamente o que foi executado; cabe ao Claude registrar o **porquê** e o **resultado**.
-
-### Ao fim de sessão com código real modificado
-```
-rayzen_checkpoint()         → sintetiza, atualiza ProjectState, reconstrói docs e Universe
-rayzen_update_planning()    → fecha milestones, adiciona tasks ao backlog
-```
-Sem checkpoint, a próxima sessão começa com estado desatualizado.
+**`rayzen_get_context`** é o mais importante: substitui grep amplo, retorna ProjectState + planejamento + memória semântica relevante para a query.
 
 ### Contrato de qualidade de sinal
-- **Não registrar ruído:** tool calls de leitura (Read, ToolSearch, MCP queries) não viram eventos.
-- **Bash/PowerShell:** o `description` é o sinal; o `command` completo é ruído.
-- **Checkpoint ≠ síntese:** síntese é parcial; checkpoint fecha o loop (state + docs + Universe).
-- ⚠️ Sessões com muito ruído operacional poluem a Doc viva (ver limitação no manual). Goal Graph é a fonte estratégica confiável.
+- Não registrar ruído: tool calls de leitura não viram eventos
+- Bash/PowerShell: o `description` é o sinal, `command` completo é ruído
+- Checkpoint fecha o loop (state + docs + Universe) — síntese é parcial
 
 ---
 
@@ -109,7 +100,7 @@ Sem checkpoint, a próxima sessão começa com estado desatualizado.
 - Cada módulo NestJS tem system prompt próprio — nunca genérico
 - Logar `tokens_used` e `duration_ms` em toda chamada LiteLLM
 - LiteLLM sempre via proxy — nunca apontar direto p/ OpenAI/Anthropic
-- Agente: whitelist é inegociável (34 ações — ver `docs/agent-actions.md`); ações fora são rejeitadas
+- Agente: whitelist é inegociável (ver `docs/agent-actions.md`); ações fora são rejeitadas
 - Path traversal (`../`) sempre bloqueado em list-dir e similares
 - Ações de risco médio/alto: `dryRun: true` antes de executar
 - Após mudança no schema Prisma: `pnpm --filter api db:generate`

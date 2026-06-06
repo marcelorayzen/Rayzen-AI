@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Param, Body, Query, UseGuards } from '@nestjs/common'
+import { Controller, Get, Post, Patch, Param, Body, Query, UseGuards } from '@nestjs/common'
 import { ApiTags } from '@nestjs/swagger'
 import { SkipThrottle } from '@nestjs/throttler'
 import { AgentBridgeService } from './agent-bridge.service'
@@ -40,8 +40,16 @@ export class AgentBridgeController {
     private readonly metrics: MetricsService,
   ) {}
 
+  @Post()
+  create(@Body() dto: { module: string; action: string; payload: Record<string, unknown>; targetRole?: AgentRole }) {
+    return this.svc.enqueue(dto as import('@rayzen/types').TaskCreateDto)
+  }
+
   @Get('pending')
   getPending(@Query('role') role?: AgentRole) { return this.svc.getPending(role) }
+
+  @Get(':id')
+  getById(@Param('id') id: string) { return this.svc.getById(id) }
 
   @Patch(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateTaskDto) {
