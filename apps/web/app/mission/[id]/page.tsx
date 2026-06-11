@@ -103,14 +103,34 @@ export default function MissionDetailPage() {
     return () => clearInterval(t)
   }, [mission, load])
 
-  const action = async (endpoint: string, label: string) => {
+  const action = async (endpoint: string, label: string, body?: Record<string, unknown>) => {
     if (acting) return
     setActing(label)
     setNote(null)
     try {
       const res = await fetch(`${V2_URL}/missions/${id}/${endpoint}`, {
         method: 'POST',
-        headers: authHeaders(),
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined,
+      })
+      if (!res.ok) { setNote(`Erro ao ${label} (HTTP ${res.status})`); return }
+      await load()
+    } catch (err) {
+      setNote(err instanceof Error ? err.message : `falha ao ${label}`)
+    } finally {
+      setActing(null)
+    }
+  }
+
+  const executeWorkflow = async (label: string) => {
+    if (acting || !mission) return
+    setActing(label)
+    setNote(null)
+    try {
+      const res = await fetch(`${V2_URL}/workflows/missions/${id}/execute`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: mission.projectId }),
       })
       if (!res.ok) { setNote(`Erro ao ${label} (HTTP ${res.status})`); return }
       await load()
@@ -194,7 +214,7 @@ export default function MissionDetailPage() {
             trabalhar
           </button>
           {mission.status === 'pending' && (
-            <button className="hud-btn hud-btn-primary" onClick={() => void action('execute', 'executar')} disabled={!!acting}>
+            <button className="hud-btn hud-btn-primary" onClick={() => void executeWorkflow('executar')} disabled={!!acting}>
               {acting === 'executar' ? 'executando…' : 'executar'}
             </button>
           )}
@@ -204,7 +224,7 @@ export default function MissionDetailPage() {
             </button>
           )}
           {mission.status === 'paused' && (
-            <button className="hud-btn hud-btn-primary" onClick={() => void action('execute', 'retomar')} disabled={!!acting}>
+            <button className="hud-btn hud-btn-primary" onClick={() => void executeWorkflow('retomar')} disabled={!!acting}>
               {acting === 'retomar' ? 'retomando…' : 'retomar'}
             </button>
           )}
