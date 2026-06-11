@@ -12,6 +12,11 @@ model_list:
       api_key: os.environ/GROQ_API_KEY
 
   # Aliases diretos para Claude — use quando quiser forçar melhor qualidade
+  - model_name: gpt-4o-fable
+    litellm_params:
+      model: anthropic/claude-fable-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+
   - model_name: gpt-4o-premium
     litellm_params:
       model: anthropic/claude-sonnet-4-20250514

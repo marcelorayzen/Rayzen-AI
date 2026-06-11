@@ -317,6 +317,17 @@ const TOOLS = [
     },
   },
   {
+    name: 'rayzen_list_specialists',
+    description:
+      'Lista os Specialist Agents disponíveis para o projeto: backend, QA, infra, devops, general e overrides por projeto. Use para descobrir quais especialistas estão ativos antes de criar uma missão.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: { type: 'string', description: 'ID do projeto' },
+      },
+    },
+  },
+  {
     name: 'rayzen_agent_task',
     description:
       'Despacha uma tarefa para o agent desktop executar (screenshot, navegação, terminal, git, etc). ' +
@@ -501,6 +512,10 @@ function createMcpServer() {
           }
           break
         }
+
+        case 'rayzen_list_specialists':
+          result = await api('GET', `/v2/specialist-agents?projectId=${pid()}`)
+          break
 
         case 'rayzen_agent_task': {
           const rawAction  = args.action ?? ''
