@@ -1,87 +1,67 @@
 # Rayzen AI — Manual de Uso
 
 > Manual operacional + arquitetura. Como o Rayzen funciona hoje e como usá-lo no dia a dia.
-> Última revisão: 2026-05-31 (pós-V2 + estabilização de hook/MCP).
+> Última revisão: 2026-06-11 (pivot — Rayzen = cérebro de memória/QA; executor de missões congelado).
 
 ---
 
 ## 1. O que é o Rayzen (em uma frase)
 
-Uma plataforma pessoal de IA que **observa seu trabalho** (via hook do Claude Code), **preserva contexto** (memória, conhecimento, documentação viva) e **executa fluxos** (agente local + missões), coordenando tudo entre a sua máquina e uma VPS central.
+Uma plataforma pessoal de IA que **preserva contexto** (memória semântica, decisões, runbooks), **observa seu trabalho** (hook do Claude Code) e **alimenta o Claude Code** com contexto cirúrgico e relevante — para que problemas resolvidos uma vez não precisem ser resolvidos de novo.
 
-Hoje o Rayzen tem **duas gerações rodando lado a lado**:
+**Papéis claros:**
 
-| | V1 (estável, em uso diário) | V2 (construída, em adoção) |
-|---|---|---|
-| O que é | Assistente conversacional + automação | Sistema orientado a **missões** |
-| Onde | `apps/api` · porta 3101 | `apps/api-v2` · porta 3103 · prefixo `/v2` |
-| Estado | É o que você usa todo dia | 19 módulos prontos, ainda não plugados na interface |
-| Banco | schema `public` | schema `v2` (mesmo Postgres) |
+| Quem | Papel |
+|---|---|
+| **Rayzen** | Cérebro persistente: memória semântica · contexto · governança QA · write-back de aprendizados |
+| **Claude Code** | Executor: código, deploy, testes, análise |
+| **Agent desktop** | Executor local: browser, terminal, screenshots, git |
 
-A V2 **não substituiu** a V1 — ela coexiste. A V1 continua sendo a interface do dia a dia; a V2 é o motor que será adotado gradualmente.
+**Rayzen não executa código.** O executor autônomo de missões LLM (V2) foi congelado — nunca funcionou de forma confiável. O que existe e funciona é o **loop de contexto + memória** que torna o Claude Code mais eficaz a cada sessão.
 
 ---
 
-## 2. Arquitetura em camadas
+## 2. Arquitetura
 
 ### 2.1 Os três lugares onde o Rayzen vive
 
 ```
-┌─ Sua máquina (Windows) ──────────────┐     ┌─ VPS Azure (Docker) ───────────────┐
-│ • VS Code + Claude Code               │     │ • PostgreSQL 16 + pgvector          │
-│ • Hook (rayzen-hook.mjs)  ───eventos──┼────▶│ • Redis + LiteLLM                   │
-│ • Agent desktop (agent-start.bat)     │◀────┼─ tarefas ─ • API V1 (:3101)         │
-│ • MCP local (.mcp.json)               │     │ • API V2 (:3103)                    │
-└───────────────────────────────────────┘     │ • Web (:3100) · Caddy (HTTPS)       │
-                                               │ • Agent server · MCP HTTP (:3102)   │
-                                               └─────────────────────────────────────┘
+┌─ Sua máquina (Windows) ──────────────┐     ┌─ Notebook local (Ubuntu · Docker) ────┐
+│ • VS Code + Claude Code               │     │ • PostgreSQL 16 + pgvector             │
+│ • Hook (rayzen-hook.mjs)  ───eventos──┼────▶│ • Redis + LiteLLM                      │
+│ • Agent desktop (agent-start.bat)     │◀────┼─ tarefas ─ • API V1 (:3101)            │
+│ • MCP stdio (.mcp.json)               │     │ • API V2 (:3103) — context-engine       │
+└───────────────────────────────────────┘     │ • Web (:3100) · Caddy (HTTPS)           │
+                                               │ • MCP HTTP (:3102)                      │
+                                               └────────────────────────────────────────┘
 ```
 
 - **Hook** = sensor passivo. Cada ação no Claude Code (Edit/Write/Bash) vira um evento no Rayzen.
 - **Agent** = braço executor. Recebe tarefas (`jarvis:*`) e executa no SO local (whitelist obrigatória).
-- **MCP** = ponte para o Claude/ChatGPT consultarem o Rayzen de fora.
+- **MCP** = ponte para o Claude Code e claude.ai consultarem e gravarem no Rayzen.
+- **Infra** = notebook local 192.168.0.175, Cloudflare Tunnel para domínio `rayzen.com.br`.
 
-### 2.2 Os engines da V2 (a arquitetura nova)
+### 2.2 Estado dos módulos V2
 
-A V2 organiza o sistema em engines, cada um um módulo NestJS isolado em `apps/api-v2`:
+| Estado | Módulos |
+|---|---|
+| **Vivo** (em uso) | `context-engine`, `specialist-agent`, `qa-engine`, `approval-gates`, `knowledge`, `memory`, `core/v1-bridge` |
+| **Congelado** (dormente) | `mission`, `workflow`, `mission-scheduler`, `specialists` runtime, `router` |
 
-| Camada | Engine | O que faz |
-|---|---|---|
-| Entrada | **Router** | Classifica a intenção → vira missão, skill ou chat |
-| Núcleo | **Mission Engine** | Unidade de execução: missão com steps e lifecycle |
-| Execução | **Workflow Engine** | DAG de steps (paralelo + retry) dentro de uma missão |
-| Execução | **Skill Engine** | Catálogo de 34 ações; despacha pro agente |
-| Execução | **Specialists** | Agentes de IA temporários (coder, reviewer, tester...) criados sob demanda |
-| Inteligência | **AI Router** | Escolhe o modelo por custo/complexidade (tiers) |
-| Inteligência | **Context Engine** | Monta o contexto mínimo para cada tarefa |
-| Conhecimento | **Memory Engine** | Fatos: o que aconteceu (lifecycle inbox→working→consolidated) |
-| Conhecimento | **Knowledge Engine** | Relações: como as coisas se conectam (grafo) |
-| Conhecimento | **Project Memory** | Decisões, lições, padrões por projeto |
-| Qualidade | **QA Engine** | Gate de qualidade (testes + data quality) |
-| Qualidade | **Documentation Engine** | Gera docs por missão concluída |
-| Governança | **Vault Engine** | Segredos criptografados (AES-256), nunca em contexto LLM |
-| Governança | **Approval Gates** | Pausa missões de risco alto para aprovação |
-| Governança | **Cost Controller** | Orçamento de tokens, bloqueio ativo |
-| Governança | **Observability** | Trace distribuído por missão |
-| Governança | **Resource Manager** | Limites de tokens/agentes/loops |
-| Orquestração | **Mission Scheduler** | Fila de missões com prioridade e dependências |
-
-**Memory vs Knowledge** (a distinção-chave): Memory guarda *fatos* ("a tarefa X foi concluída"); Knowledge guarda *relações* ("módulo Pedidos depende de Estoque"). São complementares.
+O container `api-v2` continua rodando porque `rayzen_get_context` depende do `context-engine`. Ver `apps/api-v2/FROZEN.md` para detalhes.
 
 ---
 
-## 3. Setup diário — passo a passo
+## 3. Setup diário
 
-1. **VPS ligada.** A stack central (Postgres, Redis, LiteLLM, API, Web, MCP) sobe sozinha com `restart: unless-stopped`. Se a VM estava desligada, ligue (ver `memory/reference_vps_ssh.md`).
-2. **Agent desktop.** Na sua máquina, rode `agent-start.bat` — ele faz polling e executa as ações `jarvis:*`.
-3. **VS Code + Claude Code.** Abra a pasta do projeto. O hook detecta o projeto sozinho (ver §4) e começa a capturar eventos.
-4. **Web.** Abra `http://<VPS_IP>:3100` (ou o domínio), selecione o projeto no topo esquerdo.
+1. **Notebook ligado.** A stack (Postgres, Redis, LiteLLM, APIs, Web, MCP) sobe sozinha com `restart: unless-stopped`.
+2. **Agent desktop.** Na sua máquina, rode `agent-start.bat` — polling de tarefas `jarvis:*`.
+3. **VS Code + Claude Code.** Abra a pasta do projeto. O hook detecta o projeto pelo `git remote` e começa a capturar eventos.
+4. **Web.** Abra `http://192.168.0.175:3100` (ou `https://rayzen.com.br`), selecione o projeto no topo.
 
 ---
 
 ## 4. Como o hook vincula seu trabalho ao projeto certo
-
-Este é o ponto que mais deu dor de cabeça — está resolvido, mas vale entender:
 
 ```
 Você edita um arquivo no VS Code
@@ -90,112 +70,139 @@ Você edita um arquivo no VS Code
    → vincula o evento ao projeto correspondente
 ```
 
-**Resolução robusta (não quebra mais por nome):** `rayzen-ai-private`, `Rayzen-AI`, `Rayzen_AI` todos resolvem para o mesmo projeto — o backend normaliza (minúsculas, remove sufixo `-private`, troca `_`↔`-`).
+**Resolução robusta:** `rayzen-ai-private`, `Rayzen-AI`, `Rayzen_AI` todos resolvem para o mesmo projeto — o backend normaliza (minúsculas, remove sufixo `-private`, troca `_`↔`-`).
 
-**Stale-while-error:** se a rede pisca (ex.: durante um deploy), o hook reusa o cache em vez de "perder" o evento. Antes, um hiccup de 1s desvinculava — agora não.
+**Stale-while-error:** se a rede pisca durante um deploy, o hook reusa o cache em vez de perder o evento.
 
-**Como saber se está funcionando:** o painel **Atividade** tem um indicador no topo:
-- 🟢 **ao vivo** = recebeu evento há menos de 10 min
-- 🟡 **há Xh** = parado há algumas horas
-- 🔴 **há Nd / sem eventos** = algo quebrou
-
-**Diagnóstico fundo:** `GET /events/hook/health` lista todos os projetos, último evento de cada, e contagem de eventos órfãos.
+**Diagnóstico:** `GET /events/hook/health` lista todos os projetos, último evento e eventos órfãos.
+**Badge da Atividade:** 🟢 ao vivo (<10 min) · 🟡 há Xh · 🔴 parado.
 
 ---
 
 ## 5. Os painéis — o que cada um faz e QUANDO atualiza
 
-Esta é a tabela mais importante do manual. A confusão geralmente é não saber *quando* cada painel atualiza.
-
 | Painel | O que mostra | Quando atualiza | Como forçar |
 |---|---|---|---|
-| **Atividade** | Eventos do hook em tempo real | **Sozinho, a cada 5s** | — (é ao vivo) |
-| **Goal Graph** | Meta do projeto, critérios, KPIs, progresso | **Só quando VOCÊ edita** a meta | Botão "EDITAR META" / "+ critério" / "auto-detectar" KPI |
-| **Documentação viva** | 5 docs (estado, decisões, próximas ações, diário, evidências) | **No checkpoint** | Botão "Regenerar" / disparar checkpoint |
-| **Universe** | Canvas livre: docs, decisões e relações conectados | **Manual** | Botão "atualizar" / "importar projeto" |
-| **Brain** | Busca semântica na memória indexada | Ao indexar fontes | Painel Brain → indexar |
+| **Atividade** | Eventos do hook em tempo real | **Sozinho, a cada 5s** | — |
+| **Goal Graph** | Meta do projeto, critérios, KPIs, progresso | **Só quando você edita** | Botão "EDITAR META" / "+ critério" |
+| **Documentação viva** | 5 docs (estado, decisões, próximas ações, diário, evidências) | **No checkpoint** | Botão "Regenerar" / checkpoint |
+| **Universe** | Canvas: docs, decisões e relações | **Manual** | Botão "atualizar" / "importar projeto" |
+| **Brain / Memória** | Busca semântica na memória indexada | Ao indexar fontes | Painel Brain → indexar |
 
-**Regra de ouro:** se um painel parece "desatualizado", quase sempre é porque ele **não atualiza sozinho** — depende de um checkpoint (Doc viva) ou de você editar (Goal Graph). Só a Atividade é ao vivo.
+**Regra:** se um painel parece desatualizado, quase sempre é porque não atualiza sozinho — depende de checkpoint (Doc viva) ou edição manual (Goal Graph). Só a Atividade é ao vivo.
 
-### ⚠️ Limitação conhecida — ruído operacional na Doc viva
+### Limitação conhecida — ruído na Doc viva
 
-O ProjectState e a Documentação viva (especialmente "Próximas Ações") derivam dos **eventos do hook** via LLM. Quando uma sessão tem **muito ruído operacional** — centenas de comandos `Bash`/`SSH` de diagnóstico e desenvolvimento — esse ruído afoga o sinal estratégico, e o LLM chega a transformar a descrição de um comando ("Testar API local vs domínio") em "próxima ação".
-
-**Consequência prática:** depois de sessões intensas de dev/diagnóstico, a Doc viva fica poluída. Não é bug do checkpoint — é o pipeline pesando todos os eventos igualmente.
-
-**O que confiar então:**
-- **Goal Graph** é a fonte estratégica confiável — você define a meta manualmente, ela não sofre com ruído.
-- **Documentação viva** é melhor após sessões de trabalho *focado* (poucos comandos, mudanças de código reais) do que após sessões de diagnóstico.
-
-**Correção de design pendente** (não implementada): ancorar a geração de "Próximas Ações" na **meta ativa do Goal Graph** em vez dos eventos brutos, e filtrar comandos de diagnóstico do sinal. Até lá, trate a Doc viva como apoio, não como verdade absoluta.
+O ProjectState e a Doc viva derivam dos eventos do hook via LLM. Sessões com muitos comandos Bash/SSH de diagnóstico poluem o sinal — "Testar API local" vira "próxima ação". O **Goal Graph é a fonte estratégica confiável**; a Doc viva é apoio, não verdade absoluta.
 
 ---
 
-## 6. Checkpoint — o coração da sincronização
+## 6. Checkpoint — sincronização do ProjectState
 
-O **checkpoint** é o que mantém o Rayzen "em dia". Quando você dispara (botão CHECKPOINT, ou automático a cada 2h / 15+ eventos), em background ele:
+O checkpoint mantém o Rayzen "em dia". Ao disparar (botão CHECKPOINT, ou automático a cada 2h / 15+ eventos), ele:
 
-1. **Sintetiza a sessão** — resumo do que foi feito, decisões, próximos passos
-2. **Refaz o ProjectState** (via Claude Sonnet) — objetivo, stage, blockers, milestones
-3. **Regenera os 5 docs** da Documentação viva
-4. **Atualiza o Universe**
+1. Sintetiza a sessão (resumo, decisões, próximos passos)
+2. Refaz o ProjectState (via LLM) — objetivo, stage, blockers, milestones
+3. Regenera os 5 docs da Documentação viva
+4. Atualiza o Universe
 
-Sem checkpoint, o ProjectState e a Documentação viva ficam congelados no último checkpoint. **Se passou uma sessão de trabalho real e os painéis parecem velhos → falta checkpoint.**
-
-> Pelo MCP (de dentro do Claude), o protocolo de sessão pede: `rayzen_get_resume()` ao começar, `rayzen_add_event(decision)` nas decisões, `rayzen_checkpoint()` ao terminar uma sessão com código.
+Sem checkpoint, o ProjectState congela no último. **Se os painéis parecem velhos → falta checkpoint.**
 
 ---
 
-## 7. MCP — usar o Rayzen de dentro do Claude/ChatGPT
+## 7. Protocolo de sessão Claude Code ↔ Rayzen
 
-O MCP HTTP (`https://rayzen.com.br/mcp`) expõe o Rayzen como conector. Autenticação OAuth (login com a senha admin).
+### Contexto automático (não requer ação)
+O hook `UserPromptSubmit` injeta o estado do projeto em cada prompt automaticamente (cache 5 min). Não é necessário chamar `rayzen_get_resume` em toda sessão.
 
-- **Token persistente:** uma vez autorizado, o token fica salvo em disco (`storage/mcp/tokens.json`) e **sobrevive a restarts** — não pede re-auth todo dia.
-- **Robusto:** JSON malformado não derruba mais o servidor (responde 400).
-- **Tools:** `rayzen_get_resume`, `rayzen_get_goal`, `rayzen_add_event`, `rayzen_checkpoint`, `rayzen_search_memory`, etc.
+### Quando usar MCP manualmente
 
-Se o conector pedir reautorização: Settings → Integrations → Rayzen → reconnect → login com senha admin. Depois o token persiste.
+| Situação | Tool |
+|---|---|
+| Início de task complexa (implementação / debugging) | `rayzen_get_context(mode, query)` |
+| Decisão significativa tomada | `rayzen_add_event(intent:'decision', content:'...')` |
+| Fim de sessão com código real modificado | `rayzen_checkpoint()` |
+| Resolveu um problema não-trivial | `rayzen_capture_learning(...)` ← **o mais importante** |
 
----
+### `rayzen_capture_learning` — o loop de write-back
 
-## 8. A V2 — como começar a usar
+Chame **depois de resolver um problema** para que o aprendizado persista e reapareça automaticamente nas próximas sessões.
 
-A V2 está deployada mas ainda não tem interface. Para experimentar via API (porta 3103, prefixo `/v2`, mesmo JWT da V1):
-
-```bash
-# Criar uma missão a partir de um objetivo em linguagem natural:
-POST /v2/route { "content": "Implemente login por email", "projectId": "<id>" }
-  → classifica, planeja steps e cria a missão
-
-# Executar a missão (Workflow DAG + Specialists):
-POST /v2/workflows/missions/:id/execute { "projectId": "<id>" }
-
-# Outros:
-GET  /v2/skills                  # catálogo de 34 ações com risco
-GET  /v2/ai/models               # tiers de modelo
-POST /v2/knowledge/build/:pid    # popular o grafo de conhecimento do projeto
-GET  /v2/costs/:pid              # custo por projeto
+```typescript
+rayzen_capture_learning({
+  title: "Deploy Rayzen AI no notebook local",   // curto e buscável
+  problem: "O que quebrou / o sintoma observado",
+  solution: "Como foi resolvido — passos concretos",
+  type: "runbook",   // runbook | troubleshooting | decision | pattern | gotcha
+  tags: ["deploy", "docker"],
+  projectId: "<id>"  // opcional; escopo do projeto
+})
 ```
 
-Swagger da V2: `https://api.rayzen.com.br/v2/docs`.
+**Quando chamar:**
+- Consertou algo que quebrou (deploy, bug, config, auth)
+- Tomou uma decisão de arquitetura relevante
+- Descobriu um gotcha que vai repetir
+- Criou um runbook (passo a passo que vai repetir)
 
-O **próximo foco do projeto** (meta ativa no Goal Graph) é justamente conectar a interface web a essas rotas e rodar a primeira missão real end-to-end.
+**Quando NÃO chamar:**
+- Desenvolvimento normal (feature, refactor)
+- Conversa de análise sem conclusão concreta
+- Perguntas simples
+
+A pergunta-guia: *"Daqui a 2 meses, quero que o Rayzen já saiba isso?"* — Se sim, capture. Se não, pule.
+
+O aprendizado é indexado via `MemoryService` com `projectId` e reaparece automaticamente em `rayzen_get_context` na próxima sessão de contexto relacionado.
+
+---
+
+## 8. MCP — conectar de dentro do Claude/claude.ai
+
+O MCP HTTP (`https://rayzen.com.br/mcp`) expõe o Rayzen como conector OAuth. Autenticação com senha admin.
+
+**Token persistente:** uma vez autorizado, sobrevive a restarts. Se pedir re-auth: Settings → Integrations → Rayzen → reconnect.
+
+**Tools disponíveis:**
+
+| Tool | O que faz |
+|---|---|
+| `rayzen_get_context` | Contexto cirúrgico por modo (implementation/debugging/review/architecture/study) + query semântica |
+| `rayzen_get_resume` | Snapshot do ProjectState atual |
+| `rayzen_get_goal` | Meta ativa + critérios + KPIs |
+| `rayzen_add_event` | Registra decisão, ideia ou problema manualmente |
+| `rayzen_checkpoint` | Dispara checkpoint (sintetiza sessão + regenera docs) |
+| `rayzen_capture_learning` | Grava runbook/troubleshooting indexado na memória |
+| `rayzen_search_memory` | Busca semântica na memória do projeto |
+| `rayzen_get_wiki` | Consulta página da wiki por slug |
+| `rayzen_update_planning` | Atualiza backlog e milestones |
 
 ---
 
 ## 9. Comandos úteis
 
 ```bash
-# Qualidade / auditoria (geram docs a partir do código — nunca desatualizam)
-pnpm gen:catalog        # docs/agent-actions.md — catálogo de ações + matriz de risco
-pnpm scan:secrets       # docs/security/data-inventory.md — varre segredos versionados
+# Desenvolvimento local
+pnpm dev:api          # API V1 → :3101
+pnpm dev:web          # Web → :3100
+pnpm --filter api db:generate   # após mudança no schema Prisma
 
-# Testes
-pnpm --filter api test  # 198 testes unitários
+# Qualidade
+pnpm --filter api test          # 198 testes unitários
 pnpm --filter api test:e2e
+pnpm typecheck
+pnpm gen:catalog      # docs/agent-actions.md (ações + risco)
+pnpm scan:secrets     # docs/security/data-inventory.md
 
-# Deploy (na VPS, via SSH)
-git pull && docker compose up -d --build <serviço>
+# Deploy no notebook (via SSH)
+ssh -i ~/.ssh/id_ed25519 rayzen@192.168.0.175
+# Copiar arquivos modificados via SCP, depois:
+cd ~/projects/rayzen-ai && ./infra/deploy.sh
+# ou: docker compose up -d --build api mcp-http
+```
+
+**Pré-requisito deploy:** usuário `rayzen` no grupo `docker` (sem sudo).
+```bash
+sudo usermod -aG docker rayzen   # logout+login para ter efeito
 ```
 
 ---
@@ -204,18 +211,22 @@ git pull && docker compose up -d --build <serviço>
 
 | Sintoma | Causa provável | O que fazer |
 |---|---|---|
-| "Rayzen desconectou, hook não pega" | Quase sempre **percepção** — o painel não atualiza sozinho, ou foi hiccup | Olhe o badge da Atividade; rode `GET /events/hook/health` |
-| Atividade mostra badge 🔴 | Hook realmente parou | Veja se a VPS/API está no ar; confira `repoSlug` do projeto vs remote git |
-| Doc viva / Próximas ações desatualizadas | Faltou checkpoint | Dispare um checkpoint |
-| Goal Graph com meta velha | Meta é manual, não atualiza sozinha | Edite a meta / crie uma nova |
-| MCP pede re-auth | Token expirou (30d) ou nunca autorizou | Reconnect no Claude → login |
-| Evento vinculado ao projeto errado | Cache de slug ou MCP_PROJECT_ID | Limpe `%TEMP%\rayzen-slug-cache.json` |
+| Hook não pega / badge 🔴 | API fora ou `repoSlug` errado | Verifique `GET /events/hook/health`; confira remote git do projeto |
+| Doc viva / Próximas ações desatualizadas | Faltou checkpoint | Dispare checkpoint |
+| Goal Graph com meta velha | Meta é manual | Edite a meta no painel |
+| MCP pede re-auth | Token expirado | Reconnect no Claude → login com senha admin |
+| Evento vinculado ao projeto errado | Cache de slug | Limpe `%TEMP%\rayzen-slug-cache.json` |
+| `rayzen_capture_learning` não retorna em `rayzen_get_context` | `projectId` não foi passado | Passe o `projectId` correto na chamada |
+| Deploy falha com "sudo required" | Usuário não está no grupo docker | `sudo usermod -aG docker rayzen` + logout+login |
 
 ---
 
 ## Referências no repo
 
 - `CLAUDE.md` / `CLAUDE.local.md` — guia de desenvolvimento e protocolo de sessão
-- `blueprints/` — design completo da V2 (24 documentos)
-- `docs/agent-actions.md` — catálogo de ações (gerado)
+- `apps/api-v2/FROZEN.md` — módulos V2 congelados vs. vivos
+- `infra/deploy.sh` — script de deploy para o notebook
+- `blueprints/` — design da V2 (24 documentos, referência arquitetural)
+- `docs/agent-actions.md` — catálogo de ações do agent (gerado por `pnpm gen:catalog`)
 - `docs/security/data-inventory.md` — inventário de dados sensíveis (gerado)
+- `memory/reference_vps_ssh.md` — acesso SSH ao notebook
