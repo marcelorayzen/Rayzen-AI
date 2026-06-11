@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { EventService } from '../event/event.service'
 import { BrainService } from '../brain/brain.service'
+import { MemoryService } from '../memory/memory.service'
 import { WikiCompilationService } from './wiki-compilation.service'
 import { WikiMergeService, EditStatus } from './wiki-merge.service'
 import { WikiVersioningService } from './wiki-versioning.service'
@@ -29,6 +30,30 @@ export type WikiPageDetail = WikiPage & {
   sources: (WikiSourceReference & { document: { sourcePath: string | null; content: string } })[]
 }
 
+// Write-back: aprendizado estruturado capturado pelo Claude após resolver um problema.
+// runbook = procedimento repetível · troubleshooting = "quando X falha, faça Y" ·
+// pattern = abordagem reutilizável · gotcha = armadilha a evitar.
+export type LearningType = 'runbook' | 'troubleshooting' | 'decision' | 'pattern' | 'gotcha'
+
+export interface CaptureLearningInput {
+  title: string
+  problem: string
+  solution: string
+  type?: LearningType
+  tags?: string[]
+  projectId?: string
+}
+
+export interface CaptureLearningResult {
+  pageId: string
+  slug: string
+  title: string
+  learningType: LearningType
+  tags: string[]
+  documentId: string
+  status: 'created' | 'updated'
+}
+
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 @Injectable()
@@ -36,6 +61,7 @@ export class WikiService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly brain: BrainService,
+    private readonly memory: MemoryService,
     private readonly compilation: WikiCompilationService,
     private readonly merge: WikiMergeService,
     private readonly versioning: WikiVersioningService,
@@ -241,6 +267,85 @@ export class WikiService {
       create: { slug, title, contentMd, editStatus: 'human_edited' },
       update: { title, contentMd, editStatus: 'human_edited' },
     })
+  }
+
+  // ─── Capture learning (write-back loop) ──────────────────────────────────────
+  // O Claude chama isto depois de resolver um problema. Grava um aprendizado
+  // estruturado como WikiPage E indexa no Brain COM projectId — esse índice é o que
+  // faz o runbook ressurgir em rayzen_get_context (seção memory_relevant, que filtra
+  // por project_id) e em rayzen_search_memory na próxima sessão. Fecha o loop.
+
+  private formatLearningMarkdown(input: CaptureLearningInput, learningType: LearningType, tags: string[]): string {
+    const tagLine = tags.length ? `  ·  ${tags.map((t) => `\`${t}\``).join(' ')}` : ''
+    return [
+      `# ${input.title}`,
+      '',
+      `> **Tipo:** ${learningType}${tagLine}  ·  capturado em ${new Date().toISOString().slice(0, 10)}`,
+      '',
+      '## Problema',
+      input.problem.trim(),
+      '',
+      '## Solução',
+      input.solution.trim(),
+      '',
+    ].join('\n')
+  }
+
+  async captureLearning(input: CaptureLearningInput): Promise<CaptureLearningResult> {
+    const learningType: LearningType = input.type ?? 'troubleshooting'
+    const tags = Array.from(
+      new Set([learningType, ...(input.tags ?? [])].map((t) => t.toLowerCase().trim()).filter(Boolean)),
+    )
+    const contentMd = this.formatLearningMarkdown(input, learningType, tags)
+    const slug = this.compilation.toSlug(input.title) || `learning-${Date.now()}`
+
+    // Runbook é documento vivo: re-capturar o mesmo título atualiza (upsert por slug),
+    // não cria duplicata.
+    const existing = await this.prisma.wikiPage.findUnique({ where: { slug } })
+
+    const page = await this.prisma.wikiPage.upsert({
+      where: { slug },
+      create: { slug, title: input.title, tags, contentMd, editStatus: 'generated' },
+      update: { title: input.title, tags, contentMd, compiledAt: new Date() },
+    })
+
+    await this.versioning.createVersion({
+      pageId: page.id,
+      contentMd,
+      reason: existing ? 'recompiled' : 'compiled',
+      authorType: 'llm',
+    })
+
+    // Índice semântico ESCOPADO por projeto (MemoryService grava project_id; BrainService não).
+    const indexed = await this.memory.indexDocument(
+      contentMd,
+      `learning/${slug}`,
+      { type: 'learning', learningType, tags, slug, groupKey: `learning/${slug}`, groupLabel: input.title },
+      input.projectId,
+    )
+
+    await this.linkSources(page.id, [{ id: indexed.id, score: 1 }])
+
+    this.eventService.create({
+      projectId: input.projectId,
+      source: 'brain',
+      type: 'decision',
+      intent: 'decision',
+      content: `Aprendizado capturado (${learningType}): ${input.title}`,
+      metadata: { slug, learningType, tags, documentId: indexed.id },
+    }).catch(() => null)
+
+    await this.cache.del(`wiki:${slug}`)
+
+    return {
+      pageId: page.id,
+      slug,
+      title: input.title,
+      learningType,
+      tags,
+      documentId: indexed.id,
+      status: existing ? 'updated' : 'created',
+    }
   }
 
   // ─── Update (human edit) ─────────────────────────────────────────────────────

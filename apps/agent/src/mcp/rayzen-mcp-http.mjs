@@ -270,16 +270,21 @@ const TOOLS = [
     },
   },
   {
-    name: 'rayzen_create_mission',
+    name: 'rayzen_capture_learning',
     description:
-      'Converte uma descrição em linguagem natural em uma Mission V2 com steps planejados por LLM e approval gates automáticos para steps de risco médio/alto.',
+      'Grava um aprendizado estruturado DEPOIS de resolver um problema (runbook de deploy, troubleshooting, gotcha, decisão, padrão). ' +
+      'Indexa no Brain com escopo de projeto — assim RESSURGE sozinho em rayzen_get_context e rayzen_search_memory na próxima vez que o problema aparecer. ' +
+      'Fecha o loop: você executa, o Rayzen lembra.',
     inputSchema: {
       type: 'object',
-      required: ['content'],
+      required: ['title', 'problem', 'solution'],
       properties: {
-        content: { type: 'string', description: 'Descrição da missão em linguagem natural' },
+        title: { type: 'string', description: 'Título curto e buscável (ex: "Deploy Rayzen no notebook")' },
+        problem: { type: 'string', description: 'O que quebrou / o sintoma observado' },
+        solution: { type: 'string', description: 'Como foi resolvido — passos concretos e reproduzíveis' },
+        type: { type: 'string', enum: ['runbook', 'troubleshooting', 'decision', 'pattern', 'gotcha'], description: 'Tipo (padrão: troubleshooting)' },
+        tags: { type: 'array', items: { type: 'string' }, description: 'Tags para recuperação, ex: ["deploy","docker"]' },
         projectId: { type: 'string', description: 'ID do projeto' },
-        mode: { type: 'string', enum: ['auto', 'mission', 'chat'], description: 'Modo de roteamento (padrão: mission)' },
       },
     },
   },
@@ -389,11 +394,14 @@ function createMcpServer() {
           result = await api('GET', `/projects/${pid()}/graph/goal`)
           break
 
-        case 'rayzen_create_mission':
-          result = await api('POST', '/v2/route', {
-            content:   args.content,
+        case 'rayzen_capture_learning':
+          result = await api('POST', '/wiki/learning', {
+            title:     args.title,
+            problem:   args.problem,
+            solution:  args.solution,
+            type:      args.type,
+            tags:      args.tags,
             projectId: pid(),
-            mode:      args.mode ?? 'mission',
           })
           break
 

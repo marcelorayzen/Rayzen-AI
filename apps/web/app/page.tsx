@@ -2797,24 +2797,7 @@ export default function Home() {
               grafo
             </button>
           )}
-          {activeProjectId && (
-            <a
-              href="/mission"
-              className="hud-nav"
-              title="Missões V2 — painel central de missões"
-            >
-              missões
-            </a>
-          )}
-          {activeProjectId && (
-            <a
-              href="/work-panel"
-              className="hud-nav"
-              title="Work Panel — conversa, contexto comprimido e execução assistida com aprovação por etapa"
-            >
-              work panel
-            </a>
-          )}
+
           <a href="/catalog" className="hud-nav" title="Catalog — projetos como assets formais com owner, provenance e tags">
             catalog
           </a>

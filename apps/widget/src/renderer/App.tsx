@@ -1,5 +1,4 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { MissionList } from './components/MissionList'
 import { VoiceBar } from './components/VoiceBar'
 import { InfraHealth, type InfraHealthReport } from './components/InfraHealth'
 
@@ -41,15 +40,12 @@ export interface Mission {
 
 interface ChatReply { sessionId: string; reply: string; status: string }
 
-type Filter    = 'ativas' | 'todas'
 type ChatMode  = 'rayzen' | 'claude'
 
 export function App() {
   const [projects, setProjects]     = useState<Project[]>([])
   const [projectId, setProjectId]   = useState<string>('')
-  const [localRoot, setLocalRoot]   = useState<string>('')
   const [missions, setMissions]     = useState<Mission[]>([])
-  const [filter, setFilter]         = useState<Filter>('ativas')
   const [wsOnline, setWsOnline]     = useState(false)
   const [loading, setLoading]       = useState(true)
   const [sending, setSending]       = useState(false)
@@ -116,7 +112,6 @@ export function App() {
       .then(([cfg, list]) => {
         const all = Array.isArray(list) ? list : []
         setProjects(all)
-        setLocalRoot(cfg.localRoot ?? '')
         const pid = cfg.projectId || all[0]?.id || ''
         setProjectId(pid)
         if (pid) void loadMissions(pid)
@@ -159,15 +154,6 @@ export function App() {
     void loadMissions(pid)
   }
 
-  const handleAction = async (id: string, action: string) => {
-    const res = await window.rayzen.missionAction(id, action)
-    if (!res) {
-      setChatReply('Erro: API não respondeu. Verifique a conexão.')
-      return
-    }
-    await loadMissions(projectId)
-  }
-
   const handleSendChat = async (text: string) => {
     if (!text.trim() || sending || streaming) return
     setChatReply(null)
@@ -203,11 +189,6 @@ export function App() {
 
   // Seconds since last infra check
   const checkedAgo = infraCheckedAt ? Math.floor((Date.now() - infraCheckedAt) / 1000) : 0
-
-  // Counts for summary
-  const active  = missions.filter((m) => m.status === 'active').length
-  const pending = missions.filter((m) => m.status === 'pending').length
-  const done    = missions.filter((m) => m.status === 'done').length
 
   const activeProject = projects.find((p) => p.id === projectId)
 
@@ -253,52 +234,16 @@ export function App() {
       {/* Infra health bar */}
       <InfraHealth report={infraHealth} checkedAgo={checkedAgo} />
 
-      {/* Summary bar */}
-      {!loading && missions.length > 0 && (
-        <div style={{ display: 'flex', gap: 12, padding: '6px 12px', borderBottom: '1px solid var(--border)', fontSize: 11 }}>
-          <span style={{ color: active  > 0 ? 'var(--cyan)'  : 'var(--dim)' }}>{active} ativa{active !== 1 ? 's' : ''}</span>
-          <span style={{ color: pending > 0 ? 'var(--yellow)': 'var(--dim)' }}>{pending} pendente{pending !== 1 ? 's' : ''}</span>
-          <span style={{ color: 'var(--dim)' }}>{done} concluída{done !== 1 ? 's' : ''}</span>
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-            {(['ativas', 'todas'] as Filter[]).map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                style={{
-                  background: 'none', border: 'none', cursor: 'pointer', fontSize: 10,
-                  color: filter === f ? 'var(--cyan)' : 'var(--dim)',
-                  padding: '0 2px', fontFamily: 'inherit',
-                }}
-              >
-                {f}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Content */}
       <div className="content">
         {loading ? (
           <div style={{ color: 'var(--dim)', fontSize: 12, textAlign: 'center', paddingTop: 20 }}>carregando…</div>
-        ) : (
-          <MissionList
-            missions={missions}
-            filter={filter}
-            onAction={handleAction}
-            onWork={(m) => {
-              const activeProj = projects.find((p) => p.id === projectId)
-              const repoSlug   = activeProj?.repoSlug
-              if (localRoot && repoSlug) {
-                window.rayzen.launchClaude(repoSlug, m.objective || m.title)
-                  .then((res) => { if (!res?.ok) window.rayzen.openInBrowser(m.id) })
-                  .catch(() => window.rayzen.openInBrowser(m.id))
-              } else {
-                window.rayzen.openInBrowser(m.id)
-              }
-            }}
-          />
-        )}
+        ) : !chatReply ? (
+          <div style={{ color: 'var(--dim)', fontSize: 12, textAlign: 'center', padding: '24px 8px', lineHeight: 1.6 }}>
+            Assistente com memória.<br />
+            <span style={{ fontSize: 11 }}>Descreva uma tarefa ou pergunta abaixo.</span>
+          </div>
+        ) : null}
 
         {/* Chat reply */}
         {chatReply && (

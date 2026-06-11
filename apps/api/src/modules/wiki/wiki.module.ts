@@ -6,9 +6,10 @@ import { WikiMergeService } from './wiki-merge.service'
 import { WikiVersioningService } from './wiki-versioning.service'
 import { BrainModule } from '../brain/brain.module'
 import { EventModule } from '../event/event.module'
+import { MemoryModule } from '../memory/memory.module'
 
 @Module({
-  imports: [BrainModule, EventModule],
+  imports: [BrainModule, EventModule, MemoryModule],
   controllers: [WikiController],
   providers: [
     WikiService,
