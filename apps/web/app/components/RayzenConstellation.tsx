@@ -82,13 +82,13 @@ export function RayzenConstellation() {
           const dx = nodes[i].x - nodes[j].x
           const dy = nodes[i].y - nodes[j].y
           const dist = Math.sqrt(dx * dx + dy * dy)
-          if (dist < 300) {
-            const alpha = (1 - dist / 300) * 0.12
+          if (dist < 380) {
+            const alpha = (1 - dist / 380) * 0.18
             ctx!.beginPath()
             ctx!.moveTo(nodes[i].x, nodes[i].y)
             ctx!.lineTo(nodes[j].x, nodes[j].y)
             ctx!.strokeStyle = `rgba(59,130,246,${alpha})`
-            ctx!.lineWidth = 1
+            ctx!.lineWidth = 1.2
             ctx!.stroke()
           }
         }
@@ -104,10 +104,10 @@ export function RayzenConstellation() {
         const py = a.y + (b.y - a.y) * p.t
         const fade = Math.sin(p.t * Math.PI)
         ctx!.beginPath()
-        ctx!.arc(px, py, 2.5, 0, Math.PI * 2)
+        ctx!.arc(px, py, 4, 0, Math.PI * 2)
         ctx!.fillStyle = `rgba(147,197,253,${0.9 * fade})`
-        ctx!.shadowBlur = 8
-        ctx!.shadowColor = 'rgba(59,130,246,0.8)'
+        ctx!.shadowBlur = 12
+        ctx!.shadowColor = 'rgba(59,130,246,0.9)'
         ctx!.fill()
         ctx!.shadowBlur = 0
         return true
@@ -118,39 +118,48 @@ export function RayzenConstellation() {
         n.phase += n.phaseSpeed
         const glow = 0.5 + 0.5 * Math.sin(n.phase)
 
-        // Halo
-        const grad = ctx!.createRadialGradient(n.x, n.y, 0, n.x, n.y, 22)
         const [r, g, b] = n.color === '#f59e0b'
           ? [245, 158, 11]
           : n.color === '#93c5fd'
             ? [147, 197, 253]
             : [59, 130, 246]
-        grad.addColorStop(0,   `rgba(${r},${g},${b},${0.18 * glow})`)
+
+        // Outer halo
+        const grad = ctx!.createRadialGradient(n.x, n.y, 0, n.x, n.y, 44)
+        grad.addColorStop(0,   `rgba(${r},${g},${b},${0.22 * glow})`)
+        grad.addColorStop(0.5, `rgba(${r},${g},${b},${0.08 * glow})`)
         grad.addColorStop(1,   'transparent')
         ctx!.beginPath()
-        ctx!.arc(n.x, n.y, 22, 0, Math.PI * 2)
+        ctx!.arc(n.x, n.y, 44, 0, Math.PI * 2)
         ctx!.fillStyle = grad
         ctx!.fill()
 
-        // Dot
+        // Inner ring
         ctx!.beginPath()
-        ctx!.arc(n.x, n.y, 2.5 + glow * 0.5, 0, Math.PI * 2)
+        ctx!.arc(n.x, n.y, 10 + glow * 2, 0, Math.PI * 2)
+        ctx!.strokeStyle = `rgba(${r},${g},${b},${0.25 + 0.2 * glow})`
+        ctx!.lineWidth = 1
+        ctx!.stroke()
+
+        // Core dot
+        ctx!.beginPath()
+        ctx!.arc(n.x, n.y, 5 + glow * 1.5, 0, Math.PI * 2)
         ctx!.fillStyle = n.color
-        ctx!.globalAlpha = 0.55 + 0.45 * glow
+        ctx!.globalAlpha = 0.7 + 0.3 * glow
         ctx!.fill()
         ctx!.globalAlpha = 1
 
         // Label
-        ctx!.font = '10px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
-        ctx!.fillStyle = `rgba(160,160,160,${0.3 + 0.3 * glow})`
+        ctx!.font = '600 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+        ctx!.fillStyle = `rgba(200,220,255,${0.45 + 0.35 * glow})`
         ctx!.textAlign = 'center'
-        ctx!.fillText(n.label, n.x, n.y + 15)
+        ctx!.fillText(n.label, n.x, n.y + 24)
 
         // Drift + bounce
         n.x += n.vx
         n.y += n.vy
-        if (n.x < 20 || n.x > w - 20) n.vx *= -1
-        if (n.y < 20 || n.y > h - 20) n.vy *= -1
+        if (n.x < 50 || n.x > w - 50) n.vx *= -1
+        if (n.y < 50 || n.y > h - 50) n.vy *= -1
       }
 
       animId = requestAnimationFrame(draw)
@@ -177,7 +186,7 @@ export function RayzenConstellation() {
         height: '100%',
         pointerEvents: 'none',
         zIndex: 0,
-        opacity: 0.55,
+        opacity: 0.75,
       }}
     />
   )
