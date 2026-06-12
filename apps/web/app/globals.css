@@ -287,7 +287,7 @@ body {
   padding-bottom: 10vh;
 }
 
-/* Hero image — starts hidden, revealed by scanline */
+/* Hero image — aparece com fade rápido e fica com glow pulse suave */
 .login-hero {
   position: absolute;
   inset: 0;
@@ -297,25 +297,19 @@ body {
   height: 100%;
   object-fit: cover;
   display: block;
-  /* start fully hidden; reveal animation overrides clip-path */
-  animation: login-reveal 2.5s 0.3s cubic-bezier(0.4, 0, 0.2, 1) both;
-}
-/* After scanline finishes: switch to glow pulse */
-.login-hero--done img {
-  clip-path: inset(0 0 0 0);
-  animation: login-glow-pulse 5s ease-in-out infinite;
+  animation: login-reveal 1.2s 0.2s ease-out both, login-glow-pulse 6s 1.5s ease-in-out infinite;
 }
 
 @keyframes login-reveal {
-  from { clip-path: inset(0 0 100% 0); }
-  to   { clip-path: inset(0 0 0%   0); }
+  from { opacity: 0; transform: scale(1.03); }
+  to   { opacity: 1; transform: scale(1); }
 }
 @keyframes login-glow-pulse {
-  0%, 100% { filter: brightness(0.92); }
-  50%      { filter: brightness(1.08) drop-shadow(0 0 40px rgba(59,130,246,0.35)); }
+  0%, 100% { filter: brightness(0.90); }
+  50%      { filter: brightness(1.06) drop-shadow(0 0 50px rgba(59,130,246,0.30)); }
 }
 
-/* Scanline — bright horizontal stripe sweeping top → bottom */
+/* Scanline — sweeps down then up, infinite loop */
 .login-scanline {
   position: absolute;
   inset: auto 0 auto 0;
@@ -333,15 +327,25 @@ body {
     0 0 6px  rgba(59,130,246,0.9),
     0 0 18px rgba(59,130,246,0.5),
     0 0 40px rgba(59,130,246,0.25);
-  animation: login-scanline-move 2.5s 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  /* 0.3s delay antes do primeiro sweep; depois loop infinito */
+  animation: login-scanline-move 9s 0.3s ease-in-out infinite;
   opacity: 0;
   pointer-events: none;
   z-index: 10;
 }
 @keyframes login-scanline-move {
-  0%   { top:   0%; opacity: 1; }
-  95%  { top: 100%; opacity: 1; }
-  100% { top: 100%; opacity: 0; }
+  /* pausa em cima */
+  0%   { top:   0%; opacity: 0; }
+  5%   { top:   0%; opacity: 1; }
+  /* desce devagar */
+  45%  { top: 100%; opacity: 1; }
+  /* pausa em baixo */
+  50%  { top: 100%; opacity: 0.6; }
+  55%  { top: 100%; opacity: 1; }
+  /* sobe */
+  95%  { top:   0%; opacity: 1; }
+  /* pausa em cima antes de repetir */
+  100% { top:   0%; opacity: 0; }
 }
 
 /* Bottom vignette — always on top of image, keeps form readable */
@@ -396,6 +400,12 @@ body {
   box-shadow: 0 0 0 3px rgba(59,130,246,0.12), 0 0 20px rgba(59,130,246,0.08);
 }
 .login-input::placeholder { color: rgba(147,197,253,0.30); }
+.login-input:-webkit-autofill,
+.login-input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px rgba(8,8,12,0.95) inset !important;
+  -webkit-text-fill-color: #f2f2f2 !important;
+  border-color: rgba(59,130,246,0.30) !important;
+}
 
 .login-error {
   color: #f87171;

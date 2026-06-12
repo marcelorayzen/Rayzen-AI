@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { setApiUrl, getApiUrl } from '../../lib/api-url'
 
@@ -8,14 +8,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError]       = useState('')
   const [loading, setLoading]   = useState(false)
-  const [done, setDone]         = useState(false)
   const router = useRouter()
-
-  // Switch to glow-pulse after the scanline finishes (0.3s delay + 2.5s sweep + 0.1s buffer)
-  useEffect(() => {
-    const t = setTimeout(() => setDone(true), 2900)
-    return () => clearTimeout(t)
-  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -47,18 +40,18 @@ export default function LoginPage() {
   return (
     <main className="login-root">
       {/* Hero image */}
-      <div className={`login-hero${done ? ' login-hero--done' : ''}`}>
+      <div className="login-hero">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/rayzen.animado.png" alt="Rayzen AI" />
       </div>
 
-      {/* Scanline sweep */}
+      {/* Scanline — loop infinito */}
       <div className="login-scanline" aria-hidden="true" />
 
-      {/* Bottom vignette so form is always readable */}
+      {/* Bottom vignette */}
       <div className="login-vignette" aria-hidden="true" />
 
-      {/* Login form — always interactive, floats above animations */}
+      {/* Login form */}
       <div className="login-form-wrap">
         <p className="login-subtitle">Acesso pessoal</p>
         <form onSubmit={handleSubmit}>
