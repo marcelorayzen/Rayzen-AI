@@ -1,14 +1,21 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { setApiUrl, getApiUrl } from '../../lib/api-url'
 
 export default function LoginPage() {
   const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [error, setError]       = useState('')
+  const [loading, setLoading]   = useState(false)
+  const [done, setDone]         = useState(false)
   const router = useRouter()
+
+  // Switch to glow-pulse after the scanline finishes (0.3s delay + 2.5s sweep + 0.1s buffer)
+  useEffect(() => {
+    const t = setTimeout(() => setDone(true), 2900)
+    return () => clearTimeout(t)
+  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -19,19 +26,12 @@ export default function LoginPage() {
 
     try {
       const res = await fetch(`${resolvedApiUrl}/auth/login`, {
-        method: 'POST',
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
+        body:    JSON.stringify({ password }),
       })
-
-      if (res.status === 401) {
-        setError('Senha incorreta')
-        return
-      }
-      if (!res.ok) {
-        setError('Erro ao conectar com a API')
-        return
-      }
+      if (res.status === 401) { setError('Senha incorreta'); return }
+      if (!res.ok)            { setError('Erro ao conectar com a API'); return }
 
       const { token } = await res.json() as { token: string }
       localStorage.setItem('rayzen_token', token)
@@ -45,31 +45,36 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-semibold text-zinc-100">Rayzen AI</h1>
-          <p className="text-zinc-500 text-sm mt-1">Acesso pessoal</p>
-        </div>
+    <main className="login-root">
+      {/* Hero image */}
+      <div className={`login-hero${done ? ' login-hero--done' : ''}`}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/rayzen.animado.png" alt="Rayzen AI" />
+      </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Scanline sweep */}
+      <div className="login-scanline" aria-hidden="true" />
+
+      {/* Bottom vignette so form is always readable */}
+      <div className="login-vignette" aria-hidden="true" />
+
+      {/* Login form — always interactive, floats above animations */}
+      <div className="login-form-wrap">
+        <p className="login-subtitle">Acesso pessoal</p>
+        <form onSubmit={handleSubmit}>
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Senha"
             autoFocus
-            className="w-full bg-zinc-800 rounded-xl px-4 py-3 text-sm text-zinc-100 placeholder:text-zinc-500 outline-none focus:ring-2 focus:ring-zinc-600"
+            className="login-input"
           />
-
-          {error && (
-            <p className="text-red-400 text-xs text-center">{error}</p>
-          )}
-
+          {error && <p className="login-error">{error}</p>}
           <button
             type="submit"
             disabled={loading || !password.trim()}
-            className="w-full bg-zinc-100 text-zinc-900 rounded-xl py-3 text-sm font-medium disabled:opacity-40 hover:bg-white transition-colors"
+            className="login-btn"
           >
             {loading ? 'Entrando…' : 'Entrar'}
           </button>

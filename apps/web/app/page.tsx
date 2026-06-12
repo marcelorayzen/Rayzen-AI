@@ -14,6 +14,7 @@ import { useQA } from './hooks/useQA'
 import { useMissions, type MissionStep } from './hooks/useMissions'
 const GraphCanvas = dynamic(() => import('./components/GraphCanvas'), { ssr: false })
 const UniverseCanvas = dynamic(() => import('./components/UniverseCanvas').then(m => ({ default: m.UniverseCanvas })), { ssr: false })
+const RayzenConstellation = dynamic(() => import('./components/RayzenConstellation').then(m => ({ default: m.RayzenConstellation })), { ssr: false })
 
 const MODULE_LABELS: Record<string, string> = {
   brain:   'memory',
@@ -954,6 +955,7 @@ export default function Home() {
 
   return (
     <main className="h-screen overflow-hidden flex flex-col">
+      <RayzenConstellation />
       <div className="hud-scanline" aria-hidden="true" />
 
       {/* Document versions modal */}
