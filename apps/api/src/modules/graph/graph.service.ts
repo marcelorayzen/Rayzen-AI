@@ -626,6 +626,75 @@ Priorize gaps de alta severidade primeiro. nextBestAction deve ser em 1 frase cu
     }
   }
 
+  async proposeGoalProgress(projectId: string): Promise<{
+    goalId: string | null
+    goalTitle: string | null
+    proposals: Array<{ criteriaId: string; text: string; confidence: 'high' | 'medium' | 'low'; reason: string }>
+  }> {
+    const goal = await this.prisma.projectGoal.findFirst({
+      where: { projectId, status: 'active' },
+      orderBy: { createdAt: 'desc' },
+    })
+    if (!goal) return { goalId: null, goalTitle: null, proposals: [] }
+
+    const pending = (goal.successCriteria as unknown as SuccessCriteria[]).filter(c => !c.done)
+    if (!pending.length) return { goalId: goal.id, goalTitle: goal.title, proposals: [] }
+
+    const since = new Date(Date.now() - 6 * 60 * 60 * 1000)
+    const events = await this.prisma.event.findMany({
+      where: { projectId, ts: { gte: since }, memoryClass: { not: 'archive' } },
+      orderBy: { ts: 'desc' },
+      take: 30,
+      select: { content: true, intent: true, ts: true },
+    })
+    if (!events.length) return { goalId: goal.id, goalTitle: goal.title, proposals: [] }
+
+    const eventsSummary = events
+      .map(e => `[${e.intent ?? 'note'}] ${e.content.slice(0, 150)}`)
+      .join('\n')
+
+    const criteriaSummary = pending
+      .map(c => `ID: ${c.id} | ${c.text}`)
+      .join('\n')
+
+    const prompt = `Você é um assistente de gestão de projetos. Com base na atividade da sessão, determine quais critérios de sucesso foram possivelmente concluídos.
+
+GOAL: ${goal.title}
+
+CRITÉRIOS PENDENTES:
+${criteriaSummary}
+
+ATIVIDADE DA SESSÃO (últimas 6h, ${events.length} eventos):
+${eventsSummary}
+
+Retorne EXATAMENTE este JSON (sem markdown), apenas para critérios com evidência real de conclusão:
+{"proposals":[{"criteriaId":"id exato","text":"texto do critério","confidence":"high|medium|low","reason":"evidência específica (1 frase)"}]}
+
+Se não houver evidência suficiente, retorne {"proposals":[]}.`
+
+    try {
+      const start = Date.now()
+      const res = await this.llm.chat.completions.create({
+        model: 'gpt-local',
+        temperature: 0.1,
+        messages: [{ role: 'user', content: prompt }],
+      })
+      const raw = res.choices[0]?.message?.content ?? ''
+      const tokens = res.usage?.total_tokens ?? 0
+      this.metrics.llmTokensTotal.inc({ module: 'graph', model: 'gpt-local' }, tokens)
+      this.metrics.llmRequestDuration.observe({ module: 'graph', model: 'gpt-local' }, (Date.now() - start) / 1000)
+      const parsed = this.extractJson(raw) as { proposals: Array<{ criteriaId: string; text: string; confidence: string; reason: string }> }
+      const proposals = (parsed.proposals ?? []).map(p => ({
+        ...p,
+        confidence: (['high', 'medium', 'low'].includes(p.confidence) ? p.confidence : 'medium') as 'high' | 'medium' | 'low',
+      }))
+      return { goalId: goal.id, goalTitle: goal.title, proposals }
+    } catch (err) {
+      this.logger.warn(`proposeGoalProgress LLM falhou: ${err}`)
+      return { goalId: goal.id, goalTitle: goal.title, proposals: [] }
+    }
+  }
+
   private extractJson(raw: string): unknown {
     try { return JSON.parse(raw) } catch {}
     const fenceStripped = raw.replace(/^```(?:json)?\s*/im, '').replace(/\s*```\s*$/m, '').trim()

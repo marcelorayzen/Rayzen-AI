@@ -65,6 +65,12 @@ export class GraphController {
     return this.graph.getEventGraph(id)
   }
 
+  @Post('goal/propose-progress')
+  @ApiOperation({ summary: 'Propõe critérios de sucesso como concluídos com base nos eventos da sessão' })
+  proposeGoalProgress(@Param('id') id: string) {
+    return this.graph.proposeGoalProgress(id)
+  }
+
   @Post('goal')
   @ApiOperation({ summary: 'Criar novo goal ativo (pausa o anterior)' })
   upsertGoal(@Param('id') id: string, @Body() dto: CreateGoalDto) {

@@ -428,12 +428,26 @@ function createMcpServer() {
           })
           break
 
-        case 'rayzen_checkpoint':
-          result = await api('POST', '/synthesis/checkpoint', {
-            projectId: pid(),
-            sessionId: args.sessionId,
-          })
+        case 'rayzen_checkpoint': {
+          const [checkpoint, goalProposals] = await Promise.all([
+            api('POST', '/synthesis/checkpoint', { projectId: pid(), sessionId: args.sessionId }),
+            api('POST', `/projects/${pid()}/graph/goal/propose-progress`, {}).catch(() => null),
+          ])
+          result = { ...checkpoint }
+          if (goalProposals?.proposals?.length) {
+            result.goalProposals = goalProposals
+            const lines = [`\n### Progresso do Goal: "${goalProposals.goalTitle}"`]
+            lines.push(`${goalProposals.proposals.length} critério(s) possivelmente concluído(s) nesta sessão:`)
+            for (const p of goalProposals.proposals) {
+              const badge = p.confidence === 'high' ? '🟢' : p.confidence === 'medium' ? '🟡' : '🟠'
+              lines.push(`${badge} [${p.criteriaId}] ${p.text}`)
+              lines.push(`   → ${p.reason}`)
+            }
+            lines.push(`\nPara marcar: PATCH /projects/${pid()}/graph/goal/${goalProposals.goalId}/criteria/<criteriaId> com {"done":true}`)
+            result._proposalsSummary = lines.join('\n')
+          }
           break
+        }
 
         case 'rayzen_update_planning': {
           const patch = {}
