@@ -15,7 +15,9 @@
     "rayzen:event": "node scripts/rayzen-event.mjs event",
     "rayzen:checkpoint": "node scripts/rayzen-event.mjs checkpoint",
     "gen:catalog": "node scripts/gen-agent-catalog.mjs",
-    "scan:secrets": "node scripts/scan-secrets.mjs"
+    "scan:secrets": "node scripts/scan-secrets.mjs",
+    "qa:ingest": "node scripts/qa-ingest.mjs",
+    "test": "pnpm --filter api test"
   },
   "devDependencies": {
     "typescript": "^5.5.0"

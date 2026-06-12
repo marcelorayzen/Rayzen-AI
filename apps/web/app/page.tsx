@@ -2810,7 +2810,19 @@ export default function Home() {
               className="hud-nav"
               title="Dashboard QA — runs, falhas e tendência"
             >
-              qa
+              <span className="flex items-center gap-1">
+                qa
+                {qaSummary?.lastRun && (() => {
+                  const r = qaSummary.lastRun.passRate
+                  const col = r >= 80 ? '#10b981' : r >= 60 ? '#f59e0b' : '#ef4444'
+                  return (
+                    <span className="flex items-center gap-0.5" style={{ color: col }}>
+                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: col }} />
+                      <span className="text-[9px] tabular-nums font-medium">{r}%</span>
+                    </span>
+                  )
+                })()}
+              </span>
             </button>
           )}
           {activeProjectId && (
