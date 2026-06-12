@@ -290,6 +290,14 @@ async function resolveProjectId(cfg) {
   }
 }
 
+function toRelative(absPath, root) {
+  if (!absPath) return ''
+  const n = absPath.replace(/\\/g, '/')
+  if (!root) return n
+  const r = root.replace(/\\/g, '/')
+  return n.startsWith(r + '/') ? n.slice(r.length + 1) : n
+}
+
 async function main() {
   const [raw, cfg] = await Promise.all([readStdin(), loadConfig()])
   if (!raw.trim()) return
@@ -337,9 +345,10 @@ async function main() {
     }
   }
 
-  // Contexto do graphify
+  // Contexto do graphify — hoist repoRoot para reuso
+  let repoRoot = null
   try {
-    const repoRoot = execSync('git rev-parse --show-toplevel', {
+    repoRoot = execSync('git rev-parse --show-toplevel', {
       encoding: 'utf8', timeout: 2000, stdio: ['pipe', 'pipe', 'ignore'],
     }).trim()
     const graphifyCtx = getGraphifyContext(repoRoot)
@@ -352,14 +361,27 @@ async function main() {
     if (desc) payload.tool_input = { ...payload.tool_input, _useDescription: true }
   }
 
-  // Edit/Write: anexar conteúdo para indexação semântica
+  // Edit/Write: indexação semântica + catalog auto-register
+  let catalogPromise = Promise.resolve()
   if (tool === 'Edit' || tool === 'Write') {
     const filePath = payload.tool_input?.file_path ?? payload.tool_input?.path
     const content = readFileContent(filePath)
     if (content) payload.fileContent = content
+
+    if (projectId && filePath) {
+      const rel = toRelative(filePath, repoRoot)
+      catalogPromise = post(
+        `${cfg.apiUrl}/data-catalog/assets/auto-register`,
+        { projectId, filePath: rel, tool },
+        cfg.apiToken,
+      )
+    }
   }
 
-  await post(`${cfg.apiUrl}/events/cli`, payload, cfg.apiToken)
+  await Promise.all([
+    post(`${cfg.apiUrl}/events/cli`, payload, cfg.apiToken),
+    catalogPromise,
+  ])
   // Preserva exitCode 2 definido por warnUnresolved (aviso visível); senão 0
   process.exit(process.exitCode ?? 0)
 }

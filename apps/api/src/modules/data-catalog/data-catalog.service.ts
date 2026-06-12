@@ -173,6 +173,49 @@ export class DataCatalogService {
     return results
   }
 
+  async autoRegister(dto: { projectId?: string; filePath: string; tool?: string }): Promise<{ asset: object; created: boolean }> {
+    const normalized = dto.filePath.replace(/\\/g, '/')
+    const name = normalized.split('/').pop() ?? dto.filePath
+    const description = this.describeFilePath(normalized)
+
+    const existing = await this.prisma.dataAsset.findFirst({
+      where: {
+        source: normalized,
+        ...(dto.projectId ? { projectId: dto.projectId } : {}),
+      },
+    })
+
+    if (existing) {
+      return { asset: existing, created: false }
+    }
+
+    const asset = await this.createAsset({
+      projectId: dto.projectId,
+      name,
+      type: 'file',
+      description,
+      source: normalized,
+      sensitivity: 'internal',
+    })
+    return { asset, created: true }
+  }
+
+  private describeFilePath(p: string): string {
+    const m = p.match(/apps\/api\/src\/modules\/([^/]+)/)
+    if (m) return `Módulo API: ${m[1]}`
+    if (/apps\/web\/app\/components/.test(p)) return 'Componente web'
+    if (/apps\/web\/app\/hooks/.test(p)) return 'Hook web'
+    if (/apps\/web\/app\/.+\/page\.tsx/.test(p)) return 'Página web'
+    if (/apps\/agent\/src\/actions/.test(p)) return 'Ação do agente'
+    if (/apps\/agent\/src\/hooks/.test(p)) return 'Hook do agente'
+    if (/apps\/api-v2\/src\//.test(p)) return 'Módulo API V2'
+    if (/prisma\/schema\.prisma/.test(p)) return 'Schema do banco de dados'
+    if (/infra\//.test(p)) return 'Infraestrutura'
+    if (/scripts\//.test(p)) return 'Script utilitário'
+    if (/blueprints\//.test(p)) return 'Blueprint / design doc'
+    return 'Arquivo de código'
+  }
+
   private buildAssetText(asset: CreateDataAssetDto & { name: string; id: string }): string {
     const parts = [
       `Dataset: ${asset.name}`,

@@ -46,6 +46,12 @@ export class DataCatalogController {
     return this.catalog.deleteAsset(id)
   }
 
+  @Post('assets/auto-register')
+  @ApiOperation({ summary: 'Upsert automático de asset por caminho de arquivo (hook Edit/Write)' })
+  autoRegister(@Body() body: { projectId?: string; filePath: string; tool?: string }) {
+    return this.catalog.autoRegister(body)
+  }
+
   @Post('lineage')
   @ApiOperation({ summary: 'Registrar relação de linhagem: source → target' })
   addLineage(@Body() body: { sourceId: string; targetId: string; transformation?: string }) {
