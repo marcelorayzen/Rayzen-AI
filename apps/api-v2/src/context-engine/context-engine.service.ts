@@ -247,7 +247,13 @@ export class ContextEngineService {
         const rules = await this.policy.listRules(req.projectId)
         const enabled = rules.filter((r) => r.enabled)
         if (!enabled.length) return 'No active policy constraints.'
-        return enabled
+        // Project rule wins over system rule with same name (mirrors evaluate() logic)
+        const ruleMap = new Map<string, typeof enabled[number]>()
+        for (const rule of enabled) {
+          const existing = ruleMap.get(rule.name)
+          if (!existing || rule.projectId !== null) ruleMap.set(rule.name, rule)
+        }
+        return [...ruleMap.values()]
           .map((r) => `[${r.action.toUpperCase()}] ${r.name}: ${r.description}`)
           .join('\n')
       }
