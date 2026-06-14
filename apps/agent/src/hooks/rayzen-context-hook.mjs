@@ -256,6 +256,32 @@ function formatStateFallback(state) {
   return lines.join('\n')
 }
 
+// ── Formatar missão ativa ─────────────────────────────────────────────────────
+
+function formatActiveMission(mission) {
+  if (!mission) return null
+  const steps = (mission.steps ?? [])
+  const pendingSteps = steps.filter((s) => s.status === 'pending' || s.status === 'running')
+  const doneCount    = steps.filter((s) => s.status === 'done' || s.status === 'skipped').length
+
+  const lines = [
+    `\n### Missão ${mission.status === 'active' ? 'ativa' : 'pendente'}`,
+    `**${mission.title}**`,
+    `Objetivo: ${mission.objective}`,
+    `Status: ${mission.status} · ${doneCount}/${steps.length} steps concluídos`,
+  ]
+
+  if (pendingSteps.length > 0) {
+    lines.push('**Próximos steps:**')
+    pendingSteps.slice(0, 4).forEach((s) => {
+      lines.push(`  - [${s.status}] ${s.title}${s.executor ? ` (${s.executor})` : ''}`)
+    })
+  }
+
+  lines.push(`ID: \`${mission.id}\` — para completar: POST /v2/missions/${mission.id}/complete`)
+  return lines.join('\n')
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -272,10 +298,6 @@ async function main() {
   // Cache cirúrgico por intenção
   const key    = cacheKey(projectId, mode, query)
   const cached = readCache(key)
-  if (cached) {
-    console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: cached } }))
-    process.exit(0)
-  }
 
   // Derivar URL da V2 a partir da V1 (mesma host, porta 3103)
   const v2Base = cfg.apiV2Url ?? (() => {
@@ -286,6 +308,19 @@ async function main() {
       return u.origin
     } catch { return null }
   })()
+
+  // Missão ativa — sempre fresca (sem cache), paralelo com o contexto
+  const missionPromise = v2Base
+    ? httpGet(`${v2Base}/v2/missions/next-pending?projectId=${encodeURIComponent(projectId)}`, cfg.apiToken, 1000)
+    : Promise.resolve(null)
+
+  if (cached) {
+    const mission = await missionPromise
+    const missionBlock = formatActiveMission(mission)
+    const full = missionBlock ? `${cached}${missionBlock}` : cached
+    console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: full } }))
+    process.exit(0)
+  }
 
   let context = null
 
@@ -309,7 +344,13 @@ async function main() {
   if (!context) process.exit(0)
 
   writeCache(key, context)
-  console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: context } }))
+
+  // Append missão ativa (já em paralelo desde o início)
+  const mission = await missionPromise
+  const missionBlock = formatActiveMission(mission)
+  const full = missionBlock ? `${context}${missionBlock}` : context
+
+  console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: full } }))
   process.exit(0)
 }
 

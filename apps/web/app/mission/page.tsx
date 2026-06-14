@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { V2_URL, API_URL } from '../../lib/api-url'
 import { authHeaders } from '../../lib/api-client'
+import { HelpTip } from '../components/HelpTip'
 
 type MissionStatus = 'pending' | 'active' | 'paused' | 'done' | 'failed' | 'cancelled'
 
@@ -130,7 +131,15 @@ export default function MissionPage() {
       {/* Header */}
       <div className="hud-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span className="hud-title">MISSIONS</span>
+          <span className="hud-title" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            MISSIONS
+            <HelpTip title="Missões V2" side="bottom">
+              Missões são objetivos estruturados com steps planejados pelo Router V2.<br /><br />
+              <strong>Criar:</strong> clique em "+ nova missão" → descreva o objetivo em linguagem natural.<br />
+              <strong>Executar:</strong> acesse a missão e clique em "executar".<br />
+              <strong>Concluir:</strong> ao finalizar, gera síntese + atualiza o Brain automaticamente.
+            </HelpTip>
+          </span>
           <span style={{ color: 'var(--hud-dim)' }}>·</span>
           <select
             value={projectId ?? ''}

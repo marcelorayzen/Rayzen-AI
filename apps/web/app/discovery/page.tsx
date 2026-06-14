@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { API_URL, V2_URL } from '../../lib/api-url'
 import { authHeaders } from '../../lib/api-client'
+import { HelpTip } from '../components/HelpTip'
 
 interface DiscoveryMsg { role: 'user' | 'assistant'; content: string }
 
@@ -207,7 +208,14 @@ export default function DiscoveryPage() {
       {/* Header */}
       <div className="hud-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span className="hud-title">RAYZEN</span>
+          <span className="hud-title" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            RAYZEN
+            <HelpTip title="Descoberta de Projeto" side="bottom">
+              Converse com o assistente para mapear o projeto. Ele gera um Blueprint estruturado com requisitos, personas e oportunidades.<br /><br />
+              <strong>Novo projeto:</strong> descreva a ideia e responda as perguntas.<br />
+              <strong>Extrair de existente:</strong> cola o README/especificação e o Rayzen extrai o contexto.
+            </HelpTip>
+          </span>
           <span style={{ color: 'var(--hud-dim)' }}>·</span>
           <span style={{ fontSize: 13, color: 'var(--hud-text-2)' }}>descoberta de projeto</span>
         </div>

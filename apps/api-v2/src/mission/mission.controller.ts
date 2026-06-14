@@ -29,6 +29,12 @@ export class MissionController {
     return this.missions.findAll(projectId)
   }
 
+  @Get('next-pending')
+  @ApiQuery({ name: 'projectId', required: true })
+  nextPending(@Query('projectId') projectId: string) {
+    return this.missions.findNextPending(projectId)
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.missions.findOne(id)

@@ -12,6 +12,8 @@ import { useGoalGraph, type ProjectGoal, type ProjectState, type GoalGraphData, 
 import { useChatStream, type Message, type Session, type WorkMode } from './hooks/useChatStream'
 import { useQA } from './hooks/useQA'
 import { useMissions, type MissionStep } from './hooks/useMissions'
+import { HelpPanel } from './components/HelpPanel'
+import { HelpTip } from './components/HelpTip'
 const GraphCanvas = dynamic(() => import('./components/GraphCanvas'), { ssr: false })
 const UniverseCanvas = dynamic(() => import('./components/UniverseCanvas').then(m => ({ default: m.UniverseCanvas })), { ssr: false })
 const RayzenConstellation = dynamic(() => import('./components/RayzenConstellation').then(m => ({ default: m.RayzenConstellation })), { ssr: false })
@@ -562,7 +564,7 @@ export default function Home() {
   const [costsData, setCostsData] = useState<CostSummary | null>(null)
   const [costsLoading, setCostsLoading] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
-  const [resumeCopied, setResumeCopied] = useState(false)
+
   const [blueprintOpen, setBlueprintOpen] = useState(false)
   const [blueprintCopied, setBlueprintCopied] = useState<string | null>(null)
   const [blueprintTab, setBlueprintTab] = useState<'templates' | 'history' | 'upload'>('templates')
@@ -1303,7 +1305,14 @@ export default function Home() {
           <div className="relative z-50 w-full max-w-2xl bg-zinc-900 border border-zinc-800 rounded-2xl mx-4 max-h-[85vh] flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
               <div>
-                <p className="text-sm font-semibold">◇ Missões <span className="text-[10px] font-mono text-violet-400/80 ml-1">V2</span></p>
+                <p className="text-sm font-semibold flex items-center gap-1.5">
+                  ◇ Missões <span className="text-[10px] font-mono text-violet-400/80">V2</span>
+                  <HelpTip title="O que são Missões?" side="bottom">
+                    Missões são objetivos estruturados. Descreva em linguagem natural — o Router planeja os steps, associa um Specialist e cria ApprovalGates para ações de risco.
+                    <br /><br />
+                    <strong>Dica:</strong> após concluir, o Resultado Loop gera síntese + atualiza o Brain automaticamente.
+                  </HelpTip>
+                </p>
                 <p className="text-[10px] text-zinc-500">Router classifica e planeja · Workflow DAG executa com Specialist</p>
               </div>
               <button onClick={() => setMissionsOpen(false)} className="text-zinc-500 hover:text-zinc-300 text-xs">fechar</button>
@@ -1783,7 +1792,15 @@ export default function Home() {
           <div className="fixed inset-0 bg-black/70" onClick={() => { setQuickCaptureOpen(false); setQuickCaptureText('') }} />
           <div className="relative z-50 w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-5 mx-4">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold">Captura rápida</h2>
+              <h2 className="text-sm font-semibold flex items-center gap-1.5">
+                Captura rápida
+                <HelpTip title="O que é a captura rápida?" side="bottom">
+                  Registra decisões, ideias, problemas e referências no timeline do projeto. Fica visível no painel de Atividade e alimenta o contexto do Rayzen.
+                  <br /><br />
+                  <strong>Decisão</strong> → registra como evento tipo "decision".<br />
+                  <strong>Ideia / Problema / Referência</strong> → registra como "note" com intent.
+                </HelpTip>
+              </h2>
               <button onClick={() => { setQuickCaptureOpen(false); setQuickCaptureText('') }} className="text-zinc-500 hover:text-zinc-300 text-xl leading-none">×</button>
             </div>
             <div className="flex gap-1.5 mb-4">
@@ -2122,7 +2139,14 @@ export default function Home() {
           <div className="fixed inset-0 bg-black/70" onClick={() => setSynthesisOpen(false)} />
           <div className="relative z-50 w-full max-w-xl bg-zinc-900 border border-zinc-800 rounded-2xl p-6 mx-4 max-h-[85vh] flex flex-col">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold">Síntese de sessões</h2>
+              <h2 className="text-sm font-semibold flex items-center gap-1.5">
+                Síntese de sessões
+                <HelpTip title="Síntese e Checkpoint" side="bottom">
+                  <strong>Sintetizar sessão atual</strong> → extrai decisões, next steps e aprendizados da conversa ativa.<br /><br />
+                  <strong>Checkpoint</strong> (botão ⟳ no HUD) → síntese mais completa que também atualiza ProjectState e o Universe.<br /><br />
+                  Use Checkpoint ao fechar uma sessão com código real modificado.
+                </HelpTip>
+              </h2>
               <div className="flex items-center gap-3">
                 <button
                   onClick={synthesizeCurrent}
@@ -2190,8 +2214,13 @@ export default function Home() {
           <div className="relative z-50 w-full max-w-lg bg-zinc-900 border border-zinc-800 rounded-2xl p-6 mx-4 flex flex-col max-h-[80vh]">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-sm font-semibold text-zinc-200">
+                <h2 className="text-sm font-semibold text-zinc-200 flex items-center gap-1.5">
                   {activeProjectId ? `Memória — ${projects.find(p => p.id === activeProjectId)?.name ?? 'Projeto'}` : 'Memória indexada'}
+                  <HelpTip title="Brain / Memória" side="bottom">
+                    Documentos indexados com embeddings (pgvector). A busca semântica alimenta o Context Broker.<br /><br />
+                    <strong>Classes:</strong> inbox → working → consolidated → archive.<br />
+                    <strong>Indexar mais fontes:</strong> use o botão "Indexar no Brain" ou importe pelo wizard de projeto.
+                  </HelpTip>
                 </h2>
                 {!memoryDocsLoading && (
                   <p className="text-xs text-zinc-500 mt-0.5">
@@ -3402,66 +3431,14 @@ markdown: """
         {/* Help panel */}
         {helpOpen && (
           <div className="max-w-3xl mx-auto mb-3">
-            <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-4 text-xs">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-zinc-300 font-semibold text-[11px] uppercase tracking-wider">Comandos rápidos</span>
-                <button onClick={() => setHelpOpen(false)} className="text-zinc-600 hover:text-zinc-400 text-base leading-none">×</button>
-              </div>
-              {activeProjectId && (() => {
-                const resumeKit = `rayzen_get_resume(projectId: ${activeProjectId})\nrayzen_get_goal(projectId: ${activeProjectId})`
-                return (
-                  <div className="mb-3 border-b border-zinc-800 pb-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-zinc-400 text-[10px] uppercase tracking-wider">🔄 Retomar em nova sessão (Claude Code)</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void navigator.clipboard?.writeText(resumeKit)
-                          setResumeCopied(true)
-                          setTimeout(() => setResumeCopied(false), 1500)
-                        }}
-                        className="hud-btn text-[10px] px-2 py-0.5"
-                      >
-                        {resumeCopied ? 'copiado ✓' : 'copiar'}
-                      </button>
-                    </div>
-                    <pre className="text-zinc-400 bg-zinc-950 rounded-lg p-2 text-[10px] whitespace-pre-wrap break-all font-mono">{resumeKit}</pre>
-                  </div>
-                )
-              })()}
-              <div className="grid grid-cols-2 gap-x-6 gap-y-1">
-                {([
-                  { label: '📁 Novo projeto completo', cmd: 'crie o projeto |nome| brief:\n|descreva a ideia aqui|' },
-                  { label: '📁 Novo projeto simples', cmd: 'crie o projeto |nome|' },
-                  { label: '🧪 Rodar testes', cmd: 'rode os testes do projeto |nome|' },
-                  { label: '📸 Capturar falhas', cmd: 'capture as falhas do projeto |nome|' },
-                  { label: '🖥️ Info do sistema', cmd: 'qual o status do PC' },
-                  { label: '📸 Screenshot', cmd: 'tira um screenshot: |descrição do teste|' },
-                  { label: '📂 Git status', cmd: 'git status do projeto |nome|' },
-                  { label: '📋 Git log', cmd: 'quais os commits recentes do projeto |nome|' },
-                  { label: '🔄 Reiniciar API', cmd: 'restart api' },
-                  { label: '🐳 Status Docker', cmd: 'lista os containers docker' },
-                  { label: '📧 Ler emails', cmd: 'leia meus emails' },
-                  { label: '🗂️ Organizar downloads', cmd: 'organiza meus downloads' },
-                ] as { label: string; cmd: string }[]).map(({ label, cmd }) => (
-                  <button
-                    key={label}
-                    onClick={() => {
-                      setInput(cmd.replace(/\|/g, ''))
-                      setHelpOpen(false)
-                      requestAnimationFrame(() => inputRef.current?.focus())
-                    }}
-                    className="text-left text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 px-2 py-1.5 rounded-lg transition-colors truncate"
-                    title={cmd.replace(/\|/g, '')}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <p className="text-zinc-600 text-[10px] mt-3 border-t border-zinc-800 pt-2">
-                Clique para preencher o input. Edite os campos antes de enviar.
-              </p>
-            </div>
+            <HelpPanel
+              projectId={activeProjectId}
+              onFillInput={(cmd) => {
+                setInput(cmd)
+                setHelpOpen(false)
+                requestAnimationFrame(() => inputRef.current?.focus())
+              }}
+            />
           </div>
         )}
         <form onSubmit={handleSubmit} className="flex gap-2 max-w-3xl mx-auto">

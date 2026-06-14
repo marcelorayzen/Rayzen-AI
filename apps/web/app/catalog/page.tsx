@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { V2_URL } from '../../lib/api-url'
 import { authHeaders } from '../../lib/api-client'
+import { HelpTip } from '../components/HelpTip'
 
 interface CatalogEntry {
   catalogId:     string | null
@@ -99,7 +100,14 @@ export default function CatalogPage() {
     <div style={{ maxWidth: 900, margin: '0 auto', padding: '20px 16px', minHeight: '100vh', display: 'flex', flexDirection: 'column', gap: 14 }}>
       {/* Header */}
       <div className="hud-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span className="hud-title">CATALOG</span>
+        <span className="hud-title" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          CATALOG
+          <HelpTip title="Catálogo de Assets" side="bottom">
+            Assets de dados registrados via hook PostToolUse do Claude Code. Cada asset tem schema, métricas de qualidade e score DQ.<br /><br />
+            <strong>Auto-registro:</strong> o hook detecta quando o Claude Code cria/modifica data files e registra automaticamente.<br />
+            <strong>Profile:</strong> POST /v2/data-catalog/:id/profile recalcula métricas.
+          </HelpTip>
+        </span>
         <div style={{ display: 'flex', gap: 8 }}>
           <Link href="/work-panel" className="hud-btn" style={{ fontSize: 12 }}>work panel</Link>
           <Link href="/" className="hud-btn" style={{ fontSize: 12 }}>← painel</Link>
