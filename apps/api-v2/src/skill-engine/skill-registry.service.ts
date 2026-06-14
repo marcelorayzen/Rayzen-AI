@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import { PrismaV2Service } from '../core/prisma-v2.service'
 import { SkillDefinition, SkillCategory, SkillRegistry, SKILL_DEFINITIONS_EXPORT } from './skill-registry'
 
@@ -42,11 +42,16 @@ export interface CreateSkillAssetDto {
 }
 
 @Injectable()
-export class SkillRegistryService {
+export class SkillRegistryService implements OnModuleInit {
   private readonly logger = new Logger(SkillRegistryService.name)
   private readonly staticRegistry = new SkillRegistry()
 
   constructor(private readonly prisma: PrismaV2Service) {}
+
+  async onModuleInit() {
+    const { synced } = await this.sync()
+    this.logger.log(`Auto-sync on startup: ${synced} built-in skills upserted`)
+  }
 
   /**
    * Resolve uma skill: DB tem precedência sobre o registry estático.

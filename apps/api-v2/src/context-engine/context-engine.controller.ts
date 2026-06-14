@@ -37,6 +37,23 @@ class ContextBuildDto {
   include?: ContextSection[]
 }
 
+class SurgicalContextDto {
+  @ApiProperty({ description: 'V1 project ID' })
+  @IsString()
+  @IsNotEmpty()
+  projectId!: string
+
+  @ApiProperty({ description: 'Task or question that determines which knowledge to pull' })
+  @IsString()
+  @IsNotEmpty()
+  task!: string
+
+  @ApiPropertyOptional({ enum: ['implementation', 'debugging', 'review', 'architecture', 'study'] })
+  @IsOptional()
+  @IsIn(['implementation', 'debugging', 'review', 'architecture', 'study'])
+  mode?: WorkMode
+}
+
 @ApiTags('context')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
@@ -69,6 +86,17 @@ export class ContextEngineController {
       estimatedTokens: Math.ceil(built.totalChars / 4),
       sectionsIncluded: Object.keys(built.sections),
     }
+  }
+
+  /**
+   * Context Broker — pacote cirúrgico para injeção no Claude.
+   * Retorna ProjectState + Planning + Policy + KnowledgeGraph relevante + Memória semântica.
+   * `readyToInject` é o texto final que pode ser usado diretamente como system prompt prefix.
+   */
+  @Post('surgical')
+  @HttpCode(200)
+  surgical(@Body() dto: SurgicalContextDto) {
+    return this.ctx.buildSurgical(dto)
   }
 
   @Delete('cache/:projectId')

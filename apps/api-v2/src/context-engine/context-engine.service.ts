@@ -1,11 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { V1BridgeService } from '../core/v1-bridge.service'
 import { MemoryService } from '../memory/memory.service'
+import { KnowledgeStorageService } from '../knowledge/knowledge-storage.service'
+import { PolicyEngineService } from '../policy-engine/policy-engine.service'
 
 export type WorkMode = 'implementation' | 'debugging' | 'review' | 'architecture' | 'study'
 export type ContextSection =
   | 'project_state' | 'active_goal' | 'recent_events'
   | 'memory_relevant' | 'planning' | 'blockers'
+  | 'knowledge_graph' | 'policy_constraints'
 
 export interface ContextBuildRequest {
   projectId:  string
@@ -24,13 +27,25 @@ export interface BuiltContext {
   builtAt:     Date
 }
 
+export interface SurgicalContext {
+  projectId:       string
+  task:            string
+  mode:            WorkMode
+  context:         string        // assembled text, section by section
+  readyToInject:   string        // prefixed with "# Rayzen Context", ready for system prompt
+  totalChars:      number
+  estimatedTokens: number
+  sections:        string[]
+  builtAt:         Date
+}
+
 // Sections included per work mode
 const MODE_SECTIONS: Record<WorkMode, ContextSection[]> = {
-  implementation: ['project_state', 'planning', 'memory_relevant', 'recent_events'],
-  debugging:      ['project_state', 'blockers', 'memory_relevant', 'recent_events'],
-  review:         ['project_state', 'active_goal', 'memory_relevant', 'planning'],
-  architecture:   ['project_state', 'active_goal', 'planning', 'blockers'],
-  study:          ['project_state', 'memory_relevant', 'recent_events'],
+  implementation: ['project_state', 'planning', 'policy_constraints', 'memory_relevant', 'recent_events'],
+  debugging:      ['project_state', 'blockers', 'memory_relevant', 'recent_events', 'knowledge_graph'],
+  review:         ['project_state', 'active_goal', 'memory_relevant', 'planning', 'knowledge_graph'],
+  architecture:   ['project_state', 'active_goal', 'planning', 'blockers', 'policy_constraints', 'knowledge_graph'],
+  study:          ['project_state', 'memory_relevant', 'recent_events', 'knowledge_graph'],
 }
 
 const DEFAULT_SECTIONS: ContextSection[] = [
@@ -44,8 +59,10 @@ export class ContextEngineService {
   private readonly TTL_MS = 5 * 60 * 1000  // 5 min
 
   constructor(
-    private readonly v1Bridge: V1BridgeService,
-    private readonly memory: MemoryService,
+    private readonly v1Bridge:  V1BridgeService,
+    private readonly memory:    MemoryService,
+    private readonly knowledge: KnowledgeStorageService,
+    private readonly policy:    PolicyEngineService,
   ) {}
 
   async build(req: ContextBuildRequest): Promise<BuiltContext> {
@@ -97,6 +114,39 @@ export class ContextEngineService {
   invalidateCache(projectId: string) {
     for (const key of this.cache.keys()) {
       if (key.startsWith(projectId)) this.cache.delete(key)
+    }
+  }
+
+  /**
+   * Monta o pacote cirúrgico completo para injeção no Claude.
+   * Inclui: ProjectState + Planning + Policy + Knowledge relevante + Memória semântica + Eventos recentes.
+   */
+  async buildSurgical(req: { projectId: string; task: string; mode?: WorkMode }): Promise<SurgicalContext> {
+    const mode = req.mode ?? 'implementation'
+    const baseSections = MODE_SECTIONS[mode] ?? DEFAULT_SECTIONS
+    // Garante que policy_constraints e knowledge_graph estão sempre presentes no pacote cirúrgico
+    const sections = [...new Set([...baseSections, 'policy_constraints' as ContextSection, 'knowledge_graph' as ContextSection])]
+
+    const built = await this.build({
+      projectId: req.projectId,
+      mode,
+      query:     req.task,
+      include:   sections,
+      maxTokens: 3000,
+    })
+
+    const readyToInject = `# Rayzen Context — ${req.task}\n\n${built.text}`
+
+    return {
+      projectId:       req.projectId,
+      task:            req.task,
+      mode,
+      context:         built.text,
+      readyToInject,
+      totalChars:      built.totalChars,
+      estimatedTokens: Math.ceil(built.totalChars / 4),
+      sections:        Object.keys(built.sections),
+      builtAt:         built.builtAt,
     }
   }
 
@@ -171,6 +221,37 @@ export class ContextEngineService {
           .join('\n---\n')
       }
 
+      case 'knowledge_graph': {
+        const nodes = await this.knowledge.listNodes(req.projectId)
+        if (!nodes.length) return ''
+
+        let filtered = nodes
+        if (req.query) {
+          const words = req.query.toLowerCase().split(/\s+/).filter((w) => w.length > 3)
+          const matched = nodes.filter((n) =>
+            words.some(
+              (w) => n.label.toLowerCase().includes(w) || (n.description?.toLowerCase().includes(w) ?? false),
+            ),
+          )
+          filtered = matched.length ? matched : nodes
+        }
+
+        return filtered
+          .sort((a, b) => b.confidence - a.confidence)
+          .slice(0, 15)
+          .map((n) => `[${n.type}] ${n.label}${n.description ? ` — ${n.description.slice(0, 120)}` : ''} (conf=${n.confidence.toFixed(2)})`)
+          .join('\n')
+      }
+
+      case 'policy_constraints': {
+        const rules = await this.policy.listRules(req.projectId)
+        const enabled = rules.filter((r) => r.enabled)
+        if (!enabled.length) return 'No active policy constraints.'
+        return enabled
+          .map((r) => `[${r.action.toUpperCase()}] ${r.name}: ${r.description}`)
+          .join('\n')
+      }
+
       default:
         return ''
     }
@@ -191,12 +272,14 @@ function nodeLabel(item: unknown): string {
 
 function sectionLabel(s: ContextSection): string {
   const labels: Record<ContextSection, string> = {
-    project_state:   'Project State',
-    active_goal:     'Active Goal',
-    recent_events:   'Recent Activity',
-    memory_relevant: 'Relevant Knowledge',
-    planning:        'Planning',
-    blockers:        'Blockers',
+    project_state:      'Project State',
+    active_goal:        'Active Goal',
+    recent_events:      'Recent Activity',
+    memory_relevant:    'Relevant Knowledge',
+    planning:           'Planning',
+    blockers:           'Blockers',
+    knowledge_graph:    'Knowledge Graph',
+    policy_constraints: 'Policy Constraints',
   }
   return labels[s] ?? s
 }
