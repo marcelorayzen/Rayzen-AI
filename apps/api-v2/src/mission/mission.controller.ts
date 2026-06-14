@@ -56,8 +56,17 @@ export class MissionController {
   @HttpCode(200)
   async complete(@Param('id') id: string) {
     const mission = await this.missions.transition(id, 'done')
-    void this.result.processCompletion(id)
-    return mission
+    const result  = await this.result.processCompletion(id)
+    return { mission, result }
+  }
+
+  /**
+   * Retorna síntese + próximo passo sugerido para uma missão já concluída.
+   * Também funciona para missões em andamento (parcial).
+   */
+  @Get(':id/result')
+  getResult(@Param('id') id: string) {
+    return this.result.processCompletion(id)
   }
 
   @Delete(':id')

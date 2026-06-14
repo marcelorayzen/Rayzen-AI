@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { LlmService } from '../llm/llm.service'
 import { MemoryService } from '../memory/memory.service'
 import { V1ApiService } from '../core/v1-api.service'
+import { V1BridgeService } from '../core/v1-bridge.service'
 import { MissionService } from './mission.service'
 
 const RESULT_SYSTEM = `You are an engineering assistant summarizing a completed mission.
@@ -18,16 +19,18 @@ export class MissionResultService {
   private readonly logger = new Logger(MissionResultService.name)
 
   constructor(
-    private readonly missions: MissionService,
-    private readonly llm:      LlmService,
-    private readonly memory:   MemoryService,
-    private readonly v1Api:    V1ApiService,
+    private readonly missions:  MissionService,
+    private readonly llm:       LlmService,
+    private readonly memory:    MemoryService,
+    private readonly v1Api:     V1ApiService,
+    private readonly v1Bridge:  V1BridgeService,
   ) {}
 
   async processCompletion(missionId: string): Promise<{
-    summary:    string
-    nextAction: string
-    documentId: string | null
+    summary:          string
+    nextAction:       string
+    documentId:       string | null
+    plannedNextSteps: string[]
   }> {
     const mission = await this.missions.findOne(missionId)
 
@@ -74,6 +77,22 @@ export class MissionResultService {
       this.logger.warn(`result indexing failed: ${e}`)
     }
 
+    // Cross-reference with ProjectState.nextSteps — prefer planned steps over LLM suggestion
+    let plannedNextSteps: string[] = []
+    try {
+      const state = await this.v1Bridge.getProjectState(mission.projectId)
+      const raw = Array.isArray(state?.nextSteps) ? state.nextSteps : []
+      plannedNextSteps = raw
+        .map((n) => (typeof n === 'string' ? n : (n as Record<string, unknown>).title ?? String(n)))
+        .filter(Boolean) as string[]
+      // If there are planned next steps, surface the first as nextAction (grounded in reality)
+      if (plannedNextSteps.length > 0) {
+        nextAction = plannedNextSteps[0]
+      }
+    } catch (e) {
+      this.logger.warn(`ProjectState fetch failed: ${e}`)
+    }
+
     // Register decision event in V1 timeline
     void this.v1Api.addEvent(
       mission.projectId,
@@ -82,7 +101,7 @@ export class MissionResultService {
     )
 
     this.logger.log(`Mission ${missionId} result loop: summary stored, next="${nextAction}"`)
-    return { summary, nextAction, documentId }
+    return { summary, nextAction, documentId, plannedNextSteps }
   }
 
   private formatResultDoc(
