@@ -8,6 +8,7 @@ import { authHeaders } from '../../lib/api-client'
 import { ContextBadge } from './components/ContextBadge'
 import { ApprovalCard } from './components/ApprovalCard'
 import { useVoiceInput } from '../hooks/useVoiceInput'
+import { HelpTip } from '../components/HelpTip'
 
 interface Project { id: string; name: string; status: string }
 
@@ -301,7 +302,16 @@ export default function WorkPanelPage() {
       {/* Header */}
       <div className="hud-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span className="hud-title">RAYZEN</span>
+          <span className="hud-title" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            RAYZEN
+            <HelpTip title="Work Panel — Agent Desktop" side="bottom">
+              Painel de execução supervisionada para o Agent desktop (browser, terminal, git).<br /><br />
+              <strong>Fluxo:</strong> descreva o objetivo → o Router planeja → cada step pede aprovação antes de executar.<br /><br />
+              <strong>Approval Gates:</strong> steps de risco alto aparecem aqui como cartões de aprovação — você escolhe continuar, modificar ou cancelar.<br /><br />
+              <strong>Voz:</strong> clique no microfone para ditar o objetivo sem digitar.<br /><br />
+              <strong>Abrir missão:</strong> use <code>?mission=ID</code> na URL para pré-carregar o objetivo de uma missão existente.
+            </HelpTip>
+          </span>
           <span style={{ color: 'var(--hud-dim)' }}>·</span>
           <select
             value={activeProjectId ?? ''}
