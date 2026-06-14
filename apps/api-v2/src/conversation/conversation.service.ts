@@ -165,6 +165,67 @@ export class ConversationService {
     return sess
   }
 
+  /**
+   * Persiste um único turn (user ou assistant) no Brain (V1 pgvector).
+   * Chamado pelo hook do Claude Code após cada interação significativa.
+   * O turn fica imediatamente pesquisável via memory_relevant no Context Broker.
+   */
+  async persistTurn(dto: {
+    projectId:  string
+    sessionId?: string
+    role:       'user' | 'assistant'
+    content:    string
+    source?:    string
+    metadata?:  Record<string, unknown>
+  }): Promise<{ documentId: string | null }> {
+    const sessionRef = dto.sessionId ?? 'standalone'
+    const prefix = dto.source ? `[${dto.source}]` : ''
+    const result = await this.memory.store({
+      projectId:   dto.projectId,
+      content:     `${prefix}[${dto.role}] ${dto.content}`.trim(),
+      sourcePath:  `conversation/${sessionRef}/${dto.role}`,
+      sourceType:  'conversation',
+      memoryClass: 'inbox',
+    })
+    this.logger.log(`Turn persisted: session=${sessionRef} role=${dto.role} doc=${result.documentId}`)
+    return { documentId: result.documentId }
+  }
+
+  /**
+   * Indexa uma sessão completa como um único Document no Brain.
+   * Útil para o hook chamar no fim de uma sessão do Claude Code, enviando o resumo da conversa.
+   */
+  async indexSession(dto: {
+    projectId: string
+    sessionId: string
+    messages:  Array<{ role: 'user' | 'assistant'; content: string; ts?: string }>
+    summary?:  string
+  }): Promise<{ documentId: string | null }> {
+    const lines: string[] = [
+      `# Sessão de conversa: ${dto.sessionId}`,
+      `Data: ${new Date().toISOString()}`,
+      '',
+      '## Mensagens',
+    ]
+    for (const m of dto.messages) {
+      const ts = m.ts ? ` (${m.ts})` : ''
+      lines.push(`[${m.role}${ts}] ${m.content}`)
+    }
+    if (dto.summary) {
+      lines.push('', '## Resumo', dto.summary)
+    }
+
+    const result = await this.memory.store({
+      projectId:   dto.projectId,
+      content:     lines.join('\n'),
+      sourcePath:  `conversation/session/${dto.sessionId}`,
+      sourceType:  'conversation',
+      memoryClass: 'working',  // sessão completa vai direto para working
+    })
+    this.logger.log(`Session indexed: ${dto.sessionId} → doc=${result.documentId}`)
+    return { documentId: result.documentId }
+  }
+
   private async previewContext(projectId: string, query: string): Promise<ContextPreview> {
     try {
       const built = await this.ctxEngine.build({ projectId, query, mode: 'architecture' })

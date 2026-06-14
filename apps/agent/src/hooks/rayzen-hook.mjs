@@ -51,6 +51,7 @@ async function loadConfig() {
   }
   return {
     apiUrl:    process.env.RAYZEN_API_URL    ?? cfg.apiUrl    ?? 'http://localhost:3001',
+    apiV2Url:  process.env.RAYZEN_API_V2_URL ?? cfg.apiV2Url  ?? null,
     apiToken:  process.env.RAYZEN_API_TOKEN  ?? cfg.apiToken  ?? '',
     projectId: process.env.RAYZEN_PROJECT_ID ?? cfg.projectId ?? '',
   }
@@ -290,6 +291,17 @@ async function resolveProjectId(cfg) {
   }
 }
 
+/**
+ * Persiste um turn de conversa no Brain via POST /v2/chat/turns.
+ * Fire-and-forget — nunca bloqueia o hook.
+ */
+function persistConversationTurn(v2BaseUrl, token, body) {
+  try {
+    const url = `${v2BaseUrl}/v2/chat/turns`
+    post(url, body, token).catch(() => {})
+  } catch { /* ignora */ }
+}
+
 function toRelative(absPath, root) {
   if (!absPath) return ''
   const n = absPath.replace(/\\/g, '/')
@@ -359,6 +371,30 @@ async function main() {
   if (tool === 'Bash' || tool === 'PowerShell') {
     const desc = payload.tool_input?.description
     if (desc) payload.tool_input = { ...payload.tool_input, _useDescription: true }
+  }
+
+  // Stop event: persiste o último turn do assistente no Brain para memória cross-sessão
+  const hookEvent = payload.hook_event_name ?? ''
+  if (hookEvent === 'Stop' && projectId) {
+    const transcript = Array.isArray(payload.transcript) ? payload.transcript : []
+    const lastAssistant = [...transcript].reverse().find((m) => m.role === 'assistant')
+    if (lastAssistant) {
+      const content = typeof lastAssistant.content === 'string'
+        ? lastAssistant.content
+        : Array.isArray(lastAssistant.content)
+          ? lastAssistant.content.map((b) => (typeof b === 'string' ? b : (b?.text ?? ''))).join('\n')
+          : ''
+      if (content.trim()) {
+        const v2Base = (cfg.apiV2Url ?? cfg.apiUrl).replace(/\/$/, '')
+        persistConversationTurn(v2Base, cfg.apiToken, {
+          projectId,
+          sessionId:  payload.session_id,
+          role:       'assistant',
+          content:    content.slice(0, 8000),
+          source:     'claude-code',
+        })
+      }
+    }
   }
 
   // Edit/Write: indexação semântica + catalog auto-register

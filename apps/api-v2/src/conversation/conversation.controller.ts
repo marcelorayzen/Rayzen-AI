@@ -1,6 +1,7 @@
 import { Controller, Post, Get, Body, Param, UseGuards, HttpCode } from '@nestjs/common'
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
-import { IsString, IsNotEmpty, IsOptional } from 'class-validator'
+import { IsString, IsNotEmpty, IsOptional, IsIn, IsArray, ValidateNested } from 'class-validator'
+import { Type } from 'class-transformer'
 import { ConversationService } from './conversation.service'
 import { JwtAuthGuard } from '../core/auth.guard'
 
@@ -33,6 +34,68 @@ class ChatExecuteDto {
   objective?: string
 }
 
+class PersistTurnDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  projectId!: string
+
+  @ApiProperty({ enum: ['user', 'assistant'] })
+  @IsIn(['user', 'assistant'])
+  role!: 'user' | 'assistant'
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  content!: string
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  sessionId?: string
+
+  @ApiPropertyOptional({ description: 'claude-code | claude-web | agent | manual' })
+  @IsOptional()
+  @IsString()
+  source?: string
+}
+
+class TurnItemDto {
+  @IsIn(['user', 'assistant'])
+  role!: 'user' | 'assistant'
+
+  @IsString()
+  @IsNotEmpty()
+  content!: string
+
+  @IsOptional()
+  @IsString()
+  ts?: string
+}
+
+class IndexSessionDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  projectId!: string
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  sessionId!: string
+
+  @ApiProperty({ type: [TurnItemDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TurnItemDto)
+  messages!: TurnItemDto[]
+
+  @ApiPropertyOptional({ description: 'Resumo da sessão gerado pelo Claude' })
+  @IsOptional()
+  @IsString()
+  summary?: string
+}
+
 @ApiTags('chat')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
@@ -58,5 +121,27 @@ export class ConversationController {
   @ApiOperation({ summary: 'Estado atual da conversa' })
   get(@Param('id') id: string) {
     return this.conversation.get(id)
+  }
+
+  /**
+   * Persiste um único turn no Brain (pgvector).
+   * Chamado pelo hook do Claude Code após cada interação significativa.
+   */
+  @Post('turns')
+  @HttpCode(201)
+  @ApiOperation({ summary: 'Persiste um turn (user|assistant) no Brain para memória cross-sessão' })
+  persistTurn(@Body() dto: PersistTurnDto) {
+    return this.conversation.persistTurn(dto)
+  }
+
+  /**
+   * Indexa uma sessão completa no Brain como um único documento.
+   * Ideal para chamar no encerramento de uma sessão do Claude Code.
+   */
+  @Post('sessions/index')
+  @HttpCode(201)
+  @ApiOperation({ summary: 'Indexa uma sessão completa de conversa no Brain' })
+  indexSession(@Body() dto: IndexSessionDto) {
+    return this.conversation.indexSession(dto)
   }
 }
