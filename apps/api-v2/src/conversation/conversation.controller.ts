@@ -34,6 +34,34 @@ class ChatExecuteDto {
   objective?: string
 }
 
+class PlanMissionDto {
+  @ApiProperty({ description: 'ID do projeto V1' })
+  @IsString()
+  @IsNotEmpty()
+  projectId!: string
+
+  @ApiProperty({ description: 'Objetivo em linguagem natural' })
+  @IsString()
+  @IsNotEmpty()
+  objective!: string
+}
+
+class ToMissionDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  projectId!: string
+
+  @ApiProperty({ description: 'Objetivo em linguagem natural — converte diretamente em Mission' })
+  @IsString()
+  @IsNotEmpty()
+  objective!: string
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  context?: Record<string, unknown>
+}
+
 class PersistTurnDto {
   @ApiProperty()
   @IsString()
@@ -121,6 +149,28 @@ export class ConversationController {
   @ApiOperation({ summary: 'Estado atual da conversa' })
   get(@Param('id') id: string) {
     return this.conversation.get(id)
+  }
+
+  /**
+   * Dry-run: planeja steps para um objetivo sem criar nada no banco.
+   * Use para mostrar o plano ao usuário antes de confirmar.
+   */
+  @Post('plan')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Planeja steps para um objetivo (dry-run, sem criar Mission)' })
+  plan(@Body() dto: PlanMissionDto) {
+    return this.conversation.planMission(dto)
+  }
+
+  /**
+   * NL → Mission: cria uma Mission diretamente a partir de linguagem natural.
+   * Sem necessidade de sessão prévia.
+   */
+  @Post('to-mission')
+  @HttpCode(201)
+  @ApiOperation({ summary: 'Converte objetivo em linguagem natural em Mission V2 com steps e gates' })
+  toMission(@Body() dto: ToMissionDto) {
+    return this.conversation.toMission(dto)
   }
 
   /**

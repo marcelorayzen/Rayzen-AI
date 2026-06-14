@@ -166,6 +166,27 @@ export class ConversationService {
   }
 
   /**
+   * Planeja steps para um objetivo sem criar nada no banco (dry-run).
+   * Ideal para mostrar o plano ao usuário antes de confirmar a missão.
+   */
+  async planMission(dto: { projectId: string; objective: string }) {
+    return this.router.plan(dto)
+  }
+
+  /**
+   * Cria uma Mission diretamente a partir de linguagem natural.
+   * Sem necessidade de sessão prévia — NL → Mission + Steps + Gates em uma chamada.
+   */
+  async toMission(dto: { projectId: string; objective: string; context?: Record<string, unknown> }) {
+    return this.router.route({
+      projectId: dto.projectId,
+      content:   dto.objective,
+      context:   dto.context,
+      mode:      'mission',
+    })
+  }
+
+  /**
    * Persiste um único turn (user ou assistant) no Brain (V1 pgvector).
    * Chamado pelo hook do Claude Code após cada interação significativa.
    * O turn fica imediatamente pesquisável via memory_relevant no Context Broker.

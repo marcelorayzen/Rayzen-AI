@@ -73,6 +73,54 @@ export class RouterService {
     }
   }
 
+  /**
+   * Dry-run: planeja os steps para um objetivo sem criar nenhum registro no banco.
+   * Usado pelo endpoint /chat/plan para preview antes de confirmar a criação da missão.
+   */
+  async plan(dto: { projectId: string; objective: string }): Promise<{
+    steps:        Array<{ title: string; prompt: string; executor: string; skillId?: string; risk: string }>
+    specialist:   { id: string; name: string; domain: string } | null
+    contextChars: number
+    warnings:     string[]
+  }> {
+    const [specialist, brokerCtx] = await Promise.all([
+      this.specialists.findForTask(dto.objective, dto.projectId).catch(() => null),
+      this.brokerContext(dto.projectId, dto.objective, 'architecture'),
+    ])
+
+    const specialistSection = specialist
+      ? `\n\n## Specialist: ${specialist.name} (${specialist.domain})\n${specialist.systemPrompt}`
+      : ''
+
+    let steps: Array<{ title: string; prompt: string; executor: string; skillId?: string; risk?: string }> = []
+    try {
+      const planResult = await this.llm.chat([
+        { role: 'system', content: PLAN_SYSTEM + specialistSection },
+        {
+          role: 'user',
+          content: `Objective: "${dto.objective}"\n\nProject ID: ${dto.projectId}` +
+            (brokerCtx ? `\n\nProject context:\n${brokerCtx}` : ''),
+        },
+      ], { model: specialist?.model ?? 'gpt-4o', temperature: 0.2 })
+
+      const parsed = this.llm.extractJson(planResult.content) as { steps: typeof steps }
+      steps = parsed.steps ?? []
+    } catch (e) {
+      this.logger.warn(`plan dry-run error: ${e}`)
+    }
+
+    const warnings = steps
+      .filter((s) => s.risk === 'high')
+      .map((s) => `Step "${s.title}" é alto risco — ApprovalGate será criado automaticamente`)
+
+    return {
+      steps: steps.map((s) => ({ ...s, risk: s.risk ?? 'none' })),
+      specialist: specialist ? { id: specialist.id, name: specialist.name, domain: specialist.domain } : null,
+      contextChars: brokerCtx.length,
+      warnings,
+    }
+  }
+
   async route(dto: RouteRequestDto): Promise<RouteDecision & { result?: unknown }> {
     const mode = dto.mode ?? 'auto'
 
