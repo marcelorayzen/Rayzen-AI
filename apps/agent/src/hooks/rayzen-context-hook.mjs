@@ -245,12 +245,14 @@ function formatStateFallback(state) {
   const lines = ['### Rayzen — estado do projeto']
   if (state.objective) lines.push(`**Objetivo:** ${state.objective}`)
   if (state.stage)     lines.push(`**Stage:** ${state.stage}`)
-  const blockers = state.blockers ?? []
+  const blockers = (state.blockers ?? [])
+    .map((b) => typeof b === 'string' ? b : (b.description ?? b.title ?? b.text ?? '').toString())
+    .filter(Boolean)
   if (blockers.length) lines.push(`**Blockers:** ${blockers.join(' · ')}`)
   const steps = (state.nextSteps ?? []).slice(0, 3)
   if (steps.length) {
     lines.push('**Próximos passos:**')
-    steps.forEach(s => lines.push(`  - ${typeof s === 'string' ? s : s.title ?? ''}`))
+    steps.forEach(s => lines.push(`  - ${typeof s === 'string' ? s : (s.title ?? '')}`))
   }
   lines.push('_(estado básico — context-engine indisponível)_')
   return lines.join('\n')
