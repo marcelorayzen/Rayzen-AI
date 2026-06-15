@@ -1,6 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import { PrismaV2Service } from '../core/prisma-v2.service'
 import { LlmService } from '../llm/llm.service'
+import { SPECIALIST_DEFINITIONS } from '../specialists/specialist-registry'
 
 const SELECT_SYSTEM = `You are a task router for an AI engineering system.
 Given a task description, select the most appropriate specialist agent from the list provided.
@@ -12,13 +13,41 @@ Respond with JSON only:
 }`
 
 @Injectable()
-export class SpecialistAgentService {
+export class SpecialistAgentService implements OnModuleInit {
   private readonly logger = new Logger(SpecialistAgentService.name)
 
   constructor(
     private readonly prisma: PrismaV2Service,
     private readonly llm:   LlmService,
   ) {}
+
+  async onModuleInit() {
+    const count = await this.prisma.specialistAgent.count({ where: { builtIn: true } })
+    if (count >= Object.keys(SPECIALIST_DEFINITIONS).length) return
+
+    for (const def of Object.values(SPECIALIST_DEFINITIONS)) {
+      const existing = await this.prisma.specialistAgent.findFirst({ where: { domain: def.type, builtIn: true } })
+      if (existing) continue
+      await this.prisma.specialistAgent.create({
+        data: {
+          domain:       def.type,
+          name:         def.name,
+          description:  `Built-in ${def.name} specialist`,
+          systemPrompt: def.systemPrompt,
+          model:        def.model,
+          capabilities: def.allowedSkills,
+          enabled:      true,
+          builtIn:      true,
+          projectId:    null,
+        },
+      })
+    }
+    this.logger.log(`Built-in specialists seeded: ${Object.keys(SPECIALIST_DEFINITIONS).length}`)
+  }
+
+  async findById(id: string) {
+    return this.prisma.specialistAgent.findUnique({ where: { id } })
+  }
 
   async findAll(projectId?: string) {
     return this.prisma.specialistAgent.findMany({

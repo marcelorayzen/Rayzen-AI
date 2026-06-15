@@ -5,6 +5,7 @@ import {
 import { ApiTags, ApiBearerAuth, ApiQuery } from '@nestjs/swagger'
 import { MissionService } from './mission.service'
 import { MissionResultService } from './mission-result.service'
+import { StepExecutorService } from './step-executor.service'
 import { CreateMissionDto, CreateMissionStepDto, UpdateMissionStepDto } from './dto/create-mission.dto'
 import { JwtAuthGuard } from '../core/auth.guard'
 
@@ -14,8 +15,9 @@ import { JwtAuthGuard } from '../core/auth.guard'
 @Controller('missions')
 export class MissionController {
   constructor(
-    private readonly missions: MissionService,
-    private readonly result:   MissionResultService,
+    private readonly missions:      MissionService,
+    private readonly result:        MissionResultService,
+    private readonly stepExecutor:  StepExecutorService,
   ) {}
 
   @Post()
@@ -42,8 +44,11 @@ export class MissionController {
 
   @Post(':id/execute')
   @HttpCode(200)
-  execute(@Param('id') id: string) {
-    return this.missions.transition(id, 'active')
+  async execute(@Param('id') id: string) {
+    const mission = await this.missions.transition(id, 'active')
+    // Auto-start first pending step (fire-and-forget)
+    this.stepExecutor.runNext(id)
+    return mission
   }
 
   @Post(':id/pause')
@@ -86,6 +91,12 @@ export class MissionController {
   @Get(':id/steps')
   listSteps(@Param('id') id: string) {
     return this.missions.listSteps(id)
+  }
+
+  @Post(':id/steps/:stepId/run')
+  @HttpCode(200)
+  runStep(@Param('id') id: string, @Param('stepId') stepId: string) {
+    return this.stepExecutor.run(id, stepId)
   }
 
   @Post(':id/steps')

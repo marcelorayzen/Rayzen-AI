@@ -201,6 +201,38 @@ export class SpecialistService {
     inst.endedAt = new Date()
   }
 
+  inferType(text: string) {
+    return this.registry.infer(text)
+  }
+
+  /** Blocking version of spawn — awaits the full loop and returns the final instance. */
+  async spawnAndWait(req: SpawnRequest): Promise<SpecialistInstance> {
+    const type = req.type ?? this.registry.infer(req.task)
+    const def  = this.registry.get(type)
+    const id   = randomUUID()
+
+    if (def.requiresApproval) {
+      const { required, gate } = await this.gates.checkAndCreate(
+        'high', req.projectId, req.missionId, req.stepId,
+        `Specialist ${def.name} requires approval`, { type, task: req.task },
+      )
+      if (required && gate?.status === 'pending') {
+        return { id, type, missionId: req.missionId, stepId: req.stepId,
+          status: 'interrupted', iterations: 0, costUsd: 0,
+          output: { gateId: gate?.id, message: 'Awaiting approval' },
+          startedAt: new Date(), endedAt: new Date() }
+      }
+    }
+
+    const instance: SpecialistInstance = {
+      id, type, missionId: req.missionId, stepId: req.stepId,
+      status: 'running', iterations: 0, costUsd: 0, startedAt: new Date(),
+    }
+    this.instances.set(id, instance)
+    await this.runLoop(id, req, def)
+    return this.instances.get(id) ?? instance
+  }
+
   getStatus(id: string): SpecialistInstance | null {
     return this.instances.get(id) ?? null
   }
