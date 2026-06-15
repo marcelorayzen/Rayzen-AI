@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger, Optional } from '@nestjs/common'
 import { MissionService } from './mission.service'
 import { SpecialistService } from '../specialists/specialist.service'
 import { SpecialistAgentService } from '../specialist-agent/specialist-agent.service'
+import { EventsService } from '../gateway/events.service'
 import { SpecialistType } from '../specialists/specialist-registry'
 
 @Injectable()
@@ -12,6 +13,7 @@ export class StepExecutorService {
     private readonly missions:    MissionService,
     private readonly specialists: SpecialistService,
     private readonly agents:      SpecialistAgentService,
+    @Optional() private readonly events?: EventsService,
   ) {}
 
   /**
@@ -40,8 +42,9 @@ export class StepExecutorService {
 
     this.logger.log(`Running step "${step.title}" with specialist: ${specialistType}`)
 
-    // Mark step as running
+    // Mark step as running + push live update
     await this.missions.updateStep(missionId, stepId, { status: 'running' })
+    this.emitUpdate(missionId)
 
     // Spawn specialist and await completion
     const inst = await this.specialists.spawnAndWait({
@@ -64,6 +67,15 @@ export class StepExecutorService {
     })
 
     this.logger.log(`Step "${step.title}" finished: ${finalStatus} (${inst.iterations} iterations, $${inst.costUsd.toFixed(4)})`)
+
+    // Push live update to WebSocket clients
+    this.emitUpdate(missionId)
+
+    // Auto-chain: advance to next pending step if this one succeeded
+    if (finalStatus === 'done') {
+      this.runNext(missionId)
+    }
+
     return { status: finalStatus, output: inst.output }
   }
 
@@ -74,10 +86,26 @@ export class StepExecutorService {
   runNext(missionId: string): void {
     this.missions.findOne(missionId).then((mission) => {
       const next = mission.steps.find((s) => s.status === 'pending')
-      if (!next) return
+      if (!next) {
+        // All steps done — emit final mission state
+        this.emitUpdate(missionId)
+        return
+      }
       this.run(missionId, next.id).catch((e) =>
         this.logger.warn(`Auto-step execution failed for mission ${missionId}: ${e}`),
       )
+    }).catch(() => null)
+  }
+
+  private emitUpdate(missionId: string): void {
+    if (!this.events) return
+    this.missions.findOne(missionId).then((mission) => {
+      this.events!.missionUpdate(mission.projectId, {
+        id:     mission.id,
+        title:  mission.title,
+        status: mission.status,
+        steps:  mission.steps,
+      })
     }).catch(() => null)
   }
 }
