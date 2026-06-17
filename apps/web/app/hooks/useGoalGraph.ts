@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react'
 import { API_URL } from '../../lib/api-url'
 import { authHeaders } from '../../lib/api-client'
+import { toast } from '../components/toast'
 
 export interface SuccessCriteria { id: string; text: string; done: boolean }
 export interface PlanningNode { id: string; title: string; description?: string }
@@ -146,9 +147,14 @@ export function useGoalGraph(activeProjectId: string | null) {
       if (stateRes.ok) {
         const data = await stateRes.json() as { state?: ProjectState }
         if (data.state) setGraphStateData(data.state)
+      } else {
+        toast.error(`Falha ao carregar estado do projeto (${stateRes.status}).`)
       }
       if (goalRes.ok) setGraphGoalData(await goalRes.json() as GoalGraphData)
-    } catch { /* silencioso */ }
+      else toast.error(`Falha ao carregar goal graph (${goalRes.status}).`)
+    } catch {
+      toast.error('Falha ao carregar goal graph — verifique a conexão com a API.')
+    }
     finally { setGraphLoading(false) }
     if (sub === 'eventos') {
       setGraphEventLoading(true)
@@ -167,11 +173,17 @@ export function useGoalGraph(activeProjectId: string | null) {
     if (!activeProjectId) return
     setGraphStateRefreshing(true)
     try {
-      await fetch(`${API_URL}/projects/${activeProjectId}/state/refresh`, { method: 'POST', headers: authHeaders() })
+      const refreshRes = await fetch(`${API_URL}/projects/${activeProjectId}/state/refresh`, { method: 'POST', headers: authHeaders() })
+      if (!refreshRes.ok) {
+        toast.error(`Falha ao gerar estado (${refreshRes.status}) — LiteLLM pode estar indisponível.`)
+        return
+      }
       const res = await fetch(`${API_URL}/projects/${activeProjectId}/graph`, { headers: authHeaders() })
       const data = res.ok ? await res.json() as { state?: ProjectState } : null
       if (data?.state) setGraphStateData(data.state)
-    } catch { /* silencioso */ }
+    } catch {
+      toast.error('Falha ao gerar estado — verifique a conexão com a API.')
+    }
     finally { setGraphStateRefreshing(false) }
   }, [activeProjectId])
 
