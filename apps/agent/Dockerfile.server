@@ -18,7 +18,10 @@ RUN pnpm --filter agent build
 FROM node:20-slim AS runner
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends docker.io ca-certificates openssh-client \
+  && apt-get install -y --no-install-recommends docker.io ca-certificates openssh-client curl \
+  && mkdir -p /usr/libexec/docker/cli-plugins \
+  && curl -fsSL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 -o /usr/libexec/docker/cli-plugins/docker-compose \
+  && chmod +x /usr/libexec/docker/cli-plugins/docker-compose \
   && rm -rf /var/lib/apt/lists/*
 
 RUN corepack enable && corepack prepare pnpm@10.33.2 --activate
