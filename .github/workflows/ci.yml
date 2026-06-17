@@ -28,6 +28,9 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter api db:generate
 
+      - name: Generate Prisma client v2
+        run: pnpm --filter api-v2 db:generate
+
       - name: Type check
         run: pnpm typecheck
 
@@ -52,6 +55,9 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter api db:generate
 
+      - name: Generate Prisma client v2
+        run: pnpm --filter api-v2 db:generate
+
       - name: Lint
         run: pnpm lint
 
@@ -75,6 +81,9 @@ jobs:
 
       - name: Generate Prisma client
         run: pnpm --filter api db:generate
+
+      - name: Generate Prisma client v2
+        run: pnpm --filter api-v2 db:generate
 
       - name: Run unit tests with coverage
         run: pnpm --filter api test:cov
