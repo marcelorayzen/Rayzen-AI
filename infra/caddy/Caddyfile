@@ -1,4 +1,4 @@
-rayzen.com.br {
+http://rayzen.com.br {
 	handle /mcp* {
 		reverse_proxy mcp-http:3102
 	}
@@ -16,7 +16,7 @@ rayzen.com.br {
 	}
 }
 
-api.rayzen.com.br {
+http://api.rayzen.com.br {
 	handle /v2/* {
 		reverse_proxy api-v2:3002
 	}
