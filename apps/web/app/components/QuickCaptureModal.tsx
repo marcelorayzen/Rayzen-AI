@@ -34,8 +34,8 @@ export function QuickCaptureModal({
             <HelpTip title="O que é a captura rápida?" side="bottom">
               Registra decisões, ideias, problemas e referências no timeline do projeto. Fica visível no painel de Atividade e alimenta o contexto do Rayzen.
               <br /><br />
-              <strong>Decisão</strong> → registra como evento tipo "decision".<br />
-              <strong>Ideia / Problema / Referência</strong> → registra como "note" com intent.
+              <strong>Decisão</strong> → registra como evento tipo &quot;decision&quot;.<br />
+              <strong>Ideia / Problema / Referência</strong> → registra como &quot;note&quot; com intent.
             </HelpTip>
           </h2>
           <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300 text-xl leading-none">×</button>

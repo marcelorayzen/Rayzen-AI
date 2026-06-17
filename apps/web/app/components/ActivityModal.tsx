@@ -5,6 +5,19 @@ import type { ActivityEvent, MemoryClassFilter } from '../page'
 
 interface HookHealth { status: string; lastCliEvent: string | null }
 
+function hookLiveBadge(hookHealth: HookHealth) {
+  const ts = hookHealth.lastCliEvent ? new Date(hookHealth.lastCliEvent).getTime() : 0
+  const ageMin = ts ? Math.floor((Date.now() - ts) / 60000) : Infinity
+  const live = ageMin < 10
+  const ago = !ts ? 'sem eventos'
+    : ageMin < 1 ? 'agora'
+    : ageMin < 60 ? `há ${ageMin}min`
+    : ageMin < 1440 ? `há ${Math.floor(ageMin / 60)}h`
+    : `há ${Math.floor(ageMin / 1440)}d`
+  const color = live ? 'bg-emerald-500' : ageMin < 1440 ? 'bg-amber-500' : 'bg-red-500'
+  return { live, ago, color }
+}
+
 interface ActivityModalProps {
   activeProjectId: string | null
   projects: Project[]
@@ -32,15 +45,7 @@ export function ActivityModal({
               Atividade{activeProjectId && projects.find(p => p.id === activeProjectId) ? ` — ${projects.find(p => p.id === activeProjectId)!.name}` : ''}
             </h2>
             {activeProjectId && hookHealth && (() => {
-              const ts = hookHealth.lastCliEvent ? new Date(hookHealth.lastCliEvent).getTime() : 0
-              const ageMin = ts ? Math.floor((Date.now() - ts) / 60000) : Infinity
-              const live = ageMin < 10
-              const ago = !ts ? 'sem eventos'
-                : ageMin < 1 ? 'agora'
-                : ageMin < 60 ? `há ${ageMin}min`
-                : ageMin < 1440 ? `há ${Math.floor(ageMin / 60)}h`
-                : `há ${Math.floor(ageMin / 1440)}d`
-              const color = live ? 'bg-emerald-500' : ageMin < 1440 ? 'bg-amber-500' : 'bg-red-500'
+              const { live, ago, color } = hookLiveBadge(hookHealth)
               return (
                 <span
                   title={`Hook ${hookHealth.status} · último evento ${ago}`}

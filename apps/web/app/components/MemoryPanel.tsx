@@ -42,7 +42,7 @@ export function MemoryPanel({
               <HelpTip title="Brain / Memória" side="bottom">
                 Documentos indexados com embeddings (pgvector). A busca semântica alimenta o Context Broker.<br /><br />
                 <strong>Classes:</strong> inbox → working → consolidated → archive.<br />
-                <strong>Indexar mais fontes:</strong> use o botão "Indexar no Brain" ou importe pelo wizard de projeto.
+                <strong>Indexar mais fontes:</strong> use o botão &quot;Indexar no Brain&quot; ou importe pelo wizard de projeto.
               </HelpTip>
             </h2>
             {!memoryDocsLoading && (

@@ -40,11 +40,10 @@ const DOT: Record<ToastKind, string> = {
 }
 
 export function Toaster() {
-  const [items, setItems] = useState<ToastItem[]>([])
+  const [items, setItems] = useState<ToastItem[]>(() => toasts)
 
   useEffect(() => {
     listeners.add(setItems)
-    setItems(toasts)
     return () => { listeners.delete(setItems) }
   }, [])
 

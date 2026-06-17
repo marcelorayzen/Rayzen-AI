@@ -135,8 +135,8 @@ export default function MissionPage() {
             MISSIONS
             <HelpTip title="Missões V2" side="bottom">
               Missões são objetivos estruturados com steps planejados pelo Router V2.<br /><br />
-              <strong>Criar:</strong> clique em "+ nova missão" → descreva o objetivo em linguagem natural.<br />
-              <strong>Executar:</strong> acesse a missão e clique em "executar".<br />
+              <strong>Criar:</strong> clique em &quot;+ nova missão&quot; → descreva o objetivo em linguagem natural.<br />
+              <strong>Executar:</strong> acesse a missão e clique em &quot;executar&quot;.<br />
               <strong>Concluir:</strong> ao finalizar, gera síntese + atualiza o Brain automaticamente.
             </HelpTip>
           </span>
