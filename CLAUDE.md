@@ -29,7 +29,7 @@ Next.js 16 · NestJS 10 + Fastify · LiteLLM (proxy LLM) · PostgreSQL 16 + pgve
 rayzen-ai/
 ├── apps/
 │   ├── api/                    # NestJS V1 (28 módulos) · prisma/schema.prisma
-│   ├── api-v2/                 # NestJS V2 (19 módulos, schema v2)
+│   ├── api-v2/                 # NestJS V2 (26 módulos, schema v2)
 │   ├── web/                    # Next.js App Router
 │   └── agent/
 │       ├── src/

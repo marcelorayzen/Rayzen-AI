@@ -3,6 +3,7 @@ import { MissionService } from '../mission/mission.service'
 import { SkillEngineService } from '../skill-engine/skill-engine.service'
 import { AiRouterService } from '../ai-router/ai-router.service'
 import { SpecialistService } from '../specialists/specialist.service'
+import { ApprovalGatesService } from '../approval-gates/approval-gates.service'
 import { DocumentationEngineService, DocType } from '../documentation-engine/documentation-engine.service'
 
 type StepStatus = 'pending' | 'running' | 'done' | 'failed' | 'skipped'
@@ -54,26 +55,34 @@ export class WorkflowEngineService {
     private readonly skillEngine:  SkillEngineService,
     private readonly aiRouter:     AiRouterService,
     private readonly specialists:  SpecialistService,
+    private readonly gates:        ApprovalGatesService,
     private readonly docs:         DocumentationEngineService,
   ) {}
 
   // Execute all pending steps respecting DAG dependencies
   async execute(missionId: string, projectId: string): Promise<{ completed: number; failed: number; pending: number; docsGenerated: DocType[] }> {
     const mission = await this.missions.findOne(missionId)
-    if (!['pending', 'active'].includes(mission.status)) {
+    // 'paused' é aceito para permitir retomada após aprovação de gate
+    if (!['pending', 'active', 'paused'].includes(mission.status)) {
       return { completed: 0, failed: 0, pending: 0, docsGenerated: [] }
     }
 
-    if (mission.status === 'pending') {
-      await this.missions.transition(missionId, 'active')
+    if (mission.status === 'pending' || mission.status === 'paused') {
+      await this.missions.transition(missionId, 'active').catch(() => null)
     }
 
     const steps = mission.steps as Step[]
     const stats: { completed: number; failed: number; pending: number; docsGenerated: DocType[] } = { completed: 0, failed: 0, pending: 0, docsGenerated: [] }
 
-    // Topological sort — find steps that can run now
+    // Steps bloqueados por ApprovalGate pendente — não executam até aprovação.
+    const gatedStepIds = new Set(
+      (await this.gates.findPending(undefined, missionId)).map((g) => g.stepId).filter(Boolean) as string[],
+    )
+
+    // Topological sort — find steps that can run now (deps done E sem gate pendente)
     const canRun = (step: Step) => {
       if (step.status !== 'pending') return false
+      if (gatedStepIds.has(step.id)) return false
       return step.dependsOn.every((depId) => {
         const dep = steps.find((s) => s.id === depId)
         return dep?.status === 'done'
@@ -99,15 +108,20 @@ export class WorkflowEngineService {
 
     // Tally results
     const final = await this.missions.listSteps(missionId)
+    let blockedByGate = 0
     for (const s of final) {
       if      (s.status === 'done')    stats.completed++
       else if (s.status === 'failed')  stats.failed++
-      else if (s.status === 'pending') stats.pending++
+      else if (s.status === 'pending') { stats.pending++; if (gatedStepIds.has(s.id)) blockedByGate++ }
     }
 
     // Transition mission status
     if (stats.failed > 0) {
       await this.missions.transition(missionId, 'failed').catch(() => null)
+    } else if (blockedByGate > 0) {
+      // Há steps prontos mas travados em ApprovalGate — pausa aguardando aprovação
+      await this.missions.transition(missionId, 'paused').catch(() => null)
+      this.logger.log(`Mission ${missionId} pausada — ${blockedByGate} step(s) aguardando aprovação`)
     } else if (stats.pending === 0) {
       await this.missions.transition(missionId, 'done').catch(() => null)
       // Fire-and-forget: docs gerados em background após missão concluída
@@ -134,7 +148,7 @@ export class WorkflowEngineService {
 
     for (let attempt = 0; attempt <= retry.maxRetries; attempt++) {
       try {
-        const output = await this.runStepLogic(step, projectId, objective, allSteps)
+        const output = await this.runStepLogic(step, missionId, projectId, objective, allSteps)
         await this.missions.updateStep(missionId, step.id, { status: 'done', output })
         this.logger.debug(`Step ${step.title} done`)
         return
@@ -150,7 +164,7 @@ export class WorkflowEngineService {
     }
   }
 
-  private async runStepLogic(step: Step, projectId: string, objective: string, allSteps: Step[]): Promise<Record<string, unknown>> {
+  private async runStepLogic(step: Step, missionId: string, projectId: string, objective: string, allSteps: Step[]): Promise<Record<string, unknown>> {
     // Build context from previous steps' outputs
     const prevOutputs = step.dependsOn
       .map((id) => allSteps.find((s) => s.id === id))
@@ -163,7 +177,7 @@ export class WorkflowEngineService {
         skillId:   step.skillId,
         input:     step.input,
         projectId,
-        missionId: step.id,
+        missionId,
         stepId:    step.id,
       })
       if (!result.success) throw new Error(result.output['error'] as string ?? 'Skill failed')
@@ -177,7 +191,7 @@ export class WorkflowEngineService {
 
     const instance = await this.specialists.spawn({
       task,
-      missionId: step.id,
+      missionId,
       stepId:    step.id,
       projectId,
       context:   prevOutputs || undefined,
@@ -219,13 +233,12 @@ export class WorkflowEngineService {
       idMap.set(tStep.key, created.id)
     }
 
-    // Now patch dependsOn with real IDs
+    // Now patch dependsOn with real IDs (updateStep agora suporta dependsOn)
     for (const tStep of template) {
-      const realId  = idMap.get(tStep.key)!
+      const realId   = idMap.get(tStep.key)!
       const realDeps = tStep.dependsOn.map((k) => idMap.get(k)!).filter(Boolean)
       if (realDeps.length > 0) {
-        await this.missions.updateStep(missionId, realId, {})
-        // Direct Prisma update for dependsOn (not exposed in DTO)
+        await this.missions.updateStep(missionId, realId, { dependsOn: realDeps })
       }
     }
 

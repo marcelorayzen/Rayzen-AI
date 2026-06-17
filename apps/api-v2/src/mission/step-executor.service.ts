@@ -2,6 +2,7 @@ import { Injectable, Logger, Optional } from '@nestjs/common'
 import { MissionService } from './mission.service'
 import { SpecialistService } from '../specialists/specialist.service'
 import { SpecialistAgentService } from '../specialist-agent/specialist-agent.service'
+import { ApprovalGatesService } from '../approval-gates/approval-gates.service'
 import { EventsService } from '../gateway/events.service'
 import { SpecialistType } from '../specialists/specialist-registry'
 
@@ -13,6 +14,7 @@ export class StepExecutorService {
     private readonly missions:    MissionService,
     private readonly specialists: SpecialistService,
     private readonly agents:      SpecialistAgentService,
+    private readonly gates:       ApprovalGatesService,
     @Optional() private readonly events?: EventsService,
   ) {}
 
@@ -28,6 +30,18 @@ export class StepExecutorService {
     if (!step) throw new Error(`Step ${stepId} not found in mission ${missionId}`)
     if (step.status === 'done' || step.status === 'running') {
       return { status: step.status, output: step.output }
+    }
+
+    // Gate check — se há um ApprovalGate pendente para este step, pausa a missão
+    // em vez de executar. A retomada acontece em ApprovalGatesController.approve().
+    const pendingGate = (await this.gates.findPending(undefined, missionId)).find((g) => g.stepId === stepId)
+    if (pendingGate) {
+      if (mission.status === 'active') {
+        await this.missions.transition(missionId, 'paused').catch(() => null)
+      }
+      this.emitUpdate(missionId)
+      this.logger.log(`Step "${step.title}" bloqueado pelo gate ${pendingGate.id} — missão pausada aguardando aprovação`)
+      return { status: 'blocked', output: { gateId: pendingGate.id, reason: 'awaiting_approval' } }
     }
 
     // Resolve specialist type — prefer mission-level agent, fall back to step inference

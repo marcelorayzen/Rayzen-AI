@@ -28,6 +28,9 @@ export class ApprovalGatesService {
   constructor(private readonly prisma: PrismaV2Service) {}
 
   async create(dto: CreateGateDto) {
+    if (!dto.projectId?.trim()) {
+      throw new BadRequestException('ApprovalGate.create: projectId é obrigatório')
+    }
     const ttl = TTL[dto.riskLevel ?? 'high']
     return this.prisma.approvalGate.create({
       data: {

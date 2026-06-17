@@ -299,13 +299,13 @@ export class ConversationService {
       const r = route as Record<string, unknown>
       lines.push('')
       lines.push('## Resultado')
-      if (r.type) lines.push(`Tipo: ${r.type}`)
-      const payload = r.payload as Record<string, unknown> | undefined
-      if (payload?.missionId) lines.push(`Missão criada: ${payload.missionId}`)
-      if (payload?.stepsCount) lines.push(`Steps: ${payload.stepsCount}`)
-      if (payload?.gatesCreated) lines.push(`Gates criados: ${payload.gatesCreated}`)
+      if (r.intentType) lines.push(`Intenção: ${r.intentType}`)
+      if (r.routeTo) lines.push(`Roteado para: ${r.routeTo}`)
       if (typeof r.result === 'object' && r.result) {
         const res = r.result as Record<string, unknown>
+        if (res.missionId) lines.push(`Missão criada: ${res.missionId}`)
+        if (res.stepsCount) lines.push(`Steps: ${res.stepsCount}`)
+        if (res.gatesCreated) lines.push(`Gates criados: ${res.gatesCreated}`)
         if (res.answer) lines.push(`Resposta: ${String(res.answer).slice(0, 500)}`)
       }
     }

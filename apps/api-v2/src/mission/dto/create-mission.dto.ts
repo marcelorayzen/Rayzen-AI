@@ -70,4 +70,9 @@ export class UpdateMissionStepDto {
   @IsOptional()
   @IsString()
   status?: string
+
+  @ApiPropertyOptional({ description: 'IDs de steps que devem completar antes deste (DAG)' })
+  @IsOptional()
+  @IsArray()
+  dependsOn?: string[]
 }

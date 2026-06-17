@@ -1,4 +1,4 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
+﻿import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import {
   CallToolRequestSchema,
@@ -6,23 +6,52 @@ import {
 } from '@modelcontextprotocol/sdk/types.js'
 import { fileURLToPath, pathToFileURL } from 'url'
 import { dirname, join } from 'path'
+import { statSync } from 'fs'
 
 const __dir = dirname(fileURLToPath(import.meta.url))
-const cfgPath = pathToFileURL(join(__dir, '../hooks/hook.config.mjs')).href
-const { default: cfg } = await import(cfgPath)
+const CONFIG_PATH = join(__dir, '../hooks/hook.config.mjs')
 
-// Env vars take precedence — allows extract_from_client projects to inject credentials
-// via .claude/settings.json without needing a hook.config.mjs
-const apiUrl          = process.env.AGENT_API_URL  || cfg.apiUrl
-const apiToken        = process.env.AGENT_TOKEN    || cfg.apiToken
-const defaultProjectId = process.env.PROJECT_ID || process.env.MCP_PROJECT_ID || cfg.projectId
+// O processo MCP (stdio) é de longa duração — sobrevive a várias sessões do
+// Claude Code. Ler hook.config.mjs uma única vez no boot do processo causava
+// "projectId não definido" sempre que o arquivo era corrigido sem reiniciar
+// o processo (o fix nunca entrava em vigor até o próximo restart manual).
+// Em vez disso, recarregamos o config sempre que o mtime do arquivo mudar —
+// sem custo extra em chamadas subsequentes (apenas um stat() síncrono).
+let cachedConfig = null
+let cachedMtimeMs = -1
 
-function headers(extra = {}) {
-  return { Authorization: `Bearer ${apiToken}`, 'Content-Type': 'application/json', ...extra }
+async function loadConfig() {
+  let fileCfg = {}
+  try {
+    const { mtimeMs } = statSync(CONFIG_PATH)
+    if (cachedConfig && mtimeMs === cachedMtimeMs) return cachedConfig
+
+    // Query string com mtime invalida o cache de import() do Node para este
+    // arquivo, forçando reavaliação mesmo que o specifier base já tenha sido importado.
+    const fileUrl = `${pathToFileURL(CONFIG_PATH).href}?t=${mtimeMs}`
+    const mod = await import(fileUrl)
+    fileCfg = mod.default ?? {}
+    cachedMtimeMs = mtimeMs
+  } catch {
+    // hook.config.mjs ausente ou inválido — segue com env vars apenas
+  }
+
+  cachedConfig = {
+    apiUrl:    process.env.AGENT_API_URL ?? fileCfg.apiUrl,
+    apiToken:  process.env.AGENT_TOKEN   ?? fileCfg.apiToken,
+    projectId: process.env.PROJECT_ID ?? process.env.MCP_PROJECT_ID ?? fileCfg.projectId,
+  }
+  return cachedConfig
 }
 
-function resolveProjectId(args) {
-  const pid = args.projectId ?? defaultProjectId
+async function headers(extra = {}) {
+  const cfg = await loadConfig()
+  return { Authorization: `Bearer ${cfg.apiToken}`, 'Content-Type': 'application/json', ...extra }
+}
+
+async function resolveProjectId(args) {
+  const cfg = await loadConfig()
+  const pid = args.projectId ?? cfg.projectId
   if (!pid || !String(pid).trim()) {
     throw new Error(
       'projectId não definido. Configure projectId no hook.config.mjs ou informe projectId na tool MCP.',
@@ -32,9 +61,10 @@ function resolveProjectId(args) {
 }
 
 async function api(method, path, body) {
-  const res = await fetch(`${apiUrl}${path}`, {
+  const cfg = await loadConfig()
+  const res = await fetch(`${cfg.apiUrl}${path}`, {
     method,
-    headers: headers(),
+    headers: await headers(),
     body: body ? JSON.stringify(body) : undefined,
   })
   if (!res.ok) {
@@ -339,30 +369,30 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
 
     switch (name) {
       case 'rayzen_get_state':
-        result = await api('GET', `/projects/${pid()}/state`)
+        result = await api('GET', `/projects/${await pid()}/state`)
         break
 
       case 'rayzen_get_resume':
-        result = await api('POST', `/projects/${pid()}/resume`, {})
+        result = await api('POST', `/projects/${await pid()}/resume`, {})
         break
 
       case 'rayzen_get_events': {
         const limit = args.limit ?? 20
         const intent = args.intent ? `&intent=${args.intent}` : ''
-        result = await api('GET', `/events?project_id=${pid()}&limit=${limit}${intent}`)
+        result = await api('GET', `/events?project_id=${await pid()}&limit=${limit}${intent}`)
         break
       }
 
       case 'rayzen_search_memory':
         result = await api('POST', '/brain/search', {
           query: args.query,
-          projectId: pid(),
+          projectId: await pid(),
           limit: args.limit ?? 5,
         })
         break
 
       case 'rayzen_get_goal':
-        result = await api('GET', `/projects/${pid()}/graph/goal`)
+        result = await api('GET', `/projects/${await pid()}/graph/goal`)
         break
 
       case 'rayzen_capture_learning':
@@ -372,13 +402,13 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
           solution:  args.solution,
           type:      args.type,
           tags:      args.tags,
-          projectId: pid(),
+          projectId: await pid(),
         })
         break
 
       case 'rayzen_get_context':
         result = await api('POST', '/v2/context/build', {
-          projectId: pid(),
+          projectId: await pid(),
           mode: args.mode ?? 'implementation',
           query: args.query,
           maxTokens: args.maxTokens ?? 4000,
@@ -386,7 +416,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         break
 
       case 'rayzen_list_specialists':
-        result = await api('GET', `/v2/specialist-agents?projectId=${pid()}`)
+        result = await api('GET', `/v2/specialist-agents?projectId=${await pid()}`)
         break
 
       case 'rayzen_get_wiki':
@@ -397,7 +427,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         result = await api('POST', '/events/cli', {
           content: args.content,
           intent: args.intent,
-          projectId: pid(),
+          projectId: await pid(),
           source: 'claude-mcp',
           type: 'note',
         })
@@ -405,8 +435,8 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
 
       case 'rayzen_checkpoint': {
         const [checkpoint, goalProposals] = await Promise.all([
-          api('POST', '/synthesis/checkpoint', { projectId: pid(), sessionId: args.sessionId }),
-          api('POST', `/projects/${pid()}/graph/goal/propose-progress`, {}).catch(() => null),
+          api('POST', '/synthesis/checkpoint', { projectId: await pid(), sessionId: args.sessionId }),
+          api('POST', `/projects/${await pid()}/graph/goal/propose-progress`, {}).catch(() => null),
         ])
         result = { ...checkpoint }
         if (goalProposals?.proposals?.length) {
@@ -418,7 +448,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
             lines.push(`${badge} [${p.criteriaId}] ${p.text}`)
             lines.push(`   → ${p.reason}`)
           }
-          lines.push(`\nPara marcar: PATCH /projects/${pid()}/graph/goal/${goalProposals.goalId}/criteria/<criteriaId> com {"done":true}`)
+          lines.push(`\nPara marcar: PATCH /projects/${await pid()}/graph/goal/${goalProposals.goalId}/criteria/<criteriaId> com {"done":true}`)
           result._proposalsSummary = lines.join('\n')
         }
         break
@@ -429,13 +459,13 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         if (args.milestones) patch.milestones = args.milestones
         if (args.blockers) patch.blockers = args.blockers
         if (args.nextSteps) patch.nextSteps = args.nextSteps
-        result = await api('PATCH', `/projects/${pid()}/state/planning`, patch)
+        result = await api('PATCH', `/projects/${await pid()}/state/planning`, patch)
         break
       }
 
       case 'rayzen_blueprint_preview':
         result = await api('POST', '/blueprint/preview', {
-          projectId: pid(),
+          projectId: await pid(),
           title: args.title,
           content: args.content,
           format: args.format ?? 'markdown',
@@ -444,7 +474,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
 
       case 'rayzen_blueprint_import':
         result = await api('POST', '/blueprint/import', {
-          projectId: pid(),
+          projectId: await pid(),
           title: args.title,
           content: args.content,
           format: args.format ?? 'markdown',
@@ -463,7 +493,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
 
       case 'rayzen_blueprint_import_markdown':
         result = await api('POST', '/blueprint/import', {
-          projectId: pid(),
+          projectId: await pid(),
           title: args.title,
           content: args.markdown,
           format: 'markdown',
@@ -482,14 +512,14 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       case 'rayzen_blueprint_create_feature_plan': {
         const plan = await api('POST', '/blueprint/plan', {
           feature: args.feature,
-          projectId: args.projectId ?? defaultProjectId ?? undefined,
+          projectId: args.projectId ?? (await loadConfig()).projectId ?? undefined,
           context: args.context,
           mode: args.mode ?? 'implementation',
         })
 
         if (args.autoImport && plan?.markdown) {
           const importResult = await api('POST', '/blueprint/import', {
-            projectId: pid(),
+            projectId: await pid(),
             title: plan.title,
             content: plan.markdown,
             format: 'markdown',

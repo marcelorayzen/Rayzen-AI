@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { Injectable, NotFoundException, Logger } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { EventService } from '../event/event.service'
 import { BrainService } from '../brain/brain.service'
@@ -50,14 +50,18 @@ export interface CaptureLearningResult {
   title: string
   learningType: LearningType
   tags: string[]
-  documentId: string
+  documentId: string | null
   status: 'created' | 'updated'
+  /** Presente quando a indexação semântica falhou — a wiki page foi salva mas não reaparece em busca até reindexar. */
+  indexWarning?: string
 }
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 @Injectable()
 export class WikiService {
+  private readonly logger = new Logger(WikiService.name)
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly brain: BrainService,
@@ -317,22 +321,31 @@ export class WikiService {
     })
 
     // Índice semântico ESCOPADO por projeto (MemoryService grava project_id; BrainService não).
-    const indexed = await this.memory.indexDocument(
-      contentMd,
-      `learning/${slug}`,
-      { type: 'learning', learningType, tags, slug, groupKey: `learning/${slug}`, groupLabel: input.title },
-      input.projectId,
-    )
+    // A wiki page já está commitada acima; se a indexação (Jina) falhar, NÃO perdemos o
+    // aprendizado — degradamos com aviso visível para que possa ser reindexado depois.
+    let indexed: { id: string } | null = null
+    let indexWarning: string | undefined
+    try {
+      indexed = await this.indexLearningWithRetry(contentMd, slug, input.title, learningType, tags, input.projectId)
+    } catch (e) {
+      indexWarning = e instanceof Error ? e.message : String(e)
+      this.logger.warn(
+        `captureLearning: indexação semântica falhou para "${slug}" (projeto ${input.projectId ?? 'none'}). ` +
+        `A wiki page foi salva, mas NÃO reaparecerá em rayzen_get_context até reindexar. Causa: ${indexWarning}`,
+      )
+    }
 
-    await this.linkSources(page.id, [{ id: indexed.id, score: 1 }])
+    if (indexed) {
+      await this.linkSources(page.id, [{ id: indexed.id, score: 1 }])
+    }
 
     this.eventService.create({
       projectId: input.projectId,
       source: 'brain',
       type: 'decision',
       intent: 'decision',
-      content: `Aprendizado capturado (${learningType}): ${input.title}`,
-      metadata: { slug, learningType, tags, documentId: indexed.id },
+      content: `Aprendizado capturado (${learningType}): ${input.title}${indexWarning ? ' [indexação pendente]' : ''}`,
+      metadata: { slug, learningType, tags, documentId: indexed?.id ?? null, indexWarning },
     }).catch(() => null)
 
     await this.cache.del(`wiki:${slug}`)
@@ -343,9 +356,37 @@ export class WikiService {
       title: input.title,
       learningType,
       tags,
-      documentId: indexed.id,
+      documentId: indexed?.id ?? null,
       status: existing ? 'updated' : 'created',
+      ...(indexWarning ? { indexWarning } : {}),
     }
+  }
+
+  /** Indexa um aprendizado no Brain com 1 retry para blips transitórios do Jina. */
+  private async indexLearningWithRetry(
+    contentMd: string,
+    slug: string,
+    title: string,
+    learningType: LearningType,
+    tags: string[],
+    projectId?: string,
+    attempts = 2,
+  ): Promise<{ id: string }> {
+    let lastErr: unknown
+    for (let i = 0; i < attempts; i++) {
+      try {
+        return await this.memory.indexDocument(
+          contentMd,
+          `learning/${slug}`,
+          { type: 'learning', learningType, tags, slug, groupKey: `learning/${slug}`, groupLabel: title },
+          projectId,
+        )
+      } catch (e) {
+        lastErr = e
+        if (i < attempts - 1) await new Promise((r) => setTimeout(r, 400))
+      }
+    }
+    throw lastErr
   }
 
   // ─── Update (human edit) ─────────────────────────────────────────────────────

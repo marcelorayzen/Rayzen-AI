@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { V2_URL } from '../../../lib/api-url'
 import { authHeaders } from '../../../lib/api-client'
+import { useRayzenEvents } from '../../hooks/useRayzenEvents'
 
 type MissionStatus = 'pending' | 'active' | 'paused' | 'done' | 'failed' | 'cancelled'
 type StepStatus    = 'pending' | 'running' | 'done' | 'failed' | 'skipped'
@@ -33,6 +34,40 @@ interface Mission {
   completedAt: string | null
   updatedAt: string
   steps: MissionStep[]
+  context?: { _contract?: IntentContractSummary } & Record<string, unknown>
+}
+
+interface IntentContractSummary {
+  intentType?: string
+  confidence?: number
+  riskLevel?: 'low' | 'medium' | 'high'
+  successCriteria?: string[]
+  reasoning?: string
+}
+
+const RISK_COLOR: Record<string, string> = {
+  low:    '#22c55e',
+  medium: '#facc15',
+  high:   '#ef4444',
+}
+
+interface ApprovalGate {
+  id: string
+  missionId: string | null
+  stepId: string | null
+  type: string
+  description: string
+  status: string
+  createdAt: string
+  expiresAt: string | null
+}
+
+const GATE_RISK_LABEL: Record<string, string> = {
+  irreversible: 'alto risco',
+  data_write:   'risco médio',
+  code_deploy:  'deploy',
+  external_api: 'API externa',
+  high_cost:    'alto custo',
 }
 
 const STATUS_COLOR: Record<string, string> = {
@@ -78,30 +113,65 @@ export default function MissionDetailPage() {
   const id = params.id
 
   const [mission, setMission] = useState<Mission | null>(null)
+  const [gates, setGates]     = useState<ApprovalGate[]>([])
   const [loading, setLoading] = useState(true)
   const [acting, setActing]   = useState<string | null>(null)
   const [note, setNote]       = useState<string | null>(null)
+
+  const loadGates = useCallback(async () => {
+    try {
+      const res = await fetch(`${V2_URL}/approvals/pending?missionId=${id}`, { headers: authHeaders() })
+      if (res.ok) setGates(await res.json() as ApprovalGate[])
+    } catch { /* informativo — não bloqueia a página */ }
+  }, [id])
 
   const load = useCallback(async () => {
     try {
       const res = await fetch(`${V2_URL}/missions/${id}`, { headers: authHeaders() })
       if (res.ok) setMission(await res.json() as Mission)
       else setNote(`Missão não encontrada (HTTP ${res.status})`)
+      await loadGates()
     } finally {
       setLoading(false)
     }
-  }, [id])
+  }, [id, loadGates])
 
   useEffect(() => {
     void load()
   }, [load])
 
-  // poll while active
+  // poll while active or paused (gates de aprovação aparecem quando pausada)
   useEffect(() => {
-    if (!mission || mission.status !== 'active') return
+    if (!mission || (mission.status !== 'active' && mission.status !== 'paused')) return
     const t = setInterval(() => void load(), 3000)
     return () => clearInterval(t)
   }, [mission, load])
+
+  // WebSocket: atualização em tempo quase-real quando o gateway estiver acessível
+  // (aditivo — o polling acima continua como fallback se o WS não conectar)
+  useRayzenEvents(mission?.projectId ?? null, (e) => {
+    if (e.type === 'mission_update' || e.type === 'approval_gate') void load()
+  })
+
+  const decideGate = async (gateId: string, decision: 'approve' | 'reject') => {
+    if (acting) return
+    setActing(`gate-${gateId}-${decision}`)
+    setNote(null)
+    try {
+      const res = await fetch(`${V2_URL}/approvals/${gateId}/${decision}`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ approvedBy: 'Marcelo' }),
+      })
+      if (!res.ok) { setNote(`Erro ao ${decision === 'approve' ? 'aprovar' : 'rejeitar'} (HTTP ${res.status})`); return }
+      // approve re-roda o DAG no backend; reject pausa — recarrega para refletir
+      await load()
+    } catch (err) {
+      setNote(err instanceof Error ? err.message : 'falha na decisão do gate')
+    } finally {
+      setActing(null)
+    }
+  }
 
   const action = async (endpoint: string, label: string, body?: Record<string, unknown>) => {
     if (acting) return
@@ -155,6 +225,8 @@ export default function MissionDetailPage() {
 
   const statusColor = STATUS_COLOR[mission.status]
   const totalTime   = elapsed(mission.startedAt, mission.completedAt)
+  const gatedStepIds = new Set(gates.map((g) => g.stepId).filter(Boolean) as string[])
+  const contract = mission.context?._contract
   const doneSteps   = mission.steps.filter((s) => s.status === 'done' || s.status === 'skipped').length
   const pct         = mission.steps.length ? Math.round((doneSteps / mission.steps.length) * 100) : 0
 
@@ -248,6 +320,66 @@ export default function MissionDetailPage() {
         {note && <div style={{ color: '#ef4444', fontSize: 12 }}>{note}</div>}
       </div>
 
+      {/* IntentContract — rastreabilidade (intenção classificada, risco, critérios de sucesso) */}
+      {contract && (
+        <div className="hud-card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--hud-dim)' }}>Intent Contract</span>
+            {contract.intentType && (
+              <span style={{ padding: '2px 7px', borderRadius: 4, background: 'var(--hud-cyan-10)', border: '1px solid var(--hud-cyan-20)' }}>{contract.intentType}</span>
+            )}
+            {contract.riskLevel && (
+              <span style={{ padding: '2px 7px', borderRadius: 4, border: `1px solid ${RISK_COLOR[contract.riskLevel]}`, color: RISK_COLOR[contract.riskLevel] }}>
+                risco {contract.riskLevel}
+              </span>
+            )}
+            {typeof contract.confidence === 'number' && (
+              <span style={{ color: 'var(--hud-dim)' }}>confiança {Math.round(contract.confidence * 100)}%</span>
+            )}
+          </div>
+          {contract.reasoning && <div style={{ color: 'var(--hud-text-2)', lineHeight: 1.5 }}>{contract.reasoning}</div>}
+          {contract.successCriteria && contract.successCriteria.length > 0 && (
+            <div>
+              <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--hud-dim)', marginBottom: 4 }}>Critérios de sucesso</div>
+              <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                {contract.successCriteria.map((c, i) => (
+                  <li key={i} style={{ color: 'var(--hud-text-2)' }}>{c}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Approval gates pendentes — aprovar retoma a missão (gate→resume) */}
+      {gates.length > 0 && (
+        <div className="hud-card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8, border: '1px solid #facc15' }}>
+          <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: '#facc15' }}>
+            Aprovações pendentes ({gates.length})
+          </div>
+          {gates.map((g) => {
+            const gatedStep = mission.steps.find((s) => s.id === g.stepId)
+            return (
+              <div key={g.id} style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 8, borderTop: '1px solid var(--hud-border)' }}>
+                <div style={{ fontSize: 13 }}>{g.description}</div>
+                <div style={{ display: 'flex', gap: 10, fontSize: 11, color: 'var(--hud-dim)' }}>
+                  <span style={{ color: g.type === 'irreversible' ? '#ef4444' : '#facc15' }}>{GATE_RISK_LABEL[g.type] ?? g.type}</span>
+                  {gatedStep && <span>step: {gatedStep.title}</span>}
+                </div>
+                <div style={{ display: 'flex', gap: 8, paddingTop: 2 }}>
+                  <button className="hud-btn hud-btn-primary" onClick={() => void decideGate(g.id, 'approve')} disabled={!!acting}>
+                    {acting === `gate-${g.id}-approve` ? 'aprovando…' : 'aprovar e retomar'}
+                  </button>
+                  <button className="hud-btn" style={{ color: '#ef4444' }} onClick={() => void decideGate(g.id, 'reject')} disabled={!!acting}>
+                    {acting === `gate-${g.id}-reject` ? 'rejeitando…' : 'rejeitar'}
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
       {/* Steps timeline */}
       {mission.steps.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -282,6 +414,7 @@ export default function MissionDetailPage() {
                     <span>{step.executor}</span>
                     {step.skillId && <span>skill:{step.skillId}</span>}
                     {dur && <span>⏱ {dur}</span>}
+                    {gatedStepIds.has(step.id) && <span style={{ color: '#facc15' }}>🔒 aguardando aprovação</span>}
                   </div>
                 </div>
 

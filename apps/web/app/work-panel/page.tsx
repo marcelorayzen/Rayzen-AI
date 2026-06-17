@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import { API_URL, V2_URL } from '../../lib/api-url'
 import { authHeaders } from '../../lib/api-client'
 import { ContextBadge } from './components/ContextBadge'
+import { HealthBadge } from './components/HealthBadge'
 import { ApprovalCard } from './components/ApprovalCard'
 import { useVoiceInput } from '../hooks/useVoiceInput'
 import { HelpTip } from '../components/HelpTip'
@@ -38,10 +39,9 @@ interface ChatMessageResponse {
 }
 
 interface RouteResult {
-  type: 'mission' | 'skill' | 'ai' | 'clarification'
+  routeTo: 'mission' | 'skill' | 'ai' | 'clarification'
   reasoning: string
-  payload: { missionId?: string; note?: string; question?: string }
-  result?: Mission | { answer?: string }
+  result?: { mission?: Mission; stepsCount?: number; answer?: string; note?: string; question?: string }
 }
 
 interface ExecuteResponse {
@@ -190,13 +190,13 @@ export default function WorkPanelPage() {
       if (!res.ok) { setNote(`Erro ao executar (HTTP ${res.status})`); return }
       const data = await res.json() as ExecuteResponse
       const route = data.route
-      if (route.type === 'mission' && route.result && 'steps' in route.result) {
-        setMission(route.result)
-        setFeed((f) => [...f, { role: 'assistant', content: `Missão criada com ${route.result && 'steps' in route.result ? route.result.steps.length : 0} etapas. Contexto comprimido: ≈${data.contextPreview.estimatedTokens} tokens.` }])
-      } else if (route.type === 'ai' && route.result && 'answer' in route.result) {
-        setFeed((f) => [...f, { role: 'assistant', content: route.result && 'answer' in route.result ? (route.result.answer ?? '') : '' }])
+      if (route.routeTo === 'mission' && route.result?.mission) {
+        setMission(route.result.mission)
+        setFeed((f) => [...f, { role: 'assistant', content: `Missão criada com ${route.result?.mission?.steps.length ?? 0} etapas. Contexto comprimido: ≈${data.contextPreview.estimatedTokens} tokens.` }])
+      } else if (route.routeTo === 'ai' && route.result?.answer) {
+        setFeed((f) => [...f, { role: 'assistant', content: route.result?.answer ?? '' }])
       } else {
-        setFeed((f) => [...f, { role: 'assistant', content: route.payload.question ?? route.payload.note ?? route.reasoning }])
+        setFeed((f) => [...f, { role: 'assistant', content: route.result?.question ?? route.result?.note ?? route.reasoning }])
       }
       setReadyToExecute(false)
     } catch (e) {
@@ -322,7 +322,8 @@ export default function WorkPanelPage() {
             {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <HealthBadge />
           <Link href="/discovery" className="hud-btn" style={{ fontSize: 12 }}>+ novo projeto</Link>
           <Link href="/" className="hud-btn" style={{ fontSize: 12 }}>← painel</Link>
         </div>

@@ -1,6 +1,11 @@
 # api-v2 — Estado de congelamento
 
-> Decisão: 2026-06-11 — Executor autônomo de missões congelado; Rayzen passa a ser cérebro de
+> ⚠️ **OBSOLETO (2026-06-16).** O executor foi **reativado**. O "Ciclo 2" (auto-chain de steps +
+> WebSocket + Specialist dispatch) já tinha religado o loop na prática, e os endpoints `execute`
+> **não** retornam mais `410 Gone` — estão vivos. Mantido só por histórico. Estado atual e roadmap
+> de reativação: memória NORTE `[[project-rayzen-definition]]` e `.claude/plans/`.
+
+> Decisão original: 2026-06-11 — Executor autônomo de missões congelado; Rayzen passa a ser cérebro de
 > memória/QA que alimenta o Claude Code.
 
 ## Congelado (dormente — não desenvolver)

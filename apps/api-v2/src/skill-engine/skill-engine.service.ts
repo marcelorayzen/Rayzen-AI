@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common'
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common'
 import { ApprovalGatesService } from '../approval-gates/approval-gates.service'
 import { SkillRegistryService } from './skill-registry.service'
 
@@ -37,9 +37,12 @@ export class SkillEngineService {
 
     // Approval gate para skills de risco medium/high em contexto de missão
     if ((skill.risk === 'high' || skill.risk === 'medium') && !req.dryRun && req.missionId && req.stepId) {
+      if (!req.projectId?.trim()) {
+        throw new BadRequestException(`Skill '${req.skillId}' (risco ${skill.risk}) requer projectId para criar o gate de aprovação`)
+      }
       const { required, gate } = await this.gates.checkAndCreate(
         skill.risk,
-        req.projectId ?? '',
+        req.projectId,
         req.missionId,
         req.stepId,
         `Skill ${skill.name} requires approval (risk: ${skill.risk})`,

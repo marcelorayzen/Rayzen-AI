@@ -17,12 +17,17 @@ function shouldUseLocalDefault(): boolean {
   return host === 'localhost' || host === '127.0.0.1' || host === '::1'
 }
 
+// Cache em memória — getApiUrl() é chamado em toda coerção de API_URL/V2_URL (cada fetch).
+// Ler localStorage a cada chamada era desperdício; invalidamos só quando setApiUrl muda.
+let cachedApiUrl: string | null = null
+
 export function getApiUrl(): string {
   if (typeof window === 'undefined') return normalizeApiUrl(DEFAULT_API_URL)
+  if (cachedApiUrl !== null) return cachedApiUrl
 
   const stored = window.localStorage.getItem(API_URL_STORAGE_KEY)
-  if (stored && stored.trim()) return normalizeApiUrl(stored)
-  return normalizeApiUrl(DEFAULT_API_URL)
+  cachedApiUrl = (stored && stored.trim()) ? normalizeApiUrl(stored) : normalizeApiUrl(DEFAULT_API_URL)
+  return cachedApiUrl
 }
 
 export function setApiUrl(value: string): string {
@@ -30,6 +35,7 @@ export function setApiUrl(value: string): string {
   if (typeof window !== 'undefined') {
     window.localStorage.setItem(API_URL_STORAGE_KEY, normalized)
   }
+  cachedApiUrl = normalized
   return normalized
 }
 

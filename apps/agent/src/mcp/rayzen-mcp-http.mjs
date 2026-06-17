@@ -20,17 +20,46 @@ import {
 } from '@modelcontextprotocol/sdk/types.js'
 import { createServer } from 'node:http'
 import { randomUUID } from 'node:crypto'
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
-const API_URL             = process.env.AGENT_API_URL       ?? 'http://api:3001'
-const API_TOKEN           = process.env.AGENT_TOKEN         ?? ''
 const MCP_PORT            = Number(process.env.MCP_PORT     ?? 3102)
-const DEFAULT_PID         = process.env.MCP_PROJECT_ID      ?? ''
 const ADMIN_PASSWORD      = process.env.ADMIN_PASSWORD      ?? ''
 const OAUTH_CLIENT_ID     = process.env.OAUTH_CLIENT_ID     ?? 'claude-ai'
 const OAUTH_CLIENT_SECRET = process.env.OAUTH_CLIENT_SECRET ?? ''
 const MCP_BASE_URL        = (process.env.MCP_BASE_URL       ?? 'https://rayzen.com.br').replace(/\/$/, '')
+
+// ── Config resolvido sob demanda (paridade com rayzen-mcp.mjs stdio) ──────────
+// Env vars têm prioridade (deploy Docker 12-factor — atualiza via restart do
+// container). Se hook.config.mjs existir (execução local ou volume montado), é
+// recarregado quando o mtime muda — sem custo extra (apenas um stat() síncrono).
+const __dir = dirname(fileURLToPath(import.meta.url))
+const CONFIG_PATH = join(__dir, '../hooks/hook.config.mjs')
+
+let cachedConfig = null
+let cachedMtimeMs = -1
+
+async function loadConfig() {
+  let fileCfg = {}
+  try {
+    const { mtimeMs } = statSync(CONFIG_PATH)
+    if (cachedConfig && mtimeMs === cachedMtimeMs) return cachedConfig
+    const fileUrl = `${pathToFileURL(CONFIG_PATH).href}?t=${mtimeMs}`
+    const mod = await import(fileUrl)
+    fileCfg = mod.default ?? {}
+    cachedMtimeMs = mtimeMs
+  } catch {
+    // hook.config.mjs ausente (caso Docker) ou inválido — usa só env vars
+    if (cachedConfig) return cachedConfig
+  }
+  cachedConfig = {
+    apiUrl:    process.env.AGENT_API_URL  || fileCfg.apiUrl    || 'http://api:3001',
+    apiToken:  process.env.AGENT_TOKEN    || fileCfg.apiToken  || '',
+    projectId: process.env.MCP_PROJECT_ID || fileCfg.projectId || '',
+  }
+  return cachedConfig
+}
 
 // ── Token persistence ────────────────────────────────────────────────────────
 const TOKEN_FILE = join('/app/storage/mcp', 'tokens.json')
@@ -85,14 +114,16 @@ function isValidToken(token) {
 
 // ── Rayzen API helper ────────────────────────────────────────────────────────
 
-function apiHeaders() {
-  return { Authorization: `Bearer ${API_TOKEN}`, 'Content-Type': 'application/json' }
+async function apiHeaders() {
+  const cfg = await loadConfig()
+  return { Authorization: `Bearer ${cfg.apiToken}`, 'Content-Type': 'application/json' }
 }
 
 async function api(method, path, body) {
-  const res = await fetch(`${API_URL}${path}`, {
+  const cfg = await loadConfig()
+  const res = await fetch(`${cfg.apiUrl}${path}`, {
     method,
-    headers: apiHeaders(),
+    headers: await apiHeaders(),
     body: body ? JSON.stringify(body) : undefined,
   })
   if (!res.ok) {
@@ -102,8 +133,9 @@ async function api(method, path, body) {
   return res.json().catch(() => null)
 }
 
-function resolveProjectId(args) {
-  const pid = args.projectId ?? DEFAULT_PID
+async function resolveProjectId(args) {
+  const cfg = await loadConfig()
+  const pid = args.projectId ?? cfg.projectId
   if (!pid || !String(pid).trim()) {
     throw new Error(
       'projectId não definido. Informe projectId na chamada ou defina MCP_PROJECT_ID no ambiente.',
@@ -368,30 +400,30 @@ function createMcpServer() {
 
       switch (name) {
         case 'rayzen_get_state':
-          result = await api('GET', `/projects/${pid()}/state`)
+          result = await api('GET', `/projects/${await pid()}/state`)
           break
 
         case 'rayzen_get_resume':
-          result = await api('POST', `/projects/${pid()}/resume`, {})
+          result = await api('POST', `/projects/${await pid()}/resume`, {})
           break
 
         case 'rayzen_get_events': {
           const limit = args.limit ?? 20
           const intent = args.intent ? `&intent=${args.intent}` : ''
-          result = await api('GET', `/events?project_id=${pid()}&limit=${limit}${intent}`)
+          result = await api('GET', `/events?project_id=${await pid()}&limit=${limit}${intent}`)
           break
         }
 
         case 'rayzen_search_memory':
           result = await api('POST', '/brain/search', {
             query: args.query,
-            projectId: pid(),
+            projectId: await pid(),
             limit: args.limit ?? 5,
           })
           break
 
         case 'rayzen_get_goal':
-          result = await api('GET', `/projects/${pid()}/graph/goal`)
+          result = await api('GET', `/projects/${await pid()}/graph/goal`)
           break
 
         case 'rayzen_capture_learning':
@@ -401,13 +433,13 @@ function createMcpServer() {
             solution:  args.solution,
             type:      args.type,
             tags:      args.tags,
-            projectId: pid(),
+            projectId: await pid(),
           })
           break
 
         case 'rayzen_get_context':
           result = await api('POST', '/v2/context/build', {
-            projectId: pid(),
+            projectId: await pid(),
             mode: args.mode ?? 'implementation',
             query: args.query,
             maxTokens: args.maxTokens ?? 4000,
@@ -422,7 +454,7 @@ function createMcpServer() {
           result = await api('POST', '/events/cli', {
             content: args.content,
             intent: args.intent,
-            projectId: pid(),
+            projectId: await pid(),
             source: 'claude-desktop-mcp',
             type: 'note',
           })
@@ -430,8 +462,8 @@ function createMcpServer() {
 
         case 'rayzen_checkpoint': {
           const [checkpoint, goalProposals] = await Promise.all([
-            api('POST', '/synthesis/checkpoint', { projectId: pid(), sessionId: args.sessionId }),
-            api('POST', `/projects/${pid()}/graph/goal/propose-progress`, {}).catch(() => null),
+            api('POST', '/synthesis/checkpoint', { projectId: await pid(), sessionId: args.sessionId }),
+            api('POST', `/projects/${await pid()}/graph/goal/propose-progress`, {}).catch(() => null),
           ])
           result = { ...checkpoint }
           if (goalProposals?.proposals?.length) {
@@ -443,7 +475,7 @@ function createMcpServer() {
               lines.push(`${badge} [${p.criteriaId}] ${p.text}`)
               lines.push(`   → ${p.reason}`)
             }
-            lines.push(`\nPara marcar: PATCH /projects/${pid()}/graph/goal/${goalProposals.goalId}/criteria/<criteriaId> com {"done":true}`)
+            lines.push(`\nPara marcar: PATCH /projects/${await pid()}/graph/goal/${goalProposals.goalId}/criteria/<criteriaId> com {"done":true}`)
             result._proposalsSummary = lines.join('\n')
           }
           break
@@ -454,13 +486,13 @@ function createMcpServer() {
           if (args.milestones) patch.milestones = args.milestones
           if (args.blockers) patch.blockers = args.blockers
           if (args.nextSteps) patch.nextSteps = args.nextSteps
-          result = await api('PATCH', `/projects/${pid()}/state/planning`, patch)
+          result = await api('PATCH', `/projects/${await pid()}/state/planning`, patch)
           break
         }
 
         case 'rayzen_blueprint_preview':
           result = await api('POST', '/blueprint/preview', {
-            projectId: pid(),
+            projectId: await pid(),
             title: args.title,
             content: args.content,
             format: args.format ?? 'markdown',
@@ -469,7 +501,7 @@ function createMcpServer() {
 
         case 'rayzen_blueprint_import':
           result = await api('POST', '/blueprint/import', {
-            projectId: pid(),
+            projectId: await pid(),
             title: args.title,
             content: args.content,
             format: args.format ?? 'markdown',
@@ -488,7 +520,7 @@ function createMcpServer() {
 
         case 'rayzen_blueprint_import_markdown':
           result = await api('POST', '/blueprint/import', {
-            projectId: pid(),
+            projectId: await pid(),
             title: args.title,
             content: args.markdown,
             format: 'markdown',
@@ -507,13 +539,13 @@ function createMcpServer() {
         case 'rayzen_blueprint_create_feature_plan': {
           const plan = await api('POST', '/blueprint/plan', {
             feature: args.feature,
-            projectId: args.projectId ?? DEFAULT_PID ?? undefined,
+            projectId: args.projectId ?? (await loadConfig()).projectId ?? undefined,
             context: args.context,
             mode: args.mode ?? 'implementation',
           })
           if (args.autoImport && plan?.markdown) {
             const importResult = await api('POST', '/blueprint/import', {
-              projectId: pid(),
+              projectId: await pid(),
               title: plan.title,
               content: plan.markdown,
               format: 'markdown',
@@ -536,7 +568,7 @@ function createMcpServer() {
         }
 
         case 'rayzen_list_specialists':
-          result = await api('GET', `/v2/specialist-agents?projectId=${pid()}`)
+          result = await api('GET', `/v2/specialist-agents?projectId=${await pid()}`)
           break
 
         case 'rayzen_agent_task': {
@@ -844,11 +876,12 @@ const httpServer = createServer(async (req, res) => {
   res.end('Method not allowed')
 })
 
-httpServer.listen(MCP_PORT, () => {
+httpServer.listen(MCP_PORT, async () => {
+  const cfg = await loadConfig()
   console.log(`[rayzen-mcp-http] listening on port ${MCP_PORT}`)
-  console.log(`[rayzen-mcp-http] API_URL: ${API_URL}`)
+  console.log(`[rayzen-mcp-http] API_URL: ${cfg.apiUrl}`)
   console.log(`[rayzen-mcp-http] auth: OAuth 2.0 (client_id=${OAUTH_CLIENT_ID})`)
-  console.log(`[rayzen-mcp-http] default projectId: ${DEFAULT_PID || '(none — must pass in each call)'}`)
+  console.log(`[rayzen-mcp-http] default projectId: ${cfg.projectId || '(none — must pass in each call)'}`)
 })
 
 // Defesa em profundidade: nenhum erro inesperado deve derrubar o servidor MCP.

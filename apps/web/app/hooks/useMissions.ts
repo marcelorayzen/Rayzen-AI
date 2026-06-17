@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { V2_URL } from '../../lib/api-url'
 import { authHeaders } from '../../lib/api-client'
+import { toast } from '../components/toast'
 
 export type MissionStatus = 'pending' | 'active' | 'paused' | 'done' | 'failed' | 'cancelled'
 export type StepStatus = 'pending' | 'running' | 'done' | 'failed' | 'skipped'
@@ -36,13 +37,12 @@ export interface Mission {
   steps: MissionStep[]
 }
 
-// Resposta do POST /v2/route — para missões, `result` traz a Mission com steps
+// Resposta do POST /v2/route — IntentContract + `result` (para missões, traz missionId/mission com steps)
 interface RouteResponse {
-  type: 'mission' | 'skill' | 'ai' | 'clarification'
+  routeTo: 'mission' | 'skill' | 'ai' | 'clarification'
   confidence: number
   reasoning: string
-  payload: { missionId?: string; stepsCount?: number; question?: string; note?: string }
-  result?: Mission | { answer?: string }
+  result?: { missionId?: string; stepsCount?: number; mission?: Mission; question?: string; note?: string; answer?: string }
 }
 
 const ACTIVE: MissionStatus = 'active'
@@ -67,7 +67,8 @@ export function useMissions(activeProjectId: string | null) {
     try {
       const res = await fetch(`${V2_URL}/missions?projectId=${activeProjectId}`, { headers: authHeaders() })
       if (res.ok) setMissions(await res.json() as Mission[])
-    } catch { /* silencioso */ }
+      else toast.error(`Falha ao carregar missões (HTTP ${res.status})`)
+    } catch { toast.error('Falha ao carregar missões — verifique a conexão') }
     finally { setMissionsLoading(false) }
   }, [activeProjectId])
 
@@ -105,15 +106,19 @@ export function useMissions(activeProjectId: string | null) {
       })
       if (!res.ok) {
         const err = await res.json().catch(() => null) as { message?: string } | null
-        setRouteNote(err?.message ?? `HTTP ${res.status}`)
+        const msg = err?.message ?? `HTTP ${res.status}`
+        setRouteNote(msg)
+        toast.error(`Não foi possível criar a missão: ${msg}`)
         return
       }
       const data = await res.json() as RouteResponse
       await loadMissions()
-      const newId = data.payload?.missionId
+      const newId = data.result?.missionId
       if (newId) await loadMissionDetail(newId)
     } catch (e) {
-      setRouteNote(e instanceof Error ? e.message : 'falha ao criar missão')
+      const msg = e instanceof Error ? e.message : 'falha ao criar missão'
+      setRouteNote(msg)
+      toast.error(msg)
     } finally { setCreating(false) }
   }, [activeProjectId, loadMissions, loadMissionDetail])
 
@@ -151,10 +156,14 @@ export function useMissions(activeProjectId: string | null) {
       })
       if (!res.ok) {
         const err = await res.json().catch(() => null) as { message?: string } | null
-        setRouteNote(err?.message ?? `Execução falhou (HTTP ${res.status})`)
+        const msg = err?.message ?? `Execução falhou (HTTP ${res.status})`
+        setRouteNote(msg)
+        toast.error(msg)
       }
     } catch (e) {
-      setRouteNote(e instanceof Error ? e.message : 'falha ao executar missão')
+      const msg = e instanceof Error ? e.message : 'falha ao executar missão'
+      setRouteNote(msg)
+      toast.error(msg)
     } finally {
       setExecuting(false)
       await loadMissionDetail(id, { silent: true })

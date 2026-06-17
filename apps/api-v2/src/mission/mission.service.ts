@@ -103,6 +103,7 @@ export class MissionService {
 
     const data: Record<string, unknown> = {}
     if (dto.output !== undefined) data.output = j(dto.output)
+    if (dto.dependsOn !== undefined) data.dependsOn = dto.dependsOn
     if (dto.status !== undefined) {
       data.status = dto.status
       if (dto.status === 'running' && !step.startedAt)        data.startedAt   = new Date()

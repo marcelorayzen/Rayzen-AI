@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { API_URL } from '../../lib/api-url'
 import { authHeaders } from '../../lib/api-client'
+import { toast } from '../components/toast'
 
 export interface Project {
   id: string
@@ -74,7 +75,7 @@ export function useProjects() {
     fetch(`${API_URL}/projects`, { headers: authHeaders() })
       .then(r => r.json())
       .then(d => setProjects(projectListFromResponse(d)))
-      .catch(() => setProjects([]))
+      .catch(() => { setProjects([]); toast.error('Falha ao carregar projetos — verifique a API/conexão') })
   }, [])
 
   useEffect(() => {
@@ -111,7 +112,7 @@ export function useProjects() {
           setOnboardStep(2)
         }
       }
-    } catch { /* silencioso */ }
+    } catch { toast.error('Falha ao criar projeto') }
     finally { setCreatingProject(false) }
   }, [newProjectName, newProjectDesc, newProjectSlug, setActiveProjectId])
 

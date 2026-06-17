@@ -10,7 +10,7 @@
 - **Dono:** Marcelo Rayzen — QA Automation Engineer / Full-stack Developer
 - **Repositório:** `github.com/marcelorayzen/rayzen-ai-private` (privado)
 - **Branch principal:** `main`
-- **Web:** `http://<VPS_IP>:3100` · **API:** `http://<VPS_IP>:3101` · **Domínio:** `rayzen.com.br`
+- **Web:** `http://192.168.0.175:3100` · **API:** `http://192.168.0.175:3101` · **Domínio:** `https://rayzen.com.br`
 
 Plataforma pessoal de IA com automação, memória semântica, geração de documentos, QA e execução assistida. Monorepo TypeScript (pnpm workspaces).
 
@@ -34,7 +34,7 @@ Plataforma pessoal de IA com automação, memória semântica, geração de docu
 
 | Componente | Onde | Como sobe |
 |---|---|---|
-| Postgres + Redis + LiteLLM + API + Web + MCP | VPS (Docker) | `docker compose up -d` |
+| Postgres + Redis + LiteLLM + API + Web + MCP | Notebook local 192.168.0.175 (Docker) | `sudo docker compose up -d` |
 | Agent desktop | PC de trabalho | `agent-start.bat` |
 | Hook Claude Code | Esta máquina | `.claude/settings.json` (automático) |
 
@@ -46,7 +46,7 @@ curl -X POST http://<VPS_IP>:3101/auth/login -H "Content-Type: application/json"
 # atualizar hook.config.mjs e AGENT_TOKEN no .env
 ```
 
-**Deploy (na VPS via SSH):** `git pull && docker compose up -d --build <serviço>`. Acesso SSH em `memory/reference_vps_ssh.md`.
+**Deploy (no servidor local via SSH):** `git pull && sudo docker compose up -d --build <serviço>`. Acesso SSH em `memory/reference_vps_ssh.md` — notebook `rayzen@192.168.0.175`, chave `~/.ssh/id_ed25519`.
 
 ---
 
@@ -65,7 +65,7 @@ pnpm scan:secrets                   # varre segredos versionados
 
 ## Stack (resumo)
 
-Next.js 16 (web) · NestJS 10 + Fastify (api) · LiteLLM (proxy) · PostgreSQL 16 + pgvector (`public`=V1, `v2`=V2) · Redis 7 + BullMQ · Prisma 5 · Jina embeddings (1024) · Puppeteer/docxtemplater · Node 20/22 (agent) · Docker Compose na VPS Azure.
+Next.js 16 (web) · NestJS 10 + Fastify (api) · LiteLLM (proxy) · PostgreSQL 16 + pgvector (`public`=V1, `v2`=V2) · Redis 7 + BullMQ · Prisma 5 · Jina embeddings (1024) · Puppeteer/docxtemplater · Node 20/22 (agent) · Docker Compose no notebook local (Ubuntu 26.04) · Cloudflare Tunnel (sem port forwarding).
 
 **LiteLLM:** `gpt-4o`→Groq llama-3.3-70b (fallback Claude Sonnet) · `gpt-4o-mini`→Groq 8b · `gpt-4o-premium`→Claude Sonnet direto. Claude **não** suporta `response_format: json_object` — usar extração robusta (strip fences + regex).
 
