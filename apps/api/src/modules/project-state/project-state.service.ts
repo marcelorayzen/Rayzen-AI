@@ -88,22 +88,29 @@ export class ProjectStateService {
     const project = await this.prisma.project.findUnique({ where: { id: projectId } })
     if (!project) throw new NotFoundException('Projeto não encontrado')
 
+    // Estado atual primeiro — define se este refresh é incremental (anchor no estado
+    // existente, só novos eventos desde updatedAt) ou full-synthesis (primeira vez).
+    const existing = await this.prisma.projectState.findUnique({ where: { projectId } })
+    const isIncremental = Boolean(existing)
+
     // Coletar contexto: eventos recentes + artefatos de síntese + documentos gerados + meta ativa
-    const [events, artifacts, docs, existing, activeGoal] = await Promise.all([
+    const [events, artifacts, docs, activeGoal] = await Promise.all([
       this.prisma.event.findMany({
-        where: { projectId },
+        where: isIncremental ? { projectId, ts: { gt: existing!.updatedAt } } : { projectId },
         orderBy: { ts: 'desc' },
         take: 120,
       }),
       this.prisma.sessionArtifact.findMany({
         where: { projectId },
         orderBy: { createdAt: 'desc' },
-        take: 10,
+        // Incremental: artefatos antigos servem só de contexto narrativo de fundo,
+        // não de fonte de verdade pra blockers/nextSteps (esse papel é do `existing`
+        // agora) — por isso a janela é bem menor que antes (era 10).
+        take: isIncremental ? 3 : 10,
       }),
       this.prisma.projectDocument.findMany({
         where: { projectId },
       }),
-      this.prisma.projectState.findUnique({ where: { projectId } }),
       this.prisma.projectGoal.findFirst({
         where: { projectId, status: { not: 'achieved' } },
         orderBy: { createdAt: 'desc' },
@@ -161,6 +168,29 @@ export class ProjectStateService {
     const existingFocus = existing?.activeFocus ?? ''
     const existingDod = existing?.definitionOfDone ?? ''
 
+    // Estado atual serializado — âncora da atualização incremental. Sem isso, cada
+    // refresh regenerava do zero a partir de eventos+sínteses e "ressuscitava" itens
+    // já resolvidos (sínteses antigas pesavam igual a sinal novo).
+    let currentStateText = ''
+    if (existing) {
+      const currentBlockers = this.normalizePlanningNodes(existing.blockers, 'blocker').map(b => `- ${b.title}`).join('\n')
+      const currentNextSteps = this.normalizePlanningNodes(existing.nextSteps, 'next').map(n => `- ${n.title}`).join('\n')
+      const currentDecisions = ((existing.recentDecisions as string[]) ?? []).map(d => `- ${d}`).join('\n')
+      const currentRisks = ((existing.risks as string[]) ?? []).map(r => `- ${r}`).join('\n')
+      const currentBacklog = ((existing.backlog as unknown as BacklogItem[]) ?? []).map(b => `- ${b.title}`).join('\n')
+      currentStateText = `ESTADO ATUAL (gerado em ${existing.updatedAt.toISOString().slice(0, 16)} — esta é a base, você está ATUALIZANDO, não recriando do zero):
+Blockers atuais:
+${currentBlockers || '(nenhum)'}
+Próximos passos atuais:
+${currentNextSteps || '(nenhum)'}
+Decisões recentes atuais:
+${currentDecisions || '(nenhuma)'}
+Riscos atuais:
+${currentRisks || '(nenhum)'}
+Backlog atual:
+${currentBacklog || '(nenhum)'}`
+    }
+
     // Meta ativa do Goal Graph — âncora estratégica primária (não sofre com ruído de eventos)
     let goalText = ''
     if (activeGoal) {
@@ -175,18 +205,19 @@ Critérios pendentes:
 ${pending || '(nenhum)'}`
     }
 
-    const prompt = `Analise o estado atual deste projeto de software e retorne JSON estruturado.
+    const prompt = `${isIncremental ? 'Atualize o estado deste projeto de software com base no que mudou e retorne JSON estruturado.' : 'Analise o estado atual deste projeto de software e retorne JSON estruturado.'}
 
 Projeto: ${project.name}
 Descrição: ${project.description ?? 'não informada'}
 
 ${goalText || `Goals: ${project.goals ?? 'não informados'}`}
 
+${currentStateText ? `${currentStateText}\n` : ''}
 ${activeModules ? `Módulos mais ativos recentemente (por nº de eventos):\n${activeModules}\n` : ''}
-Eventos recentes (mais novo primeiro, com módulos de código tocados quando disponível):
-${eventsText || 'nenhum evento registrado'}
+${isIncremental ? 'NOVOS eventos desde a última atualização' : 'Eventos recentes'} (mais novo primeiro, com módulos de código tocados quando disponível):
+${eventsText || (isIncremental ? 'nenhum evento novo desde a última atualização' : 'nenhum evento registrado')}
 
-Sínteses de sessões anteriores:
+${isIncremental ? 'Sínteses antigas (contexto histórico de fundo — NÃO são o estado atual, não derive blockers/nextSteps delas)' : 'Sínteses de sessões anteriores'}:
 ${artifactsText || 'nenhuma síntese disponível'}
 
 Documentos gerados: ${docTypes || 'nenhum'}
@@ -221,7 +252,14 @@ Regras:
 - backlog: itens pendentes derivados dos eventos recentes, máximo 10
 - activeFocus: o que está sendo trabalhado AGORA com base nos eventos mais recentes
 - Máximo 5 itens por array (exceto backlog)
-- Se não há dados suficientes para uma categoria, retorne array vazio ou string vazia`
+- Se não há dados suficientes para uma categoria, retorne array vazio ou string vazia${isIncremental ? `
+
+REGRAS DE ATUALIZAÇÃO INCREMENTAL (importante — você está editando o ESTADO ATUAL acima, não escrevendo do zero):
+- Para cada blocker/next-step ATUAL: se os NOVOS eventos mostram que foi resolvido/concluído/decidido, REMOVA-o da lista de saída — não o repita.
+- Itens ATUAIS sem evidência de mudança nos novos eventos permanecem EXATAMENTE como estão (copie-os para a saída).
+- Adicione um item novo SOMENTE se há evidência clara nos NOVOS eventos — não infira a partir de sínteses antigas.
+- Se não há eventos novos, retorne blockers/nextSteps/recentDecisions/risks/backlog praticamente idênticos ao estado atual (mude só o que houver evidência concreta de ter mudado).
+- Um evento de decisão que diga explicitamente "X está resolvido/concluído" é evidência suficiente para remover X — confie nisso, não exija confirmação adicional.` : ''}`
 
     const llmStart = Date.now()
     const premiumEnabled = (() => { try { return this.rayzenConfig.getConfig().premiumStateRefresh ?? false } catch { return false } })()
