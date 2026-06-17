@@ -45,6 +45,9 @@ tmp/
 # Hook config local (contém token — nunca commitar)
 apps/agent/src/hooks/hook.config.mjs
 
+# Chaves SSH geradas localmente (deploy keys) — nunca commitar
+secrets/
+
 # Coverage
 apps/api/coverage/
 

@@ -5,11 +5,14 @@
  * para ser consumido pelo Claude Desktop como conector personalizado.
  *
  * Env vars:
- *   AGENT_API_URL   — URL da API Rayzen  (default: http://api:3001)
- *   AGENT_TOKEN     — Bearer token para a API Rayzen
- *   MCP_TOKEN       — Bearer token que o cliente (Claude Desktop) deve enviar
- *   MCP_PORT        — Porta de escuta (default: 3102)
- *   MCP_PROJECT_ID  — projectId padrão quando o cliente não informa
+ *   AGENT_API_URL        — URL da API Rayzen  (default: http://api:3001)
+ *   AGENT_TOKEN          — Bearer token para a API Rayzen
+ *   MCP_TOKEN            — Bearer token que o cliente (Claude Desktop) deve enviar
+ *   MCP_PORT             — Porta de escuta (default: 3102)
+ *   MCP_PROJECT_ID       — projectId padrão quando o cliente não informa
+ *   GITHUB_WEBHOOK_SECRET — HMAC secret do webhook GitHub (POST /webhook/github-build)
+ *   WEBHOOK_DEPLOY_HOST   — host SSH para build remoto (default: rayzen@192.168.0.175)
+ *   WEBHOOK_DEPLOY_KEY    — chave privada SSH dedicada e restrita por forced-command
  */
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
@@ -19,7 +22,8 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js'
 import { createServer } from 'node:http'
-import { randomUUID } from 'node:crypto'
+import { randomUUID, createHmac, timingSafeEqual } from 'node:crypto'
+import { execFile } from 'node:child_process'
 import { readFileSync, writeFileSync, mkdirSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -29,6 +33,37 @@ const ADMIN_PASSWORD      = process.env.ADMIN_PASSWORD      ?? ''
 const OAUTH_CLIENT_ID     = process.env.OAUTH_CLIENT_ID     ?? 'claude-ai'
 const OAUTH_CLIENT_SECRET = process.env.OAUTH_CLIENT_SECRET ?? ''
 const MCP_BASE_URL        = (process.env.MCP_BASE_URL       ?? 'https://rayzen.com.br').replace(/\/$/, '')
+const GITHUB_WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET ?? ''
+const WEBHOOK_DEPLOY_HOST   = process.env.WEBHOOK_DEPLOY_HOST   ?? 'rayzen@192.168.0.175'
+const WEBHOOK_DEPLOY_KEY    = process.env.WEBHOOK_DEPLOY_KEY    ?? '/run/secrets/webhook_deploy_key'
+
+// ── GitHub webhook → build automático (push em main) ───────────────────────
+// A chave SSH usada aqui é dedicada e restrita via forced-command no
+// authorized_keys do host — mesmo que este handler tenha um bug, ela só
+// consegue rodar "git pull && docker compose build web api api-v2".
+function verifyGithubSignature(rawBody, signatureHeader) {
+  if (!GITHUB_WEBHOOK_SECRET || !signatureHeader?.startsWith('sha256=')) return false
+  const expected = createHmac('sha256', GITHUB_WEBHOOK_SECRET).update(rawBody).digest('hex')
+  const expectedBuf = Buffer.from(`sha256=${expected}`)
+  const actualBuf   = Buffer.from(signatureHeader)
+  if (expectedBuf.length !== actualBuf.length) return false
+  return timingSafeEqual(expectedBuf, actualBuf)
+}
+
+function triggerRemoteBuild() {
+  execFile(
+    'ssh',
+    ['-i', WEBHOOK_DEPLOY_KEY, '-o', 'StrictHostKeyChecking=accept-new', WEBHOOK_DEPLOY_HOST],
+    { timeout: 600_000 },
+    (err, stdout, stderr) => {
+      if (err) {
+        console.error('[webhook] build remoto falhou:', err.message, stderr?.toString().slice(0, 2000))
+        return
+      }
+      console.log('[webhook] build remoto concluído:', stdout?.toString().slice(0, 2000))
+    },
+  )
+}
 
 // ── Config resolvido sob demanda (paridade com rayzen-mcp.mjs stdio) ──────────
 // Env vars têm prioridade (deploy Docker 12-factor — atualiza via restart do
@@ -798,6 +833,32 @@ const httpServer = createServer(async (req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Authorization,Content-Type,mcp-session-id', 'Access-Control-Allow-Methods': 'GET,POST,DELETE' })
     res.end()
+    return
+  }
+
+  // ── GitHub webhook → build automático ───────────────────────────────────────
+  if (req.method === 'POST' && url.pathname === '/webhook/github-build') {
+    const rawBody = await readBody(req)
+    const signature = req.headers['x-hub-signature-256']
+    if (!verifyGithubSignature(rawBody, signature)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: false, error: 'invalid signature' }))
+      return
+    }
+
+    const event = req.headers['x-github-event']
+    let payload = {}
+    try { payload = JSON.parse(rawBody.toString('utf-8')) } catch { /* corpo vazio em ping */ }
+
+    if (event !== 'push' || payload.ref !== 'refs/heads/main') {
+      res.writeHead(204)
+      res.end()
+      return
+    }
+
+    res.writeHead(202, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ ok: true, accepted: true }))
+    triggerRemoteBuild()
     return
   }
 

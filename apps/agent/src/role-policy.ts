@@ -36,6 +36,7 @@ const SERVER_ACTIONS = new Set([
   'jarvis:docker_stop',
   'jarvis:docker_logs',
   'jarvis:restart_api',
+  'jarvis:run_command',
   'jarvis:get_qa_summary',
   'jarvis:get_data_quality',
 ])

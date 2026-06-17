@@ -107,8 +107,12 @@ services:
       OAUTH_CLIENT_ID: ${OAUTH_CLIENT_ID:-claude-ai}
       OAUTH_CLIENT_SECRET: ${OAUTH_CLIENT_SECRET}
       MCP_BASE_URL: ${MCP_BASE_URL:-https://rayzen.com.br}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET}
+      WEBHOOK_DEPLOY_HOST: ${WEBHOOK_DEPLOY_HOST:-rayzen@192.168.0.175}
+      WEBHOOK_DEPLOY_KEY: /run/secrets/webhook_deploy_key
     volumes:
       - ./storage/mcp:/app/storage/mcp
+      - ./secrets/webhook_deploy_key:/run/secrets/webhook_deploy_key:ro
     ports:
       - '127.0.0.1:3102:3102'
     depends_on:

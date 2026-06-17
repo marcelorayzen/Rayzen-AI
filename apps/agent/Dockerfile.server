@@ -18,7 +18,7 @@ RUN pnpm --filter agent build
 FROM node:20-slim AS runner
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends docker.io ca-certificates \
+  && apt-get install -y --no-install-recommends docker.io ca-certificates openssh-client \
   && rm -rf /var/lib/apt/lists/*
 
 RUN corepack enable && corepack prepare pnpm@10.33.2 --activate

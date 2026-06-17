@@ -8,6 +8,9 @@ rayzen.com.br {
 	handle /.well-known/* {
 		reverse_proxy mcp-http:3102
 	}
+	handle /webhook/* {
+		reverse_proxy mcp-http:3102
+	}
 	handle {
 		reverse_proxy web:3000
 	}
