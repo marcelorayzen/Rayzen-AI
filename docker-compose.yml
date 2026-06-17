@@ -86,11 +86,11 @@ services:
       AGENT_TOKEN: ${AGENT_TOKEN}
       AGENT_POLL_INTERVAL_MS: 3000
       SERVER_API_CONTAINER: rayzen-ai-api-1
-      AGENT_PROJECT_ROOT: /host
+      AGENT_PROJECT_ROOT: /home/rayzen/projects/rayzen-ai
       COMPOSE_PROJECT_NAME: rayzen-ai
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - .:/host:ro
+      - .:/home/rayzen/projects/rayzen-ai:ro
     depends_on:
       - api
 
