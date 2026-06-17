@@ -246,7 +246,9 @@ Regras:
 - IGNORE descrições de comandos de diagnóstico/inspeção como objetivo ou próximo passo (ex: "testar API", "verificar X", "pegar id via SSH" são execução, não intenção do projeto)
 - stage: fase atual real com base na atividade observada
 - blockers: apenas impedimentos ATIVOS identificados nos eventos recentes
-- nextSteps: derive dos critérios PENDENTES da meta ativa + eventos/sínteses recentes — não repita itens já concluídos nem liste comandos de diagnóstico
+- nextSteps: ${isIncremental
+    ? 'NÃO resampleie da lista inteira de critérios pendentes a cada chamada — isso muda a lista mesmo sem progresso real. Só troque/adicione um critério pendente como next-step se um evento NOVO mostra que ele está ativamente sendo trabalhado agora; do contrário, mantenha os next-steps do ESTADO ATUAL.'
+    : 'derive dos critérios PENDENTES da meta ativa + eventos/sínteses recentes — não repita itens já concluídos nem liste comandos de diagnóstico'}
 - riskLevel: "high" se há blockers críticos, "medium" se há riscos mas progresso, "low" se tudo flui
 - milestones: derive dos eventos e goals, máximo 5; marque como "done" os que aparecem concluídos nos eventos
 - backlog: itens pendentes derivados dos eventos recentes, máximo 10
@@ -266,7 +268,7 @@ REGRAS DE ATUALIZAÇÃO INCREMENTAL (importante — você está editando o ESTAD
     let model = premiumEnabled ? 'gpt-4o-premium' : 'gpt-4o'
     let res = await this.llm.chat.completions.create({
       model,
-      temperature: 0.2,
+      temperature: isIncremental ? 0.1 : 0.2,
       messages: [{ role: 'user', content: prompt }],
     }).catch(async (err: unknown) => {
       const status = (err as { status?: number })?.status
@@ -275,7 +277,7 @@ REGRAS DE ATUALIZAÇÃO INCREMENTAL (importante — você está editando o ESTAD
         model = 'gpt-4o-mini'
         return this.llm.chat.completions.create({
           model,
-          temperature: 0.2,
+          temperature: isIncremental ? 0.1 : 0.2,
           messages: [{ role: 'user', content: prompt }],
         })
       }
