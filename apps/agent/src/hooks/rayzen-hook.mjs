@@ -228,8 +228,12 @@ function warnUnresolved(slug) {
   try { writeFileSync(WARN_FILE, JSON.stringify({ slug, ts: Date.now() }), 'utf8') } catch { /* ignora */ }
   process.stderr.write(
     `\n⚠️  Rayzen: a atividade deste repositório ("${slug ?? '?'}") NÃO está sendo vinculada a um projeto.\n` +
-    `   Provável: nenhum projeto com esse repoSlug no Rayzen, ou repoSlug divergente.\n` +
-    `   Verifique: GET /events/hook/health  ·  ou fixe projectId em apps/agent/src/hooks/hook.config.mjs\n`,
+    `   Provável: nenhum projeto com esse repoSlug no Rayzen, ou repoSlug divergente, ou API/rede instável.\n` +
+    `   NÃO fixe projectId em hook.config.mjs — esse arquivo é compartilhado por TODOS os projetos\n` +
+    `   (mesmo caminho absoluto referenciado em cada .claude/settings.json); fixar aqui quebra a\n` +
+    `   detecção automática de qualquer outro projeto aberto simultaneamente.\n` +
+    `   Corrija o repoSlug DESTE projeto: PATCH /projects/:id { "repoSlug": "${slug ?? '?'}" }\n` +
+    `   Diagnóstico: GET /events/hook/health\n`,
   )
   // exit 2 faz o Claude Code exibir o stderr ao usuário (PostToolUse não bloqueia a ação já executada)
   process.exitCode = 2
