@@ -7,6 +7,7 @@ export const SAFE_ROOTS = [
   resolve(HOME, 'Documents'),
   resolve(HOME, 'Desktop'),
   resolve(HOME, 'Projects'),
+  ...(process.env.AGENT_PROJECT_ROOT ? [resolve(process.env.AGENT_PROJECT_ROOT)] : []),
 ]
 
 export function isUnderSafeRoot(target: string): boolean {
