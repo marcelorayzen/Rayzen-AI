@@ -6,6 +6,7 @@ import { ContextEngineService, WorkMode } from '../context-engine/context-engine
 import { ApprovalGatesService } from '../approval-gates/approval-gates.service'
 import { SpecialistAgentService } from '../specialist-agent/specialist-agent.service'
 import { SkillEngineService } from '../skill-engine/skill-engine.service'
+import { SKILL_DEFINITIONS_EXPORT } from '../skill-engine/skill-registry'
 import { WORKFLOW_TEMPLATES } from '../workflow/workflow-engine.service'
 import { JARVISHealthService, HealthReport } from './jarvis-health.service'
 import { RouteRequestDto, RouteDecision, DecisionType } from './dto/route-request.dto'
@@ -51,6 +52,10 @@ Rules:
   "clarificationNeeded": null
 }`
 
+const SKILL_LIST_FOR_PROMPT = SKILL_DEFINITIONS_EXPORT
+  .map((s) => `- ${s.id}: ${s.description} (risk: ${s.risk})`)
+  .join('\n')
+
 const PLAN_SYSTEM = `You are a senior software engineer planning a mission.
 Given an objective and project context, generate 3-7 concrete steps to achieve it.
 Each step should be actionable and specific.
@@ -62,11 +67,20 @@ Respond with JSON only:
       "title": "short step title",
       "prompt": "detailed instructions for this step",
       "executor": "ai|skill|human",
-      "skillId": "optional skill key if executor=skill",
+      "skillId": "REQUIRED if executor=skill — must be one of the exact IDs listed below, never invent one",
       "risk": "none|low|medium|high"
     }
   ]
 }
+
+Executor selection — this matters, pick carefully:
+- "skill": ONLY when the step maps exactly to one of the registered skills below. Use the exact "id" string as skillId.
+- "ai": for anything requiring reasoning/judgment that isn't an atomic registered skill — e.g. editing code logic, refactoring, deciding what to change. This is the right choice for most code-editing steps; the executing specialist will read/write files itself.
+- "human": only when a human must act outside this system (e.g. manual review, external approval).
+If no registered skill fits, use "ai" instead of guessing a skillId — an invalid skillId fails the step at execution time.
+
+Registered skills (only these IDs are valid for executor=skill):
+${SKILL_LIST_FOR_PROMPT}
 
 Risk levels:
 - none/low: read-only, reversible, safe operations
@@ -464,12 +478,20 @@ export class RouterService {
       stepsCount = (await this.missions.listSteps(mission.id)).length
       this.logger.log(`LLM retornou 0 steps — template "${templateApplied}" aplicado (${stepsCount} steps)`)
     } else {
+      const knownSkillIds = new Set(SKILL_DEFINITIONS_EXPORT.map((s) => s.id))
       for (const step of steps) {
+        let executor = step.executor ?? 'ai'
+        let skillId = step.skillId
+        if (executor === 'skill' && (!skillId || !knownSkillIds.has(skillId))) {
+          this.logger.warn(`Step "${step.title}" tinha skillId inválido ("${skillId}") — rebaixado para executor "ai"`)
+          executor = 'ai'
+          skillId = undefined
+        }
         const missionStep = await this.missions.addStep(mission.id, {
           title:    step.title,
           prompt:   step.prompt,
-          executor: step.executor ?? 'ai',
-          skillId:  step.skillId,
+          executor,
+          skillId,
           input:    {},
           dependsOn: [],
         })
@@ -480,7 +502,7 @@ export class RouterService {
           try {
             const { required } = await this.gates.checkAndCreate(
               risk, dto.projectId, mission.id, missionStep.id, step.title,
-              { prompt: step.prompt, executor: step.executor ?? 'ai' },
+              { prompt: step.prompt, executor },
             )
             if (required) gatesCreated++
           } catch (e) {
