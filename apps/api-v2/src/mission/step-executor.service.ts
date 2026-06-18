@@ -1,5 +1,6 @@
 import { Injectable, Logger, Optional } from '@nestjs/common'
 import { MissionService } from './mission.service'
+import { MissionResultService } from './mission-result.service'
 import { SpecialistService } from '../specialists/specialist.service'
 import { SpecialistAgentService } from '../specialist-agent/specialist-agent.service'
 import { ApprovalGatesService } from '../approval-gates/approval-gates.service'
@@ -15,6 +16,7 @@ export class StepExecutorService {
     private readonly specialists: SpecialistService,
     private readonly agents:      SpecialistAgentService,
     private readonly gates:       ApprovalGatesService,
+    private readonly result:      MissionResultService,
     @Optional() private readonly events?: EventsService,
   ) {}
 
@@ -111,6 +113,11 @@ export class StepExecutorService {
           if (allTerminal) {
             await this.missions.transition(missionId, hasFailed ? 'failed' : 'done').catch((e) =>
               this.logger.warn(`Falha ao finalizar missão ${missionId}: ${e}`),
+            )
+            // Síntese (resumo + próxima ação sugerida) — mesma lógica do POST /complete manual,
+            // pra missão auto-encadeada não ficar sem essa etapa só porque ninguém clicou "complete".
+            this.result.processCompletion(missionId).catch((e) =>
+              this.logger.warn(`Falha ao sintetizar resultado da missão ${missionId}: ${e}`),
             )
           }
         }
