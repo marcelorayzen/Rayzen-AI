@@ -98,10 +98,22 @@ export class StepExecutorService {
    * Safe to call on mission activation — returns immediately.
    */
   runNext(missionId: string): void {
-    this.missions.findOne(missionId).then((mission) => {
+    this.missions.findOne(missionId).then(async (mission) => {
       const next = mission.steps.find((s) => s.status === 'pending')
       if (!next) {
-        // All steps done — emit final mission state
+        // Sem step pendente: ou a missão terminou, ou está bloqueada num gate.
+        // Diferente do WorkflowEngineService.execute() (caminho do gate→resume), este
+        // executor não fazia essa transição — missão ficava presa em 'active' pra sempre
+        // mesmo com todos os steps concluídos.
+        if (mission.status === 'active') {
+          const hasFailed = mission.steps.some((s) => s.status === 'failed')
+          const allTerminal = mission.steps.every((s) => s.status === 'done' || s.status === 'failed' || s.status === 'skipped')
+          if (allTerminal) {
+            await this.missions.transition(missionId, hasFailed ? 'failed' : 'done').catch((e) =>
+              this.logger.warn(`Falha ao finalizar missão ${missionId}: ${e}`),
+            )
+          }
+        }
         this.emitUpdate(missionId)
         return
       }
