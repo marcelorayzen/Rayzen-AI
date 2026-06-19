@@ -1,3 +1,6 @@
+import { SKILL_DEFINITIONS_EXPORT } from '../skill-engine/skill-registry'
+import type { AIToolDefinition } from '../ai-router/ai-router.service'
+
 export type SpecialistType = 'coder' | 'reviewer' | 'tester' | 'architect' | 'researcher' | 'debugger'
 
 export interface SpecialistDefinition {
@@ -21,7 +24,7 @@ export const SPECIALIST_DEFINITIONS: Record<SpecialistType, SpecialistDefinition
 - Include error handling and type safety
 - Return your implementation with clear file paths and code blocks
 - When done, summarize what was implemented`,
-    allowedSkills:    ['jarvis:git_status', 'jarvis:git_log', 'jarvis:file_search', 'jarvis:run_tests', 'jarvis:run_command'],
+    allowedSkills:    ['jarvis:git_status', 'jarvis:git_log', 'jarvis:file_search', 'jarvis:file_read', 'jarvis:file_write', 'jarvis:run_tests', 'jarvis:run_command'],
     maxIterations:    10,
     maxCostUsd:       1.50,
     model:            'gpt-4o',
@@ -37,7 +40,7 @@ export const SPECIALIST_DEFINITIONS: Record<SpecialistType, SpecialistDefinition
 - Check adherence to project conventions
 - Provide actionable feedback with specific line references
 - Give a final verdict: APPROVE / REQUEST_CHANGES`,
-    allowedSkills:    ['jarvis:git_status', 'jarvis:git_log', 'jarvis:file_search'],
+    allowedSkills:    ['jarvis:git_status', 'jarvis:git_log', 'jarvis:file_search', 'jarvis:file_read', 'jarvis:git_diff'],
     maxIterations:    5,
     maxCostUsd:       0.50,
     model:            'gpt-4o',
@@ -101,12 +104,33 @@ export const SPECIALIST_DEFINITIONS: Record<SpecialistType, SpecialistDefinition
 - Propose and implement a targeted fix
 - Verify the fix doesn't introduce regressions
 - Return: root cause, fix applied, verification results`,
-    allowedSkills:    ['jarvis:run_tests', 'jarvis:file_search', 'jarvis:git_log', 'jarvis:run_command', 'jarvis:docker_logs'],
+    allowedSkills:    ['jarvis:run_tests', 'jarvis:file_search', 'jarvis:file_read', 'jarvis:file_write', 'jarvis:git_log', 'jarvis:run_command', 'jarvis:docker_logs'],
     maxIterations:    10,
     maxCostUsd:       1.20,
     model:            'gpt-4o',
     requiresApproval: false,
   },
+}
+
+// Converte allowedSkills (lista de IDs) em tool definitions no formato esperado pelo
+// AiRouterService — só inclui skills que de fato existem no SkillRegistry (defesa contra
+// allowedSkills desatualizado referenciando um skillId que não existe mais).
+export function buildToolsForSkills(skillIds: string[]): AIToolDefinition[] {
+  const bySkillId = new Map(SKILL_DEFINITIONS_EXPORT.map((s) => [s.id, s]))
+  return skillIds
+    .map((id) => bySkillId.get(id))
+    .filter((s): s is NonNullable<typeof s> => Boolean(s))
+    .map((skill) => ({
+      name:        skill.id,
+      description: skill.description,
+      parameters: {
+        type: 'object',
+        properties: Object.fromEntries(
+          Object.entries(skill.inputSchema).map(([field, type]) => [field, { type }]),
+        ),
+        required: Object.keys(skill.inputSchema),
+      },
+    }))
 }
 
 export class SpecialistRegistry {

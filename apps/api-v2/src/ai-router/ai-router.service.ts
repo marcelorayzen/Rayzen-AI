@@ -5,14 +5,30 @@ export type AITaskType =
   | 'generate_code' | 'review' | 'implement'
   | 'analyze' | 'strategic' | 'architecture'
 
+export interface AIToolDefinition {
+  name:        string
+  description: string
+  parameters:  Record<string, unknown>
+}
+
+export interface AIToolCall {
+  id:        string
+  name:      string
+  arguments: Record<string, unknown>
+}
+
 export interface AIRequest {
-  prompt:        string
+  /** Obrigatório se `messages` não for informado. */
+  prompt?:       string
   systemPrompt?: string
   tier?:         0 | 1 | 2 | 3 | 4
   maxTier?:      0 | 1 | 2 | 3 | 4
   taskType?:     AITaskType
   projectId?:    string
   maxTokens?:    number
+  /** Histórico completo de mensagens (incl. resultados de tool calls anteriores) — se omitido, usa prompt/systemPrompt como antes. */
+  messages?:     Array<{ role: string; content: string; tool_call_id?: string; tool_calls?: unknown[] }>
+  tools?:        AIToolDefinition[]
 }
 
 export interface AIResponse {
@@ -24,6 +40,7 @@ export interface AIResponse {
   costUsd:    number
   durationMs: number
   retries:    number
+  toolCalls?: AIToolCall[]
 }
 
 interface TierConfig {
@@ -102,9 +119,9 @@ export class AiRouterService {
 
   private async callTier(req: AIRequest, tier: TierConfig, retries: number): Promise<AIResponse> {
     const t0 = Date.now()
-    const messages = [
+    const messages = req.messages ?? [
       ...(req.systemPrompt ? [{ role: 'system', content: req.systemPrompt }] : []),
-      { role: 'user', content: req.prompt },
+      { role: 'user', content: req.prompt ?? '' },
     ]
 
     try {
@@ -119,6 +136,13 @@ export class AiRouterService {
           messages,
           max_tokens: req.maxTokens ?? tier.maxTokens,
           temperature: 0.2,
+          ...(req.tools?.length ? {
+            tools: req.tools.map((t) => ({
+              type: 'function',
+              function: { name: t.name, description: t.description, parameters: t.parameters },
+            })),
+            tool_choice: 'auto',
+          } : {}),
         }),
       })
 
@@ -135,16 +159,26 @@ export class AiRouterService {
       }
 
       const data = await res.json() as {
-        choices: Array<{ message: { content: string } }>
+        choices: Array<{ message: {
+          content: string | null
+          tool_calls?: Array<{ id: string; function: { name: string; arguments: string } }>
+        } }>
         usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number }
         model: string
       }
 
-      const content  = data.choices?.[0]?.message?.content ?? ''
+      const message  = data.choices?.[0]?.message
+      const content  = message?.content ?? ''
       const tokensIn = data.usage?.prompt_tokens ?? 0
       const tokensOut = data.usage?.completion_tokens ?? 0
       const costUsd  = ((tokensIn + tokensOut) / 1_000_000) * tier.costPer1M
       const durationMs = Date.now() - t0
+
+      const toolCalls: AIToolCall[] | undefined = message?.tool_calls?.map((tc) => {
+        let args: Record<string, unknown> = {}
+        try { args = JSON.parse(tc.function.arguments) } catch { /* arguments malformados — ignora */ }
+        return { id: tc.id, name: tc.function.name, arguments: args }
+      })
 
       this.logger.debug(`tier=${tier.tier} model=${tier.model} tokens=${tokensIn}+${tokensOut} cost=$${costUsd.toFixed(6)} ${durationMs}ms`)
 
@@ -167,6 +201,7 @@ export class AiRouterService {
         costUsd,
         durationMs,
         retries,
+        ...(toolCalls?.length ? { toolCalls } : {}),
       }
     } catch (e) {
       if (tier.tier < 4 && retries < 2) {

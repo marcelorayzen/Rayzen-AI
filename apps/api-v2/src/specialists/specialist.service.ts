@@ -4,7 +4,8 @@ import { AiRouterService } from '../ai-router/ai-router.service'
 import { ContextEngineService } from '../context-engine/context-engine.service'
 import { CostControllerService } from '../cost-controller/cost-controller.service'
 import { ApprovalGatesService } from '../approval-gates/approval-gates.service'
-import { SpecialistRegistry, SpecialistType } from './specialist-registry'
+import { SkillEngineService } from '../skill-engine/skill-engine.service'
+import { SpecialistRegistry, SpecialistType, buildToolsForSkills } from './specialist-registry'
 
 export interface SpawnRequest {
   type?:      SpecialistType   // inferred if omitted
@@ -42,6 +43,7 @@ export class SpecialistService {
     private readonly ctxEngine:   ContextEngineService,
     private readonly costs:       CostControllerService,
     private readonly gates:       ApprovalGatesService,
+    private readonly skillEngine: SkillEngineService,
   ) {}
 
   async spawn(req: SpawnRequest): Promise<SpecialistInstance> {
@@ -105,7 +107,7 @@ export class SpecialistService {
       contextText = ctx.text
     } catch { /* context is optional */ }
 
-    const messages: Array<{ role: string; content: string }> = [
+    const messages: Array<{ role: string; content: string; tool_call_id?: string; tool_calls?: unknown[] }> = [
       { role: 'system', content: `${def.systemPrompt}\n\n${contextText ? `Project context:\n${contextText}` : ''}` },
       { role: 'user',   content: req.task },
     ]
@@ -113,6 +115,11 @@ export class SpecialistService {
     if (req.context) {
       messages.push({ role: 'user', content: `Additional context:\n${req.context}` })
     }
+
+    // Tools reais — só as skills que o specialist tem permissão de usar (allowedSkills).
+    // Sem isso, executor "ai" nunca toca o filesystem real (era o bug original).
+    const tools = buildToolsForSkills(def.allowedSkills)
+    const actionsExecuted: Array<{ skillId: string; success: boolean }> = []
 
     let totalCost = 0
 
@@ -139,8 +146,8 @@ export class SpecialistService {
 
       try {
         const result = await this.aiRouter.complete({
-          prompt:       messages[messages.length - 1].content,
-          systemPrompt: messages[0].content,
+          messages,
+          tools:        tools.length ? tools : undefined,
           taskType:     def.type === 'architect' ? 'strategic' : 'implement',
           projectId:    req.projectId,
           maxTokens:    2000,
@@ -162,6 +169,46 @@ export class SpecialistService {
           module:    `specialist:${def.type}`,
         }).catch(() => null)
 
+        if (result.toolCalls?.length) {
+          // Specialist pediu pra executar ações reais — despacha via SkillEngine
+          // (que já reaproveita o approval-gate de risco medium/high) e devolve o
+          // resultado real pra LLM decidir o próximo passo, em vez de só narrar.
+          messages.push({
+            role: 'assistant',
+            content: result.content,
+            tool_calls: result.toolCalls.map((tc) => ({
+              id: tc.id, type: 'function',
+              function: { name: tc.name, arguments: JSON.stringify(tc.arguments) },
+            })),
+          })
+
+          for (const tc of result.toolCalls) {
+            try {
+              const skillResult = await this.skillEngine.run({
+                skillId:   tc.name,
+                input:     tc.arguments,
+                projectId: req.projectId,
+                missionId: req.missionId,
+                stepId:    req.stepId,
+              })
+              actionsExecuted.push({ skillId: tc.name, success: skillResult.success })
+              messages.push({
+                role: 'tool', tool_call_id: tc.id,
+                content: JSON.stringify(skillResult.output).slice(0, 2000),
+              })
+            } catch (e) {
+              actionsExecuted.push({ skillId: tc.name, success: false })
+              messages.push({
+                role: 'tool', tool_call_id: tc.id,
+                content: `Error: ${e instanceof Error ? e.message : String(e)}`,
+              })
+            }
+          }
+          // Sempre continua o loop após executar tool calls — a conclusão real
+          // só conta quando o specialist responde SEM pedir mais ações.
+          continue
+        }
+
         messages.push({ role: 'assistant', content: result.content })
 
         // Check if specialist signals completion
@@ -176,9 +223,10 @@ export class SpecialistService {
             iterations:  inst.iterations,
             costUsd:     totalCost,
             type:        def.type,
+            ...(actionsExecuted.length ? { actionsExecuted } : {}),
           }
           inst.endedAt = new Date()
-          this.logger.log(`Specialist ${def.type} ${id} done in ${inst.iterations} iterations, $${totalCost.toFixed(4)}`)
+          this.logger.log(`Specialist ${def.type} ${id} done in ${inst.iterations} iterations, $${totalCost.toFixed(4)}, ${actionsExecuted.length} ações reais`)
           return
         }
 
@@ -197,6 +245,7 @@ export class SpecialistService {
       result:     messages.filter((m) => m.role === 'assistant').map((m) => m.content).join('\n\n'),
       iterations: inst.iterations,
       costUsd:    totalCost,
+      ...(actionsExecuted.length ? { actionsExecuted } : {}),
     }
     inst.endedAt = new Date()
   }
