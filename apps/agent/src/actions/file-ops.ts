@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync, unlinkSync, existsSync, statSync, mkdirSync } from 'fs'
-import { resolve, extname, dirname } from 'path'
+import { resolve, extname, dirname, isAbsolute } from 'path'
 import { isUnderSafeRoot } from '../utils/path-guard'
 
 const MAX_READ_BYTES  = 512_000  // 500 KB
@@ -21,7 +21,13 @@ const TEXT_EXTENSIONS = new Set([
 const WRITE_BLOCKED = ['.env', '.pem', '.key', '.p12', '.pfx', '.secret']
 
 function validatePath(filePath: string, forWrite = false): string {
-  const resolved = resolve(filePath)
+  // Paths relativos (ex: vindos de tool_calls do LLM, que não fazem ideia de qual é o
+  // cwd real do processo do agente — varia conforme como pnpm/node foi lançado) resolvem
+  // contra AGENT_PROJECT_ROOT quando definido, em vez de process.cwd().
+  const base = !isAbsolute(filePath) && process.env.AGENT_PROJECT_ROOT
+    ? process.env.AGENT_PROJECT_ROOT
+    : undefined
+  const resolved = base ? resolve(base, filePath) : resolve(filePath)
 
   if (!isUnderSafeRoot(resolved)) {
     throw new Error(`Caminho não permitido: ${resolved}`)
