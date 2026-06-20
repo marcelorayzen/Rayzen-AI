@@ -104,15 +104,15 @@ export class SkillEngineService {
     const baseUrl = (process.env.V1_API_URL ?? 'http://api:3001').replace(/\/$/, '')
     const token   = process.env.V1_API_TOKEN ?? process.env.AGENT_TOKEN ?? ''
 
+    // ExecutionController/dispatch() em V1 já prefixa com 'jarvis:' (module + ':' + action) —
+    // mandar req.skillId completo aqui duplicava o prefixo ("jarvis:jarvis:file_read"),
+    // rejeitado pela whitelist do agente. action deve ser o nome SEM o prefixo "jarvis:".
     const res = await fetch(`${baseUrl}/execution/dispatch`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({
-        module:    'jarvis',
-        action:    req.skillId,
+        action:    req.skillId.replace(/^jarvis:/, ''),
         payload:   req.input,
-        projectId: req.projectId,
-        role:      skill!.runtime === 'agent-server' ? 'server' : 'desktop',
       }),
     })
 

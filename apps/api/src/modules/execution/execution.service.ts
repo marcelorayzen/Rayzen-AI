@@ -41,6 +41,16 @@ const ACTION_ROLE: Partial<Record<string, AgentRole>> = {
   docker_stop: 'server',
   docker_logs: 'server',
   restart_api: 'server',
+  file_read: 'desktop',
+  file_write: 'desktop',
+  file_delete: 'desktop',
+  git_diff: 'desktop',
+  git_add: 'desktop',
+  git_pull: 'desktop',
+  git_push: 'desktop',
+  prisma_generate: 'desktop',
+  prisma_migrate: 'desktop',
+  supervised_session: 'server',
 }
 
 @Injectable()

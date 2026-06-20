@@ -192,6 +192,26 @@ export class SpecialistService {
                 stepId:    req.stepId,
               })
               actionsExecuted.push({ skillId: tc.name, success: skillResult.success })
+
+              // Skill de risco medium/high pendente de aprovação — o specialist NÃO deve
+              // insistir tentando de novo (era o que acontecia: várias gates criadas em
+              // sequência pro mesmo comando). Para igual ao gate-check de nível de step.
+              if (skillResult.output?.status === 'pending_approval') {
+                inst.status = 'interrupted'
+                inst.output = {
+                  result:      result.content,
+                  iterations:  inst.iterations,
+                  costUsd:     totalCost,
+                  type:        def.type,
+                  actionsExecuted,
+                  gateId:      skillResult.output.gateId,
+                  message:     'Aguardando aprovação de gate criado durante tool-use',
+                }
+                inst.endedAt = new Date()
+                this.logger.log(`Specialist ${def.type} ${id} interrompido — aguardando aprovação do gate ${skillResult.output.gateId}`)
+                return
+              }
+
               messages.push({
                 role: 'tool', tool_call_id: tc.id,
                 content: JSON.stringify(skillResult.output).slice(0, 2000),

@@ -28,6 +28,15 @@ const DESKTOP_ACTIONS = new Set([
   'jarvis:get_data_quality',
   'jarvis:capture_test_failure',
   'jarvis:run_graphify',
+  'jarvis:file_read',
+  'jarvis:file_write',
+  'jarvis:file_delete',
+  'jarvis:git_diff',
+  'jarvis:git_add',
+  'jarvis:git_pull',
+  'jarvis:git_push',
+  'jarvis:prisma_generate',
+  'jarvis:prisma_migrate',
 ])
 
 const SERVER_ACTIONS = new Set([
