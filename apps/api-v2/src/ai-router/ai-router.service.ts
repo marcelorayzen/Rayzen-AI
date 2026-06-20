@@ -147,15 +147,17 @@ export class AiRouterService {
       })
 
       if (!res.ok) {
-        // Escalate on server error if tier < 4
-        if (res.status >= 500 && tier.tier < 4 && retries < 2) {
-          const next = TIERS.find((t) => t.tier > tier.tier)
-          if (next) {
-            this.logger.warn(`tier ${tier.tier} failed (${res.status}), escalating to ${next.tier}`)
-            return this.callTier(req, next, retries + 1)
-          }
+        // Escalate on server error if tier < 4 — mas nunca pra tier 4 com tools ativas
+        // (Claude/Anthropic rejeita nomes de tool com ':', formato incompatível).
+        const next = TIERS.find((t) => t.tier > tier.tier)
+        const wouldEscalateToIncompatiblePremium = req.tools?.length && next?.model === 'gpt-4o-premium'
+        if (res.status >= 500 && tier.tier < 4 && retries < 2 && next && !wouldEscalateToIncompatiblePremium) {
+          this.logger.warn(`tier ${tier.tier} failed (${res.status}), escalating to ${next.tier}`)
+          return this.callTier(req, next, retries + 1)
         }
-        throw new Error(`LiteLLM ${res.status}: ${await res.text()}`)
+        const err = new Error(`LiteLLM ${res.status}: ${await res.text()}`) as Error & { status?: number }
+        err.status = res.status
+        throw err
       }
 
       const data = await res.json() as {
@@ -204,12 +206,18 @@ export class AiRouterService {
         ...(toolCalls?.length ? { toolCalls } : {}),
       }
     } catch (e) {
-      if (tier.tier < 4 && retries < 2) {
-        const next = TIERS.find((t) => t.tier > tier.tier)
-        if (next) {
-          this.logger.warn(`tier ${tier.tier} error, escalating: ${e}`)
-          return this.callTier(req, next, retries + 1)
-        }
+      // 4xx é erro definitivo do cliente (payload/schema inválido) — escalar pra outro
+      // modelo não resolve, só mascara a causa real e (com tools) ainda quebra de outro
+      // jeito no tier 4 (Claude rejeita nomes de tool com ':', formato OpenAI != Anthropic).
+      const status = (e as { status?: number }).status
+      const isClientError = typeof status === 'number' && status >= 400 && status < 500
+      // Nunca escala request com tools pro tier 4 — nomes "jarvis:algo" não passam na
+      // validação de nome de tool da Anthropic (^[a-zA-Z0-9_-]{1,128}$).
+      const nextTier = TIERS.find((t) => t.tier > tier.tier)
+      const wouldEscalateToIncompatiblePremium = req.tools?.length && nextTier?.model === 'gpt-4o-premium'
+      if (!isClientError && !wouldEscalateToIncompatiblePremium && tier.tier < 4 && retries < 2 && nextTier) {
+        this.logger.warn(`tier ${tier.tier} error, escalating: ${e}`)
+        return this.callTier(req, nextTier, retries + 1)
       }
       throw e
     }

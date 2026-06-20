@@ -120,17 +120,28 @@ export function buildToolsForSkills(skillIds: string[]): AIToolDefinition[] {
   return skillIds
     .map((id) => bySkillId.get(id))
     .filter((s): s is NonNullable<typeof s> => Boolean(s))
-    .map((skill) => ({
-      name:        skill.id,
-      description: skill.description,
-      parameters: {
-        type: 'object',
-        properties: Object.fromEntries(
-          Object.entries(skill.inputSchema).map(([field, type]) => [field, { type }]),
-        ),
-        required: Object.keys(skill.inputSchema),
-      },
-    }))
+    .map((skill) => {
+      const properties: Record<string, unknown> = {}
+      const required: string[] = []
+      for (const [field, def] of Object.entries(skill.inputSchema)) {
+        if (typeof def === 'string') {
+          // Atalho: tipo primitivo simples — sempre obrigatório.
+          properties[field] = { type: def }
+          required.push(field)
+        } else if (def && typeof def === 'object') {
+          // Schema completo (ex: campo aninhado tipo objeto) — usa como está,
+          // exceto a flag interna `optional` (não é JSON Schema, só controla `required` aqui).
+          const { optional, ...schema } = def as Record<string, unknown> & { optional?: boolean }
+          properties[field] = schema
+          if (!optional) required.push(field)
+        }
+      }
+      return {
+        name:        skill.id,
+        description: skill.description,
+        parameters:  { type: 'object', properties, required },
+      }
+    })
 }
 
 export class SpecialistRegistry {
