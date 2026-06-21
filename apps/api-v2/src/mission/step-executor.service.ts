@@ -65,6 +65,18 @@ export class StepExecutorService implements OnModuleInit {
       return { status: 'blocked', output: { gateId: pendingGate.id, reason: 'awaiting_approval' } }
     }
 
+    // Step de ação humana — nenhum dos dois engines de execução tratava isso antes,
+    // então um specialist de IA "verificava" o que deveria ser conferido por uma pessoa.
+    // Pausa a missão e deixa o step pending; humano resolve via PATCH .../steps/:stepId.
+    if (step.executor === 'human') {
+      if (mission.status === 'active') {
+        await this.missions.transition(missionId, 'paused').catch(() => null)
+      }
+      this.emitUpdate(missionId)
+      this.logger.log(`Step "${step.title}" requer ação humana — missão pausada`)
+      return { status: 'blocked', output: { reason: 'awaiting_human' } }
+    }
+
     // Resolve specialist type — prefer mission-level agent, fall back to step inference
     let specialistType: SpecialistType | undefined
     if (mission.specialistId) {

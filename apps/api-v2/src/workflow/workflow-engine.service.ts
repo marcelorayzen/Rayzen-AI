@@ -86,6 +86,9 @@ export class WorkflowEngineService {
     const canRun = (step: Step) => {
       if (step.status !== 'pending') return false
       if (gatedStepIds.has(step.id)) return false
+      // Step de ação humana nunca é despachado pra um Specialist de IA — fica
+      // pending até alguém resolver via PATCH .../steps/:stepId.
+      if (step.executor === 'human') return false
       return step.dependsOn.every((depId) => {
         const dep = steps.find((s) => s.id === depId)
         return dep?.status === 'done'
@@ -112,10 +115,15 @@ export class WorkflowEngineService {
     // Tally results
     const final = await this.missions.listSteps(missionId)
     let blockedByGate = 0
+    let blockedByHuman = 0
     for (const s of final) {
       if      (s.status === 'done')    stats.completed++
       else if (s.status === 'failed')  stats.failed++
-      else if (s.status === 'pending') { stats.pending++; if (gatedStepIds.has(s.id)) blockedByGate++ }
+      else if (s.status === 'pending') {
+        stats.pending++
+        if (gatedStepIds.has(s.id)) blockedByGate++
+        if (s.executor === 'human')   blockedByHuman++
+      }
     }
 
     // Transition mission status
@@ -125,6 +133,9 @@ export class WorkflowEngineService {
       // Há steps prontos mas travados em ApprovalGate — pausa aguardando aprovação
       await this.missions.transition(missionId, 'paused').catch(() => null)
       this.logger.log(`Mission ${missionId} pausada — ${blockedByGate} step(s) aguardando aprovação`)
+    } else if (blockedByHuman > 0) {
+      await this.missions.transition(missionId, 'paused').catch(() => null)
+      this.logger.log(`Mission ${missionId} pausada — ${blockedByHuman} step(s) aguardando ação humana`)
     } else if (stats.pending === 0) {
       await this.missions.transition(missionId, 'done').catch(() => null)
       // Fire-and-forget: docs gerados em background após missão concluída
