@@ -4,6 +4,7 @@ import { MissionResultService } from './mission-result.service'
 import { SpecialistService } from '../specialists/specialist.service'
 import { SpecialistAgentService } from '../specialist-agent/specialist-agent.service'
 import { ApprovalGatesService } from '../approval-gates/approval-gates.service'
+import { SkillEngineService } from '../skill-engine/skill-engine.service'
 import { EventsService } from '../gateway/events.service'
 import { SpecialistType } from '../specialists/specialist-registry'
 
@@ -16,6 +17,7 @@ export class StepExecutorService implements OnModuleInit {
     private readonly specialists: SpecialistService,
     private readonly agents:      SpecialistAgentService,
     private readonly gates:       ApprovalGatesService,
+    private readonly skillEngine: SkillEngineService,
     private readonly result:      MissionResultService,
     @Optional() private readonly events?: EventsService,
   ) {}
@@ -75,6 +77,34 @@ export class StepExecutorService implements OnModuleInit {
       this.emitUpdate(missionId)
       this.logger.log(`Step "${step.title}" requer ação humana — missão pausada`)
       return { status: 'blocked', output: { reason: 'awaiting_human' } }
+    }
+
+    // Step com skill atômica registrada — despacha direto via SkillEngine, sem
+    // passar por um specialist de IA. Sem isso, todo step "skill" era resolvido
+    // por um specialist tentando adivinhar a ação certa via tool calls genéricos
+    // (visto: jarvis:open_vscode acabou virando jarvis:run_command improvisado).
+    if (step.executor === 'skill' && step.skillId) {
+      await this.missions.updateStep(missionId, stepId, { status: 'running' })
+      this.emitUpdate(missionId)
+
+      const skillResult = await this.skillEngine.run({
+        skillId:   step.skillId,
+        input:     (step.input ?? {}) as Record<string, unknown>,
+        projectId: mission.projectId,
+        missionId,
+        stepId,
+      })
+
+      const skillStatus = skillResult.success ? 'done'
+        : skillResult.output?.status === 'pending_approval' ? 'skipped'
+        : 'failed'
+
+      await this.missions.updateStep(missionId, stepId, { status: skillStatus, output: skillResult.output })
+      this.logger.log(`Step "${step.title}" (skill ${step.skillId}) finished: ${skillStatus}`)
+      this.emitUpdate(missionId)
+
+      if (skillStatus === 'done') this.runNext(missionId)
+      return { status: skillStatus, output: skillResult.output }
     }
 
     // Resolve specialist type — prefer mission-level agent, fall back to step inference
