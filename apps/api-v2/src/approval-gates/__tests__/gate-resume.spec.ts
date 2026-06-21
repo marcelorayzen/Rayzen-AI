@@ -27,12 +27,14 @@ describe('Fase 2 — gate → resume', () => {
         transition: jest.fn().mockResolvedValue({}),
       }
       const specialists = { spawn: opts.spawn ?? jest.fn(), getStatus: jest.fn() }
+      const specialistAgents = { findById: jest.fn() }
       const skillEngine = { run: jest.fn() }
       const gates = { findPending: jest.fn().mockResolvedValue(opts.pendingGates ?? []) }
       const docs = { onMissionCompleted: jest.fn().mockResolvedValue([]) }
 
       const engine = new WorkflowEngineService(
-        missions as never, skillEngine as never, {} as never, specialists as never, gates as never, docs as never,
+        missions as never, skillEngine as never, {} as never, specialists as never,
+        specialistAgents as never, gates as never, docs as never,
       )
       return { engine, missions, specialists }
     }
@@ -68,13 +70,24 @@ describe('Fase 2 — gate → resume', () => {
     it('approve re-roda o DAG quando o gate pertence a uma missão', async () => {
       const gates    = { approve: jest.fn().mockResolvedValue({ id: 'g1', missionId: 'm1', projectId: 'p1', stepId: 's1', status: 'approved' }) }
       const workflow = { execute: jest.fn().mockResolvedValue({}) }
-      const missions = { updateStep: jest.fn(), transition: jest.fn() }
+      const missions = { updateStep: jest.fn().mockResolvedValue({}), transition: jest.fn() }
 
       const ctrl = new ApprovalGatesController(gates as never, missions as never, workflow as never)
       const res = await ctrl.approve('g1', { approvedBy: 'tester' } as never) as { resumed: boolean }
 
       expect(res.resumed).toBe(true)
       expect(workflow.execute).toHaveBeenCalledWith('m1', 'p1')
+    })
+
+    it('approve reabre o step para pending — sem isso um step interrompido mid-tool-call (skipped) nunca é re-escolhido', async () => {
+      const gates    = { approve: jest.fn().mockResolvedValue({ id: 'g1', missionId: 'm1', projectId: 'p1', stepId: 's1', status: 'approved' }) }
+      const workflow = { execute: jest.fn().mockResolvedValue({}) }
+      const missions = { updateStep: jest.fn().mockResolvedValue({}), transition: jest.fn() }
+
+      const ctrl = new ApprovalGatesController(gates as never, missions as never, workflow as never)
+      await ctrl.approve('g1', { approvedBy: 'tester' } as never)
+
+      expect(missions.updateStep).toHaveBeenCalledWith('m1', 's1', { status: 'pending' })
     })
 
     it('reject marca o step como failed e pausa a missão (sem re-rodar)', async () => {

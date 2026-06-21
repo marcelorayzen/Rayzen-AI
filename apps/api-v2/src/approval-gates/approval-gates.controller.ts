@@ -55,6 +55,16 @@ export class ApprovalGatesController {
   @HttpCode(200)
   async approve(@Param('id') id: string, @Body() dto: DecideDto) {
     const gate = await this.gates.approve(id, dto.approvedBy, dto.comment)
+
+    // Se o gate foi criado DURANTE uma tool-call do specialist (não antes do spawn),
+    // o step já foi marcado 'skipped' (StepExecutorService mapeia interrupted→skipped)
+    // e nem WorkflowEngineService nem StepExecutorService jamais voltam a escolhê-lo —
+    // ambos só consideram 'pending' elegível. Reabrir explicitamente aqui é o que faz
+    // o gate→resume funcionar nesse caso (o specialist recomeça o step do zero).
+    if (gate.missionId && gate.stepId) {
+      await this.missions.updateStep(gate.missionId, gate.stepId, { status: 'pending' }).catch(() => null)
+    }
+
     // Retoma a missão: re-roda o DAG, que agora encontra o step desbloqueado e
     // respeita as dependências (gate→resume — antes o step ficava travado pra sempre).
     let resumed = false

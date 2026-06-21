@@ -3,6 +3,8 @@ import { MissionService } from '../mission/mission.service'
 import { SkillEngineService } from '../skill-engine/skill-engine.service'
 import { AiRouterService } from '../ai-router/ai-router.service'
 import { SpecialistService } from '../specialists/specialist.service'
+import { SpecialistAgentService } from '../specialist-agent/specialist-agent.service'
+import { SpecialistType } from '../specialists/specialist-registry'
 import { ApprovalGatesService } from '../approval-gates/approval-gates.service'
 import { DocumentationEngineService, DocType } from '../documentation-engine/documentation-engine.service'
 
@@ -55,6 +57,7 @@ export class WorkflowEngineService {
     private readonly skillEngine:  SkillEngineService,
     private readonly aiRouter:     AiRouterService,
     private readonly specialists:  SpecialistService,
+    private readonly specialistAgents: SpecialistAgentService,
     private readonly gates:        ApprovalGatesService,
     private readonly docs:         DocumentationEngineService,
   ) {}
@@ -98,7 +101,7 @@ export class WorkflowEngineService {
 
       // Execute all ready steps in parallel
       await Promise.all(ready.map(async (step) => {
-        await this.executeStep(step, missionId, projectId, mission.objective, steps, DEFAULT_RETRY)
+        await this.executeStep(step, missionId, projectId, mission.objective, mission.specialistId, steps, DEFAULT_RETRY)
         // Refresh step from DB
         const updated = await this.missions.listSteps(missionId)
         const fresh   = updated.find((s) => s.id === step.id)
@@ -141,6 +144,7 @@ export class WorkflowEngineService {
     missionId: string,
     projectId: string,
     objective: string,
+    specialistId: string | null,
     allSteps: Step[],
     retry: RetryPolicy,
   ): Promise<void> {
@@ -148,7 +152,7 @@ export class WorkflowEngineService {
 
     for (let attempt = 0; attempt <= retry.maxRetries; attempt++) {
       try {
-        const output = await this.runStepLogic(step, missionId, projectId, objective, allSteps)
+        const output = await this.runStepLogic(step, missionId, projectId, objective, specialistId, allSteps)
         await this.missions.updateStep(missionId, step.id, { status: 'done', output })
         this.logger.debug(`Step ${step.title} done`)
         return
@@ -164,7 +168,7 @@ export class WorkflowEngineService {
     }
   }
 
-  private async runStepLogic(step: Step, missionId: string, projectId: string, objective: string, allSteps: Step[]): Promise<Record<string, unknown>> {
+  private async runStepLogic(step: Step, missionId: string, projectId: string, objective: string, specialistId: string | null, allSteps: Step[]): Promise<Record<string, unknown>> {
     // Build context from previous steps' outputs
     const prevOutputs = step.dependsOn
       .map((id) => allSteps.find((s) => s.id === id))
@@ -189,7 +193,16 @@ export class WorkflowEngineService {
       ? step.prompt
       : `Mission: ${objective}\nStep: ${step.title}\n${prevOutputs ? `\nContext:\n${prevOutputs}` : ''}`
 
+    // Respeita o specialist escolhido pelo dispatcher da missão — sem isso o tipo
+    // era sempre inferido por texto, podendo escolher "reviewer" pra um step de edição.
+    let type: SpecialistType | undefined
+    if (specialistId) {
+      const agent = await this.specialistAgents.findById(specialistId)
+      if (agent) type = agent.domain as SpecialistType
+    }
+
     const instance = await this.specialists.spawn({
+      type,
       task,
       missionId,
       stepId:    step.id,

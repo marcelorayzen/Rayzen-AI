@@ -118,6 +118,10 @@ export class MissionService {
     await this.prisma.mission.delete({ where: { id } })
   }
 
+  async findRunningSteps() {
+    return this.prisma.missionStep.findMany({ where: { status: 'running' } })
+  }
+
   async findNextPending(projectId: string) {
     // active preferred over pending, oldest first
     const missions = await this.prisma.mission.findMany({

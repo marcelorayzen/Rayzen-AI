@@ -1,4 +1,4 @@
-import { Injectable, Logger, Optional } from '@nestjs/common'
+import { Injectable, Logger, Optional, OnModuleInit } from '@nestjs/common'
 import { MissionService } from './mission.service'
 import { MissionResultService } from './mission-result.service'
 import { SpecialistService } from '../specialists/specialist.service'
@@ -8,7 +8,7 @@ import { EventsService } from '../gateway/events.service'
 import { SpecialistType } from '../specialists/specialist-registry'
 
 @Injectable()
-export class StepExecutorService {
+export class StepExecutorService implements OnModuleInit {
   private readonly logger = new Logger(StepExecutorService.name)
 
   constructor(
@@ -19,6 +19,25 @@ export class StepExecutorService {
     private readonly result:      MissionResultService,
     @Optional() private readonly events?: EventsService,
   ) {}
+
+  /**
+   * SpecialistService guarda instâncias só em memória (Map). Se o processo api-v2
+   * reinicia com um step em 'running', a instância morre mas a linha no Postgres
+   * fica 'running' pra sempre — nenhum processo vivo algum dia a completa. Reconcilia
+   * no boot marcando esses steps órfãos como 'failed' para liberar retry manual.
+   */
+  async onModuleInit() {
+    const orphaned = await this.missions.findRunningSteps()
+    for (const step of orphaned) {
+      await this.missions.updateStep(step.missionId, step.id, {
+        status: 'failed',
+        output: { error: 'Specialist instance perdida em restart do api-v2' },
+      }).catch((e) => this.logger.warn(`Falha ao reconciliar step órfão ${step.id}: ${e}`))
+    }
+    if (orphaned.length > 0) {
+      this.logger.warn(`Reconciliados ${orphaned.length} step(s) órfão(s) em 'running' de uma instância anterior`)
+    }
+  }
 
   /**
    * Executes a single step using the appropriate Specialist.

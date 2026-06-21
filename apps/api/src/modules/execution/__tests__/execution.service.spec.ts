@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing'
 import { getQueueToken } from '@nestjs/bull'
 import { ExecutionService } from '../execution.service'
 import { EventService } from '../../event/event.service'
+import { AgentHeartbeatService } from '../../agent-bridge/agent-heartbeat.service'
 
 const mockQueue = {
   add: jest.fn(),
@@ -24,6 +25,12 @@ describe('ExecutionService', () => {
         {
           provide: EventService,
           useValue: { create: jest.fn().mockResolvedValue(undefined) },
+        },
+        {
+          provide: AgentHeartbeatService,
+          // Sempre "online" nestes testes — eles cobrem o comportamento da fila,
+          // não a checagem de heartbeat (que tem teste próprio).
+          useValue: { isOnline: jest.fn().mockReturnValue(true), getLastSeenAt: jest.fn().mockReturnValue(null) },
         },
       ],
     }).compile()
@@ -92,6 +99,15 @@ describe('ExecutionService', () => {
       })
 
       await expect(service.dispatch('open_app', { app: 'nonexistent' })).rejects.toThrow('App não encontrado')
+    })
+
+    it('falha rápido sem enfileirar quando o agent do role alvo está offline', async () => {
+      const heartbeat = service['heartbeat'] as unknown as { isOnline: jest.Mock; getLastSeenAt: jest.Mock }
+      heartbeat.isOnline.mockReturnValue(false)
+      heartbeat.getLastSeenAt.mockReturnValue(Date.now() - 120_000)
+
+      await expect(service.dispatch('open_app', { app: 'chrome' })).rejects.toThrow('Agent desktop offline')
+      expect(mockQueue.add).not.toHaveBeenCalled()
     })
   })
 

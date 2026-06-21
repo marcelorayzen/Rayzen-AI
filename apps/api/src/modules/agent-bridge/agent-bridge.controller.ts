@@ -3,6 +3,7 @@ import { ApiTags } from '@nestjs/swagger'
 import { SkipThrottle } from '@nestjs/throttler'
 import { AgentBridgeService } from './agent-bridge.service'
 import { AuditLogService } from './audit-log.service'
+import { AgentHeartbeatService } from './agent-heartbeat.service'
 import { AgentTokenGuard } from './agent-token.guard'
 import { Public } from '../auth/public.decorator'
 import { MetricsService } from '../metrics/metrics.service'
@@ -38,6 +39,7 @@ export class AgentBridgeController {
     private readonly svc: AgentBridgeService,
     private readonly audit: AuditLogService,
     private readonly metrics: MetricsService,
+    private readonly heartbeat: AgentHeartbeatService,
   ) {}
 
   @Post()
@@ -46,7 +48,10 @@ export class AgentBridgeController {
   }
 
   @Get('pending')
-  getPending(@Query('role') role?: AgentRole) { return this.svc.getPending(role) }
+  getPending(@Query('role') role?: AgentRole) {
+    if (role) this.heartbeat.touch(role)
+    return this.svc.getPending(role)
+  }
 
   @Get(':id')
   getById(@Param('id') id: string) { return this.svc.getById(id) }

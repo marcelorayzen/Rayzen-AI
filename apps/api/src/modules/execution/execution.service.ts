@@ -4,6 +4,7 @@ import { Queue } from 'bull'
 import { AgentRole, Task, TaskCreateDto } from '@rayzen/types'
 import { randomUUID } from 'crypto'
 import { EventService } from '../event/event.service'
+import { AgentHeartbeatService } from '../agent-bridge/agent-heartbeat.service'
 
 const POLL_INTERVAL_MS = 500
 const POLL_TIMEOUT_MS = 30_000
@@ -58,10 +59,21 @@ export class ExecutionService {
   constructor(
     @InjectQueue('agent-tasks') private queue: Queue,
     private eventService: EventService,
+    private heartbeat: AgentHeartbeatService,
   ) {}
 
   async dispatch(action: string, payload: Record<string, unknown>): Promise<unknown> {
     const targetRole = ACTION_ROLE[action]
+
+    // Falha rápido se o agent daquele role não dá sinal de vida há mais de 90s,
+    // em vez de deixar o specialist pagar o timeout de 30s a cada tentativa numa
+    // tarefa estruturalmente impossível (visto: 10 iterações, todas vazias, ~$0,01).
+    if (targetRole && !this.heartbeat.isOnline(targetRole)) {
+      const lastSeen = this.heartbeat.getLastSeenAt(targetRole)
+      const ageMsg = lastSeen ? `last seen há ${Math.round((Date.now() - lastSeen) / 1000)}s` : 'nunca visto'
+      throw new Error(`Agent ${targetRole} offline (${ageMsg})`)
+    }
+
     const dto: TaskCreateDto = { module: 'jarvis', action, payload, ...(targetRole ? { targetRole } : {}) }
     const id = randomUUID()
     const now = new Date().toISOString()
