@@ -51,6 +51,9 @@ secrets/
 # Coverage
 apps/api/coverage/
 
+# Relatorio JUnit (gerado pelo jest-junit, consumido pelo CI pra ingest no Rayzen)
+apps/api/junit/
+
 # Evidências enviadas pelo Agent
 storage/evidence/
 

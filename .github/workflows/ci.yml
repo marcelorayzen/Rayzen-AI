@@ -88,6 +88,26 @@ jobs:
       - name: Run unit tests with coverage
         run: pnpm --filter api test:cov
 
+      - name: Ingest JUnit report no Rayzen
+        if: always()
+        continue-on-error: true
+        env:
+          RAYZEN_AGENT_TOKEN: ${{ secrets.RAYZEN_AGENT_TOKEN }}
+        run: |
+          if [ -z "$RAYZEN_AGENT_TOKEN" ] || [ ! -f apps/api/junit/junit.xml ]; then
+            echo "Sem token ou junit.xml — pulando ingest"
+            exit 0
+          fi
+          jq -n \
+            --arg content "$(cat apps/api/junit/junit.xml)" \
+            --arg branch "${{ github.ref_name }}" \
+            --arg commit "${{ github.sha }}" \
+            '{format: "junit", tool: "github-actions", projectId: "7690370b-aa1e-4b13-8335-a8a14ad0d859", branch: $branch, commitHash: $commit, reportContent: $content}' \
+          | curl -sf -X POST "https://api.rayzen.com.br/qa/reports/ingest" \
+              -H "Authorization: Bearer $RAYZEN_AGENT_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d @-
+
       - name: Run E2E tests
         run: pnpm --filter api test:e2e
 

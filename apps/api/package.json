@@ -59,6 +59,7 @@
     "@typescript-eslint/parser": "^8.59.1",
     "eslint": "^9.39.4",
     "jest": "^29.7.0",
+    "jest-junit": "^17.0.0",
     "prisma": "^5.0.0",
     "ts-jest": "^29.4.9",
     "typescript": "^5.5.0"
@@ -97,6 +98,10 @@
       }
     },
     "coverageDirectory": "../coverage",
+    "reporters": [
+      "default",
+      ["jest-junit", { "outputDirectory": "./junit", "outputName": "junit.xml" }]
+    ],
     "testEnvironment": "node",
     "moduleNameMapper": {
       "^@rayzen/types$": "<rootDir>/../../packages/types/src/index.ts"
