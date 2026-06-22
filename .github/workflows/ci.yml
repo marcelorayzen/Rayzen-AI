@@ -108,6 +108,9 @@ jobs:
               -H "Content-Type: application/json" \
               -d @-
 
+      - name: Run api-v2 tests
+        run: pnpm --filter api-v2 test
+
       - name: Run E2E tests
         run: pnpm --filter api test:e2e
 

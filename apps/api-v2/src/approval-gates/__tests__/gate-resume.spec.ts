@@ -64,6 +64,30 @@ describe('Fase 2 — gate → resume', () => {
       expect(missions.transition).toHaveBeenCalledWith('m1', 'done')
       expect(stats.completed).toBe(1)
     })
+
+    it('marca o step como skipped (não done) quando o specialist é interrompido por gate mid-tool-call', async () => {
+      // Antes do fix: runStepLogic só checava instance.status === 'failed' — um
+      // specialist 'interrupted' (gate criado durante tool-use) caía no caminho de
+      // sucesso e o step virava 'done' com um gate pendente órfão (nada foi de
+      // fato executado).
+      const spawn = jest.fn().mockResolvedValue({
+        id: 'inst1', status: 'interrupted', type: 'coder',
+        output: { gateId: 'g-mid', message: 'Aguardando aprovação de gate criado durante tool-use' },
+      })
+      const { engine, missions } = buildEngine({
+        pendingGates: [],
+        spawn,
+        finalSteps: [{ ...baseStep, status: 'skipped' }],
+      })
+
+      await engine.execute('m1', 'p1')
+
+      expect(missions.updateStep).toHaveBeenCalledWith('m1', 's1', {
+        status: 'skipped',
+        output: { gateId: 'g-mid', message: 'Aguardando aprovação de gate criado durante tool-use' },
+      })
+      expect(missions.updateStep).not.toHaveBeenCalledWith('m1', 's1', expect.objectContaining({ status: 'done' }))
+    })
   })
 
   describe('ApprovalGatesController retoma/encerra a missão', () => {

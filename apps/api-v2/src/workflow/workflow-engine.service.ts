@@ -25,6 +25,16 @@ interface Step {
 interface RetryPolicy { maxRetries: number; backoffMs: number }
 const DEFAULT_RETRY: RetryPolicy = { maxRetries: 2, backoffMs: 1000 }
 
+// Sinaliza que o specialist foi interrompido por um gate criado durante tool-use
+// (risco medium/high no meio do loop) — distinto de falha real. Sem isso,
+// runStepLogic devolvia o output do specialist "interrompido" como se tivesse
+// concluído com sucesso, e o step virava 'done' com um gate pendente órfão.
+class StepInterruptedError extends Error {
+  constructor(public readonly output: Record<string, unknown>) {
+    super('Specialist interrompido — aguardando aprovação de gate criado durante tool-use')
+  }
+}
+
 // Workflow templates — pre-defined step sequences per mission type
 export const WORKFLOW_TEMPLATES: Record<string, Array<{ key: string; title: string; executor: string; skillId?: string; dependsOn: string[] }>> = {
   implementation: [
@@ -168,6 +178,14 @@ export class WorkflowEngineService {
         this.logger.debug(`Step ${step.title} done`)
         return
       } catch (e) {
+        if (e instanceof StepInterruptedError) {
+          // Não retenta — retentar so criaria mais um gate duplicado pro mesmo
+          // step. Resume real acontece em ApprovalGatesController.approve()
+          // (reseta o step pra pending quando o gate é aprovado).
+          await this.missions.updateStep(missionId, step.id, { status: 'skipped', output: e.output })
+          this.logger.log(`Step ${step.title} interrompido por gate — aguardando aprovação`)
+          return
+        }
         const msg = e instanceof Error ? e.message : String(e)
         this.logger.warn(`Step ${step.title} attempt ${attempt + 1} failed: ${msg}`)
         if (attempt < retry.maxRetries) {
@@ -195,7 +213,10 @@ export class WorkflowEngineService {
         missionId,
         stepId:    step.id,
       })
-      if (!result.success) throw new Error(result.output['error'] as string ?? 'Skill failed')
+      if (!result.success) {
+        if (result.output['status'] === 'pending_approval') throw new StepInterruptedError(result.output)
+        throw new Error(result.output['error'] as string ?? 'Skill failed')
+      }
       return result.output
     }
 
@@ -230,6 +251,7 @@ export class WorkflowEngineService {
       if (fresh) Object.assign(instance, fresh)
     }
 
+    if (instance.status === 'interrupted') throw new StepInterruptedError((instance.output ?? {}) as Record<string, unknown>)
     if (instance.status === 'failed') throw new Error('Specialist failed')
     return instance.output ?? { response: 'No output', specialist: instance.type }
   }
