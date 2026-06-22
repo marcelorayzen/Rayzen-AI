@@ -7,6 +7,7 @@ import { DocumentationService } from '../documentation/documentation.service'
 import { MetricsService } from '../metrics/metrics.service'
 import { GraphService } from '../graph/graph.service'
 import { EventService } from '../event/event.service'
+import { ProjectStateService } from '../project-state/project-state.service'
 
 export interface SynthesisResult {
   summary: string
@@ -28,6 +29,7 @@ export class SynthesisService {
     private readonly metrics: MetricsService,
     private readonly graphService: GraphService,
     @Inject(forwardRef(() => EventService)) private readonly eventService: EventService,
+    @Inject(forwardRef(() => ProjectStateService)) private readonly stateService: ProjectStateService,
   ) {
     this.llm = new OpenAI({
       baseURL: this.config.get('LITELLM_BASE_URL', 'http://localhost:4000/v1'),
@@ -152,6 +154,28 @@ export class SynthesisService {
       content: `Possíveis critérios concluídos no goal "${goalTitle}" (revisar e confirmar manualmente):\n${lines.join('\n')}`,
       metadata: { kind: 'goal_proposal_pending', goalId, proposals },
     })
+
+    // O evento acima sozinho não sobrevive entre sessões: recent_events pega os
+    // últimos N eventos sem filtro, e qualquer tool-call (Bash, Grep, etc.) gera
+    // um — o aviso é engolido pelo ruído em minutos numa sessão ativa. nextSteps
+    // é o que o hook injeta como "Próximos passos" em TODO prompt (já comprovado
+    // nesta sessão), então é a única superfície com garantia real de visibilidade
+    // cross-sessão. Só propostas de alta confiança entram aqui — pra não inflar
+    // a lista com toda sugestão de baixa certeza a cada checkpoint.
+    const highConfidence = proposals.filter(p => p.confidence === 'high')
+    if (highConfidence.length === 0) return
+
+    const state = await this.stateService.get(projectId)
+    if (!state) return
+
+    const existingIds = new Set(state.nextSteps.map(s => s.id))
+    const newSteps = highConfidence
+      .filter(p => !existingIds.has(`confirmar-${p.criteriaId}`))
+      .map(p => ({ id: `confirmar-${p.criteriaId}`, title: `Confirmar critério concluído: ${p.text} (${p.reason})` }))
+
+    if (newSteps.length > 0) {
+      await this.stateService.updatePlanning(projectId, { nextSteps: [...state.nextSteps, ...newSteps] })
+    }
   }
 
   private buildGitSummary(events: Array<{ metadata: unknown }>): string {

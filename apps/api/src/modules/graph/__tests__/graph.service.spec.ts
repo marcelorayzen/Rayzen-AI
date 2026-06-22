@@ -13,14 +13,21 @@ import { GraphService, GapAnalysis } from '../graph.service'
  * precisa criar esse evento de decisão, não só chamar refresh.
  */
 describe('GraphService.toggleCriteria — sincroniza ProjectState', () => {
-  function buildService(goal: { id: string; projectId: string; successCriteria: unknown }) {
+  function buildService(
+    goal: { id: string; projectId: string; successCriteria: unknown },
+    nextSteps: Array<{ id: string; title: string }> = [],
+  ) {
     const prisma = {
       projectGoal: {
         findUniqueOrThrow: jest.fn().mockResolvedValue(goal),
         update: jest.fn().mockResolvedValue({ ...goal, successCriteria: goal.successCriteria }),
       },
     }
-    const stateService = { refresh: jest.fn().mockResolvedValue({}) }
+    const stateService = {
+      refresh: jest.fn().mockResolvedValue({}),
+      get: jest.fn().mockResolvedValue({ nextSteps }),
+      updatePlanning: jest.fn().mockResolvedValue({}),
+    }
     const healthService = {}
     const config = { get: jest.fn().mockReturnValue(undefined) }
     const metrics = {}
@@ -78,6 +85,47 @@ describe('GraphService.toggleCriteria — sincroniza ProjectState', () => {
       where: { id: 'g1' },
       data: { successCriteria: [{ id: 'qa-1', text: 'x', done: true }] },
     })
+  })
+
+  // goal-2: warnPendingGoalProposals (SynthesisService) põe "confirmar-<id>" em
+  // nextSteps quando propõe um critério com evidência. Confirmar o critério
+  // precisa limpar isso — senão fica preso em nextSteps pra sempre (refresh()
+  // não dá garantia de remover, é não-determinístico).
+  it('remove o next-step de confirmação ao marcar o critério correspondente como done', async () => {
+    const goal = { id: 'g1', projectId: 'p1', successCriteria: [{ id: 'goal-2', text: 'x', done: false }] }
+    const { service, stateService } = buildService(goal, [
+      { id: 'confirmar-goal-2', title: 'Confirmar critério concluído: x' },
+      { id: 'outro-passo', title: 'Não relacionado' },
+    ])
+
+    await service.toggleCriteria('g1', 'goal-2', true)
+    await new Promise((r) => setImmediate(r))
+
+    expect(stateService.updatePlanning).toHaveBeenCalledWith('p1', {
+      nextSteps: [{ id: 'outro-passo', title: 'Não relacionado' }],
+    })
+  })
+
+  it('não toca em nextSteps quando não há next-step de confirmação pendente pra esse critério', async () => {
+    const goal = { id: 'g1', projectId: 'p1', successCriteria: [{ id: 'goal-2', text: 'x', done: false }] }
+    const { service, stateService } = buildService(goal, [{ id: 'outro-passo', title: 'Não relacionado' }])
+
+    await service.toggleCriteria('g1', 'goal-2', true)
+    await new Promise((r) => setImmediate(r))
+
+    expect(stateService.updatePlanning).not.toHaveBeenCalled()
+  })
+
+  it('não remove next-step ao reverter um critério pra pendente (done: false)', async () => {
+    const goal = { id: 'g1', projectId: 'p1', successCriteria: [{ id: 'goal-2', text: 'x', done: true }] }
+    const { service, stateService } = buildService(goal, [
+      { id: 'confirmar-goal-2', title: 'Confirmar critério concluído: x' },
+    ])
+
+    await service.toggleCriteria('g1', 'goal-2', false)
+    await new Promise((r) => setImmediate(r))
+
+    expect(stateService.updatePlanning).not.toHaveBeenCalled()
   })
 })
 

@@ -317,7 +317,27 @@ export class GraphService {
       this.logger.warn(`Falha ao sincronizar ProjectState após toggleCriteria: ${e}`),
     )
 
+    // Mesmo motivo do evento de decisão acima, mas pro lado contrário: confirmar
+    // um critério não tira sozinho o "Confirmar critério concluído: ..." que
+    // warnPendingGoalProposals (SynthesisService) colocou em nextSteps — e
+    // refresh() não dá garantia de remover (não-determinístico). Remove direto.
+    if (done) {
+      void this.removeConfirmNextStep(goal.projectId, criteriaId).catch((e) =>
+        this.logger.warn(`Falha ao limpar next-step de confirmação após toggleCriteria: ${e}`),
+      )
+    }
+
     return updated
+  }
+
+  private async removeConfirmNextStep(projectId: string, criteriaId: string): Promise<void> {
+    const state = await this.stateService.get(projectId)
+    if (!state) return
+    const stepId = `confirmar-${criteriaId}`
+    if (!state.nextSteps.some(s => s.id === stepId)) return
+    await this.stateService.updatePlanning(projectId, {
+      nextSteps: state.nextSteps.filter(s => s.id !== stepId),
+    })
   }
 
   async listGoals(projectId: string) {

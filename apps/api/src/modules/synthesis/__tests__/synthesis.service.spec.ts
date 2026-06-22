@@ -7,20 +7,35 @@ import { SynthesisService } from '../synthesis.service'
  * web UI chamavam). warnPendingGoalProposals() roda a cada checkpoint (Stop
  * automático ou manual) e cria um evento visível — nunca aplica a proposta
  * sozinho, só avisa, pra exigir confirmação humana via toggleCriteria().
+ *
+ * O evento sozinho não basta: recent_events pega os últimos N eventos sem
+ * filtro e qualquer tool-call gera um, então o aviso é engolido pelo ruído
+ * em minutos numa sessão ativa — não sobrevive até uma sessão nova. Por isso
+ * propostas de alta confiança também entram em nextSteps, a única superfície
+ * com garantia de aparecer no "Próximos passos" injetado pelo hook em toda
+ * sessão.
  */
 describe('SynthesisService.warnPendingGoalProposals', () => {
-  function buildService(proposeResult: { goalId: string | null; goalTitle: string | null; proposals: Array<{ criteriaId: string; text: string; confidence: 'high' | 'medium' | 'low'; reason: string }> }) {
+  function buildService(
+    proposeResult: { goalId: string | null; goalTitle: string | null; proposals: Array<{ criteriaId: string; text: string; confidence: 'high' | 'medium' | 'low'; reason: string }> },
+    currentNextSteps: Array<{ id: string; title: string }> = [],
+  ) {
     const prisma = {}
     const config = { get: jest.fn().mockReturnValue(undefined) }
     const docSvc = {}
     const metrics = {}
     const graphService = { proposeGoalProgress: jest.fn().mockResolvedValue(proposeResult) }
     const eventService = { create: jest.fn().mockResolvedValue({}) }
+    const stateService = {
+      get: jest.fn().mockResolvedValue({ nextSteps: currentNextSteps }),
+      updatePlanning: jest.fn().mockResolvedValue({}),
+    }
 
     const service = new SynthesisService(
-      prisma as never, config as never, docSvc as never, metrics as never, graphService as never, eventService as never,
+      prisma as never, config as never, docSvc as never, metrics as never,
+      graphService as never, eventService as never, stateService as never,
     )
-    return { service, eventService, graphService }
+    return { service, eventService, graphService, stateService }
   }
 
   function warn(service: SynthesisService, projectId: string): Promise<void> {
@@ -63,5 +78,53 @@ describe('SynthesisService.warnPendingGoalProposals', () => {
     await warn(service, 'p1')
 
     expect(eventService.create).not.toHaveBeenCalled()
+  })
+
+  it('adiciona proposta de alta confiança em nextSteps (visibilidade cross-sessão)', async () => {
+    const { service, stateService } = buildService({
+      goalId: 'g1',
+      goalTitle: 'X',
+      proposals: [
+        { criteriaId: 'goal-2', text: 'Meta nunca desatualizada', confidence: 'high', reason: 'evidência clara' },
+      ],
+    })
+
+    await warn(service, 'p1')
+
+    expect(stateService.updatePlanning).toHaveBeenCalledWith('p1', {
+      nextSteps: [{ id: 'confirmar-goal-2', title: expect.stringContaining('Meta nunca desatualizada') }],
+    })
+  })
+
+  it('não duplica o next-step se a mesma proposta já foi avisada num checkpoint anterior', async () => {
+    const { service, stateService } = buildService(
+      {
+        goalId: 'g1',
+        goalTitle: 'X',
+        proposals: [
+          { criteriaId: 'goal-2', text: 'Meta nunca desatualizada', confidence: 'high', reason: 'evidência clara' },
+        ],
+      },
+      [{ id: 'confirmar-goal-2', title: 'Confirmar critério concluído: Meta nunca desatualizada (evidência clara)' }],
+    )
+
+    await warn(service, 'p1')
+
+    expect(stateService.updatePlanning).not.toHaveBeenCalled()
+  })
+
+  it('não adiciona em nextSteps propostas de confiança media/baixa (só o evento)', async () => {
+    const { service, stateService, eventService } = buildService({
+      goalId: 'g1',
+      goalTitle: 'X',
+      proposals: [
+        { criteriaId: 'cat-2', text: 'Lineage visível', confidence: 'medium', reason: 'indício parcial' },
+      ],
+    })
+
+    await warn(service, 'p1')
+
+    expect(eventService.create).toHaveBeenCalled()
+    expect(stateService.updatePlanning).not.toHaveBeenCalled()
   })
 })
