@@ -103,6 +103,22 @@ export class ApprovalGatesService {
   ): Promise<{ required: boolean; gate?: ReturnType<ApprovalGatesService['create']> extends Promise<infer T> ? T : never }> {
     if (skillRisk === 'none' || skillRisk === 'low') return { required: false }
 
+    // Sem isso, toda aprovação só deixava a missão tentar de novo — a nova tentativa
+    // (specialist reiniciado do zero) caía de novo aqui e criava OUTRO gate pending,
+    // nunca deixando a ação de risco medium/high de fato executar. Reaproveita um
+    // gate já aprovado pro mesmo step+skill em vez de pedir aprovação outra vez.
+    const skillId = context['skillId'] as string | undefined
+    if (stepId && skillId) {
+      const approved = await this.prisma.approvalGate.findFirst({
+        where: { stepId, status: 'approved', context: { path: ['skillId'], equals: skillId } },
+        orderBy: { approvedAt: 'desc' },
+      })
+      if (approved) {
+        this.logger.log(`Gate já aprovado reaproveitado para step ${stepId} / skill ${skillId} (gate ${approved.id})`)
+        return { required: false }
+      }
+    }
+
     const type: ApprovalGateType = skillRisk === 'high' ? 'irreversible' : 'data_write'
     const gate = await this.create({
       projectId,
