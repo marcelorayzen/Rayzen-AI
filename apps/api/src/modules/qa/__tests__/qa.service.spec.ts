@@ -174,7 +174,11 @@ describe('QaService.getRunDetail', () => {
         ]),
       },
     }
-    const service = new QaService(prisma as never, { indexDocument: jest.fn() } as never)
+    const service = new QaService(
+      prisma as never,
+      { indexDocument: jest.fn() } as never,
+      { captureLearning: jest.fn() } as never,
+    )
 
     const detail = await service.getRunDetail('run-1')
 
@@ -182,5 +186,84 @@ describe('QaService.getRunDetail', () => {
     expect(detail?.passRate).toBe(100)
     expect(detail?.evidence).toHaveLength(1)
     expect(detail?.evidence[0].id).toBe('ev-1')
+  })
+})
+
+// qa-2: padrões de flaky devem virar learnings (pattern) pra surfaceirem em
+// rayzen_get_context via o mesmo índice semântico do WikiService.
+describe('QaService.saveRun — indexa flaky tests como learning', () => {
+  function buildService(testRuns: Array<{ failedCases: unknown[]; totalTests: number; passed: number; executedAt: Date }>) {
+    const prisma = {
+      testRun: {
+        create: jest.fn().mockResolvedValue({ id: 'run-new' }),
+        findMany: jest.fn().mockResolvedValue(testRuns),
+      },
+    }
+    const memory = { indexDocument: jest.fn().mockResolvedValue({}) }
+    const wiki = { captureLearning: jest.fn().mockResolvedValue({}) }
+    const service = new QaService(prisma as never, memory as never, wiki as never)
+    return { service, prisma, memory, wiki }
+  }
+
+  const baseCase = { suite: 'SuiteA', name: 'flakyTest', message: 'timeout', stacktrace: '' }
+
+  it('captura um learning (type pattern) para teste com failRate entre 20% e 80%', async () => {
+    // 2 de 5 runs falharam no mesmo teste = 40% fail rate -> flaky
+    const runs = [
+      { failedCases: [baseCase], totalTests: 3, passed: 2, executedAt: new Date() },
+      { failedCases: [], totalTests: 3, passed: 3, executedAt: new Date() },
+      { failedCases: [baseCase], totalTests: 3, passed: 2, executedAt: new Date() },
+      { failedCases: [], totalTests: 3, passed: 3, executedAt: new Date() },
+      { failedCases: [], totalTests: 3, passed: 3, executedAt: new Date() },
+    ]
+    const { service, wiki } = buildService(runs)
+
+    await service.saveRun({
+      tool: 'junit', totalTests: 3, passed: 2, failed: 1, skipped: 0, durationMs: 100,
+      suites: [], failedCases: [baseCase], projectId: 'p1',
+    })
+    await new Promise((r) => setImmediate(r))
+
+    expect(wiki.captureLearning).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Flaky: SuiteA > flakyTest',
+      type: 'pattern',
+      tags: ['flaky', 'qa'],
+      projectId: 'p1',
+    }))
+  })
+
+  it('não chama captureLearning quando nenhum teste está na faixa de flaky', async () => {
+    // falha em 100% dos runs = falha consistente, não flaky
+    const runs = [
+      { failedCases: [baseCase], totalTests: 3, passed: 2, executedAt: new Date() },
+      { failedCases: [baseCase], totalTests: 3, passed: 2, executedAt: new Date() },
+    ]
+    const { service, wiki } = buildService(runs)
+
+    await service.saveRun({
+      tool: 'junit', totalTests: 3, passed: 2, failed: 1, skipped: 0, durationMs: 100,
+      suites: [], failedCases: [baseCase], projectId: 'p1',
+    })
+    await new Promise((r) => setImmediate(r))
+
+    expect(wiki.captureLearning).not.toHaveBeenCalled()
+  })
+
+  it('persiste o run mesmo se a indexação de flaky falhar', async () => {
+    const runs = [
+      { failedCases: [baseCase], totalTests: 3, passed: 2, executedAt: new Date() },
+      { failedCases: [], totalTests: 3, passed: 3, executedAt: new Date() },
+    ]
+    const { service, wiki, prisma } = buildService(runs)
+    wiki.captureLearning.mockRejectedValue(new Error('jina indisponível'))
+
+    const result = await service.saveRun({
+      tool: 'junit', totalTests: 3, passed: 2, failed: 1, skipped: 0, durationMs: 100,
+      suites: [], failedCases: [baseCase], projectId: 'p1',
+    })
+    await new Promise((r) => setImmediate(r))
+
+    expect(result.id).toBe('run-new')
+    expect(prisma.testRun.create).toHaveBeenCalled()
   })
 })

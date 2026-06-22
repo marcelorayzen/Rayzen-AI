@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { MemoryService } from '../memory/memory.service'
+import { WikiService } from '../wiki/wiki.service'
 
 export interface FailedCase {
   suite: string
@@ -166,6 +167,7 @@ export class QaService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly memory: MemoryService,
+    private readonly wiki: WikiService,
   ) {}
 
   async saveRun(dto: SaveTestRunDto): Promise<{ id: string }> {
@@ -199,9 +201,32 @@ export class QaService {
         { type: 'test_failures', tool: dto.tool, runId: run.id },
         dto.projectId,
       ).catch(err => this.logger.warn(`Failed to index test failures for run ${run.id}: ${(err as Error).message}`))
+
+      this.detectAndIndexFlakiness(dto.projectId)
+        .catch(err => this.logger.warn(`Failed to index flaky patterns after run ${run.id}: ${(err as Error).message}`))
     }
 
     return { id: run.id }
+  }
+
+  /**
+   * Re-captura cada teste flaky atualmente detectado como um learning (type: 'pattern')
+   * via WikiService — upsert por título, então rodar isso a cada ingest não duplica,
+   * só atualiza failRate/lastSeen. É o que faz padrões de flaky surfaceirem em
+   * rayzen_get_context (memory_relevant busca nesse mesmo índice semântico).
+   */
+  private async detectAndIndexFlakiness(projectId?: string): Promise<void> {
+    const flaky = await this.getFlakyTests(projectId, 20)
+    if (flaky.length === 0) return
+
+    await Promise.all(flaky.map(f => this.wiki.captureLearning({
+      title: `Flaky: ${f.test}`,
+      type: 'pattern',
+      problem: `Teste "${f.test}" falhou em ${f.failedIn} de ${f.totalRuns} runs recentes (~${f.failRate}% fail rate) — não é falha consistente, indica flakiness (timing, race condition, dependência externa, ordem de execução, etc).`,
+      solution: `Investigar causa raiz da instabilidade antes de confiar no resultado desse teste. Candidatos comuns: setup/teardown compartilhado entre testes, asserts dependentes de timing, dados de teste não isolados.`,
+      tags: ['flaky', 'qa'],
+      projectId,
+    })))
   }
 
   async getRuns(projectId?: string, limit = 20) {
