@@ -55,6 +55,22 @@ class SyncFilesDto {
   edges!: SyncEdgeDto[]
 }
 
+class ImpactBatchDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  projectId!: string
+
+  @ApiProperty({ type: [String] })
+  @IsArray()
+  @IsString({ each: true })
+  filePaths!: string[]
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  maxDepth?: number
+}
+
 class LinkDto {
   @ApiProperty()
   @IsString()
@@ -176,5 +192,16 @@ export class LineageController {
     @Query('maxDepth') maxDepth?: string,
   ) {
     return this.codeLineage.impactFromFile(projectId, filePath, maxDepth ? Number(maxDepth) : undefined)
+  }
+
+  /**
+   * Impacto agregado de um conjunto de arquivos (ex: diff de um PR/push) — usado
+   * pelo script de pre-deploy e pelo step de CI, pra responder "o que esse deploy
+   * afeta" sem precisar de N chamadas a /files/impact.
+   */
+  @Post('files/impact-batch')
+  @HttpCode(200)
+  fileImpactBatch(@Body() dto: ImpactBatchDto) {
+    return this.codeLineage.impactFromFiles(dto.projectId, dto.filePaths, dto.maxDepth)
   }
 }

@@ -17,6 +17,7 @@
     "gen:catalog": "node scripts/gen-agent-catalog.mjs",
     "scan:secrets": "node scripts/scan-secrets.mjs",
     "qa:ingest": "node scripts/qa-ingest.mjs",
+    "impact:check": "node scripts/check-deploy-impact.mjs",
     "test": "pnpm --filter api test"
   },
   "devDependencies": {

@@ -135,4 +135,30 @@ export class CodeLineageService {
       totalImpacted:  impacted.length,
     }
   }
+
+  /**
+   * Impacto agregado de um conjunto de arquivos mudados (ex: diff de um PR antes
+   * do deploy). Roda impactFromFile por arquivo e funde os resultados — um arquivo
+   * impactado por mais de um arquivo mudado aparece só uma vez no agregado.
+   */
+  async impactFromFiles(projectId: string, filePaths: string[], maxDepth?: number): Promise<{
+    perFile:       FileImpactResult[]
+    aggregated:    FileImpactNode[]
+    aggregatedRoutes: FileImpactNode[]
+  }> {
+    const perFile = await Promise.all(filePaths.map((f) => this.impactFromFile(projectId, f, maxDepth)))
+
+    const byPath = new Map<string, FileImpactNode>()
+    for (const result of perFile) {
+      for (const node of result.impactedFiles) {
+        const existing = byPath.get(node.path)
+        if (!existing || node.depth < existing.depth) byPath.set(node.path, node)
+      }
+    }
+    // Não conta como "impactado" um arquivo que está no próprio diff (já vai ser deployado de qualquer forma)
+    for (const changed of filePaths) byPath.delete(changed)
+
+    const aggregated = [...byPath.values()].sort((a, b) => a.depth - b.depth)
+    return { perFile, aggregated, aggregatedRoutes: aggregated.filter((n) => n.isRoute) }
+  }
 }

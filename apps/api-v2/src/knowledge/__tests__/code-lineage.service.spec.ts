@@ -164,3 +164,88 @@ describe('CodeLineageService.impactFromFile', () => {
     expect(result.impactedFiles[0].path).toBe('b.ts')
   })
 })
+
+/**
+ * cat-3: impact analysis pré-deploy. impactFromFiles roda sobre o diff de um
+ * push/PR (vários arquivos mudados) e funde o resultado — sem isso o script de
+ * pre-deploy/CI teria que chamar /files/impact uma vez por arquivo e deduplicar
+ * na mão.
+ */
+describe('CodeLineageService.impactFromFiles — agregado de múltiplos arquivos (diff de PR)', () => {
+  function buildServiceWithGraph(
+    nodes: Array<{ id: string; label: string; metadata?: object }>,
+    edges: Array<{ fromId: string; toId: string }>,
+  ) {
+    const nodeById = new Map(nodes.map((n) => [n.id, { ...n, metadata: n.metadata ?? {} }]))
+
+    const prisma = {
+      knowledgeNode: {
+        findFirst: jest.fn(({ where }: { where: { label: string } }) =>
+          Promise.resolve([...nodeById.values()].find((n) => n.label === where.label) ?? null),
+        ),
+      },
+      knowledgeEdge: {
+        findMany: jest.fn(({ where }: { where: { toId: { in: string[] } } }) => {
+          const matched = edges.filter((e) => where.toId.in.includes(e.toId))
+          return Promise.resolve(matched.map((e) => ({ ...e, from: nodeById.get(e.fromId) })))
+        }),
+      },
+    }
+    return new CodeLineageService(prisma as never)
+  }
+
+  it('funde o impacto de 2 arquivos mudados sem duplicar quem depende dos dois', async () => {
+    const service = buildServiceWithGraph(
+      [
+        { id: 'a', label: 'a.ts' },
+        { id: 'b', label: 'b.ts' },
+        { id: 'shared', label: 'shared.controller.ts', metadata: { isRoute: true, routePrefix: '/shared' } },
+      ],
+      [
+        { fromId: 'shared', toId: 'a' },
+        { fromId: 'shared', toId: 'b' },
+      ],
+    )
+
+    const result = await service.impactFromFiles('p1', ['a.ts', 'b.ts'])
+
+    expect(result.aggregated).toHaveLength(1)
+    expect(result.aggregated[0].path).toBe('shared.controller.ts')
+    expect(result.aggregatedRoutes).toHaveLength(1)
+  })
+
+  it('não conta um arquivo do próprio diff como "impactado" (já vai ser deployado)', async () => {
+    const service = buildServiceWithGraph(
+      [
+        { id: 'a', label: 'a.ts' },
+        { id: 'b', label: 'b.ts' },
+      ],
+      [{ fromId: 'b', toId: 'a' }],
+    )
+
+    const result = await service.impactFromFiles('p1', ['a.ts', 'b.ts'])
+
+    expect(result.aggregated.map((n) => n.path)).not.toContain('b.ts')
+  })
+
+  it('mantém a menor profundidade quando o mesmo arquivo é impactado por mais de um arquivo mudado em profundidades diferentes', async () => {
+    const service = buildServiceWithGraph(
+      [
+        { id: 'near', label: 'near.ts' },
+        { id: 'far', label: 'far.ts' },
+        { id: 'mid', label: 'mid.ts' },
+        { id: 'top', label: 'top.ts' },
+      ],
+      [
+        { fromId: 'top', toId: 'near' },     // depth 1 a partir de near.ts
+        { fromId: 'mid', toId: 'far' },      // mid depende de far (depth 1)
+        { fromId: 'top', toId: 'mid' },      // top depende de mid (depth 2 a partir de far.ts)
+      ],
+    )
+
+    const result = await service.impactFromFiles('p1', ['near.ts', 'far.ts'])
+
+    const top = result.aggregated.find((n) => n.path === 'top.ts')
+    expect(top?.depth).toBe(1)
+  })
+})

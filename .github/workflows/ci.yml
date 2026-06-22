@@ -66,6 +66,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # impact:check precisa do histórico completo pra diff contra a base
 
       - uses: pnpm/action-setup@v4
 
@@ -113,6 +115,16 @@ jobs:
 
       - name: Run E2E tests
         run: pnpm --filter api test:e2e
+
+      - name: Impact analysis pré-deploy
+        if: always()
+        continue-on-error: true
+        env:
+          RAYZEN_API_TOKEN: ${{ secrets.RAYZEN_AGENT_TOKEN }}
+          RAYZEN_API_URL: https://api.rayzen.com.br
+          RAYZEN_PROJECT_ID: 7690370b-aa1e-4b13-8335-a8a14ad0d859
+          GITHUB_EVENT_BEFORE: ${{ github.event.before }}
+        run: pnpm impact:check
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
