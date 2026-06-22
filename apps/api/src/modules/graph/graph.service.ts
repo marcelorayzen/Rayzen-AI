@@ -286,10 +286,21 @@ export class GraphService {
     const criteria = (goal.successCriteria as unknown as SuccessCriteria[]).map(c =>
       c.id === criteriaId ? { ...c, done } : c,
     )
-    return this.prisma.projectGoal.update({
+    const updated = await this.prisma.projectGoal.update({
       where: { id: goalId },
       data: { successCriteria: criteria as unknown as Parameters<typeof this.prisma.projectGoal.update>[0]['data']['successCriteria'] },
     })
+
+    // Sem isso, state.nextSteps fica desatualizado indefinidamente — só mudava em
+    // refresh manual ou checkpoint. analyzeGap() manda state.nextSteps pro LLM
+    // junto com os criteria corretos, e a IA ecoava o lado desatualizado (achado
+    // real: qa-1 marcado done não tirava "implementar pipeline" do nextSteps).
+    // Fire-and-forget — refresh() chama LLM, não deve travar o PATCH do checkbox.
+    void this.stateService.refresh(goal.projectId).catch((e) =>
+      this.logger.warn(`Falha ao sincronizar ProjectState após toggleCriteria: ${e}`),
+    )
+
+    return updated
   }
 
   async listGoals(projectId: string) {
