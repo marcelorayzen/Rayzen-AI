@@ -5,6 +5,8 @@ import OpenAI from 'openai'
 import { getWorkModeConfig } from '../orchestrator/work-modes'
 import { DocumentationService } from '../documentation/documentation.service'
 import { MetricsService } from '../metrics/metrics.service'
+import { GraphService } from '../graph/graph.service'
+import { EventService } from '../event/event.service'
 
 export interface SynthesisResult {
   summary: string
@@ -24,6 +26,8 @@ export class SynthesisService {
     private config: ConfigService,
     @Inject(forwardRef(() => DocumentationService)) private readonly docSvc: DocumentationService,
     private readonly metrics: MetricsService,
+    private readonly graphService: GraphService,
+    @Inject(forwardRef(() => EventService)) private readonly eventService: EventService,
   ) {
     this.llm = new OpenAI({
       baseURL: this.config.get('LITELLM_BASE_URL', 'http://localhost:4000/v1'),
@@ -120,6 +124,12 @@ export class SynthesisService {
     // Full pipeline: state refresh + docs regeneration in background
     this.docSvc.generateAll(projectId, { force: true }).catch(() => null)
 
+    // goal-2: sem isso, a meta só atualiza se alguém lembrar de chamar
+    // POST /goal/propose-progress manualmente — nunca aplica direto (exige
+    // confirmação humana via toggleCriteria), só cria um evento visível pra
+    // não ficar mais de uma sessão sem ninguém notar.
+    this.warnPendingGoalProposals(projectId).catch(() => null)
+
     return {
       id: artifact.id,
       sessionId: checkpointId,
@@ -127,6 +137,21 @@ export class SynthesisService {
       synthesis,
       createdAt: artifact.createdAt.toISOString(),
     }
+  }
+
+  private async warnPendingGoalProposals(projectId: string): Promise<void> {
+    const { goalId, goalTitle, proposals } = await this.graphService.proposeGoalProgress(projectId)
+    if (!goalId || proposals.length === 0) return
+
+    const lines = proposals.map(p => `- [${p.confidence}] ${p.text} — ${p.reason}`)
+    await this.eventService.create({
+      projectId,
+      source: 'brain',
+      type: 'note',
+      intent: 'idea',
+      content: `Possíveis critérios concluídos no goal "${goalTitle}" (revisar e confirmar manualmente):\n${lines.join('\n')}`,
+      metadata: { kind: 'goal_proposal_pending', goalId, proposals },
+    })
   }
 
   private buildGitSummary(events: Array<{ metadata: unknown }>): string {
