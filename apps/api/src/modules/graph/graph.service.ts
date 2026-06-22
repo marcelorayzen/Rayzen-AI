@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../../prisma/prisma.service'
 import { ProjectStateService, ProjectStateData } from '../project-state/project-state.service'
 import { HealthScoreService } from '../health/health.service'
+import { EventService } from '../event/event.service'
 import OpenAI from 'openai'
 import { randomUUID } from 'crypto'
 import { MetricsService } from '../metrics/metrics.service'
@@ -86,6 +87,7 @@ export class GraphService {
     private readonly healthService: HealthScoreService,
     private readonly config: ConfigService,
     private readonly metrics: MetricsService,
+    private readonly events: EventService,
   ) {
     this.llm = new OpenAI({
       apiKey: this.config.get('LITELLM_MASTER_KEY') ?? 'sk-rayzen',
@@ -286,15 +288,30 @@ export class GraphService {
     const criteria = (goal.successCriteria as unknown as SuccessCriteria[]).map(c =>
       c.id === criteriaId ? { ...c, done } : c,
     )
+    const target = (goal.successCriteria as unknown as SuccessCriteria[]).find(c => c.id === criteriaId)
     const updated = await this.prisma.projectGoal.update({
       where: { id: goalId },
       data: { successCriteria: criteria as unknown as Parameters<typeof this.prisma.projectGoal.update>[0]['data']['successCriteria'] },
     })
 
-    // Sem isso, state.nextSteps fica desatualizado indefinidamente — só mudava em
-    // refresh manual ou checkpoint. analyzeGap() manda state.nextSteps pro LLM
-    // junto com os criteria corretos, e a IA ecoava o lado desatualizado (achado
-    // real: qa-1 marcado done não tirava "implementar pipeline" do nextSteps).
+    // ProjectStateService.refresh() é incremental por design (ver memória
+    // project_state_synthesis_incremental) — só remove um next-step se um evento
+    // NOVO mostrar que foi resolvido; marcar o critério aqui não cria evento
+    // nenhum, então o refresh nunca tinha sinal pra agir (achado real: qa-1 done
+    // não tirava "implementar pipeline" do nextSteps mesmo após refresh). Cria o
+    // evento de decisão explícito que o próprio prompt do refresh já sabe ler.
+    if (target) {
+      await this.events.create({
+        projectId: goal.projectId,
+        source:    'manual',
+        type:      'note',
+        intent:    'decision',
+        content:   done
+          ? `Critério de sucesso concluído: ${target.text}`
+          : `Critério de sucesso revertido para pendente: ${target.text}`,
+      }).catch((e) => this.logger.warn(`Falha ao registrar evento de toggleCriteria: ${e}`))
+    }
+
     // Fire-and-forget — refresh() chama LLM, não deve travar o PATCH do checkbox.
     void this.stateService.refresh(goal.projectId).catch((e) =>
       this.logger.warn(`Falha ao sincronizar ProjectState após toggleCriteria: ${e}`),
