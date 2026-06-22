@@ -173,6 +173,28 @@ export default function MissionDetailPage() {
     }
   }
 
+  // Steps executor:'human' pausam a missão esperando uma ação real da pessoa —
+  // antes só dava pra resolver via PATCH manual (curl). Espelha o padrão de
+  // decideGate: marca o step concluído e recarrega pra missão retomar.
+  const completeHumanStep = async (stepId: string) => {
+    if (acting) return
+    setActing(`human-${stepId}`)
+    setNote(null)
+    try {
+      const res = await fetch(`${V2_URL}/missions/${id}/steps/${stepId}`, {
+        method: 'PATCH',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'done', output: { verifiedBy: 'Marcelo', verifiedAt: new Date().toISOString() } }),
+      })
+      if (!res.ok) { setNote(`Erro ao concluir step (HTTP ${res.status})`); return }
+      await load()
+    } catch (err) {
+      setNote(err instanceof Error ? err.message : 'falha ao concluir step')
+    } finally {
+      setActing(null)
+    }
+  }
+
   const action = async (endpoint: string, label: string, body?: Record<string, unknown>) => {
     if (acting) return
     setActing(label)
@@ -227,6 +249,7 @@ export default function MissionDetailPage() {
   const totalTime   = elapsed(mission.startedAt, mission.completedAt)
   const gatedStepIds = new Set(gates.map((g) => g.stepId).filter(Boolean) as string[])
   const contract = mission.context?._contract
+  const pendingHumanSteps = mission.steps.filter((s) => s.executor === 'human' && s.status === 'pending')
   const doneSteps   = mission.steps.filter((s) => s.status === 'done' || s.status === 'skipped').length
   const pct         = mission.steps.length ? Math.round((doneSteps / mission.steps.length) * 100) : 0
 
@@ -377,6 +400,27 @@ export default function MissionDetailPage() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Ações humanas pendentes — diferente de gate: não há risco a aprovar, é uma
+          tarefa que só uma pessoa pode marcar como feita (ex: "verificar CI no ar") */}
+      {pendingHumanSteps.length > 0 && (
+        <div className="hud-card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8, border: '1px solid var(--hud-cyan)' }}>
+          <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--hud-cyan)' }}>
+            Ação humana pendente ({pendingHumanSteps.length})
+          </div>
+          {pendingHumanSteps.map((s) => (
+            <div key={s.id} style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 8, borderTop: '1px solid var(--hud-border)' }}>
+              <div style={{ fontSize: 13 }}>{s.title}</div>
+              {s.prompt && <div style={{ fontSize: 12, color: 'var(--hud-text-2)', lineHeight: 1.4 }}>{s.prompt}</div>}
+              <div style={{ display: 'flex', gap: 8, paddingTop: 2 }}>
+                <button className="hud-btn hud-btn-primary" onClick={() => void completeHumanStep(s.id)} disabled={!!acting}>
+                  {acting === `human-${s.id}` ? 'concluindo…' : 'marcar como concluído'}
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
