@@ -641,8 +641,7 @@ Priorize gaps de alta severidade primeiro. nextBestAction deve ser em 1 frase cu
         },
       }).catch(() => null)
       const parsed = this.extractJson(raw) as GapAnalysis
-      parsed.goalProgress = parsed.goalProgress ?? localProgress
-      return parsed
+      return this.normalizeGapAnalysis(parsed, localProgress)
     } catch (err) {
       this.logger.warn(`Gap analysis LLM failed: ${err}`)
       return {
@@ -651,6 +650,30 @@ Priorize gaps de alta severidade primeiro. nextBestAction deve ser em 1 frase cu
         goalProgress: localProgress,
         confidence: 'low',
       }
+    }
+  }
+
+  // O JSON do gap analysis vem de extração livre via LLM (sem response_format) — campos
+  // podem vir ausentes/com tipo errado. buildGoalMermaid() chama sanitize() direto nesses
+  // campos, e sanitize() crasha (TypeError) em valores não-string. Normaliza aqui, na
+  // fronteira onde a saída não-confiável da LLM entra no sistema.
+  private normalizeGapAnalysis(parsed: Partial<GapAnalysis>, fallbackProgress: number): GapAnalysis {
+    const validAreas: GapItem['area'][] = ['blocker', 'milestone', 'kpi', 'risk', 'focus']
+
+    const gaps: GapItem[] = Array.isArray(parsed.gaps)
+      ? parsed.gaps.map(g => ({
+          area: validAreas.includes(g?.area as GapItem['area']) ? (g.area as GapItem['area']) : 'focus',
+          description: typeof g?.description === 'string' ? g.description : '',
+          severity: g?.severity === 'high' || g?.severity === 'low' ? g.severity : 'medium',
+          relatedCriteria: typeof g?.relatedCriteria === 'string' ? g.relatedCriteria : undefined,
+        }))
+      : []
+
+    return {
+      gaps,
+      nextBestAction: typeof parsed.nextBestAction === 'string' ? parsed.nextBestAction : '',
+      goalProgress: typeof parsed.goalProgress === 'number' ? parsed.goalProgress : fallbackProgress,
+      confidence: parsed.confidence === 'high' || parsed.confidence === 'medium' ? parsed.confidence : 'low',
     }
   }
 

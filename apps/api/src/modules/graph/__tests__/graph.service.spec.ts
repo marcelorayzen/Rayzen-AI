@@ -1,4 +1,4 @@
-import { GraphService } from '../graph.service'
+import { GraphService, GapAnalysis } from '../graph.service'
 
 /**
  * Sem isso, marcar um critério como done via toggleCriteria() nunca sincronizava
@@ -78,5 +78,62 @@ describe('GraphService.toggleCriteria — sincroniza ProjectState', () => {
       where: { id: 'g1' },
       data: { successCriteria: [{ id: 'qa-1', text: 'x', done: true }] },
     })
+  })
+})
+
+/**
+ * Achado real: GET /projects/:id/graph/goal retornava 500 pra um projeto com goal
+ * ativo (TypeError: Cannot read properties of undefined (reading 'replace') em
+ * sanitize()). Causa: extractJson() no JSON livre da LLM (sem response_format) às
+ * vezes retorna um gap sem "description", e buildGoalMermaid() chamava sanitize()
+ * direto nesse campo sem validar. normalizeGapAnalysis() é a correção — valida a
+ * saída da LLM na fronteira, antes de qualquer downstream confiar nos tipos.
+ */
+describe('GraphService.normalizeGapAnalysis — saneia saída malformada da LLM', () => {
+  function buildService() {
+    const goal = { id: 'g1', projectId: 'p1', successCriteria: [] }
+    const prisma = { projectGoal: { findUniqueOrThrow: jest.fn().mockResolvedValue(goal), update: jest.fn() } }
+    const stateService = {}
+    const healthService = {}
+    const config = { get: jest.fn().mockReturnValue(undefined) }
+    const metrics = {}
+    const events = {}
+    return new GraphService(
+      prisma as never, stateService as never, healthService as never, config as never, metrics as never, events as never,
+    )
+  }
+
+  function normalize(service: GraphService, parsed: Partial<GapAnalysis>, fallback = 0): GapAnalysis {
+    return (service as unknown as { normalizeGapAnalysis: (p: Partial<GapAnalysis>, f: number) => GapAnalysis })
+      .normalizeGapAnalysis(parsed, fallback)
+  }
+
+  it('preenche description vazia quando o gap vem sem o campo (em vez de undefined)', () => {
+    const service = buildService()
+    const result = normalize(service, { gaps: [{ area: 'focus' } as never] })
+
+    expect(result.gaps[0].description).toBe('')
+    expect(typeof result.gaps[0].description).toBe('string')
+  })
+
+  it('descarta area fora do enum esperado e usa "focus" como fallback', () => {
+    const service = buildService()
+    const result = normalize(service, { gaps: [{ area: 'blocker|milestone|kpi|risk|focus', description: 'x' } as never] })
+
+    expect(result.gaps[0].area).toBe('focus')
+  })
+
+  it('usa o progresso calculado localmente quando goalProgress não é número', () => {
+    const service = buildService()
+    const result = normalize(service, { goalProgress: 'quarenta por cento' as never }, 42)
+
+    expect(result.goalProgress).toBe(42)
+  })
+
+  it('retorna gaps vazio (não crasha) quando "gaps" não é um array', () => {
+    const service = buildService()
+    const result = normalize(service, { gaps: 'nenhum gap' as never })
+
+    expect(result.gaps).toEqual([])
   })
 })
