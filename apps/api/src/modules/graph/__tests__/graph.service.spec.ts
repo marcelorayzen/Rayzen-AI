@@ -137,3 +137,36 @@ describe('GraphService.normalizeGapAnalysis — saneia saída malformada da LLM'
     expect(result.gaps).toEqual([])
   })
 })
+
+/**
+ * Achado real (projeto cliente VB Ferragens): successCriteria salvo no banco como
+ * [{id, done}] sem "text" — buildGoalMermaid() chamava sanitize(c.text) e crashava
+ * com TypeError em produção (500 em GET /graph/goal). sanitize() agora aceita
+ * unknown e nunca lança, independente do que vier no JSON armazenado.
+ */
+describe('GraphService.buildGoalMermaid — não crasha com successCriteria incompleto', () => {
+  function buildService() {
+    const prisma = {}
+    const stateService = {}
+    const healthService = {}
+    const config = { get: jest.fn().mockReturnValue(undefined) }
+    const metrics = {}
+    const events = {}
+    return new GraphService(
+      prisma as never, stateService as never, healthService as never, config as never, metrics as never, events as never,
+    )
+  }
+
+  function buildMermaid(service: GraphService, goal: { title: string; successCriteria: unknown; targetDate: Date | null }, gap: GapAnalysis | null): string {
+    return (service as unknown as { buildGoalMermaid: (g: typeof goal, gap: GapAnalysis | null) => string })
+      .buildGoalMermaid(goal, gap)
+  }
+
+  it('renderiza critério sem campo "text" como texto vazio em vez de lançar', () => {
+    const service = buildService()
+    const goal = { title: 'Lançar MVP', successCriteria: [{ id: 'sc1', done: false }], targetDate: null }
+
+    expect(() => buildMermaid(service, goal, null)).not.toThrow()
+    expect(buildMermaid(service, goal, null)).toContain('C0["[ ] "]')
+  })
+})

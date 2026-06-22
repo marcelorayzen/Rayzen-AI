@@ -100,7 +100,7 @@ export class GraphService {
     if (!state) return 'flowchart TD\n  N["Nenhum estado disponível — execute /state/refresh"]'
 
     const lines: string[] = ['flowchart TD']
-    const sanitize = (s: string) => s.replace(/["\[\]\u{1F300}-\u{1FFFF}]/gu, '').replace(/[^\x20-\x7EÀ-ɏ]/g, '').slice(0, 55)
+    const sanitize = (s: unknown) => String(s ?? '').replace(/["\[\]\u{1F300}-\u{1FFFF}]/gu, '').replace(/[^\x20-\x7EÀ-ɏ]/g, '').slice(0, 55)
 
     // Milestones
     const milestones = (state.milestones ?? []) as Array<{ id: string; title: string; status: string }>
@@ -532,7 +532,10 @@ Inclua todos os eventos. Use os ids exatos. milestoneId="none" quando sem relaç
     goal: { title: string; successCriteria: unknown; targetDate: Date | null },
     gap: GapAnalysis | null,
   ): string {
-    const sanitize = (s: string) => s.replace(/["\[\]\u{1F300}-\u{1FFFF}]/gu, '').replace(/[^\x20-\x7EÀ-ɏ]/g, '').slice(0, 55)
+    // successCriteria vem de JSON armazenado (criado manualmente ou via import) — nem
+    // sempre tem todos os campos esperados (achado real: goal de cliente com criteria
+    // só {id, done}, sem "text", crashava aqui). sanitize() aceita unknown e nunca lança.
+    const sanitize = (s: unknown) => String(s ?? '').replace(/["\[\]\u{1F300}-\u{1FFFF}]/gu, '').replace(/[^\x20-\x7EÀ-ɏ]/g, '').slice(0, 55)
     const criteria = (goal.successCriteria as SuccessCriteria[]) ?? []
     const lines: string[] = ['flowchart LR']
 
