@@ -1,9 +1,59 @@
 import { Controller, Get, Post, Body, Param, Query, UseGuards, HttpCode } from '@nestjs/common'
 import { ApiTags, ApiBearerAuth, ApiQuery } from '@nestjs/swagger'
-import { IsString, IsNotEmpty, IsOptional, IsIn } from 'class-validator'
+import { IsString, IsNotEmpty, IsOptional, IsIn, IsArray, IsBoolean, ValidateNested } from 'class-validator'
+import { Type } from 'class-transformer'
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 import { LineageService, LineageRelation, LINEAGE_RELATIONS } from './lineage.service'
+import { CodeLineageService } from './code-lineage.service'
 import { JwtAuthGuard } from '../core/auth.guard'
+
+class SyncFileDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  path!: string
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isRoute?: boolean
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  routePrefix?: string
+}
+
+class SyncEdgeDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  from!: string
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  to!: string
+}
+
+class SyncFilesDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  projectId!: string
+
+  @ApiProperty({ type: [SyncFileDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SyncFileDto)
+  files!: SyncFileDto[]
+
+  @ApiProperty({ type: [SyncEdgeDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SyncEdgeDto)
+  edges!: SyncEdgeDto[]
+}
 
 class LinkDto {
   @ApiProperty()
@@ -47,7 +97,10 @@ class TraceDto {
 @UseGuards(JwtAuthGuard)
 @Controller('lineage')
 export class LineageController {
-  constructor(private readonly lineage: LineageService) {}
+  constructor(
+    private readonly lineage:     LineageService,
+    private readonly codeLineage: CodeLineageService,
+  ) {}
 
   /**
    * Cria um link de lineage entre dois nós existentes.
@@ -96,5 +149,32 @@ export class LineageController {
   @Get('links/:projectId')
   listLinks(@Param('projectId') projectId: string) {
     return this.lineage.listLinks(projectId)
+  }
+
+  /**
+   * Sincroniza o lineage de código real (AST, via graphify) — chamado pelo agent
+   * desktop, único lugar com acesso ao graphify-out/graph.json local. Full-replace
+   * dos edges 'depende_de' do projeto a cada sync.
+   */
+  @Post('files/sync')
+  @HttpCode(200)
+  syncFiles(@Body() dto: SyncFilesDto) {
+    return this.codeLineage.syncFiles(dto.projectId, dto.files, dto.edges)
+  }
+
+  /**
+   * Dado um arquivo, retorna tudo que seria impactado se ele mudasse — módulos e
+   * rotas (NestJS controllers) que dependem dele, direta ou transitivamente.
+   */
+  @Get('files/impact')
+  @ApiQuery({ name: 'projectId', required: true })
+  @ApiQuery({ name: 'filePath', required: true })
+  @ApiQuery({ name: 'maxDepth', required: false })
+  fileImpact(
+    @Query('projectId') projectId: string,
+    @Query('filePath') filePath: string,
+    @Query('maxDepth') maxDepth?: string,
+  ) {
+    return this.codeLineage.impactFromFile(projectId, filePath, maxDepth ? Number(maxDepth) : undefined)
   }
 }

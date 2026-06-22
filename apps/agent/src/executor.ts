@@ -109,7 +109,7 @@ export async function executeTask(task: Task): Promise<unknown> {
 
     // Graphify
     case 'jarvis:run_graphify':  return runGraphify_action(p as { projectPath?: string; projectId?: string; dryRun?: boolean })
-    case 'jarvis:graphify_sync': return graphifySync(p as { cwd?: string })
+    case 'jarvis:graphify_sync': return graphifySync(p as { cwd?: string; projectId?: string })
 
     // Supervisor
     case 'jarvis:supervised_session': return supervisedSession(p as { sessionId: string; prompt: string; projectPath?: string; previewOutputPath?: string })

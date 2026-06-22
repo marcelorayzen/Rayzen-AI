@@ -8,6 +8,7 @@ import { KnowledgeGovernanceService } from './knowledge-governance.service'
 import { KnowledgeController } from './knowledge.controller'
 import { LineageService } from './lineage.service'
 import { LineageController } from './lineage.controller'
+import { CodeLineageService } from './code-lineage.service'
 
 @Global()
 @Module({
@@ -20,10 +21,12 @@ import { LineageController } from './lineage.controller'
     KnowledgeImpactService,
     KnowledgeGraphBuilderService,
     LineageService,
+    CodeLineageService,
   ],
   exports: [
     KnowledgeStorageService, KnowledgeQueryService, KnowledgeImpactService,
     KnowledgeGraphBuilderService, KnowledgeGovernanceService, LineageService,
+    CodeLineageService,
   ],
 })
 export class KnowledgeModule {}
