@@ -16,7 +16,7 @@ Plataforma pessoal de IA com memória semântica, automação, geração de docu
 
 ## Stack
 
-Next.js 16 · NestJS 10 + Fastify · LiteLLM (proxy LLM) · PostgreSQL 16 + pgvector · Redis 7 + BullMQ 5 · Prisma 5 · @xyflow/react (grafo) · Puppeteer (PDF) · docxtemplater (DOCX) · Jina embeddings (1024) · Node 20/22 (agent) · Docker Compose · Azure VM.
+Next.js 16 · NestJS 10 + Fastify · LiteLLM (proxy LLM) · PostgreSQL 16 + pgvector · Redis 7 + BullMQ 5 · Prisma 5 · @xyflow/react (grafo) · Puppeteer (PDF) · docxtemplater (DOCX) · Jina embeddings (1024) · Node 20/22 (agent) · Docker Compose (notebook local) · Caddy + Cloudflare Tunnel (sem port forwarding).
 
 **LiteLLM:** `gpt-4o`→Groq llama-3.3-70b (fallback Claude Sonnet) · `gpt-4o-mini`→Groq 8b · `gpt-4o-premium`→Claude Sonnet direto.
 > Claude não suporta `response_format: json_object` — usar extração robusta (strip code fences + regex).
@@ -34,13 +34,15 @@ rayzen-ai/
 │   └── agent/
 │       ├── src/
 │       │   ├── poller.ts · executor.ts
-│       │   ├── security/whitelist.ts   # CRÍTICO — 34 ações, nunca bypassar
+│       │   ├── security/whitelist.ts   # CRÍTICO — 44 ações, nunca bypassar
 │       │   ├── actions/                # implementações jarvis:*
-│       │   └── mcp/                    # MCP stdio + HTTP
-│       └── hooks/rayzen-hook.mjs       # captura eventos → POST /events/cli
+│       │   ├── mcp/                    # MCP stdio + HTTP
+│       │   └── hooks/
+│       │       ├── rayzen-hook.mjs         # PostToolUse/Stop → POST /events/cli
+│       │       └── rayzen-context-hook.mjs # UserPromptSubmit → injeta contexto
 ├── blueprints/                 # design da V2 (24 docs)
 ├── docs/                       # manual-de-uso.md · agent-actions.md · security/
-└── infra/                      # nginx · caddy · litellm
+└── infra/                      # caddy · litellm · postgres
 ```
 
 ---
@@ -52,7 +54,7 @@ pnpm install
 pnpm dev:api          # API → :3101
 pnpm dev:web          # Web → :3100
 pnpm --filter api db:generate   # após mudança no schema
-pnpm typecheck · lint · test    # 198 testes unit (api)
+pnpm typecheck · lint · test    # 220 testes unit (api)
 pnpm gen:catalog      # regenera docs/agent-actions.md a partir do código
 pnpm scan:secrets     # varre segredos em arquivos versionados
 ```

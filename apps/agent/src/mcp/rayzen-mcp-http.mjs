@@ -11,7 +11,7 @@
  *   MCP_PORT             — Porta de escuta (default: 3102)
  *   MCP_PROJECT_ID       — projectId padrão quando o cliente não informa
  *   GITHUB_WEBHOOK_SECRET — HMAC secret do webhook GitHub (POST /webhook/github-build)
- *   WEBHOOK_DEPLOY_HOST   — host SSH para build remoto (default: rayzen@192.168.0.175)
+ *   WEBHOOK_DEPLOY_HOST   — host SSH para build remoto (default: rayzen@192.168.0.174)
  *   WEBHOOK_DEPLOY_KEY    — chave privada SSH dedicada e restrita por forced-command
  */
 
@@ -34,7 +34,7 @@ const OAUTH_CLIENT_ID     = process.env.OAUTH_CLIENT_ID     ?? 'claude-ai'
 const OAUTH_CLIENT_SECRET = process.env.OAUTH_CLIENT_SECRET ?? ''
 const MCP_BASE_URL        = (process.env.MCP_BASE_URL       ?? 'https://rayzen.com.br').replace(/\/$/, '')
 const GITHUB_WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET ?? ''
-const WEBHOOK_DEPLOY_HOST   = process.env.WEBHOOK_DEPLOY_HOST   ?? 'rayzen@192.168.0.175'
+const WEBHOOK_DEPLOY_HOST   = process.env.WEBHOOK_DEPLOY_HOST   ?? 'rayzen@192.168.0.174'
 const WEBHOOK_DEPLOY_KEY    = process.env.WEBHOOK_DEPLOY_KEY    ?? '/run/secrets/webhook_deploy_key'
 
 // ── GitHub webhook → build automático (push em main) ───────────────────────

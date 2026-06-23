@@ -1,7 +1,7 @@
 # Inventário de Dados Sensíveis
 
 > 🤖 **GERADO** por `scripts/scan-secrets.mjs` (`pnpm scan:secrets`) — não edite à mão.
-> Gerado em: 2026-05-31T14:32:10.954Z · Escopo: arquivos versionados (git ls-files)
+> Gerado em: 2026-06-23T01:29:47.951Z · Escopo: arquivos versionados (git ls-files)
 
 ## 1. Segredos detectados em arquivos versionados
 

@@ -209,9 +209,9 @@ Veja [docs/architecture.md](docs/architecture.md) para o catálogo completo de m
 
 ## Confiabilidade
 
-**217 testes em 23 suites** (198 unit + 19 E2E), aplicados no CI:
+**239 testes em 25 suites** (220 unit + 19 E2E), aplicados no CI:
 
-**Testes unitários (198 em 20 suites):**
+**Testes unitários (220 em 22 suites):**
 
 | Módulo | O que é testado |
 |---|---|
@@ -225,7 +225,10 @@ Veja [docs/architecture.md](docs/architecture.md) para o catálogo completo de m
 | `OrchestratorService` | Roteamento de classificação para módulo correto, `assertValidPrompt` chamado, estrutura de resposta |
 | `BlueprintService` | import/preview com todas as opções, warnings de wiki existente, fallback de Brain falho |
 | `DataQualityService` | CRUD de regras e resultados, score, histórico, schema-diff |
-| `QAService` | Ingestão JUnit XML, Allure JSON, métricas de flakiness |
+| `QAService` | Ingestão JUnit XML, Allure JSON, métricas de flakiness, auto-captura de padrões flaky como learning |
+| `GraphService` | Sincronização de critérios de sucesso com ProjectState, normalização de gap-analysis malformado, mermaid resiliente a successCriteria incompleto |
+| `SynthesisService` | Checkpoint avisa sobre critérios possivelmente concluídos (nextSteps + evento, nunca auto-aplica) |
+| `CodeLineageService` | Lineage real de arquivo via graphify (sync + impacto direto/transitivo/agregado de múltiplos arquivos) |
 
 **Testes E2E com Fastify inject (19):**
 

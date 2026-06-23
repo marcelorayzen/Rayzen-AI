@@ -2,15 +2,16 @@
 
 > 🤖 **GERADO AUTOMATICAMENTE** por `scripts/gen-agent-catalog.mjs` — não edite à mão.
 > Fonte de verdade: `whitelist.ts` · Metadata: `skill-registry.ts` (V2)
-> Gerado em: 2026-06-05T01:09:38.664Z
+> Gerado em: 2026-06-23T01:19:33.126Z
 
-**Total: 43 ações** · 🔴 5 high · 🟡 8 medium · 🟢 9 low · 🟢 21 none · ⚠️ 0 sem metadata
+**Total: 44 ações** · 🔴 5 high · 🟡 8 medium · 🟢 10 low · 🟢 21 none · ⚠️ 0 sem metadata
 
 | Ação | Nome | Risco | Runtime | Categoria | Metadata |
 |---|---|---|---|---|---|
 | `jarvis:open_app` | Open Application | 🟢 low | agent-desktop | system | ✓ |
 | `jarvis:open_url` | Open URL | 🟢 low | agent-desktop | browser | ✓ |
 | `jarvis:open_vscode` | Open VS Code | 🟢 none | agent-desktop | editor | ✓ |
+| `jarvis:browse_and_screenshot` | Browse and Screenshot | 🟢 low | agent-desktop | browser | ✓ |
 | `jarvis:list_dir` | List Directory | 🟢 none | agent-desktop | filesystem | ✓ |
 | `jarvis:file_search` | File Search | 🟢 none | agent-desktop | filesystem | ✓ |
 | `jarvis:file_read` | File Read | 🟢 none | agent-desktop | filesystem | ✓ |

@@ -39,7 +39,7 @@ Uma plataforma pessoal de IA que **preserva contexto** (memória semântica, dec
 - **Hook** = sensor passivo. Cada ação no Claude Code (Edit/Write/Bash) vira um evento no Rayzen.
 - **Agent** = braço executor. Recebe tarefas (`jarvis:*`) e executa no SO local (whitelist obrigatória).
 - **MCP** = ponte para o Claude Code e claude.ai consultarem e gravarem no Rayzen.
-- **Infra** = notebook local 192.168.0.175, Cloudflare Tunnel para domínio `rayzen.com.br`.
+- **Infra** = notebook local 192.168.0.174, Cloudflare Tunnel para domínio `rayzen.com.br`.
 
 ### 2.2 Estado dos módulos V2
 
@@ -57,7 +57,7 @@ O container `api-v2` continua rodando porque `rayzen_get_context` depende do `co
 1. **Notebook ligado.** A stack (Postgres, Redis, LiteLLM, APIs, Web, MCP) sobe sozinha com `restart: unless-stopped`.
 2. **Agent desktop.** Na sua máquina, rode `agent-start.bat` — polling de tarefas `jarvis:*`.
 3. **VS Code + Claude Code.** Abra a pasta do projeto. O hook detecta o projeto pelo `git remote` e começa a capturar eventos.
-4. **Web.** Abra `http://192.168.0.175:3100` (ou `https://rayzen.com.br`), selecione o projeto no topo.
+4. **Web.** Abra `http://192.168.0.174:3100` (ou `https://rayzen.com.br`), selecione o projeto no topo.
 
 ---
 
@@ -187,17 +187,16 @@ pnpm dev:web          # Web → :3100
 pnpm --filter api db:generate   # após mudança no schema Prisma
 
 # Qualidade
-pnpm --filter api test          # 198 testes unitários
+pnpm --filter api test          # 220 testes unitários
 pnpm --filter api test:e2e
 pnpm typecheck
 pnpm gen:catalog      # docs/agent-actions.md (ações + risco)
 pnpm scan:secrets     # docs/security/data-inventory.md
 
-# Deploy no notebook (via SSH)
-ssh -i ~/.ssh/id_ed25519 rayzen@192.168.0.175
-# Copiar arquivos modificados via SCP, depois:
-cd ~/projects/rayzen-ai && ./infra/deploy.sh
-# ou: docker compose up -d --build api mcp-http
+# Deploy no notebook (via SSH) — git push primeiro, depois:
+ssh -i ~/.ssh/id_ed25519 rayzen@192.168.0.174
+cd ~/projects/rayzen-ai && git pull && docker compose up -d --build api
+# (troque "api" pelo serviço alterado: api-v2, web, mcp-http...)
 ```
 
 **Pré-requisito deploy:** usuário `rayzen` no grupo `docker` (sem sudo).

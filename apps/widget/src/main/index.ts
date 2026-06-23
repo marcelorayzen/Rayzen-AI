@@ -11,7 +11,7 @@ loadEnv({ path: join(__dirname, '../../.env') })
 loadEnv({ path: join(process.cwd(), '.env') })          // root .env — ANTHROPIC_API_KEY
 
 const API_URL    = process.env.RAYZEN_API_URL    ?? 'https://api.rayzen.com.br'
-const WS_URL     = process.env.RAYZEN_WS_URL     ?? 'ws://20.251.146.221:3104/ws'
+const WS_URL     = process.env.RAYZEN_WS_URL     ?? 'ws://192.168.0.174:3104/ws'
 const API_TOKEN  = process.env.RAYZEN_TOKEN       ?? ''
 const PROJECT_ID = process.env.RAYZEN_PROJECT_ID  ?? ''
 const LOCAL_ROOT = process.env.RAYZEN_LOCAL_ROOT  ?? ''

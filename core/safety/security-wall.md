@@ -123,4 +123,4 @@ Quando uma ação High Risk é detectada:
 - JARVIS Method — módulo 2.6 (Muros de Segurança como Arquitetura)
 - LGPD — Lei 13.709/2018
 - `docs/security/data-inventory.md` (gerado por `pnpm scan:secrets`)
-- `apps/agent/src/security/whitelist.ts` (34 ações permitidas ao agent desktop)
+- `apps/agent/src/security/whitelist.ts` (44 ações permitidas ao agent desktop)
