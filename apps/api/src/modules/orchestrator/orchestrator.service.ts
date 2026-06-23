@@ -99,7 +99,7 @@ export class OrchestratorService {
   ) {
     this.llm = new OpenAI({
       baseURL: this.config.get('LITELLM_BASE_URL', 'http://localhost:4000/v1'),
-      apiKey: this.config.get('LITELLM_MASTER_KEY'),
+      apiKey: this.config.get('LITELLM_MASTER_KEY') ?? 'sk-rayzen',
     })
   }
 
