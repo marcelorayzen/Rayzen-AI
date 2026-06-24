@@ -213,10 +213,10 @@ isPropQualityIssue=true apenas para qualidade de prompt (baixo fitness). false p
     )
 
     try {
-      // Extract JSON object regardless of surrounding markdown/text
-      const jsonMatch = res.content.match(/\{[\s\S]*\}/)
-      const text      = jsonMatch ? jsonMatch[0] : res.content.replace(/```json|```/g, '').trim()
-      const parsed    = JSON.parse(text) as LlmAnalysis
+      // Find the first balanced JSON object in the response
+      const text = this.extractFirstJson(res.content)
+      if (!text) throw new Error('no JSON found')
+      const parsed = JSON.parse(text) as LlmAnalysis
       return parsed
     } catch {
       this.logger.warn('QA Scientist: analyzeWithLlm — failed to parse JSON, using plain text fallback')
@@ -328,6 +328,21 @@ isPropQualityIssue=true apenas para qualidade de prompt (baixo fitness). false p
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
+
+  // Extrai o primeiro objeto JSON balanceado de uma string (ignora texto ao redor)
+  private extractFirstJson(text: string): string | null {
+    const start = text.indexOf('{')
+    if (start === -1) return null
+    let depth = 0
+    for (let i = start; i < text.length; i++) {
+      if (text[i] === '{') depth++
+      else if (text[i] === '}') {
+        depth--
+        if (depth === 0) return text.slice(start, i + 1)
+      }
+    }
+    return null
+  }
 
   private inferTaskType(stepTitle: string): string | undefined {
     const lower = stepTitle.toLowerCase()
