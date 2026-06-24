@@ -95,6 +95,14 @@ export class GraphService {
     })
   }
 
+  async getStateGraph(projectId: string) {
+    const [mermaid, state] = await Promise.all([
+      this.generateStateMermaid(projectId),
+      this.stateService.get(projectId),
+    ])
+    return { mermaid, state }
+  }
+
   async generateStateMermaid(projectId: string): Promise<string> {
     const state = await this.stateService.get(projectId)
     if (!state) return 'flowchart TD\n  N["Nenhum estado disponível — execute /state/refresh"]'

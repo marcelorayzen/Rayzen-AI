@@ -41,10 +41,9 @@ export class GraphController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Mermaid do estado atual do projeto (milestones, blockers, next steps)' })
-  async getStateMermaid(@Param('id') id: string) {
-    const mermaid = await this.graph.generateStateMermaid(id)
-    return { mermaid }
+  @ApiOperation({ summary: 'Mermaid do estado atual do projeto + state (milestones, blockers, next steps)' })
+  getStateMermaid(@Param('id') id: string) {
+    return this.graph.getStateGraph(id)
   }
 
   @Get('goal')
