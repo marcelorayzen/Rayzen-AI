@@ -145,6 +145,13 @@ export class QaScientistService implements OnModuleInit, OnModuleDestroy {
     })
 
     for (const step of failedSteps) {
+      // Falhas jarvis:* por agent desktop offline não são qualidade de prompt —
+      // filtrar para não acumular hipóteses duplicadas de infra no ciclo seguinte.
+      const out = step.output as Record<string, unknown> | null
+      const abort = out?.['abortReason'] as string | undefined
+      if (abort?.startsWith('skill_repeated_failure:jarvis:') ||
+          abort?.startsWith('skill_repeated_exception:jarvis:')) continue
+
       const outputStr = typeof step.output === 'string'
         ? step.output
         : JSON.stringify(step.output ?? '')
