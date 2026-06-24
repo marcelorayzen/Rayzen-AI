@@ -199,23 +199,17 @@ export class QaScientistService implements OnModuleInit, OnModuleDestroy {
       [
         {
           role:    'system',
-          content: `Você é um AI Scientist responsável por analisar falhas de sistema e formular hipóteses de melhoria.
-Analise os sinais de falha e retorne SOMENTE um JSON:
-{
-  "title": "título curto da hipótese em PT-BR (max 80 chars)",
-  "analysis": "análise em markdown PT-BR — causa raiz, padrão, impacto (max 500 chars)",
-  "taskType": "classify|summarize|context_synthesis|null",
-  "isPropQualityIssue": true/false
-}
-isPropQualityIssue=true apenas para falhas de qualidade de prompt (baixo fitness, respostas imprecisas).
-isPropQualityIssue=false para falhas de infra, configuração ou dependência externa.`,
+          content: `Você é um AI Scientist que analisa falhas e formula hipóteses.
+Retorne SOMENTE JSON válido, sem markdown, sem code fences:
+{"title":"<hipótese curta em PT-BR max 80 chars>","analysis":"<causa raiz + padrão + impacto em uma frase por tópico, max 300 chars>","taskType":"classify|summarize|context_synthesis|null","isPropQualityIssue":false}
+isPropQualityIssue=true apenas para qualidade de prompt (baixo fitness). false para infra/config/dependência.`,
         },
         {
           role:    'user',
           content: `SINAIS DE FALHA (últimos 7 dias):\n${failureText}`,
         },
       ],
-      { model: 'gpt-4o-mini', temperature: 0.1, maxTokens: 1024 },
+      { model: 'gpt-4o-mini', temperature: 0.1, maxTokens: 2048 },
     )
 
     try {
