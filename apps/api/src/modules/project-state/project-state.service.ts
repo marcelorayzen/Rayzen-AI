@@ -518,8 +518,9 @@ REGRAS DE ATUALIZAÇÃO INCREMENTAL (importante — você está editando o ESTAD
         const description = typeof raw.description === 'string' && raw.description.trim()
           ? raw.description.trim()
           : undefined
+        const rawId = typeof raw.id === 'string' ? raw.id.trim() : ''
         return {
-          id: typeof raw.id === 'string' && raw.id.trim() ? raw.id.trim() : this.legacyId('milestone', title, index),
+          id: rawId && rawId !== 'uuid-curto' ? rawId : this.legacyId('milestone', title, index),
           title,
           ...(description ? { description } : {}),
           status,

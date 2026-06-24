@@ -58,12 +58,22 @@ export function useProjects() {
   const [notionPageId, setNotionPageId] = useState('')
 
   const projectSelectionInitializedRef = useRef(false)
+  const projectsRef = useRef<Project[]>([])
 
   const setActiveProjectId = useCallback((id: string | null) => {
     setActiveProjectIdState(id)
-    if (id) localStorage.setItem('rayzen_active_project_id', id)
-    else localStorage.removeItem('rayzen_active_project_id')
+    if (id) {
+      localStorage.setItem('rayzen_active_project_id', id)
+      const name = projectsRef.current.find(p => p.id === id)?.name
+      if (name) localStorage.setItem('rayzen_active_project_name', name)
+    } else {
+      localStorage.removeItem('rayzen_active_project_id')
+      localStorage.removeItem('rayzen_active_project_name')
+    }
   }, [])
+
+  // Mantém o ref em sincronia com o estado (para setActiveProjectId resolver nomes via functional updaters)
+  useEffect(() => { projectsRef.current = projects }, [projects])
 
   // Restaura do localStorage logo após hidratação (antes dos projetos carregarem)
   useEffect(() => {
@@ -74,7 +84,11 @@ export function useProjects() {
   useEffect(() => {
     fetch(`${API_URL}/projects`, { headers: authHeaders() })
       .then(r => r.json())
-      .then(d => setProjects(projectListFromResponse(d)))
+      .then(d => {
+        const list = projectListFromResponse(d)
+        projectsRef.current = list
+        setProjects(list)
+      })
       .catch(() => { setProjects([]); toast.error('Falha ao carregar projetos — verifique a API/conexão') })
   }, [])
 
@@ -82,14 +96,19 @@ export function useProjects() {
     if (projects.length === 0 || projectSelectionInitializedRef.current) return
     projectSelectionInitializedRef.current = true
     const savedId = localStorage.getItem('rayzen_active_project_id')
-    const savedExists = savedId ? projects.some(p => p.id === savedId) : false
-    if (savedExists) {
-      // Garantir que o estado tem o valor do localStorage (pode ter sido perdido no SSR)
-      setActiveProjectId(savedId!)
+    const savedName = localStorage.getItem('rayzen_active_project_name')
+    const byId = savedId ? projects.find(p => p.id === savedId) : null
+    if (byId) {
+      setActiveProjectId(byId.id)
     } else {
-      // Projeto salvo não existe mais — cair no primeiro ativo
-      const first = projects.find(p => p.status === 'active') ?? projects[0]
-      setActiveProjectId(first?.id ?? null)
+      // ID stale (projeto recriado?) — tenta recuperar pelo nome
+      const byName = savedName ? projects.find(p => p.name === savedName) : null
+      if (byName) {
+        setActiveProjectId(byName.id)
+      } else {
+        const first = projects.find(p => p.status === 'active') ?? projects[0]
+        setActiveProjectId(first?.id ?? null)
+      }
     }
   }, [projects, setActiveProjectId])
 
