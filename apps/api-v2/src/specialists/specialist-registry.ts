@@ -76,7 +76,7 @@ export const SPECIALIST_DEFINITIONS: Record<SpecialistType, SpecialistDefinition
     maxIterations:    6,
     maxCostUsd:       2.00,
     model:            'gpt-4o-premium',
-    requiresApproval: true,  // High-impact decisions require approval
+    requiresApproval: false,
   },
 
   researcher: {
@@ -163,7 +163,7 @@ export class SpecialistRegistry {
     if (/implement|build|create|develop|code|write.*function/.test(lower)) return 'coder'
     if (/review|check|audit|validate/.test(lower))                           return 'reviewer'
     if (/test|spec|coverage|assert/.test(lower))                             return 'tester'
-    if (/architect|design|structure|diagram|adr/.test(lower))               return 'architect'
+    if (/architect|design|structure|diagram|\badr\b/.test(lower))           return 'architect'
     if (/research|analyze|investigate|study|compare/.test(lower))           return 'researcher'
     if (/debug|fix|error|bug|issue|crash/.test(lower))                       return 'debugger'
     return 'coder' // default
