@@ -111,7 +111,10 @@ export class StepExecutorService implements OnModuleInit {
     let specialistType: SpecialistType | undefined
     if (mission.specialistId) {
       const agent = await this.agents.findById(mission.specialistId)
-      if (agent) specialistType = agent.domain as SpecialistType
+      if (agent) {
+        const domain = agent.domain as SpecialistType
+        specialistType = this.specialists.isKnownType(domain) ? domain : undefined
+      }
     }
     if (!specialistType) {
       specialistType = this.specialists.inferType(`${step.title} ${step.prompt ?? ''}`)

@@ -146,11 +146,15 @@ export function buildToolsForSkills(skillIds: string[]): AIToolDefinition[] {
 
 export class SpecialistRegistry {
   get(type: SpecialistType): SpecialistDefinition {
-    return SPECIALIST_DEFINITIONS[type]
+    return SPECIALIST_DEFINITIONS[type] ?? SPECIALIST_DEFINITIONS['researcher']
   }
 
   list(): SpecialistDefinition[] {
     return Object.values(SPECIALIST_DEFINITIONS)
+  }
+
+  has(type: string): type is SpecialistType {
+    return Object.prototype.hasOwnProperty.call(SPECIALIST_DEFINITIONS, type)
   }
 
   // Infer best specialist type from step title/prompt

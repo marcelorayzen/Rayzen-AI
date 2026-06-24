@@ -274,6 +274,10 @@ export class SpecialistService {
     return this.registry.infer(text)
   }
 
+  isKnownType(type: string): type is SpecialistType {
+    return this.registry.has(type)
+  }
+
   /** Blocking version of spawn — awaits the full loop and returns the final instance. */
   async spawnAndWait(req: SpawnRequest): Promise<SpecialistInstance> {
     const type = req.type ?? this.registry.infer(req.task)
