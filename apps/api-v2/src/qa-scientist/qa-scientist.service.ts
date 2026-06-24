@@ -215,7 +215,7 @@ isPropQualityIssue=false para falhas de infra, configuração ou dependência ex
           content: `SINAIS DE FALHA (últimos 7 dias):\n${failureText}`,
         },
       ],
-      { model: 'gpt-4o-mini', temperature: 0.1, maxTokens: 512 },
+      { model: 'gpt-4o-mini', temperature: 0.1, maxTokens: 1024 },
     )
 
     try {
