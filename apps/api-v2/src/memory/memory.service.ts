@@ -67,6 +67,7 @@ export class MemoryService {
     // Apply mode-based boost + class filter
     const modeBoosts = dto.mode ? (MODE_CLASS_BOOST[dto.mode] ?? {}) : {}
 
+    const seenContent = new Set<string>()
     const scored = results
       .map((r) => {
         const meta  = metaMap.get(r.id)
@@ -76,6 +77,12 @@ export class MemoryService {
       })
       .filter((r) => classFilter.includes(r.memoryClass as MemoryClass))
       .sort((a, b) => b.score - a.score)
+      .filter((r) => {
+        const fp = (r.content ?? '').slice(0, 200)
+        if (seenContent.has(fp)) return false
+        seenContent.add(fp)
+        return true
+      })
       .slice(0, limit)
 
     // Update access counts for retrieved docs

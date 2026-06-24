@@ -331,7 +331,8 @@ async function main() {
     'TodoWrite', 'TodoRead', 'ListMcpResourcesTool',
     'ToolSearch', 'Agent', 'ScheduleWakeup',
     'EnterPlanMode', 'ExitPlanMode', 'AskUserQuestion',
-    'Read',  // exploração, não mudança — quase sempre ruído
+    'Read', 'Glob',       // exploração, não mudança — quase sempre ruído
+    'WebFetch', 'WebSearch', // pesquisa externa — sem sinal de progresso
   ])
   // Ignorar leituras do Rayzen (não criar evento ao consultar estado)
   if (IGNORED_TOOLS.has(tool) ||
