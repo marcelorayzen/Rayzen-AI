@@ -30,8 +30,8 @@ services:
       interval: 10s
       retries: 5
 
-  langfuse-web:
-    image: langfuse/langfuse:latest
+  langfuse:
+    image: langfuse/langfuse:2
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://rayzen:${POSTGRES_PASSWORD:-senha}@postgres:5432/rayzen_ai
@@ -39,23 +39,11 @@ services:
       NEXTAUTH_URL: ${LANGFUSE_NEXTAUTH_URL:-http://192.168.0.174:3200}
       LANGFUSE_CSP_ENFORCE_HTTPS: "false"
       SALT: ${LANGFUSE_SALT:-changeme-langfuse-salt-16chars}
-      ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000001}
     ports:
       - '3200:3000'
     depends_on:
       postgres:
         condition: service_healthy
-
-  langfuse-worker:
-    image: langfuse/langfuse-worker:latest
-    restart: unless-stopped
-    environment:
-      DATABASE_URL: postgresql://rayzen:${POSTGRES_PASSWORD:-senha}@postgres:5432/rayzen_ai
-      SALT: ${LANGFUSE_SALT:-changeme-langfuse-salt-16chars}
-      ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000001}
-    depends_on:
-      langfuse-web:
-        condition: service_started
 
   litellm:
     image: ghcr.io/berriai/litellm:main-latest
@@ -65,7 +53,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
-      LANGFUSE_HOST: http://langfuse-web:3000
+      LANGFUSE_HOST: http://langfuse:3000
       LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
       LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
     volumes:
@@ -76,7 +64,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      langfuse-web:
+      langfuse:
         condition: service_started
 
   api:

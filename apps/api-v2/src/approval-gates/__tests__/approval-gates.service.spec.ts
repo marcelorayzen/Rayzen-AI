@@ -14,7 +14,8 @@ describe('ApprovalGatesService.checkAndCreate — reaproveita gate já aprovado'
         create:    jest.fn().mockResolvedValue({ id: 'new-gate', status: 'pending' }),
       },
     }
-    return { service: new ApprovalGatesService(prisma as never), prisma }
+    const events = { approvalGate: jest.fn() }
+    return { service: new ApprovalGatesService(prisma as never, events as never), prisma }
   }
 
   it('não cria gate novo quando já existe um approved para o mesmo step+skill', async () => {
