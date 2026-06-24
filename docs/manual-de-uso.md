@@ -1,7 +1,7 @@
 # Rayzen AI — Manual de Uso
 
 > Manual operacional + arquitetura. Como o Rayzen funciona hoje e como usá-lo no dia a dia.
-> Última revisão: 2026-06-24 (Fases 1–3 concluídas; missões V2 funcionais).
+> Última revisão: 2026-06-24 (Fases 1–5 concluídas; fixes specialist loop + QA Scientist + Goal Graph).
 
 ---
 
@@ -48,8 +48,8 @@ Uma plataforma pessoal de IA que **preserva contexto** (memória semântica, dec
 
 | Estado | Módulos |
 |---|---|
-| **Ativos** | `benchmark`, `evolutionary`, `agent-dialogue`, `context-engine`, `specialist-agent`, `approval-gates`, `knowledge`, `memory`, `mission`, `router`, `step-executor`, `mission-scheduler` |
-| **Dependem do agent desktop** | `jarvis:git_log`, `jarvis:file_search`, `jarvis:run_command`, `jarvis:file_write` — retornam 500 sem agent rodando |
+| **Ativos** | `benchmark`, `evolutionary`, `agent-dialogue`, `qa-scientist`, `context-engine`, `specialist-agent`, `approval-gates`, `knowledge`, `memory`, `mission`, `router`, `step-executor`, `mission-scheduler` |
+| **Dependem do agent desktop** | `jarvis:git_log`, `jarvis:file_search`, `jarvis:run_command`, `jarvis:file_write` — retornam 500 sem agent rodando; specialist aborta após **3 falhas consecutivas** (não gasta 10 iterações) |
 
 ### 2.3 LiteLLM — mapeamento de modelos
 
@@ -105,7 +105,7 @@ Você edita um arquivo no VS Code
 | Painel | O que mostra | Quando atualiza | Como forçar |
 |---|---|---|---|
 | **Atividade** | Eventos do hook em tempo real | **Sozinho, a cada 5s** | — |
-| **Goal Graph** | Meta do projeto, critérios, KPIs, progresso | **Só quando você edita** | Botão "EDITAR META" / "+ critério" |
+| **Goal Graph** | Meta ativa + critérios + KPIs + histórico de metas conquistadas | **Só quando você edita / ao conquistar meta** | Botão "EDITAR META" / "+ critério" |
 | **Documentação viva** | 5 docs (estado, decisões, próximas ações, diário, evidências) | **No checkpoint** | Botão "Regenerar" / checkpoint |
 | **Universe** | Canvas: docs, decisões e relações | **Manual** | Botão "atualizar" / "importar projeto" |
 | **Brain / Memória** | Busca semântica na memória indexada | Ao indexar fontes | Painel Brain → indexar |
@@ -209,7 +209,43 @@ VALUES (gen_random_uuid()::text, 'classify', '<input>', '<expected>', 'manual', 
 
 ---
 
-## 8. Checkpoint — sincronização do ProjectState
+## 8. QA Scientist (Fase 5)
+
+Loop autônomo de melhoria contínua de prompts. Roda automaticamente 10 min após boot e a cada 24h.
+
+### Ciclo diário
+
+1. **Coleta falhas** — steps com status `failed`/`skipped` (últimos 7 dias), benchmark results com fitness < 0.5, trace spans com status `error`
+2. **Analisa com LLM** — identifica padrão, formula hipótese em PT-BR
+3. **Decide se experimenta** — `isPropQualityIssue: true` → cria estratégia candidata e roda benchmark; `false` (infra/config) → registra hipótese mas não experimenta
+4. **Cria gate de promoção** se Δfitness > 0.02
+
+### Endpoints
+
+| Endpoint | O que faz |
+|---|---|
+| `POST /v2/qa-scientist/run` | Dispara ciclo manual para um projeto `{ projectId }` |
+| `POST /v2/qa-scientist/run-all` | Dispara para todos os projetos no catálogo |
+| `GET /v2/qa-scientist/hypotheses` | Lista hipóteses (filtros: `projectId`, `status`, `limit`) |
+| `GET /v2/qa-scientist/hypotheses/:id` | Detalhe de hipótese (inclui `report` em markdown) |
+| `PATCH /v2/qa-scientist/hypotheses/:id/reject` | Rejeita hipótese manualmente |
+
+### Status de hipóteses
+
+| Status | Significado |
+|---|---|
+| `active` | Identificada, aguardando decisão |
+| `experimenting` | Experimento em andamento |
+| `promoted` | Δfitness > 0.02 — gate de promoção criado |
+| `rejected` | Rejeitada manualmente |
+
+### Filtragem de ruído de infra
+
+Falhas `jarvis:*` por agent desktop offline geram `output.abortReason = "skill_repeated_failure:jarvis:*"`. O QA Scientist ignora esses sinais automaticamente — não cria hipóteses de infra repetidas.
+
+---
+
+## 9. Checkpoint — sincronização do ProjectState
 
 O checkpoint mantém o Rayzen "em dia". Ao disparar (botão CHECKPOINT, ou automático a cada 2h / 15+ eventos), ele:
 
@@ -222,7 +258,7 @@ Sem checkpoint, o ProjectState congela no último. **Se os painéis parecem velh
 
 ---
 
-## 9. Protocolo de sessão Claude Code ↔ Rayzen
+## 10. Protocolo de sessão Claude Code ↔ Rayzen
 
 ### Contexto automático (não requer ação)
 O hook `UserPromptSubmit` injeta o estado do projeto em cada prompt automaticamente (cache 5 min). Não é necessário chamar `rayzen_get_resume` em toda sessão.
@@ -261,7 +297,7 @@ A pergunta-guia: *"Daqui a 2 meses, quero que o Rayzen já saiba isso?"* — Se 
 
 ---
 
-## 10. MCP — tools disponíveis
+## 11. MCP — tools disponíveis
 
 O MCP HTTP (`https://rayzen.com.br/mcp`) expõe o Rayzen como conector OAuth. Autenticação com senha admin.
 
@@ -280,7 +316,7 @@ O MCP HTTP (`https://rayzen.com.br/mcp`) expõe o Rayzen como conector OAuth. Au
 
 ---
 
-## 11. Comandos úteis
+## 12. Comandos úteis
 
 ```bash
 # Desenvolvimento local
@@ -316,25 +352,27 @@ sudo usermod -aG docker rayzen   # logout+login para ter efeito
 
 ---
 
-## 12. Troubleshooting
+## 13. Troubleshooting
 
 | Sintoma | Causa provável | O que fazer |
 |---|---|---|
 | Hook não pega / badge 🔴 | API fora ou `repoSlug` errado | Verifique `GET /events/hook/health`; confira remote git do projeto |
 | Doc viva / Próximas ações desatualizadas | Faltou checkpoint | Dispare checkpoint |
-| Goal Graph com meta velha | Meta é manual | Edite a meta no painel |
+| Goal Graph mostra "Nenhuma meta ativa" mas existiam metas | — | Normal — metas conquistadas agora aparecem automaticamente como "Metas anteriores" |
 | MCP pede re-auth | Token expirado | Reconnect no Claude → login com senha admin |
 | Evento vinculado ao projeto errado | Cache de slug | Limpe `%TEMP%\rayzen-slug-cache.json` |
 | `rayzen_capture_learning` não retorna em `rayzen_get_context` | `projectId` não foi passado | Passe o `projectId` correto na chamada |
 | Deploy falha com "sudo required" | Usuário não está no grupo docker | `sudo usermod -aG docker rayzen` + logout+login |
-| Step de missão com specialist falha (500) | Agent desktop não está rodando | Rode `agent-start.bat` antes de executar missões com steps `ai` |
+| Step de missão com specialist falha — `abortReason: skill_repeated_failure:jarvis:*` | Agent desktop não está rodando | Rode `agent-start.bat`; após 3 falhas o specialist para automaticamente |
+| Step de missão falha com `V1 dispatch failed: HTTP 500` | Agent desktop offline ou ação não na whitelist | Ver o corpo do erro no `output.result` do step para causa exata |
 | Missão travada em `paused` após gate | Gate aprovado mas execute não chamado | `POST /v2/missions/:id/execute` para retomar |
 | `POST /v2/benchmark/extract` retorna 0 | `v2.trace_spans` vazia | Inserir casos manuais via SQL (ver Seção 7) |
+| QA Scientist cria hipóteses duplicadas de infra | Sinais jarvis não filtrados (versão antiga) | Atualizar para commit ≥ `4739372`; sinais `skill_repeated_failure:jarvis:*` são ignorados |
 | Build Docker falha com "crc32 mismatch" | Layer corrompida no cache | `docker builder prune` no notebook + rebuild |
 
 ---
 
-## Referências no repo
+## 14. Referências no repo
 
 - `CLAUDE.md` / `CLAUDE.local.md` — guia de desenvolvimento e protocolo de sessão
 - `blueprints/` — design da V2 (24 documentos, referência arquitetural)
