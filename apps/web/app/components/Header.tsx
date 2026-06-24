@@ -44,6 +44,7 @@ interface HeaderProps {
   openEvidence: () => void
   autoVoice: boolean
   setAutoVoice: Dispatch<SetStateAction<boolean>>
+  openMissions: () => void
   openSynthesis: () => void
   openDocs: () => void
   onLogout: () => void
@@ -57,7 +58,7 @@ export function Header({
   renameProject, deleteProject, workMode, setWorkMode, projectState, setStateOpen,
   loadProjectState, healthData, setHealthOpen, setCostsOpen, loadCosts, costsPeriod,
   gitContext, setGitOpen, recommendations, openRecommendations, setQuickCaptureOpen,
-  doCheckpoint, checkpointing, openActivity, openGraph, qaSummary, openQA, openEvidence,
+  doCheckpoint, checkpointing, openActivity, openMissions, openGraph, qaSummary, openQA, openEvidence,
   autoVoice, setAutoVoice, openSynthesis, openDocs, onLogout, sessionTokens, dailyTokens,
 }: HeaderProps) {
   return (
@@ -252,6 +253,15 @@ export function Header({
             title="Checkpoint: sintetiza atividade recente"
           >
             {checkpointing ? '…' : 'checkpoint'}
+          </button>
+        )}
+        {activeProjectId && (
+          <button
+            onClick={openMissions}
+            className="hud-nav"
+            title="Missões V2 — objetivos estruturados com steps e approval gates"
+          >
+            missões
           </button>
         )}
         <button

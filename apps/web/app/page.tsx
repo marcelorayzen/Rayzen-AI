@@ -1121,6 +1121,7 @@ export default function Home() {
         doCheckpoint={doCheckpoint}
         checkpointing={checkpointing}
         openActivity={openActivity}
+        openMissions={openMissions}
         openGraph={openGraph}
         qaSummary={qaSummary}
         openQA={openQA}
