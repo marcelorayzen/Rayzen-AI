@@ -131,6 +131,16 @@ export function useGoalGraph(activeProjectId: string | null) {
     finally { setUniverseImporting(false) }
   }, [activeProjectId])
 
+  const loadGoalsHistory = useCallback(async () => {
+    if (!activeProjectId) return
+    setHistoryLoading(true)
+    try {
+      const res = await fetch(`${API_URL}/projects/${activeProjectId}/graph/goals`, { headers: authHeaders() })
+      if (res.ok) setGoalsHistory(await res.json() as ProjectGoal[])
+    } catch { /* silencioso */ }
+    finally { setHistoryLoading(false) }
+  }, [activeProjectId])
+
   const openGraph = useCallback(async (sub: 'estado' | 'goal' | 'eventos' | 'universe' = 'estado') => {
     if (!activeProjectId) return
     setGraphOpen(true)
@@ -150,8 +160,13 @@ export function useGoalGraph(activeProjectId: string | null) {
       } else {
         toast.error(`Falha ao carregar estado do projeto (${stateRes.status}).`)
       }
-      if (goalRes.ok) setGraphGoalData(await goalRes.json() as GoalGraphData)
-      else toast.error(`Falha ao carregar goal graph (${goalRes.status}).`)
+      if (goalRes.ok) {
+        const goalData = await goalRes.json() as GoalGraphData
+        setGraphGoalData(goalData)
+        // Sem meta ativa (conquistada ou sem meta), carrega histórico automaticamente
+        // para manter rastreabilidade entre metas sem precisar clicar em "histórico".
+        if (!goalData.goal) void loadGoalsHistory()
+      } else toast.error(`Falha ao carregar goal graph (${goalRes.status}).`)
     } catch {
       toast.error('Falha ao carregar goal graph — verifique a conexão com a API.')
     }
@@ -167,7 +182,7 @@ export function useGoalGraph(activeProjectId: string | null) {
     if (sub === 'universe') {
       await loadUniverse()
     }
-  }, [activeProjectId, loadKnowledgeGraph, loadUniverse])
+  }, [activeProjectId, loadKnowledgeGraph, loadUniverse, loadGoalsHistory])
 
   const refreshGraphState = useCallback(async () => {
     if (!activeProjectId) return
@@ -251,16 +266,6 @@ export function useGoalGraph(activeProjectId: string | null) {
     }).catch(() => null)
     openGraph('goal')
   }, [activeProjectId, openGraph])
-
-  const loadGoalsHistory = useCallback(async () => {
-    if (!activeProjectId) return
-    setHistoryLoading(true)
-    try {
-      const res = await fetch(`${API_URL}/projects/${activeProjectId}/graph/goals`, { headers: authHeaders() })
-      if (res.ok) setGoalsHistory(await res.json() as ProjectGoal[])
-    } catch { /* silencioso */ }
-    finally { setHistoryLoading(false) }
-  }, [activeProjectId])
 
   const toggleHistory = useCallback(async () => {
     if (!historyOpen && !goalsHistory) await loadGoalsHistory()

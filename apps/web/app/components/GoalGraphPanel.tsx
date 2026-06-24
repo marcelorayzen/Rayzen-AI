@@ -469,13 +469,28 @@ export function GoalGraphPanel({
                   </div>
                 </>
               ) : (
-                /* No goal yet — show form trigger */
-                <div className="text-center py-8 space-y-3">
-                  <p className="text-zinc-400 text-sm">Nenhuma meta definida para este projeto.</p>
-                  <button onClick={openCreateGoalForm}
-                    className="bg-blue-600 hover:bg-blue-500 text-white text-sm px-4 py-2 rounded-lg transition-colors">
-                    Definir meta
-                  </button>
+                /* Sem meta ativa — mostra histórico para preservar rastreabilidade */
+                <div className="space-y-4 py-2">
+                  {historyLoading ? (
+                    <div className="text-center text-xs text-zinc-500 py-4">Carregando histórico…</div>
+                  ) : goalsHistory && goalsHistory.filter(g => g.status !== 'cancelled').length > 0 ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-zinc-500 font-medium uppercase tracking-wide">Metas anteriores</p>
+                      {goalsHistory.filter(g => g.status !== 'cancelled').map(g => {
+                        const total = g.successCriteria.length
+                        const done  = g.successCriteria.filter(c => c.done).length
+                        const pct   = total > 0 ? Math.round((done / total) * 100) : null
+                        return <GoalHistoryCard key={g.id} g={g} isActive={false} total={total} done={done} pct={pct} />
+                      })}
+                    </div>
+                  ) : null}
+                  <div className="text-center py-4 space-y-3">
+                    <p className="text-zinc-400 text-sm">Nenhuma meta ativa.</p>
+                    <button onClick={openCreateGoalForm}
+                      className="bg-blue-600 hover:bg-blue-500 text-white text-sm px-4 py-2 rounded-lg transition-colors">
+                      Definir nova meta
+                    </button>
+                  </div>
                 </div>
               )}
             </>
