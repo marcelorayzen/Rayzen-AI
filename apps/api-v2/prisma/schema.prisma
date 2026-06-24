@@ -406,6 +406,30 @@ model BenchmarkResult {
   @@map("benchmark_results")
 }
 
+// ─── QA Scientist ─────────────────────────────────────────────────────────────
+
+model Hypothesis {
+  id              String    @id @default(uuid())
+  projectId       String    @map("project_id")
+  taskType        String?   @map("task_type")
+  status          String    @default("active")  // active | experimenting | promoted | rejected
+  title           String
+  analysis        String
+  report          String?
+  strategyId      String?   @map("strategy_id")
+  gateId          String?   @map("gate_id")
+  baselineFitness Float?    @map("baseline_fitness")
+  currentFitness  Float?    @map("current_fitness")
+  failureCount    Int       @default(0) @map("failure_count")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  resolvedAt      DateTime? @map("resolved_at")
+
+  @@index([projectId, status])
+  @@index([status, createdAt])
+  @@schema("v2")
+  @@map("hypotheses")
+}
+
 // ─── Mission Scheduler ────────────────────────────────────────────────────────
 
 model ScheduledMission {
