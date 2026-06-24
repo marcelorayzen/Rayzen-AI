@@ -116,7 +116,10 @@ export class SkillEngineService {
       }),
     })
 
-    if (!res.ok) throw new Error(`V1 dispatch failed: ${res.status}`)
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      throw new Error(`V1 dispatch failed: HTTP ${res.status} — ${body.slice(0, 300)}`)
+    }
     return res.json() as Promise<Record<string, unknown>>
   }
 

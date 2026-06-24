@@ -121,6 +121,10 @@ export class SpecialistService {
     const tools = buildToolsForSkills(def.allowedSkills)
     const actionsExecuted: Array<{ skillId: string; success: boolean }> = []
 
+    // Rastreia falhas consecutivas por skill — aborta o loop se a mesma skill
+    // falha 3+ vezes (indica falha de infra permanente, não erro transitório).
+    const skillFailCounts = new Map<string, number>()
+
     let totalCost = 0
 
     for (let i = 0; i < def.maxIterations; i++) {
@@ -212,12 +216,51 @@ export class SpecialistService {
                 return
               }
 
+              if (!skillResult.success) {
+                const fails = (skillFailCounts.get(tc.name) ?? 0) + 1
+                skillFailCounts.set(tc.name, fails)
+                if (fails >= 3) {
+                  const errMsg = (skillResult.output.error as string | undefined) ?? 'Unknown error'
+                  this.logger.warn(`Specialist ${id}: skill ${tc.name} falhou ${fails}x — aborting (${errMsg.slice(0, 120)})`)
+                  inst.status = 'failed'
+                  inst.output = {
+                    result:       `Ação ${tc.name} falhou ${fails} vezes. Provável falha de infra: ${errMsg}`,
+                    iterations:   inst.iterations,
+                    costUsd:      totalCost,
+                    type:         def.type,
+                    actionsExecuted,
+                    abortReason:  `skill_repeated_failure:${tc.name}`,
+                  }
+                  inst.endedAt = new Date()
+                  return
+                }
+              } else {
+                skillFailCounts.delete(tc.name)
+              }
+
               messages.push({
                 role: 'tool', tool_call_id: tc.id,
                 content: JSON.stringify(skillResult.output).slice(0, 2000),
               })
             } catch (e) {
               actionsExecuted.push({ skillId: tc.name, success: false })
+              const fails = (skillFailCounts.get(tc.name) ?? 0) + 1
+              skillFailCounts.set(tc.name, fails)
+              if (fails >= 3) {
+                const errMsg = e instanceof Error ? e.message : String(e)
+                this.logger.warn(`Specialist ${id}: skill ${tc.name} threw ${fails}x — aborting`)
+                inst.status = 'failed'
+                inst.output = {
+                  result:       `Ação ${tc.name} lançou exceção ${fails} vezes: ${errMsg}`,
+                  iterations:   inst.iterations,
+                  costUsd:      totalCost,
+                  type:         def.type,
+                  actionsExecuted,
+                  abortReason:  `skill_repeated_exception:${tc.name}`,
+                }
+                inst.endedAt = new Date()
+                return
+              }
               messages.push({
                 role: 'tool', tool_call_id: tc.id,
                 content: `Error: ${e instanceof Error ? e.message : String(e)}`,
