@@ -343,6 +343,30 @@ model ProjectCatalog {
   @@map("project_catalog")
 }
 
+// ─── Evolutionary Prompting ───────────────────────────────────────────────────
+
+model Strategy {
+  id           String    @id @default(uuid())
+  taskType     String    @map("task_type")      // classify | summarize | generate_code | review | etc.
+  generation   Int       @default(0)
+  systemPrompt String    @map("system_prompt")
+  tier         Int       @default(3)            // 2 | 3 | 4 (LiteLLM tier)
+  temperature  Float     @default(0.2)
+  contextMode  String?   @map("context_mode")
+  fitnessScore Float?    @map("fitness_score")  // calculado pelo BenchmarkService
+  status       String    @default("candidate")  // candidate | active | retired
+  parentIds    String[]  @map("parent_ids")
+  notes        String?
+  promotedAt   DateTime? @map("promoted_at")
+  retiredAt    DateTime? @map("retired_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@index([taskType, status])
+  @@index([status, fitnessScore])
+  @@schema("v2")
+  @@map("strategies")
+}
+
 // ─── Benchmark Engine ─────────────────────────────────────────────────────────
 
 model BenchmarkCase {

@@ -2,7 +2,7 @@ import { Injectable, Logger, NotFoundException, BadRequestException } from '@nes
 import { PrismaV2Service } from '../core/prisma-v2.service'
 import { EventsService } from '../gateway/events.service'
 
-export type ApprovalGateType = 'code_deploy' | 'data_write' | 'external_api' | 'irreversible' | 'high_cost' | 'specialist_spawn' | 'clarification'
+export type ApprovalGateType = 'code_deploy' | 'data_write' | 'external_api' | 'irreversible' | 'high_cost' | 'specialist_spawn' | 'clarification' | 'strategy_promotion'
 export type ApprovalStatus   = 'pending' | 'approved' | 'rejected' | 'expired'
 
 // Skills de risco médio expiram em 30min; alto risco não expiram automaticamente

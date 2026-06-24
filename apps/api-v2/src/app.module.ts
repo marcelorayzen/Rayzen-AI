@@ -27,6 +27,7 @@ import { CatalogModule } from './catalog/catalog.module'
 import { EventsModule } from './gateway/events.module'
 import { BenchmarkModule } from './benchmark/benchmark.module'
 import { AgentDialogueModule } from './agent-dialogue/agent-dialogue.module'
+import { EvolutionaryModule } from './evolutionary/evolutionary.module'
 
 @Module({
   controllers: [PingController],
@@ -58,6 +59,7 @@ import { AgentDialogueModule } from './agent-dialogue/agent-dialogue.module'
     EventsModule,
     BenchmarkModule,
     AgentDialogueModule,
+    EvolutionaryModule,
   ],
 })
 export class AppModule {}

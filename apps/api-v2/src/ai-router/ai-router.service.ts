@@ -94,6 +94,7 @@ export class AiRouterService {
   private readonly baseUrl: string
   private readonly masterKey: string
   private costController: import('../cost-controller/cost-controller.service').CostControllerService | null = null
+  private evolutionary: { getActiveStrategy: (taskType: string) => Promise<{ systemPrompt: string; tier: number } | null> } | null = null
 
   constructor() {
     this.baseUrl = (process.env.LITELLM_BASE_URL ?? 'http://litellm:4000/v1').replace(/\/$/, '')
@@ -105,6 +106,11 @@ export class AiRouterService {
     this.costController = svc
   }
 
+  // Injected lazily by EvolutionaryService.onModuleInit() to avoid circular dep
+  setEvolutionary(svc: { getActiveStrategy: (taskType: string) => Promise<{ systemPrompt: string; tier: number } | null> }) {
+    this.evolutionary = svc
+  }
+
   selectTier(req: AIRequest): TierConfig {
     const minTier = req.tier ?? (req.taskType ? TASK_DEFAULT_TIER[req.taskType] : 3)
     const maxTier = req.maxTier ?? 4
@@ -113,8 +119,21 @@ export class AiRouterService {
   }
 
   async complete(req: AIRequest): Promise<AIResponse> {
-    const tier = this.selectTier(req)
-    return this.callTier(req, tier, 0)
+    // Use active evolved strategy's systemPrompt + tier if one exists for this taskType
+    let effectiveReq = req
+    if (req.taskType && this.evolutionary && !req.systemPrompt) {
+      const strategy = await this.evolutionary.getActiveStrategy(req.taskType).catch(() => null)
+      if (strategy) {
+        effectiveReq = {
+          ...req,
+          systemPrompt: strategy.systemPrompt,
+          tier: strategy.tier as 2 | 3 | 4,
+        }
+        this.logger.debug(`Using evolved strategy for taskType=${req.taskType} tier=${strategy.tier}`)
+      }
+    }
+    const tier = this.selectTier(effectiveReq)
+    return this.callTier(effectiveReq, tier, 0)
   }
 
   private async callTier(req: AIRequest, tier: TierConfig, retries: number): Promise<AIResponse> {
