@@ -343,6 +343,45 @@ model ProjectCatalog {
   @@map("project_catalog")
 }
 
+// ─── Benchmark Engine ─────────────────────────────────────────────────────────
+
+model BenchmarkCase {
+  id        String   @id @default(uuid())
+  taskType  String   @map("task_type")           // classify | summarize | generate | route | etc.
+  input     String                                // prompt ou texto de entrada
+  expected  String                                // saída esperada (ground truth)
+  source    String   @default("trace")            // trace | manual
+  projectId String?  @map("project_id")
+  approved  Boolean  @default(false)              // faz parte do golden set quando true
+  createdAt DateTime @default(now()) @map("created_at")
+
+  results BenchmarkResult[]
+
+  @@index([taskType, approved])
+  @@index([projectId, taskType])
+  @@schema("v2")
+  @@map("benchmark_cases")
+}
+
+model BenchmarkResult {
+  id          String   @id @default(uuid())
+  caseId      String   @map("case_id")
+  strategyId  String   @map("strategy_id")       // id livre — pode ser model+prompt hash
+  accuracy    Float                               // 0-1 calculado pelo avaliador LLM
+  costUsd     Float    @map("cost_usd")
+  latencyMs   Int      @map("latency_ms")
+  fitness     Float                               // accuracy*0.7 + (1/costNorm)*0.15 + (1/latencyNorm)*0.15
+  output      String                              // saída real produzida
+  evaluatedAt DateTime @default(now()) @map("evaluated_at")
+
+  case BenchmarkCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([strategyId, evaluatedAt])
+  @@index([caseId])
+  @@schema("v2")
+  @@map("benchmark_results")
+}
+
 // ─── Mission Scheduler ────────────────────────────────────────────────────────
 
 model ScheduledMission {

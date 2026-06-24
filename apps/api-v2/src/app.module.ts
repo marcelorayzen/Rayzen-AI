@@ -25,6 +25,7 @@ import { SpecialistModule } from './specialists/specialist.module'
 import { PolicyEngineModule } from './policy-engine/policy-engine.module'
 import { CatalogModule } from './catalog/catalog.module'
 import { EventsModule } from './gateway/events.module'
+import { BenchmarkModule } from './benchmark/benchmark.module'
 
 @Module({
   controllers: [PingController],
@@ -54,6 +55,7 @@ import { EventsModule } from './gateway/events.module'
     PolicyEngineModule,
     CatalogModule,
     EventsModule,
+    BenchmarkModule,
   ],
 })
 export class AppModule {}
