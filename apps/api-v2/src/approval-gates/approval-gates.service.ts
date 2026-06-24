@@ -1,5 +1,6 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common'
 import { PrismaV2Service } from '../core/prisma-v2.service'
+import { EventsService } from '../gateway/events.service'
 
 export type ApprovalGateType = 'code_deploy' | 'data_write' | 'external_api' | 'irreversible' | 'high_cost' | 'specialist_spawn'
 export type ApprovalStatus   = 'pending' | 'approved' | 'rejected' | 'expired'
@@ -25,7 +26,10 @@ export interface CreateGateDto {
 export class ApprovalGatesService {
   private readonly logger = new Logger(ApprovalGatesService.name)
 
-  constructor(private readonly prisma: PrismaV2Service) {}
+  constructor(
+    private readonly prisma: PrismaV2Service,
+    private readonly events: EventsService,
+  ) {}
 
   async create(dto: CreateGateDto) {
     if (!dto.projectId?.trim()) {
@@ -129,6 +133,11 @@ export class ApprovalGatesService {
       autoOnExpiry: skillRisk === 'medium' ? 'reject' : 'pause',
     })
     this.logger.log(`Gate created for ${description} — risk=${skillRisk} id=${gate.id}`)
+    if (gate.missionId) {
+      this.events.approvalGate(gate.projectId, {
+        id: gate.id, missionId: gate.missionId, description: gate.description, type: gate.type,
+      })
+    }
     return { required: true, gate }
   }
 

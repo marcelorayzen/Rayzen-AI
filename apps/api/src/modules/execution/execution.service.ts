@@ -51,7 +51,7 @@ const ACTION_ROLE: Partial<Record<string, AgentRole>> = {
   git_push: 'desktop',
   prisma_generate: 'desktop',
   prisma_migrate: 'desktop',
-  supervised_session: 'server',
+  supervised_session: 'desktop',
 }
 
 @Injectable()

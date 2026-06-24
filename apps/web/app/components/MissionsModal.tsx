@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import type { Mission, MissionStep } from '../hooks/useMissions'
+import type { Mission, MissionStep, PendingGate } from '../hooks/useMissions'
 import { HelpTip } from './HelpTip'
 
 const MISSION_STATUS_STYLE: Record<string, string> = {
@@ -75,10 +75,14 @@ interface MissionsModalProps {
   missionExecuting: boolean
   missionApplyingTemplate: boolean
   missionRouteNote: string | null
+  pendingGates: PendingGate[]
+  gateActionLoading: boolean
   selectMission: (id: string) => void
   createMission: (content: string) => Promise<void>
   executeMission: (id: string) => void
   applyMissionTemplate: (id: string, templateType: string) => void
+  approveGate: (gateId: string) => void
+  rejectGate: (gateId: string) => void
   onClose: () => void
   onOpenDocs: () => void
 }
@@ -86,7 +90,9 @@ interface MissionsModalProps {
 export function MissionsModal({
   missions, missionsLoading, selectedMission, setSelectedMission, missionDetailLoading,
   missionInput, setMissionInput, missionCreating, missionExecuting, missionApplyingTemplate, missionRouteNote,
-  selectMission, createMission, executeMission, applyMissionTemplate, onClose, onOpenDocs,
+  pendingGates, gateActionLoading,
+  selectMission, createMission, executeMission, applyMissionTemplate, approveGate, rejectGate,
+  onClose, onOpenDocs,
 }: MissionsModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -155,6 +161,42 @@ export function MissionsModal({
                   )}
                 </div>
               </div>
+              {/* Approval gates pendentes */}
+              {pendingGates.length > 0 && (
+                <div className="px-4 pt-3 space-y-2">
+                  <p className="text-[10px] font-semibold text-amber-400/80 uppercase tracking-wide flex items-center gap-1">
+                    ⚠ {pendingGates.length} gate{pendingGates.length > 1 ? 's' : ''} aguardando aprovação
+                  </p>
+                  {pendingGates.map((gate) => (
+                    <div key={gate.id} className="border border-amber-900/40 bg-amber-950/20 rounded-lg px-3 py-2.5 space-y-1.5">
+                      <p className="text-xs text-amber-200 leading-snug">{gate.description}</p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] uppercase font-medium px-1 py-px rounded bg-amber-500/15 text-amber-400">{gate.type}</span>
+                        {gate.expiresAt && (
+                          <span className="text-[9px] text-zinc-500">expira {new Date(gate.expiresAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                        )}
+                      </div>
+                      <div className="flex gap-2 pt-0.5">
+                        <button
+                          onClick={() => approveGate(gate.id)}
+                          disabled={gateActionLoading}
+                          className="bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg px-2.5 py-1 text-[11px] font-medium disabled:opacity-40 transition-colors"
+                        >
+                          {gateActionLoading ? '…' : '✓ Aprovar e retomar'}
+                        </button>
+                        <button
+                          onClick={() => rejectGate(gate.id)}
+                          disabled={gateActionLoading}
+                          className="bg-zinc-700 hover:bg-zinc-600 text-zinc-300 rounded-lg px-2.5 py-1 text-[11px] font-medium disabled:opacity-40 transition-colors"
+                        >
+                          {gateActionLoading ? '…' : '✗ Rejeitar'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="px-4 py-3 space-y-1.5">
                 {selectedMission.status === 'done' && (
                   <div className="mb-2 flex items-center gap-2 px-1 py-1.5 bg-emerald-950/40 rounded-lg border border-emerald-900/50">

@@ -134,5 +134,41 @@ jobs:
           path: apps/api/coverage/
           retention-days: 7
 
+  build-smoke:
+    name: Docker Build + Smoke
+    needs: [test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build API image
+        run: docker compose build api
+
+      - name: Build API-V2 image
+        run: docker compose build api-v2
+
+      - name: Build Web image
+        run: docker compose build web
+
+      - name: Build Agent Server image
+        run: docker compose build agent-server
+
+      - name: Smoke test (requer secrets configurados no repositório GitHub)
+        continue-on-error: true
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          LITELLM_MASTER_KEY: ${{ secrets.LITELLM_MASTER_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          AGENT_TOKEN: ${{ secrets.RAYZEN_AGENT_TOKEN }}
+        run: |
+          docker compose up -d postgres redis litellm api api-v2 web
+          sleep 45
+          curl -sf http://localhost:3101/docs > /dev/null && echo "api OK" || echo "api FAIL"
+          curl -sf http://localhost:3103/v2/docs > /dev/null && echo "api-v2 OK" || echo "api-v2 FAIL"
+          curl -sf http://localhost:3100 > /dev/null && echo "web OK" || echo "web FAIL"
+          docker compose down
+
   # Deploy é feito manualmente via SSH ou jarvis:restart_api
-  # O Azure NSG restringe a porta 22 a IPs específicos — GitHub Actions não tem IP fixo

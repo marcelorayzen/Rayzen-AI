@@ -420,6 +420,10 @@ export default function Home() {
     createMission,
     executeMission,
     applyTemplate: applyMissionTemplate,
+    pendingGates: missionPendingGates,
+    gateActionLoading: missionGateActionLoading,
+    approveGate: approveMissionGate,
+    rejectGate: rejectMissionGate,
   } = useMissions(activeProjectId)
   const [missionInput, setMissionInput] = useState('')
 
@@ -910,10 +914,14 @@ export default function Home() {
           missionExecuting={missionExecuting}
           missionApplyingTemplate={missionApplyingTemplate}
           missionRouteNote={missionRouteNote}
+          pendingGates={missionPendingGates}
+          gateActionLoading={missionGateActionLoading}
           selectMission={selectMission}
           createMission={createMission}
           executeMission={executeMission}
           applyMissionTemplate={applyMissionTemplate}
+          approveGate={approveMissionGate}
+          rejectGate={rejectMissionGate}
           onClose={() => setMissionsOpen(false)}
           onOpenDocs={openDocs}
         />

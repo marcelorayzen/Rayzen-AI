@@ -65,6 +65,8 @@ litellm_settings:
     host: redis
     port: 6379
     ttl: 300            # 5 min — respostas idênticas reutilizadas
+  success_callback: ["langfuse"]
+  failure_callback: ["langfuse"]
 
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY

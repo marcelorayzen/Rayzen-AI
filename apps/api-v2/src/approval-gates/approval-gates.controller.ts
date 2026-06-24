@@ -5,6 +5,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 import { ApprovalGatesService } from './approval-gates.service'
 import { MissionService } from '../mission/mission.service'
 import { WorkflowEngineService } from '../workflow/workflow-engine.service'
+import { EventsService } from '../gateway/events.service'
 import { JwtAuthGuard } from '../core/auth.guard'
 
 class DecideDto {
@@ -28,6 +29,7 @@ export class ApprovalGatesController {
     private readonly gates:    ApprovalGatesService,
     private readonly missions: MissionService,
     private readonly workflow: WorkflowEngineService,
+    private readonly events:   EventsService,
   ) {}
 
   @Get('pending')
@@ -70,6 +72,11 @@ export class ApprovalGatesController {
     let resumed = false
     if (gate.missionId && gate.projectId) {
       resumed = true
+      // Notifica watchers imediatamente (antes do DAG começar) para que a UI
+      // mostre "retomando" sem esperar pelo próximo poll de 3s.
+      this.events.approvalGate(gate.projectId, {
+        id: gate.id, missionId: gate.missionId, description: gate.description, type: gate.type,
+      })
       void this.workflow.execute(gate.missionId, gate.projectId).catch(() => null)
     }
     return { ...gate, resumed }
@@ -88,6 +95,9 @@ export class ApprovalGatesController {
         })
         .catch(() => null)
       await this.missions.transition(gate.missionId, 'paused').catch(() => null)
+      this.events.approvalGate(gate.projectId!, {
+        id: gate.id, missionId: gate.missionId, description: gate.description, type: gate.type,
+      })
     }
     return gate
   }
