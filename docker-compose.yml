@@ -220,6 +220,13 @@ services:
     depends_on:
       - mcp-http
 
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - caddy
+
 volumes:
   pg_data:
   redis_data:
