@@ -219,8 +219,10 @@ isPropQualityIssue=false para falhas de infra, configuração ou dependência ex
     )
 
     try {
-      const text   = res.content.replace(/```json|```/g, '').trim()
-      const parsed = JSON.parse(text) as LlmAnalysis
+      // Extract JSON object regardless of surrounding markdown/text
+      const jsonMatch = res.content.match(/\{[\s\S]*\}/)
+      const text      = jsonMatch ? jsonMatch[0] : res.content.replace(/```json|```/g, '').trim()
+      const parsed    = JSON.parse(text) as LlmAnalysis
       return parsed
     } catch {
       this.logger.warn('QA Scientist: analyzeWithLlm — failed to parse JSON, using plain text fallback')
