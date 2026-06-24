@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react'
 import { getApiUrl } from '../../lib/api-url'
 
 export interface RayzenEvent {
-  type:      'mission_update' | 'approval_gate' | 'mission_created' | 'ping'
+  type:      'mission_update' | 'approval_gate' | 'mission_created' | 'clarification_needed' | 'ping'
   projectId: string
   payload:   unknown
 }

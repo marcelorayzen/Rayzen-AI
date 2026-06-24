@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { V2_URL } from '../../../lib/api-url'
 import { authHeaders } from '../../../lib/api-client'
 import { useRayzenEvents } from '../../hooks/useRayzenEvents'
+import { ClarificationCard } from '../../components/ClarificationCard'
 
 type MissionStatus = 'pending' | 'active' | 'paused' | 'done' | 'failed' | 'cancelled'
 type StepStatus    = 'pending' | 'running' | 'done' | 'failed' | 'skipped'
@@ -153,7 +154,7 @@ export default function MissionDetailPage() {
     if (e.type === 'mission_update' || e.type === 'approval_gate') void load()
   })
 
-  const decideGate = async (gateId: string, decision: 'approve' | 'reject') => {
+  const decideGate = async (gateId: string, decision: 'approve' | 'reject', comment?: string) => {
     if (acting) return
     setActing(`gate-${gateId}-${decision}`)
     setNote(null)
@@ -161,7 +162,7 @@ export default function MissionDetailPage() {
       const res = await fetch(`${V2_URL}/approvals/${gateId}/${decision}`, {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ approvedBy: 'Marcelo' }),
+        body: JSON.stringify({ approvedBy: 'Marcelo', ...(comment ? { comment } : {}) }),
       })
       if (!res.ok) { setNote(`Erro ao ${decision === 'approve' ? 'aprovar' : 'rejeitar'} (HTTP ${res.status})`); return }
       // approve re-roda o DAG no backend; reject pausa — recarrega para refletir
@@ -171,6 +172,10 @@ export default function MissionDetailPage() {
     } finally {
       setActing(null)
     }
+  }
+
+  const answerClarification = (gateId: string, answer: string) => {
+    void decideGate(gateId, 'approve', answer)
   }
 
   // Steps executor:'human' pausam a missão esperando uma ação real da pessoa —
@@ -247,6 +252,8 @@ export default function MissionDetailPage() {
 
   const statusColor = STATUS_COLOR[mission.status]
   const totalTime   = elapsed(mission.startedAt, mission.completedAt)
+  const clarificationGates = gates.filter((g) => g.type === 'clarification')
+  const regularGates       = gates.filter((g) => g.type !== 'clarification')
   const gatedStepIds = new Set(gates.map((g) => g.stepId).filter(Boolean) as string[])
   const contract = mission.context?._contract
   const pendingHumanSteps = mission.steps.filter((s) => s.executor === 'human' && s.status === 'pending')
@@ -374,13 +381,36 @@ export default function MissionDetailPage() {
         </div>
       )}
 
+      {/* Gates de clarification — o agente precisa de mais contexto antes de continuar */}
+      {clarificationGates.length > 0 && (
+        <div className="hud-card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8, border: '1px solid var(--hud-cyan)' }}>
+          <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--hud-cyan)' }}>
+            Agente precisa de esclarecimento ({clarificationGates.length})
+          </div>
+          {clarificationGates.map((g) => {
+            const gatedStep = mission.steps.find((s) => s.id === g.stepId)
+            return (
+              <ClarificationCard
+                key={g.id}
+                gateId={g.id}
+                question={g.description}
+                stepTitle={gatedStep?.title}
+                acting={!!acting}
+                onAnswer={answerClarification}
+                onReject={(gid) => void decideGate(gid, 'reject')}
+              />
+            )
+          })}
+        </div>
+      )}
+
       {/* Approval gates pendentes — aprovar retoma a missão (gate→resume) */}
-      {gates.length > 0 && (
+      {regularGates.length > 0 && (
         <div className="hud-card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8, border: '1px solid #facc15' }}>
           <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: '#facc15' }}>
-            Aprovações pendentes ({gates.length})
+            Aprovações pendentes ({regularGates.length})
           </div>
-          {gates.map((g) => {
+          {regularGates.map((g) => {
             const gatedStep = mission.steps.find((s) => s.id === g.stepId)
             return (
               <div key={g.id} style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 8, borderTop: '1px solid var(--hud-border)' }}>

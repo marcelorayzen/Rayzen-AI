@@ -66,6 +66,11 @@ export class UpdateMissionStepDto {
   @IsObject()
   output?: Record<string, unknown>
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsObject()
+  input?: Record<string, unknown>
+
   @ApiPropertyOptional({ enum: ['pending', 'running', 'done', 'failed', 'skipped'] })
   @IsOptional()
   @IsString()

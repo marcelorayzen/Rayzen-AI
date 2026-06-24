@@ -7,6 +7,7 @@ import { SpecialistAgentService } from '../specialist-agent/specialist-agent.ser
 import { SpecialistType } from '../specialists/specialist-registry'
 import { ApprovalGatesService } from '../approval-gates/approval-gates.service'
 import { DocumentationEngineService, DocType } from '../documentation-engine/documentation-engine.service'
+import { ClarificationService } from '../agent-dialogue/clarification.service'
 
 type StepStatus = 'pending' | 'running' | 'done' | 'failed' | 'skipped'
 
@@ -63,13 +64,14 @@ export class WorkflowEngineService {
   private readonly logger = new Logger(WorkflowEngineService.name)
 
   constructor(
-    private readonly missions:     MissionService,
-    private readonly skillEngine:  SkillEngineService,
-    private readonly aiRouter:     AiRouterService,
-    private readonly specialists:  SpecialistService,
+    private readonly missions:        MissionService,
+    private readonly skillEngine:     SkillEngineService,
+    private readonly aiRouter:        AiRouterService,
+    private readonly specialists:     SpecialistService,
     private readonly specialistAgents: SpecialistAgentService,
-    private readonly gates:        ApprovalGatesService,
-    private readonly docs:         DocumentationEngineService,
+    private readonly gates:           ApprovalGatesService,
+    private readonly docs:            DocumentationEngineService,
+    private readonly clarification:   ClarificationService,
   ) {}
 
   // Execute all pending steps respecting DAG dependencies
@@ -221,9 +223,30 @@ export class WorkflowEngineService {
     }
 
     // AI step → spawn a Specialist for richer execution
-    const task = step.prompt
+    const clarificationAnswer = step.input?.['clarificationAnswer'] as string | undefined
+
+    const baseTask = step.prompt
       ? step.prompt
       : `Mission: ${objective}\nStep: ${step.title}\n${prevOutputs ? `\nContext:\n${prevOutputs}` : ''}`
+
+    // Pede esclarecimento se a tarefa for ambígua e ainda não houver resposta prévia.
+    // Skip se clarificationAnswer já existe para evitar loop infinito.
+    if (!clarificationAnswer) {
+      const clarif = await this.clarification.checkTask(baseTask, prevOutputs)
+      if (clarif.needsClarification) {
+        const gate = await this.gates.createClarificationGate({
+          projectId, missionId, stepId: step.id,
+          question:    clarif.question,
+          taskSummary: baseTask.slice(0, 300),
+        })
+        throw new StepInterruptedError({ gateId: gate.id, question: clarif.question, status: 'clarification_pending' })
+      }
+    }
+
+    // Appenda a resposta de clarification à task para que o specialist a veja
+    const task = clarificationAnswer
+      ? `${baseTask}\n\nClarificação do usuário: ${clarificationAnswer}`
+      : baseTask
 
     // Respeita o specialist escolhido pelo dispatcher da missão — sem isso o tipo
     // era sempre inferido por texto, podendo escolher "reviewer" pra um step de edição.

@@ -64,7 +64,19 @@ export class ApprovalGatesController {
     // ambos só consideram 'pending' elegível. Reabrir explicitamente aqui é o que faz
     // o gate→resume funcionar nesse caso (o specialist recomeça o step do zero).
     if (gate.missionId && gate.stepId) {
-      await this.missions.updateStep(gate.missionId, gate.stepId, { status: 'pending' }).catch(() => null)
+      if (gate.type === 'clarification' && dto.comment) {
+        // Injeta a resposta do usuário no input do step para que o specialist a veja
+        // na próxima execução — preserva o input existente via merge.
+        const steps = await this.missions.listSteps(gate.missionId).catch(() => [] as Awaited<ReturnType<typeof this.missions.listSteps>>)
+        const step  = steps.find((s) => s.id === gate.stepId)
+        const existingInput = (step?.input ?? {}) as Record<string, unknown>
+        await this.missions.updateStep(gate.missionId, gate.stepId, {
+          status: 'pending',
+          input: { ...existingInput, clarificationAnswer: dto.comment },
+        }).catch(() => null)
+      } else {
+        await this.missions.updateStep(gate.missionId, gate.stepId, { status: 'pending' }).catch(() => null)
+      }
     }
 
     // Retoma a missão: re-roda o DAG, que agora encontra o step desbloqueado e

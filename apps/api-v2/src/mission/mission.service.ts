@@ -102,7 +102,8 @@ export class MissionService {
     if (!step) throw new NotFoundException(`Step ${stepId} not found in mission ${missionId}`)
 
     const data: Record<string, unknown> = {}
-    if (dto.output !== undefined) data.output = j(dto.output)
+    if (dto.output !== undefined)   data.output = j(dto.output)
+    if (dto.input !== undefined)    data.input  = j(dto.input)
     if (dto.dependsOn !== undefined) data.dependsOn = dto.dependsOn
     if (dto.status !== undefined) {
       data.status = dto.status

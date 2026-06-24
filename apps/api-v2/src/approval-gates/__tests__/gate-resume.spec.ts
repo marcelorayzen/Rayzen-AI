@@ -29,12 +29,13 @@ describe('Fase 2 — gate → resume', () => {
       const specialists = { spawn: opts.spawn ?? jest.fn(), getStatus: jest.fn() }
       const specialistAgents = { findById: jest.fn() }
       const skillEngine = { run: jest.fn() }
-      const gates = { findPending: jest.fn().mockResolvedValue(opts.pendingGates ?? []) }
-      const docs = { onMissionCompleted: jest.fn().mockResolvedValue([]) }
+      const gates         = { findPending: jest.fn().mockResolvedValue(opts.pendingGates ?? []), createClarificationGate: jest.fn() }
+      const docs          = { onMissionCompleted: jest.fn().mockResolvedValue([]) }
+      const clarification = { checkTask: jest.fn().mockResolvedValue({ needsClarification: false }) }
 
       const engine = new WorkflowEngineService(
         missions as never, skillEngine as never, {} as never, specialists as never,
-        specialistAgents as never, gates as never, docs as never,
+        specialistAgents as never, gates as never, docs as never, clarification as never,
       )
       return { engine, missions, specialists }
     }

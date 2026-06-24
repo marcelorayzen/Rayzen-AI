@@ -26,6 +26,7 @@ import { PolicyEngineModule } from './policy-engine/policy-engine.module'
 import { CatalogModule } from './catalog/catalog.module'
 import { EventsModule } from './gateway/events.module'
 import { BenchmarkModule } from './benchmark/benchmark.module'
+import { AgentDialogueModule } from './agent-dialogue/agent-dialogue.module'
 
 @Module({
   controllers: [PingController],
@@ -56,6 +57,7 @@ import { BenchmarkModule } from './benchmark/benchmark.module'
     CatalogModule,
     EventsModule,
     BenchmarkModule,
+    AgentDialogueModule,
   ],
 })
 export class AppModule {}

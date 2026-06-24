@@ -2,7 +2,7 @@ import { Injectable, Logger, NotFoundException, BadRequestException } from '@nes
 import { PrismaV2Service } from '../core/prisma-v2.service'
 import { EventsService } from '../gateway/events.service'
 
-export type ApprovalGateType = 'code_deploy' | 'data_write' | 'external_api' | 'irreversible' | 'high_cost' | 'specialist_spawn'
+export type ApprovalGateType = 'code_deploy' | 'data_write' | 'external_api' | 'irreversible' | 'high_cost' | 'specialist_spawn' | 'clarification'
 export type ApprovalStatus   = 'pending' | 'approved' | 'rejected' | 'expired'
 
 // Skills de risco médio expiram em 30min; alto risco não expiram automaticamente
@@ -97,6 +97,30 @@ export class ApprovalGatesService {
       orderBy: { createdAt: 'desc' },
       take: limit,
     })
+  }
+
+  async createClarificationGate(opts: {
+    projectId: string
+    missionId: string
+    stepId:    string
+    question:  string
+    taskSummary: string
+  }) {
+    const gate = await this.create({
+      projectId:   opts.projectId,
+      missionId:   opts.missionId,
+      stepId:      opts.stepId,
+      type:        'clarification',
+      description: opts.question,
+      context:     { question: opts.question, taskSummary: opts.taskSummary },
+      riskLevel:   'medium',
+      autoOnExpiry: 'reject',
+    })
+    this.events.clarificationNeeded(opts.projectId, {
+      id: gate.id, missionId: opts.missionId, stepId: opts.stepId, question: opts.question,
+    })
+    this.logger.log(`Clarification gate criado para step ${opts.stepId}: "${opts.question.slice(0, 80)}"`)
+    return gate
   }
 
   // Called by RouterService / SkillEngine / PolicyEngine before high-risk operations

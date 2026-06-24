@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { EventsGateway } from './events.gateway'
 
 export interface RayzenEvent {
-  type:      'mission_update' | 'approval_gate' | 'mission_created' | 'ping'
+  type:      'mission_update' | 'approval_gate' | 'mission_created' | 'clarification_needed' | 'ping'
   projectId: string
   payload:   unknown
 }
@@ -25,5 +25,9 @@ export class EventsService {
 
   missionCreated(projectId: string, mission: { id: string; title: string; objective: string }) {
     this.emit({ type: 'mission_created', projectId, payload: mission })
+  }
+
+  clarificationNeeded(projectId: string, data: { id: string; missionId: string; stepId: string; question: string }) {
+    this.emit({ type: 'clarification_needed', projectId, payload: data })
   }
 }
