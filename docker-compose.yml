@@ -34,7 +34,7 @@ services:
     image: langfuse/langfuse:2
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://rayzen:${POSTGRES_PASSWORD:-senha}@postgres:5432/rayzen_ai
+      DATABASE_URL: postgresql://rayzen:${POSTGRES_PASSWORD:-senha}@postgres:5432/langfuse
       NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:-changeme-langfuse-secret-32chars-x}
       NEXTAUTH_URL: ${LANGFUSE_NEXTAUTH_URL:-http://192.168.0.174:3200}
       LANGFUSE_CSP_ENFORCE_HTTPS: "false"
