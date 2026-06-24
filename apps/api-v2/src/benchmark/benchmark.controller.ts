@@ -38,7 +38,7 @@ class ExtractFromTracesDto {
 @ApiTags('benchmark')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
-@Controller('v2/benchmark')
+@Controller('benchmark')
 export class BenchmarkController {
   constructor(private readonly benchmark: BenchmarkService) {}
 

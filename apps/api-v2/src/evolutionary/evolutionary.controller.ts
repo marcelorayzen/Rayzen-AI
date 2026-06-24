@@ -32,7 +32,7 @@ class EvolveDto {
 @ApiTags('evolutionary')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
-@Controller('v2/evolutionary')
+@Controller('evolutionary')
 export class EvolutionaryController {
   constructor(private readonly evolutionary: EvolutionaryService) {}
 
