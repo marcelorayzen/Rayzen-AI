@@ -1,5 +1,7 @@
 # QA Strategy — Rayzen AI
 
+> **Deprecado** — Substituído por [TESTING_STRATEGY.md](./TESTING_STRATEGY.md) que cobre V1 + V2. Mantido como referência histórica.
+
 > Rayzen AI is a full-stack platform where the author holds end-to-end responsibility: architecture, implementation, and quality assurance. This document describes how quality is systematically built in — not added after.
 
 ---

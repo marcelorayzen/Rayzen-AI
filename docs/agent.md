@@ -1,5 +1,7 @@
 # Rayzen AI — PC Agent: Guia Completo
 
+> **Deprecado** — Substituído por [RAYZEN_AGENT_PROTOCOL.md](./RAYZEN_AGENT_PROTOCOL.md). Mantido como referência histórica.
+
 O Agent é dividido em dois papéis:
 
 - `desktop`: roda no PC de trabalho e executa tarefas locais como screenshot, VS Code, clipboard e testes locais;

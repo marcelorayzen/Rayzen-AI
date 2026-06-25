@@ -1,5 +1,7 @@
 # PC Agent Runtime — Rayzen AI
 
+> **Deprecado** — Substituído por [RAYZEN_AGENT_PROTOCOL.md](./RAYZEN_AGENT_PROTOCOL.md). Mantido como referência histórica.
+
 The PC Agent is a Node.js 20 TypeScript process that runs locally on the user's Windows machine. It connects to the Rayzen AI backend exclusively via BullMQ over Redis — there is no persistent WebSocket connection.
 
 ## Architecture
