@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Patch, Body, Query, Param, Inject, forwardRef } from '@nestjs/common'
 import { ApiTags, ApiOperation } from '@nestjs/swagger'
-import { EventService, CreateEventDto, MemoryClass } from './event.service'
+import { EventService, CreateEventDto, EventSource, MemoryClass } from './event.service'
 import { SynthesisService } from '../synthesis/synthesis.service'
 import { PrismaService } from '../../prisma/prisma.service'
 import { MemoryService } from '../memory/memory.service'
@@ -32,11 +32,12 @@ interface CliHookPayload {
   projectName?: string       // nome do projeto para auto-resolução (fallback)
   git?: GitContext           // enriquecido pelo hook
   fileContent?: string       // conteúdo do arquivo para indexação semântica (Edit/Write)
-  // Campos de evento direto (MCP rayzen_add_event)
+  // Campos de evento direto (MCP rayzen_add_event) ou hook-timing
   content?: string
   source?: string
   type?: string
   intent?: string
+  metadata?: Record<string, unknown>
 }
 
 @ApiTags('events')
@@ -73,14 +74,18 @@ export class EventController {
       if (found) projectId = found.id
     }
 
-    // Evento direto via MCP (rayzen_add_event): tem content mas não tem hook_event_name/tool_name
+    // Evento direto via MCP (rayzen_add_event) ou hook-timing: tem content mas não tem hook_event_name/tool_name
     if (payload.content && !payload.hook_event_name && !payload.tool_name) {
+      const allowedSources: EventSource[] = ['cli', 'manual', 'brain']
       return this.events.create({
         projectId,
-        source: 'manual',
+        source: allowedSources.includes(payload.source as EventSource)
+          ? (payload.source as EventSource)
+          : 'manual',
         type: (payload.type as CreateEventDto['type']) ?? 'note',
         intent: payload.intent as CreateEventDto['intent'],
         content: payload.content,
+        metadata: payload.metadata,
       })
     }
 
@@ -217,6 +222,55 @@ export class EventController {
     @Query('limit') limit?: string,
   ) {
     return this.events.findAll({ projectId, source, type, memoryClass, limit: limit ? parseInt(limit) : undefined })
+  }
+
+  @Get('hook-metrics')
+  @ApiOperation({ summary: 'Latência do context hook (UserPromptSubmit) — p50/p95/p99 em ms' })
+  async hookMetrics(@Query('days') daysStr = '7') {
+    const days = Math.min(Math.max(parseInt(daysStr, 10) || 7, 1), 90)
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+
+    const rows = await this.prisma.$queryRaw<Array<{
+      p50: number | null; p95: number | null; p99: number | null
+      avg_ms: number | null; n: bigint; cache_hits: bigint; ce_p50: number | null
+    }>>`
+      SELECT
+        percentile_cont(0.50) WITHIN GROUP (ORDER BY (metadata->>'hookDurationMs')::float) AS p50,
+        percentile_cont(0.95) WITHIN GROUP (ORDER BY (metadata->>'hookDurationMs')::float) AS p95,
+        percentile_cont(0.99) WITHIN GROUP (ORDER BY (metadata->>'hookDurationMs')::float) AS p99,
+        round(avg((metadata->>'hookDurationMs')::float)::numeric, 1)                        AS avg_ms,
+        count(*)                                                                              AS n,
+        count(*) FILTER (WHERE (metadata->>'cacheHit')::boolean = true)                     AS cache_hits,
+        percentile_cont(0.50) WITHIN GROUP (
+          ORDER BY (metadata->>'contextEngineDurationMs')::float
+        ) FILTER (WHERE
+          metadata->>'contextEngineDurationMs' IS NOT NULL
+          AND metadata->>'contextEngineDurationMs' != 'null'
+        ) AS ce_p50
+      FROM events
+      WHERE source = 'cli'
+        AND content = 'hook-timing'
+        AND ts > ${cutoff}
+    `
+
+    const row = rows[0] ?? {}
+    const n = Number(row.n ?? 0)
+    const cacheHits = Number(row.cache_hits ?? 0)
+
+    return {
+      period: `last ${days}d`,
+      n,
+      cacheHitRate: n > 0 ? Math.round((cacheHits / n) * 100) / 100 : 0,
+      total: {
+        p50:  row.p50  != null ? Math.round(row.p50)  : null,
+        p95:  row.p95  != null ? Math.round(row.p95)  : null,
+        p99:  row.p99  != null ? Math.round(row.p99)  : null,
+        avgMs: row.avg_ms != null ? Number(row.avg_ms) : null,
+      },
+      contextEngine: {
+        p50: row.ce_p50 != null ? Math.round(row.ce_p50) : null,
+      },
+    }
   }
 
   @Get('hook/health')

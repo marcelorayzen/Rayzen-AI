@@ -14,7 +14,7 @@
 
 import { request } from 'node:http'
 import { request as httpsRequest } from 'node:https'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join, dirname, extname } from 'node:path'
 import { execSync } from 'node:child_process'
@@ -191,6 +191,20 @@ function post(url, body, token) {
   })
 }
 
+// Arquivo de timing do context hook (UserPromptSubmit) — lido e consumido aqui (PostToolUse)
+const TIMING_FILE = join(tmpdir(), 'rayzen-ctx-timing.json')
+const TIMING_MAX_AGE = 30_000  // ms — descarta timing órfão com > 30s
+
+function consumeTimingFile() {
+  try {
+    const raw = readFileSync(TIMING_FILE, 'utf8')
+    const timing = JSON.parse(raw)
+    if (Date.now() - timing.ts > TIMING_MAX_AGE) return null
+    try { unlinkSync(TIMING_FILE) } catch { /* ignora */ }
+    return timing
+  } catch { return null }
+}
+
 // Cache de resolução repoSlug → projectId (arquivo temporário, TTL 5 min)
 const SLUG_CACHE_FILE = join(tmpdir(), 'rayzen-slug-cache.json')
 const SLUG_CACHE_TTL = 5 * 60 * 1000
@@ -315,6 +329,7 @@ function toRelative(absPath, root) {
 }
 
 async function main() {
+  const hookTiming = consumeTimingFile()
   const [raw, cfg] = await Promise.all([readStdin(), loadConfig()])
   if (!raw.trim()) return
 
@@ -419,9 +434,27 @@ async function main() {
     }
   }
 
+  // Timing do UserPromptSubmit — emite como evento separado se disponível
+  const timingPromise = (hookTiming && projectId)
+    ? post(`${cfg.apiUrl}/events/cli`, {
+        source: 'cli',
+        type: 'note',
+        content: 'hook-timing',
+        projectId: hookTiming.projectId || projectId,
+        metadata: {
+          kind: 'hook_timing',
+          hookDurationMs: hookTiming.hookDurationMs,
+          contextEngineDurationMs: hookTiming.contextEngineDurationMs ?? null,
+          cacheHit: hookTiming.cacheHit,
+          mode: hookTiming.mode,
+        },
+      }, cfg.apiToken)
+    : Promise.resolve()
+
   await Promise.all([
     post(`${cfg.apiUrl}/events/cli`, payload, cfg.apiToken),
     catalogPromise,
+    timingPromise,
   ])
   // Preserva exitCode 2 definido por warnUnresolved (aviso visível); senão 0
   process.exit(process.exitCode ?? 0)

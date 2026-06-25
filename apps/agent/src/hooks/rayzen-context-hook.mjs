@@ -25,6 +25,14 @@ import { execSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { createHash } from 'node:crypto'
 
+const TIMING_FILE = join(tmpdir(), 'rayzen-ctx-timing.json')
+
+function writeTimingFile(data) {
+  try {
+    writeFileSync(TIMING_FILE, JSON.stringify({ ...data, ts: Date.now() }), 'utf8')
+  } catch { /* ignora */ }
+}
+
 const __dir = dirname(fileURLToPath(import.meta.url))
 const CONFIG_PATH = join(__dir, 'hook.config.mjs')
 
@@ -307,6 +315,7 @@ function formatActiveMission(mission) {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
+  const t0 = Date.now()
   const [raw, cfg] = await Promise.all([readStdin(), loadConfig()])
   if (!cfg.apiToken) process.exit(0)
 
@@ -340,20 +349,24 @@ async function main() {
     const mission = await missionPromise
     const missionBlock = formatActiveMission(mission)
     const full = missionBlock ? `${cached}${missionBlock}` : cached
+    writeTimingFile({ hookDurationMs: Date.now() - t0, cacheHit: true, mode, projectId })
     console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: full } }))
     process.exit(0)
   }
 
   let context = null
+  let ceMs = 0
 
   // Tentativa principal: context-engine V2
   if (v2Base) {
+    const t1 = Date.now()
     const data = await httpPost(
       `${v2Base}/v2/context/build`,
       { projectId, mode, query, maxTokens: 1200 },
       cfg.apiToken,
       2200,
     )
+    ceMs = Date.now() - t1
     context = formatContextEngine(data, mode)
   }
 
@@ -372,6 +385,7 @@ async function main() {
   const missionBlock = formatActiveMission(mission)
   const full = missionBlock ? `${context}${missionBlock}` : context
 
+  writeTimingFile({ hookDurationMs: Date.now() - t0, contextEngineDurationMs: ceMs || null, cacheHit: false, mode, projectId })
   console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: full } }))
   process.exit(0)
 }
