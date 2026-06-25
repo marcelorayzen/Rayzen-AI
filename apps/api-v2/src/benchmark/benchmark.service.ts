@@ -156,6 +156,19 @@ export class BenchmarkService {
     })
   }
 
+  async createCase(dto: { taskType: string; input: string; expected: string; projectId?: string; approved?: boolean }) {
+    return this.prisma.benchmarkCase.create({
+      data: {
+        taskType:  dto.taskType,
+        input:     dto.input,
+        expected:  dto.expected,
+        source:    'manual',
+        projectId: dto.projectId ?? null,
+        approved:  dto.approved ?? true,
+      },
+    })
+  }
+
   async approveCase(id: string) {
     return this.prisma.benchmarkCase.update({ where: { id }, data: { approved: true } })
   }

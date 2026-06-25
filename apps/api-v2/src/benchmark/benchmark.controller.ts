@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common'
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger'
-import { IsString, IsOptional, IsBoolean, IsNumber, IsInt, Min, Max } from 'class-validator'
+import { IsString, IsOptional, IsBoolean, IsNumber, IsInt, Min, Max, IsNotEmpty } from 'class-validator'
 import { Type } from 'class-transformer'
 import { JwtAuthGuard } from '../core/auth.guard'
 import { BenchmarkService } from './benchmark.service'
@@ -26,6 +26,23 @@ class RunBenchmarkDto {
   model?: string
 }
 
+class CreateBenchmarkCaseDto {
+  @IsString() @IsNotEmpty()
+  taskType!: string
+
+  @IsString() @IsNotEmpty()
+  input!: string
+
+  @IsString() @IsNotEmpty()
+  expected!: string
+
+  @IsOptional() @IsString()
+  projectId?: string
+
+  @IsOptional() @IsBoolean()
+  approved?: boolean
+}
+
 class ExtractFromTracesDto {
   @IsOptional() @IsInt() @Min(1) @Max(100)
   @Type(() => Number)
@@ -41,6 +58,12 @@ class ExtractFromTracesDto {
 @Controller('benchmark')
 export class BenchmarkController {
   constructor(private readonly benchmark: BenchmarkService) {}
+
+  @Post('cases')
+  @ApiOperation({ summary: 'Cria um caso de benchmark manualmente' })
+  createCase(@Body() dto: CreateBenchmarkCaseDto) {
+    return this.benchmark.createCase(dto)
+  }
 
   @Post('run')
   @ApiOperation({ summary: 'Roda benchmark para uma estratégia contra os casos cadastrados' })

@@ -2,7 +2,7 @@
 
 > 🤖 **GERADO AUTOMATICAMENTE** por `scripts/gen-agent-catalog.mjs` — não edite à mão.
 > Fonte de verdade: `whitelist.ts` · Metadata: `skill-registry.ts` (V2)
-> Gerado em: 2026-06-23T01:19:33.126Z
+> Gerado em: 2026-06-25T12:04:24.315Z
 
 **Total: 44 ações** · 🔴 5 high · 🟡 8 medium · 🟢 10 low · 🟢 21 none · ⚠️ 0 sem metadata
 
