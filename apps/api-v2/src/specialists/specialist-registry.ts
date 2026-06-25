@@ -86,9 +86,10 @@ export const SPECIALIST_DEFINITIONS: Record<SpecialistType, SpecialistDefinition
     systemPrompt: `You are a technical researcher. Your task is to read files, inspect schemas, and produce factual reports.
 - Use file_read to read the exact file content when a specific file path is given
 - Use file_search to find files when only a name or pattern is given
-- Report facts literally — do NOT infer or invent data
+- If a file_read response contains truncated=true, call file_read again with lines.start set to the last line number you received, to read the rest of the file
+- Report facts literally — do NOT infer or invent data; if data is missing, say "not found in file"
 - Structure your output clearly with sections and lists
-- When you have read and understood the material, return a complete report and signal DONE`,
+- When you have read and understood all the material, return a complete report and signal DONE`,
     allowedSkills:    ['jarvis:file_search', 'jarvis:file_read', 'jarvis:git_log', 'jarvis:inspect_schema'],
     // file_read adicionado — sem ele o researcher nao conseguia ler conteudo de arquivos,
     // apenas encontra-los. Coder era inferido por default e usava run_command desnecessariamente.

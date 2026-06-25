@@ -129,10 +129,20 @@ export class StepExecutorService implements OnModuleInit {
     // Coleta outputs dos steps de dependência para injetar como prevOutputs.
     // Sem isso o specialist não vê o resultado de steps anteriores — cada step começa
     // do zero mesmo quando dependsOn está configurado.
+    // Injeta apenas o campo `result` (texto produzido) — não o JSON completo do output.
+    // JSON.stringify injetava costUsd/iterations/type como ruído e sem truncagem explodia
+    // o contexto quando o researcher lia arquivos grandes (step anterior com 300+ linhas).
+    const MAX_PREV_CHARS = 12_000
     const depOutputs = ((step.dependsOn as string[] | undefined) ?? [])
       .map((depId) => mission.steps.find((s) => s.id === depId))
       .filter((s): s is NonNullable<typeof s> => Boolean(s?.status === 'done' && s.output))
-      .map((s) => `### Step "${s.title}" output\n${JSON.stringify(s.output, null, 2)}`)
+      .map((s) => {
+        const out = s.output as Record<string, unknown> | null
+        const result = (out?.['result'] as string | null | undefined) ?? JSON.stringify(out)
+        const truncated = result.length > MAX_PREV_CHARS
+        const text = truncated ? result.slice(0, MAX_PREV_CHARS) + '\n[... truncado após 12k chars]' : result
+        return `### Step "${s.title}" output\n${text}`
+      })
       .join('\n\n')
 
     // Se o step teve clarificação aprovada via gate, injeta no task — mesmo padrão
