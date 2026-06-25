@@ -189,11 +189,12 @@ export class SpecialistRegistry {
     if (/summarize|resumo|sintetize|sintetiz|document.*write|write.*doc|create.*doc|audit.*doc|relat[oó]rio|escreva.*resumo|crie.*documento/.test(lower)) return 'synthesizer'
     if (/implement|build|develop|code|write.*function/.test(lower))          return 'coder'
     if (/review|check|audit|validate/.test(lower))                           return 'reviewer'
-    if (/test|spec|coverage|assert/.test(lower))                             return 'tester'
+    // word boundaries em test/spec: "specialist" e "inspection" não são tester
+    if (/\btests?\b|\bspecs?\b|coverage|assert/.test(lower))                 return 'tester'
     if (/architect|design|structure|diagram|\badr\b/.test(lower))           return 'architect'
-    // researcher: tarefas de leitura pura (read+report) — antes caia no coder por default,
-    // que usava run_command para tentar coletar dados desnecessariamente
-    if (/research|analyze|investigate|study|compare|read.*file|list.*type|liste|leia|inspecion|inspect/.test(lower)) return 'researcher'
+    // researcher: tarefas de leitura pura (read+report) — antes caia no coder por default
+    // "spec" em "specialist" e "inspect" matchavam tester antes do word boundary fix
+    if (/research|analyze|investigate|study|compare|read.*file|list.*type|liste|leia|inspect/.test(lower)) return 'researcher'
     if (/debug|fix|error|bug|issue|crash/.test(lower))                       return 'debugger'
     return 'coder' // default
   }
