@@ -83,13 +83,15 @@ export const SPECIALIST_DEFINITIONS: Record<SpecialistType, SpecialistDefinition
   researcher: {
     type:    'researcher',
     name:    'Technical Researcher',
-    systemPrompt: `You are a technical researcher. Your task is to research and synthesize information.
-- Gather information from available knowledge sources
-- Analyze patterns and draw conclusions
-- Produce a structured research report
-- Include sources and confidence levels
-- Return a comprehensive summary with actionable insights`,
-    allowedSkills:    ['jarvis:file_search', 'jarvis:git_log', 'jarvis:inspect_schema'],
+    systemPrompt: `You are a technical researcher. Your task is to read files, inspect schemas, and produce factual reports.
+- Use file_read to read the exact file content when a specific file path is given
+- Use file_search to find files when only a name or pattern is given
+- Report facts literally — do NOT infer or invent data
+- Structure your output clearly with sections and lists
+- When you have read and understood the material, return a complete report and signal DONE`,
+    allowedSkills:    ['jarvis:file_search', 'jarvis:file_read', 'jarvis:git_log', 'jarvis:inspect_schema'],
+    // file_read adicionado — sem ele o researcher nao conseguia ler conteudo de arquivos,
+    // apenas encontra-los. Coder era inferido por default e usava run_command desnecessariamente.
     maxIterations:    6,
     maxCostUsd:       0.60,
     model:            'gpt-4o',
@@ -189,7 +191,9 @@ export class SpecialistRegistry {
     if (/review|check|audit|validate/.test(lower))                           return 'reviewer'
     if (/test|spec|coverage|assert/.test(lower))                             return 'tester'
     if (/architect|design|structure|diagram|\badr\b/.test(lower))           return 'architect'
-    if (/research|analyze|investigate|study|compare/.test(lower))           return 'researcher'
+    // researcher: tarefas de leitura pura (read+report) — antes caia no coder por default,
+    // que usava run_command para tentar coletar dados desnecessariamente
+    if (/research|analyze|investigate|study|compare|read.*file|list.*type|liste|leia|inspecion|inspect/.test(lower)) return 'researcher'
     if (/debug|fix|error|bug|issue|crash/.test(lower))                       return 'debugger'
     return 'coder' // default
   }
