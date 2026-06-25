@@ -112,6 +112,11 @@ export const SPECIALIST_DEFINITIONS: Record<SpecialistType, SpecialistDefinition
   },
 }
 
+// Anthropic exige que nomes de tool sigam ^[a-zA-Z0-9_-]{1,128}$.
+// Skills com id "jarvis:action" usam ":"  que não é permitido — sanitizamos para "__".
+export function toToolName(skillId: string): string { return skillId.replace(/:/g, '__') }
+export function fromToolName(name: string):   string { return name.replace(/__/g, ':')  }
+
 // Converte allowedSkills (lista de IDs) em tool definitions no formato esperado pelo
 // AiRouterService — só inclui skills que de fato existem no SkillRegistry (defesa contra
 // allowedSkills desatualizado referenciando um skillId que não existe mais).
@@ -137,7 +142,7 @@ export function buildToolsForSkills(skillIds: string[]): AIToolDefinition[] {
         }
       }
       return {
-        name:        skill.id,
+        name:        toToolName(skill.id),   // sanitizado para Anthropic
         description: skill.description,
         parameters:  { type: 'object', properties, required },
       }

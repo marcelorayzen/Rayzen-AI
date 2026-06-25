@@ -5,7 +5,7 @@ import { ContextEngineService } from '../context-engine/context-engine.service'
 import { CostControllerService } from '../cost-controller/cost-controller.service'
 import { ApprovalGatesService } from '../approval-gates/approval-gates.service'
 import { SkillEngineService } from '../skill-engine/skill-engine.service'
-import { SpecialistRegistry, SpecialistType, buildToolsForSkills } from './specialist-registry'
+import { SpecialistRegistry, SpecialistType, buildToolsForSkills, fromToolName } from './specialist-registry'
 
 export interface SpawnRequest {
   type?:      SpecialistType   // inferred if omitted
@@ -189,13 +189,13 @@ export class SpecialistService {
           for (const tc of result.toolCalls) {
             try {
               const skillResult = await this.skillEngine.run({
-                skillId:   tc.name,
+                skillId:   fromToolName(tc.name),   // des-sanitiza jarvis__x → jarvis:x
                 input:     tc.arguments,
                 projectId: req.projectId,
                 missionId: req.missionId,
                 stepId:    req.stepId,
               })
-              actionsExecuted.push({ skillId: tc.name, success: skillResult.success })
+              actionsExecuted.push({ skillId: fromToolName(tc.name), success: skillResult.success })
 
               // Skill de risco medium/high pendente de aprovação — o specialist NÃO deve
               // insistir tentando de novo (era o que acontecia: várias gates criadas em
@@ -243,7 +243,7 @@ export class SpecialistService {
                 content: JSON.stringify(skillResult.output).slice(0, 2000),
               })
             } catch (e) {
-              actionsExecuted.push({ skillId: tc.name, success: false })
+              actionsExecuted.push({ skillId: fromToolName(tc.name), success: false })
               const fails = (skillFailCounts.get(tc.name) ?? 0) + 1
               skillFailCounts.set(tc.name, fails)
               if (fails >= 3) {
