@@ -1,7 +1,7 @@
 import { SKILL_DEFINITIONS_EXPORT } from '../skill-engine/skill-registry'
 import type { AIToolDefinition } from '../ai-router/ai-router.service'
 
-export type SpecialistType = 'coder' | 'reviewer' | 'tester' | 'architect' | 'researcher' | 'debugger'
+export type SpecialistType = 'coder' | 'reviewer' | 'tester' | 'architect' | 'researcher' | 'debugger' | 'synthesizer'
 
 export interface SpecialistDefinition {
   type:             SpecialistType
@@ -24,7 +24,8 @@ export const SPECIALIST_DEFINITIONS: Record<SpecialistType, SpecialistDefinition
 - Include error handling and type safety
 - Return your implementation with clear file paths and code blocks
 - When done, summarize what was implemented`,
-    allowedSkills:    ['jarvis:git_status', 'jarvis:git_log', 'jarvis:file_search', 'jarvis:file_read', 'jarvis:file_write', 'jarvis:run_tests', 'jarvis:run_command'],
+    allowedSkills:    ['jarvis:git_status', 'jarvis:git_log', 'jarvis:file_search', 'jarvis:file_read', 'jarvis:file_write', 'jarvis:run_tests'],
+    // run_command removido — coder não deve executar comandos arbitrários; só debugger precisa disso
     maxIterations:    10,
     maxCostUsd:       1.50,
     model:            'gpt-4o',
@@ -110,6 +111,23 @@ export const SPECIALIST_DEFINITIONS: Record<SpecialistType, SpecialistDefinition
     model:            'gpt-4o',
     requiresApproval: false,
   },
+
+  synthesizer: {
+    type:    'synthesizer',
+    name:    'Document Synthesizer',
+    systemPrompt: `You are a technical writer and analyst.
+Your task is to synthesize information from provided context and produce structured documents.
+- Use ONLY the information available in the context and prevOutputs — do NOT search for more data
+- Write in clear, structured Markdown
+- If asked to summarize an analysis, quote the findings literally from the context
+- If the context contains "## Previous step outputs", use those as your primary source
+- When done, return the complete document content and signal DONE`,
+    allowedSkills:    [],   // sem tools — o contexto já está no prompt via prevOutputs
+    maxIterations:    3,
+    maxCostUsd:       0.30,
+    model:            'gpt-4o-premium',   // Claude Sonnet — melhor para síntese e escrita
+    requiresApproval: false,
+  },
 }
 
 // Anthropic exige que nomes de tool sigam ^[a-zA-Z0-9_-]{1,128}$.
@@ -165,7 +183,9 @@ export class SpecialistRegistry {
   // Infer best specialist type from step title/prompt
   infer(text: string): SpecialistType {
     const lower = text.toLowerCase()
-    if (/implement|build|create|develop|code|write.*function/.test(lower)) return 'coder'
+    // synthesizer first — avoids "create doc" being caught by coder's "create"
+    if (/summarize|resumo|sintetize|sintetiz|document.*write|write.*doc|create.*doc|audit.*doc|relat[oó]rio|escreva.*resumo|crie.*documento/.test(lower)) return 'synthesizer'
+    if (/implement|build|develop|code|write.*function/.test(lower))          return 'coder'
     if (/review|check|audit|validate/.test(lower))                           return 'reviewer'
     if (/test|spec|coverage|assert/.test(lower))                             return 'tester'
     if (/architect|design|structure|diagram|\badr\b/.test(lower))           return 'architect'

@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsArray, IsObject } from 'class-validator'
+import { IsString, IsNotEmpty, IsOptional, IsArray, IsObject, IsInt, Min } from 'class-validator'
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 
 export class CreateMissionDto {
@@ -80,4 +80,10 @@ export class UpdateMissionStepDto {
   @IsOptional()
   @IsArray()
   dependsOn?: string[]
+
+  @ApiPropertyOptional({ description: 'Resetar contador de retries (ex: após gate-approval)' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  retries?: number
 }

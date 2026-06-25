@@ -80,9 +80,11 @@ export class ApprovalGatesController {
         await this.missions.updateStep(gate.missionId, gate.stepId, {
           status: 'pending',
           input: { ...existingInput, clarificationAnswer: clarificationText },
+          retries: 0,
         }).catch(() => null)
       } else {
-        await this.missions.updateStep(gate.missionId, gate.stepId, { status: 'pending' }).catch(() => null)
+        // retries zerado: gate-resume é uma nova tentativa limpa, não herda contagem anterior
+        await this.missions.updateStep(gate.missionId, gate.stepId, { status: 'pending', retries: 0 }).catch(() => null)
       }
     }
 

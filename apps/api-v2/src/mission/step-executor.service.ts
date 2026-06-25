@@ -135,6 +135,14 @@ export class StepExecutorService implements OnModuleInit {
       .map((s) => `### Step "${s.title}" output\n${JSON.stringify(s.output, null, 2)}`)
       .join('\n\n')
 
+    // Se o step teve clarificação aprovada via gate, injeta no task — mesmo padrão
+    // que WorkflowEngineService.runStepLogic() usa, mas que não existia aqui.
+    // Sem isso, chamar POST /steps/:id/run após gate-approval ignorava a resposta do usuário.
+    const clarificationAnswer = (step.input as Record<string, unknown> | null)?.['clarificationAnswer'] as string | undefined
+    const task = clarificationAnswer
+      ? `${step.prompt ?? step.title}\n\nClarificação do usuário: ${clarificationAnswer}`
+      : (step.prompt ?? step.title)
+
     const contextParts = [
       `Mission: ${mission.title}`,
       `Objective: ${mission.objective}`,
@@ -144,7 +152,7 @@ export class StepExecutorService implements OnModuleInit {
     // Spawn specialist and await completion
     const inst = await this.specialists.spawnAndWait({
       type:       specialistType,
-      task:       step.prompt ?? step.title,
+      task,
       missionId,
       stepId,
       projectId:  mission.projectId,
@@ -180,7 +188,14 @@ export class StepExecutorService implements OnModuleInit {
    */
   runNext(missionId: string): void {
     this.missions.findOne(missionId).then(async (mission) => {
-      const next = mission.steps.find((s) => s.status === 'pending')
+      // Respeita dependsOn: só avança para step cujas deps estão todas 'done'.
+      // Antes pegava o primeiro 'pending' sem validar deps — podia executar step
+      // antes que seus antecessores terminassem (ou após um falhar).
+      const doneIds = new Set(mission.steps.filter((s) => s.status === 'done').map((s) => s.id))
+      const next = mission.steps.find(
+        (s) => s.status === 'pending' &&
+          ((s.dependsOn as string[] | undefined) ?? []).every((depId) => doneIds.has(depId)),
+      )
       if (!next) {
         // Sem step pendente: ou a missão terminou, ou está bloqueada num gate.
         // Diferente do WorkflowEngineService.execute() (caminho do gate→resume), este

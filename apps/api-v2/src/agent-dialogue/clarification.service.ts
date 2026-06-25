@@ -49,7 +49,15 @@ Rules:
 - confidence < 0.75 means clarification is needed
 - question must be the MOST IMPORTANT single question (not a list)
 - question must be in Brazilian Portuguese
-- If confidence >= 0.75, set question to null`,
+- If confidence >= 0.75, set question to null
+
+Known internal system terms — do NOT ask for clarification on these:
+- prevOutputs: the output/results from previous steps in the same mission (injected automatically)
+- dependsOn: internal list of step IDs that must complete before this step
+- missionId, stepId, projectId: internal system identifiers
+- clarificationAnswer: the user's response to a previous clarification question
+- specialist: the AI agent responsible for executing this step
+- synthesizer, coder, reviewer, researcher, debugger, architect: specialist types`,
           },
           {
             role: 'user',
