@@ -18,6 +18,12 @@ class DecideDto {
   @IsOptional()
   @IsString()
   comment?: string
+
+  // Alias for comment — accept both fields, comment takes precedence
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  reason?: string
 }
 
 @ApiTags('approvals')
@@ -64,7 +70,8 @@ export class ApprovalGatesController {
     // ambos só consideram 'pending' elegível. Reabrir explicitamente aqui é o que faz
     // o gate→resume funcionar nesse caso (o specialist recomeça o step do zero).
     if (gate.missionId && gate.stepId) {
-      if (gate.type === 'clarification' && dto.comment) {
+      const clarificationText = dto.comment ?? dto.reason
+      if (gate.type === 'clarification' && clarificationText) {
         // Injeta a resposta do usuário no input do step para que o specialist a veja
         // na próxima execução — preserva o input existente via merge.
         const steps = await this.missions.listSteps(gate.missionId).catch(() => [] as Awaited<ReturnType<typeof this.missions.listSteps>>)
@@ -72,7 +79,7 @@ export class ApprovalGatesController {
         const existingInput = (step?.input ?? {}) as Record<string, unknown>
         await this.missions.updateStep(gate.missionId, gate.stepId, {
           status: 'pending',
-          input: { ...existingInput, clarificationAnswer: dto.comment },
+          input: { ...existingInput, clarificationAnswer: clarificationText },
         }).catch(() => null)
       } else {
         await this.missions.updateStep(gate.missionId, gate.stepId, { status: 'pending' }).catch(() => null)
