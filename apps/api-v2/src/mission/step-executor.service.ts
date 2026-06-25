@@ -126,6 +126,21 @@ export class StepExecutorService implements OnModuleInit {
     await this.missions.updateStep(missionId, stepId, { status: 'running' })
     this.emitUpdate(missionId)
 
+    // Coleta outputs dos steps de dependência para injetar como prevOutputs.
+    // Sem isso o specialist não vê o resultado de steps anteriores — cada step começa
+    // do zero mesmo quando dependsOn está configurado.
+    const depOutputs = ((step.dependsOn as string[] | undefined) ?? [])
+      .map((depId) => mission.steps.find((s) => s.id === depId))
+      .filter((s): s is NonNullable<typeof s> => Boolean(s?.status === 'done' && s.output))
+      .map((s) => `### Step "${s.title}" output\n${JSON.stringify(s.output, null, 2)}`)
+      .join('\n\n')
+
+    const contextParts = [
+      `Mission: ${mission.title}`,
+      `Objective: ${mission.objective}`,
+      depOutputs ? `\n## Previous step outputs (prevOutputs)\n${depOutputs}` : '',
+    ].filter(Boolean)
+
     // Spawn specialist and await completion
     const inst = await this.specialists.spawnAndWait({
       type:       specialistType,
@@ -133,7 +148,7 @@ export class StepExecutorService implements OnModuleInit {
       missionId,
       stepId,
       projectId:  mission.projectId,
-      context:    `Mission: ${mission.title}\nObjective: ${mission.objective}`,
+      context:    contextParts.join('\n'),
     })
 
     const finalStatus = inst.status === 'done' ? 'done'
