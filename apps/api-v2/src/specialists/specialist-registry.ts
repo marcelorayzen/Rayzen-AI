@@ -186,7 +186,7 @@ export class SpecialistRegistry {
   infer(text: string): SpecialistType {
     const lower = text.toLowerCase()
     // synthesizer first — avoids "create doc" being caught by coder's "create"
-    if (/summarize|resumo|sintetize|sintetiz|document.*write|write.*doc|create.*doc|audit.*doc|relat[oó]rio|escreva.*resumo|crie.*documento/.test(lower)) return 'synthesizer'
+    if (/summarize|resumo|sintetize|sintetiz|document.*write|write.*doc|create.*doc|audit.*doc|relat[oó]rio|escreva.*resumo|crie.*documento|tabela|crie.*table|create.*table|com base/.test(lower)) return 'synthesizer'
     if (/implement|build|develop|code|write.*function/.test(lower))          return 'coder'
     if (/review|check|audit|validate/.test(lower))                           return 'reviewer'
     // word boundaries em test/spec: "specialist" e "inspection" não são tester
