@@ -89,6 +89,11 @@ export class MemoryController {
     return this.svc.searchAndSynthesize(dto.query, sessionId, dto.projectId)
   }
 
+  @Post('search/raw')
+  searchRaw(@Body() dto: SearchDto) {
+    return this.svc.search(dto.query, 10, dto.projectId)
+  }
+
   @Get('documents')
   list(@Query('projectId') projectId?: string) {
     return this.svc.listDocuments(projectId)

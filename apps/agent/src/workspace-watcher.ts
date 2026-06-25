@@ -42,7 +42,11 @@ const SKIP_DIRS = new Set([
 ])
 
 const states = new Map<string, RepoState>()
-const projectCache = new Map<string, string | undefined>()
+
+type ProjectCacheEntry = { projectId: string | undefined; expiresAt: number }
+const projectCache = new Map<string, ProjectCacheEntry>()
+const PROJECT_CACHE_HIT_TTL  = 10 * 60 * 1000  // 10 min para resolução positiva
+const PROJECT_CACHE_MISS_TTL =  2 * 60 * 1000  // 2 min para resolução negativa — permite retry
 
 const api = axios.create({
   baseURL: process.env.AGENT_API_URL,
@@ -150,15 +154,16 @@ function signature(files: string[]): string {
 }
 
 async function resolveProjectId(slug: string): Promise<string | undefined> {
-  if (projectCache.has(slug)) return projectCache.get(slug)
+  const cached = projectCache.get(slug)
+  if (cached && cached.expiresAt > Date.now()) return cached.projectId
 
   try {
     const { data } = await api.get<Array<{ id: string }>>('/projects', { params: { repoSlug: slug } })
     const projectId = Array.isArray(data) && data.length > 0 ? data[0]?.id : undefined
-    projectCache.set(slug, projectId)
+    projectCache.set(slug, { projectId, expiresAt: Date.now() + (projectId ? PROJECT_CACHE_HIT_TTL : PROJECT_CACHE_MISS_TTL) })
     return projectId
   } catch {
-    projectCache.set(slug, undefined)
+    projectCache.set(slug, { projectId: undefined, expiresAt: Date.now() + PROJECT_CACHE_MISS_TTL })
     return undefined
   }
 }
@@ -172,6 +177,8 @@ function readFileContent(filePath: string): string | null {
 }
 
 async function indexChangedFiles(repoPath: string, files: string[], projectId: string | undefined): Promise<void> {
+  if (!projectId) return  // sem escopo de projeto, não indexamos para evitar documentos órfãos
+
   for (const file of files.slice(0, 8)) {
     const fullPath = join(repoPath, file)
     const content = readFileContent(fullPath)

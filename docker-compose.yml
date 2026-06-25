@@ -123,6 +123,7 @@ services:
     environment:
       NODE_ENV: production
       AGENT_API_URL: http://api:3001
+      AGENT_API_V2_URL: http://api-v2:3002
       AGENT_TOKEN: ${AGENT_TOKEN}
       MCP_PORT: 3102
       MCP_PROJECT_ID: ${MCP_PROJECT_ID:-}

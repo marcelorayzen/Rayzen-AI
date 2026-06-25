@@ -69,18 +69,18 @@ describe('MemoryService', () => {
       expect(result.id).toBe('existing-id')
     })
 
-    it('atualiza projectId quando documento já existe e projectId é fornecido', async () => {
-      mockPrisma.document.findFirst.mockResolvedValue({ id: 'existing-id', checksum: 'abc' })
+    it('atualiza apenas o embedding quando doc já existe para o mesmo (checksum, projectId)', async () => {
+      // P05: dedup é por (projectId, checksum), não global.
+      // Quando o mesmo doc é reindexado no mesmo projeto, apenas o embedding é atualizado.
+      // O projectId do doc existente NÃO é sobrescrito (document.update não deve ser chamado).
+      mockPrisma.document.findFirst.mockResolvedValue({ id: 'existing-id', checksum: 'abc', projectId: 'proj-123' })
       mockPrisma.$executeRaw.mockResolvedValue(1)
-      mockPrisma.document.update.mockResolvedValue({})
 
       const result = await service.indexDocument('Conteúdo duplicado', undefined, undefined, 'proj-123')
 
       expect(result.status).toBe('updated')
-      expect(mockPrisma.document.update).toHaveBeenCalledWith({
-        where: { id: 'existing-id' },
-        data: { projectId: 'proj-123' },
-      })
+      expect(result.id).toBe('existing-id')
+      expect(mockPrisma.document.update).not.toHaveBeenCalled()
     })
 
     it('chama a API Jina para gerar embedding', async () => {

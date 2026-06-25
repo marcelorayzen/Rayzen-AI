@@ -236,6 +236,26 @@ function formatContextEngine(data, mode) {
     if (nextSteps) lines.push(`\n**Próximos passos:**${nextSteps.slice(0, 300)}`)
   }
 
+  if (s.recent_events) {
+    lines.push('\n**Atividade recente:**')
+    lines.push(s.recent_events.slice(0, 600))
+  }
+
+  if (s.knowledge_graph) {
+    lines.push('\n**Knowledge graph:**')
+    lines.push(s.knowledge_graph.slice(0, 600))
+  }
+
+  if (s.policy_constraints && s.policy_constraints !== 'No active policy constraints.') {
+    lines.push('\n**Políticas ativas:**')
+    lines.push(s.policy_constraints.slice(0, 400))
+  }
+
+  if (s.approval_gates) {
+    lines.push('\n**Gates pendentes:**')
+    lines.push(s.approval_gates.slice(0, 400))
+  }
+
   lines.push('\n_(contexto cirúrgico injetado pelo hook — mode: ' + mode + ')_')
   return lines.join('\n')
 }

@@ -49,8 +49,8 @@ export class MemoryService {
   async search(dto: SearchMemoryDto) {
     const limit = dto.limit ?? 10
 
-    // Search V1
-    const results = await this.v1Api.searchMemory(dto.projectId, dto.query, Math.min(limit * 2, 50))
+    // Search V1 — raw path (vector only, no LLM synthesis) to stay within hook timeout budget
+    const results = await this.v1Api.searchMemoryRaw(dto.projectId, dto.query, Math.min(limit * 2, 50))
 
     if (results.length === 0) return { results: [], total: 0 }
 

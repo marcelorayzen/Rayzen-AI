@@ -53,6 +53,12 @@ export class AgentBridgeController {
     return this.svc.getPending(role)
   }
 
+  @Post('claim')
+  async claim(@Body() dto: { role?: AgentRole; hostname?: string }) {
+    if (dto.role) this.heartbeat.touch(dto.role)
+    return this.svc.claimTask(dto.role)
+  }
+
   @Get(':id')
   getById(@Param('id') id: string) { return this.svc.getById(id) }
 

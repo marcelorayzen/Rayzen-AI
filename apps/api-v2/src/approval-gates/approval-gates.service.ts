@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common'
 import { PrismaV2Service } from '../core/prisma-v2.service'
 import { EventsService } from '../gateway/events.service'
+import { MissionService } from '../mission/mission.service'
 
 export type ApprovalGateType = 'code_deploy' | 'data_write' | 'external_api' | 'irreversible' | 'high_cost' | 'specialist_spawn' | 'clarification' | 'strategy_promotion'
 export type ApprovalStatus   = 'pending' | 'approved' | 'rejected' | 'expired'
@@ -29,6 +30,7 @@ export class ApprovalGatesService {
   constructor(
     private readonly prisma: PrismaV2Service,
     private readonly events: EventsService,
+    private readonly missions: MissionService,
   ) {}
 
   async create(dto: CreateGateDto) {
@@ -70,25 +72,29 @@ export class ApprovalGatesService {
   }
 
   async approve(id: string, approvedBy: string, comment?: string) {
-    const gate = await this.findOne(id)
-    if (gate.status !== 'pending') {
-      throw new BadRequestException(`Gate is already ${gate.status}`)
-    }
-    return this.prisma.approvalGate.update({
-      where: { id },
+    // Atualização condicional atômica: elimina corrida entre dois aprovadores simultâneos
+    const result = await this.prisma.approvalGate.updateMany({
+      where: { id, status: 'pending' },
       data: { status: 'approved', approvedBy, approvedAt: new Date(), comment },
     })
+    if (result.count === 0) {
+      const gate = await this.findOne(id)
+      throw new BadRequestException(`Gate is already ${gate.status}`)
+    }
+    return this.findOne(id)
   }
 
   async reject(id: string, approvedBy: string, comment?: string) {
-    const gate = await this.findOne(id)
-    if (gate.status !== 'pending') {
-      throw new BadRequestException(`Gate is already ${gate.status}`)
-    }
-    return this.prisma.approvalGate.update({
-      where: { id },
+    // Atualização condicional atômica: elimina corrida entre dois aprovadores simultâneos
+    const result = await this.prisma.approvalGate.updateMany({
+      where: { id, status: 'pending' },
       data: { status: 'rejected', approvedBy, approvedAt: new Date(), comment },
     })
+    if (result.count === 0) {
+      const gate = await this.findOne(id)
+      throw new BadRequestException(`Gate is already ${gate.status}`)
+    }
+    return this.findOne(id)
   }
 
   async history(projectId: string, limit = 50) {
@@ -172,14 +178,33 @@ export class ApprovalGatesService {
     if (expired.length === 0) return
 
     for (const g of expired) {
-      const newStatus = g.autoOnExpiry === 'approve' ? 'approved' : 'expired'
+      const autoApprove = g.autoOnExpiry === 'approve'
+      const newStatus = autoApprove ? 'approved' : 'expired'
+
       await this.prisma.approvalGate.update({
         where: { id: g.id },
         data:  { status: newStatus, approvedBy: 'system', approvedAt: new Date(), comment: 'Auto-expired' },
       })
+
+      // Propaga estado para step e mission — expiração não é silenciosa
+      if (g.missionId && g.stepId) {
+        if (autoApprove) {
+          await this.missions.updateStep(g.missionId, g.stepId, { status: 'pending' }).catch(() => null)
+        } else {
+          await this.missions.updateStep(g.missionId, g.stepId, {
+            status: 'failed',
+            output: { expired: true, autoOnExpiry: g.autoOnExpiry, expiresAt: g.expiresAt },
+          }).catch(() => null)
+          await this.missions.transition(g.missionId, 'paused').catch(() => null)
+        }
+      }
+
+      if (g.projectId) {
+        this.events.approvalGate(g.projectId, {
+          id: g.id, missionId: g.missionId ?? '', description: g.description, type: g.type,
+        })
+      }
     }
-    if (expired.length > 0) {
-      this.logger.log(`Expired ${expired.length} approval gates`)
-    }
+    this.logger.log(`Expired ${expired.length} approval gate(s)`)
   }
 }

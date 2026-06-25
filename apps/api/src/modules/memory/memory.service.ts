@@ -63,7 +63,9 @@ export class MemoryService {
 
     const vector = await this.embed(content)
 
-    const existing = await this.prisma.document.findFirst({ where: { checksum } })
+    const existing = await this.prisma.document.findFirst({
+      where: { checksum, ...(projectId ? { projectId } : { projectId: null }) },
+    })
 
     if (existing) {
       await this.prisma.$executeRaw`
@@ -72,9 +74,6 @@ export class MemoryService {
             updated_at = NOW()
         WHERE id = ${existing.id}
       `
-      if (projectId) {
-        await this.prisma.document.update({ where: { id: existing.id }, data: { projectId } })
-      }
       return { id: existing.id, status: 'updated' }
     }
 

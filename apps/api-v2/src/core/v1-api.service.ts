@@ -33,6 +33,22 @@ export class V1ApiService {
     }
   }
 
+  async searchMemoryRaw(projectId: string, query: string, limit = 10): Promise<MemorySearchResult[]> {
+    try {
+      const res = await fetch(`${this.baseUrl}/memory/search/raw`, {
+        method: 'POST',
+        headers: this.headers,
+        body: JSON.stringify({ projectId, query, limit }),
+      })
+      if (!res.ok) return []
+      const data = await res.json() as MemorySearchResult[]
+      return Array.isArray(data) ? data : []
+    } catch (e) {
+      this.logger.warn(`memory raw search failed: ${e}`)
+      return []
+    }
+  }
+
   async indexContent(payload: IndexPayload): Promise<{ id?: string }> {
     const res = await fetch(`${this.baseUrl}/memory/index`, {
       method: 'POST',

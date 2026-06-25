@@ -16,8 +16,9 @@ const api = axios.create({
 
 export async function poll(): Promise<void> {
   try {
-    const { data: tasks } = await api.get<Task[]>(`/tasks/pending?role=${AGENT_ROLE}`)
-    for (const task of tasks) {
+    // Claim atômico: garante que dois agents não executam a mesma tarefa
+    const { data: task } = await api.post<Task | null>('/tasks/claim', { role: AGENT_ROLE, hostname: HOSTNAME })
+    if (task) {
       await processTask(task)
     }
   } catch (err) {
@@ -49,8 +50,6 @@ async function processTask(task: Task): Promise<void> {
   const risk = typeof payload.risk === 'string' ? payload.risk : undefined
   const dryRun = payload.dryRun === true
 
-  await api.patch(`/tasks/${task.id}`, { status: 'processing' }).catch(() => null)
-
   try {
     const result = await executeTask(task)
     const enrichedResult = await maybeUploadEvidence(task, result)
@@ -65,6 +64,21 @@ async function processTask(task: Task): Promise<void> {
       dryRun,
       ...auditBase,
     })
+
+    // Publica resultado no contexto futuro via Event — aparece em recent_events no próximo prompt
+    const taskProjectId = typeof payload.projectId === 'string' ? payload.projectId : undefined
+    if (taskProjectId) {
+      const summary = JSON.stringify(enrichedResult).slice(0, 200)
+      api.post('/events/cli', {
+        projectId: taskProjectId,
+        source:    'agent-task-result',
+        type:      'note',
+        intent:    'reference',
+        content:   `Task ${task.module}/${task.action} concluída (${durationMs}ms): ${summary}`,
+        metadata:  { taskId: task.id, module: task.module, action: task.action, durationMs },
+      }).catch(() => null)
+    }
+
     console.log(`[agent] concluído: ${task.id} (${durationMs}ms)`)
   } catch (err) {
     const error = (err as Error).message

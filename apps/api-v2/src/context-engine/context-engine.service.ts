@@ -3,12 +3,13 @@ import { V1BridgeService } from '../core/v1-bridge.service'
 import { MemoryService } from '../memory/memory.service'
 import { KnowledgeStorageService } from '../knowledge/knowledge-storage.service'
 import { PolicyEngineService } from '../policy-engine/policy-engine.service'
+import { ApprovalGatesService } from '../approval-gates/approval-gates.service'
 
 export type WorkMode = 'implementation' | 'debugging' | 'review' | 'architecture' | 'study'
 export type ContextSection =
   | 'project_state' | 'active_goal' | 'recent_events'
   | 'memory_relevant' | 'planning' | 'blockers'
-  | 'knowledge_graph' | 'policy_constraints'
+  | 'knowledge_graph' | 'policy_constraints' | 'approval_gates'
 
 export interface ContextBuildRequest {
   projectId:  string
@@ -41,8 +42,8 @@ export interface SurgicalContext {
 
 // Sections included per work mode
 const MODE_SECTIONS: Record<WorkMode, ContextSection[]> = {
-  implementation: ['project_state', 'planning', 'policy_constraints', 'memory_relevant', 'recent_events'],
-  debugging:      ['project_state', 'blockers', 'memory_relevant', 'recent_events', 'knowledge_graph'],
+  implementation: ['project_state', 'planning', 'policy_constraints', 'memory_relevant', 'recent_events', 'approval_gates'],
+  debugging:      ['project_state', 'blockers', 'memory_relevant', 'recent_events', 'knowledge_graph', 'approval_gates'],
   review:         ['project_state', 'active_goal', 'memory_relevant', 'planning', 'knowledge_graph'],
   architecture:   ['project_state', 'active_goal', 'planning', 'blockers', 'policy_constraints', 'knowledge_graph'],
   study:          ['project_state', 'memory_relevant', 'recent_events', 'knowledge_graph'],
@@ -63,6 +64,7 @@ export class ContextEngineService {
     private readonly memory:    MemoryService,
     private readonly knowledge: KnowledgeStorageService,
     private readonly policy:    PolicyEngineService,
+    private readonly gates:     ApprovalGatesService,
   ) {}
 
   async build(req: ContextBuildRequest): Promise<BuiltContext> {
@@ -258,6 +260,14 @@ export class ContextEngineService {
           .join('\n')
       }
 
+      case 'approval_gates': {
+        const pending = await this.gates.findPending(req.projectId)
+        if (!pending.length) return ''
+        return pending
+          .map((g) => `[${g.type.toUpperCase()}] ${g.description} (gate=${g.id.slice(0, 8)}, mission=${(g.missionId ?? 'n/a').slice(0, 8)})`)
+          .join('\n')
+      }
+
       default:
         return ''
     }
@@ -286,6 +296,7 @@ function sectionLabel(s: ContextSection): string {
     blockers:           'Blockers',
     knowledge_graph:    'Knowledge Graph',
     policy_constraints: 'Policy Constraints',
+    approval_gates:     'Pending Approval Gates',
   }
   return labels[s] ?? s
 }

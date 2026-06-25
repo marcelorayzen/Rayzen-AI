@@ -4,6 +4,8 @@ import { Queue } from 'bull'
 import { AgentRole, Task, TaskCreateDto, TaskStatus } from '@rayzen/types'
 import { randomUUID } from 'crypto'
 
+const CLAIM_LOCK_TTL_MS = 30_000  // 30s — cobre o tempo máximo de processamento
+
 @Injectable()
 export class AgentBridgeService {
   constructor(@InjectQueue('agent-tasks') private queue: Queue) {}
@@ -22,6 +24,29 @@ export class AgentBridgeService {
       .map((j) => j.data as Task)
       .filter((t) => t.status === 'pending')
       .filter((t) => !t.targetRole || !role || t.targetRole === role)
+  }
+
+  /**
+   * Atomicamente reivindica UMA tarefa pendente via Redis NX lock.
+   * Dois agents simultâneos com o mesmo role nunca executam a mesma tarefa.
+   */
+  async claimTask(role?: AgentRole): Promise<Task | null> {
+    const jobs = await this.queue.getJobs(['waiting', 'delayed'])
+    const matching = jobs.find((j) => {
+      const t = j.data as Task
+      return t.status === 'pending' && (!t.targetRole || !role || t.targetRole === role)
+    })
+    if (!matching) return null
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const client = (this.queue as unknown as { client: any }).client
+    const lockKey = `claim:task:${matching.id}`
+    const locked = await client.set(lockKey, '1', 'PX', CLAIM_LOCK_TTL_MS, 'NX')
+    if (!locked) return null  // outro agent já reivindicou
+
+    const claimed: Task = { ...matching.data as Task, status: 'processing', updatedAt: new Date().toISOString() }
+    await matching.update(claimed)
+    return claimed
   }
 
   async getById(id: string): Promise<Task | null> {

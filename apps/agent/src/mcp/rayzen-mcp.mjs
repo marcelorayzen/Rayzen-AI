@@ -36,8 +36,10 @@ async function loadConfig() {
     // hook.config.mjs ausente ou inválido — segue com env vars apenas
   }
 
+  const apiUrl = process.env.AGENT_API_URL ?? fileCfg.apiUrl ?? 'http://localhost:3001'
   cachedConfig = {
-    apiUrl:    process.env.AGENT_API_URL ?? fileCfg.apiUrl,
+    apiUrl,
+    apiV2Url:  process.env.AGENT_API_V2_URL ?? fileCfg.apiV2Url ?? apiUrl.replace(':3001', ':3002'),
     apiToken:  process.env.AGENT_TOKEN   ?? fileCfg.apiToken,
     projectId: process.env.PROJECT_ID ?? process.env.MCP_PROJECT_ID ?? fileCfg.projectId,
   }
@@ -70,6 +72,20 @@ async function api(method, path, body) {
   if (!res.ok) {
     const text = await res.text().catch(() => res.status)
     throw new Error(`Rayzen API ${method} ${path} → ${res.status}: ${text}`)
+  }
+  return res.json().catch(() => null)
+}
+
+async function apiV2(method, path, body) {
+  const cfg = await loadConfig()
+  const res = await fetch(`${cfg.apiV2Url}${path}`, {
+    method,
+    headers: await headers(),
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.status)
+    throw new Error(`Rayzen V2 API ${method} ${path} → ${res.status}: ${text}`)
   }
   return res.json().catch(() => null)
 }
@@ -407,7 +423,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         break
 
       case 'rayzen_get_context':
-        result = await api('POST', '/v2/context/build', {
+        result = await apiV2('POST', '/v2/context/build', {
           projectId: await pid(),
           mode: args.mode ?? 'implementation',
           query: args.query,
@@ -416,7 +432,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         break
 
       case 'rayzen_list_specialists':
-        result = await api('GET', `/v2/specialist-agents?projectId=${await pid()}`)
+        result = await apiV2('GET', `/v2/specialist-agents?projectId=${await pid()}`)
         break
 
       case 'rayzen_get_wiki':

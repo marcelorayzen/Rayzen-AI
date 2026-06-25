@@ -88,8 +88,10 @@ async function loadConfig() {
     // hook.config.mjs ausente (caso Docker) ou inválido — usa só env vars
     if (cachedConfig) return cachedConfig
   }
+  const apiUrl = process.env.AGENT_API_URL || fileCfg.apiUrl || 'http://api:3001'
   cachedConfig = {
-    apiUrl:    process.env.AGENT_API_URL  || fileCfg.apiUrl    || 'http://api:3001',
+    apiUrl,
+    apiV2Url:  process.env.AGENT_API_V2_URL || fileCfg.apiV2Url || apiUrl.replace(':3001', ':3002'),
     apiToken:  process.env.AGENT_TOKEN    || fileCfg.apiToken  || '',
     projectId: process.env.MCP_PROJECT_ID || fileCfg.projectId || '',
   }
@@ -164,6 +166,20 @@ async function api(method, path, body) {
   if (!res.ok) {
     const text = await res.text().catch(() => String(res.status))
     throw new Error(`Rayzen API ${method} ${path} → ${res.status}: ${text}`)
+  }
+  return res.json().catch(() => null)
+}
+
+async function apiV2(method, path, body) {
+  const cfg = await loadConfig()
+  const res = await fetch(`${cfg.apiV2Url}${path}`, {
+    method,
+    headers: await apiHeaders(),
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => String(res.status))
+    throw new Error(`Rayzen V2 API ${method} ${path} → ${res.status}: ${text}`)
   }
   return res.json().catch(() => null)
 }
@@ -473,7 +489,7 @@ function createMcpServer() {
           break
 
         case 'rayzen_get_context':
-          result = await api('POST', '/v2/context/build', {
+          result = await apiV2('POST', '/v2/context/build', {
             projectId: await pid(),
             mode: args.mode ?? 'implementation',
             query: args.query,
@@ -603,7 +619,7 @@ function createMcpServer() {
         }
 
         case 'rayzen_list_specialists':
-          result = await api('GET', `/v2/specialist-agents?projectId=${await pid()}`)
+          result = await apiV2('GET', `/v2/specialist-agents?projectId=${await pid()}`)
           break
 
         case 'rayzen_agent_task': {

@@ -183,20 +183,36 @@ export class BrainService {
 
     const vector = await this.embed(query)
 
-    const results = await this.prisma.$queryRaw<Array<{
-      id: string
-      content: string
-      source_path: string | null
-      metadata: Record<string, unknown>
-      score: number
-    }>>`
-      SELECT id, content, source_path, metadata,
-             1 - (embedding <=> ${JSON.stringify(vector)}::vector) AS score
-      FROM documents
-      WHERE embedding IS NOT NULL
-      ORDER BY embedding <=> ${JSON.stringify(vector)}::vector
-      LIMIT ${limit}
-    `
+    const results = projectId
+      ? await this.prisma.$queryRaw<Array<{
+          id: string
+          content: string
+          source_path: string | null
+          metadata: Record<string, unknown>
+          score: number
+        }>>`
+          SELECT id, content, source_path, metadata,
+                 1 - (embedding <=> ${JSON.stringify(vector)}::vector) AS score
+          FROM documents
+          WHERE embedding IS NOT NULL
+            AND project_id = ${projectId}
+          ORDER BY embedding <=> ${JSON.stringify(vector)}::vector
+          LIMIT ${limit}
+        `
+      : await this.prisma.$queryRaw<Array<{
+          id: string
+          content: string
+          source_path: string | null
+          metadata: Record<string, unknown>
+          score: number
+        }>>`
+          SELECT id, content, source_path, metadata,
+                 1 - (embedding <=> ${JSON.stringify(vector)}::vector) AS score
+          FROM documents
+          WHERE embedding IS NOT NULL
+          ORDER BY embedding <=> ${JSON.stringify(vector)}::vector
+          LIMIT ${limit}
+        `
 
     const mapped = results.map((r) => ({
       id: r.id,

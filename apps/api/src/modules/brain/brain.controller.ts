@@ -21,6 +21,10 @@ class SearchDto {
 
   @IsOptional()
   limit?: number
+
+  @IsOptional()
+  @IsString()
+  projectId?: string
 }
 
 @ApiTags('brain')
@@ -36,6 +40,6 @@ export class BrainController {
 
   @Post('search')
   search(@Body() dto: SearchDto) {
-    return this.svc.search(dto.query, dto.limit)
+    return this.svc.search(dto.query, dto.limit, dto.projectId)
   }
 }

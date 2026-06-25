@@ -177,7 +177,8 @@ model Document {
 
 model WikiPage {
   id          String   @id @default(uuid())
-  slug        String   @unique
+  slug        String
+  projectId   String?  @map("project_id")
   title       String
   tags        String[] @default([])
   contentMd   String   @map("content_md")
@@ -191,6 +192,7 @@ model WikiPage {
   versions WikiPageVersion[]
   sources  WikiSourceReference[]
 
+  @@index([projectId, slug])
   @@map("wiki_pages")
 }
 

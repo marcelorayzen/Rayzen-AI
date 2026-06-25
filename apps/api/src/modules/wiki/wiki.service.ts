@@ -248,7 +248,7 @@ export class WikiService {
     const cached = await this.cache.get<WikiPageDetail>(cacheKey)
     if (cached) return cached
 
-    const page = await this.prisma.wikiPage.findUnique({
+    const page = await this.prisma.wikiPage.findFirst({
       where: { slug },
       include: {
         versions: { orderBy: { createdAt: 'desc' }, take: 10 },
@@ -266,11 +266,14 @@ export class WikiService {
   // ─── Create (direct, sem LLM) ───────────────────────────────────────────────
 
   async create(slug: string, title: string, contentMd: string): Promise<WikiPage> {
-    return this.prisma.wikiPage.upsert({
-      where: { slug },
-      create: { slug, title, contentMd, editStatus: 'human_edited' },
-      update: { title, contentMd, editStatus: 'human_edited' },
-    })
+    const existing = await this.prisma.wikiPage.findFirst({ where: { slug } })
+    if (existing) {
+      return this.prisma.wikiPage.update({
+        where: { id: existing.id },
+        data: { title, contentMd, editStatus: 'human_edited' },
+      })
+    }
+    return this.prisma.wikiPage.create({ data: { slug, title, contentMd, editStatus: 'human_edited' } })
   }
 
   // ─── Capture learning (write-back loop) ──────────────────────────────────────
@@ -303,15 +306,20 @@ export class WikiService {
     const contentMd = this.formatLearningMarkdown(input, learningType, tags)
     const slug = this.compilation.toSlug(input.title) || `learning-${Date.now()}`
 
-    // Runbook é documento vivo: re-capturar o mesmo título atualiza (upsert por slug),
-    // não cria duplicata.
-    const existing = await this.prisma.wikiPage.findUnique({ where: { slug } })
-
-    const page = await this.prisma.wikiPage.upsert({
-      where: { slug },
-      create: { slug, title: input.title, tags, contentMd, editStatus: 'generated' },
-      update: { title: input.title, tags, contentMd, compiledAt: new Date() },
+    // Runbook é documento vivo: re-capturar o mesmo título atualiza (upsert por slug+projeto),
+    // não cria duplicata. Escopo por projectId quando disponível para evitar colisões entre projetos.
+    const existing = await this.prisma.wikiPage.findFirst({
+      where: input.projectId ? { slug, projectId: input.projectId } : { slug },
     })
+
+    const page = existing
+      ? await this.prisma.wikiPage.update({
+          where: { id: existing.id },
+          data: { title: input.title, tags, contentMd, compiledAt: new Date() },
+        })
+      : await this.prisma.wikiPage.create({
+          data: { slug, projectId: input.projectId ?? null, title: input.title, tags, contentMd, editStatus: 'generated' },
+        })
 
     await this.versioning.createVersion({
       pageId: page.id,
@@ -392,13 +400,13 @@ export class WikiService {
   // ─── Update (human edit) ─────────────────────────────────────────────────────
 
   async update(slug: string, contentMd: string): Promise<WikiPage> {
-    const page = await this.prisma.wikiPage.findUnique({ where: { slug } })
+    const page = await this.prisma.wikiPage.findFirst({ where: { slug } })
     if (!page) throw new NotFoundException(`Nota não encontrada: ${slug}`)
 
     const diff = this.merge.computeDiff(page.contentMd, contentMd)
 
     const updated = await this.prisma.wikiPage.update({
-      where: { slug },
+      where: { id: page.id },
       data: { contentMd, editStatus: 'human_edited' },
     })
 
@@ -424,9 +432,9 @@ export class WikiService {
   // ─── Delete ──────────────────────────────────────────────────────────────────
 
   async delete(slug: string): Promise<{ deleted: boolean }> {
-    const page = await this.prisma.wikiPage.findUnique({ where: { slug } })
+    const page = await this.prisma.wikiPage.findFirst({ where: { slug } })
     if (!page) throw new NotFoundException(`Nota não encontrada: ${slug}`)
-    await this.prisma.wikiPage.delete({ where: { slug } })
+    await this.prisma.wikiPage.delete({ where: { id: page.id } })
     await this.cache.del(`wiki:${slug}`)
     return { deleted: true }
   }
@@ -434,7 +442,7 @@ export class WikiService {
   // ─── Versions ────────────────────────────────────────────────────────────────
 
   async listVersions(slug: string): Promise<WikiPageVersion[]> {
-    const page = await this.prisma.wikiPage.findUnique({ where: { slug } })
+    const page = await this.prisma.wikiPage.findFirst({ where: { slug } })
     if (!page) throw new NotFoundException(`Nota não encontrada: ${slug}`)
     return this.versioning.listVersions(page.id)
   }
@@ -442,7 +450,7 @@ export class WikiService {
   // ─── Sources ─────────────────────────────────────────────────────────────────
 
   async listSources(slug: string) {
-    const page = await this.prisma.wikiPage.findUnique({ where: { slug } })
+    const page = await this.prisma.wikiPage.findFirst({ where: { slug } })
     if (!page) throw new NotFoundException(`Nota não encontrada: ${slug}`)
     return this.prisma.wikiSourceReference.findMany({
       where: { pageId: page.id },

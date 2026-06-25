@@ -33,9 +33,12 @@ describe('Fase 2 — gate → resume', () => {
       const docs          = { onMissionCompleted: jest.fn().mockResolvedValue([]) }
       const clarification = { checkTask: jest.fn().mockResolvedValue({ needsClarification: false }) }
 
+      const missionResult = { processCompletion: jest.fn().mockResolvedValue({ summary: '' }) }
+      const contextEngine = { buildSurgical: jest.fn().mockResolvedValue({ context: '' }) }
       const engine = new WorkflowEngineService(
-        missions as never, skillEngine as never, {} as never, specialists as never,
-        specialistAgents as never, gates as never, docs as never, clarification as never,
+        missions as never, missionResult as never, skillEngine as never, {} as never,
+        specialists as never, specialistAgents as never, gates as never,
+        docs as never, clarification as never, contextEngine as never,
       )
       return { engine, missions, specialists }
     }

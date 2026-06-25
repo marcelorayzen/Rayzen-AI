@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { MissionService } from '../mission/mission.service'
+import { MissionResultService } from '../mission/mission-result.service'
 import { SkillEngineService } from '../skill-engine/skill-engine.service'
 import { AiRouterService } from '../ai-router/ai-router.service'
 import { SpecialistService } from '../specialists/specialist.service'
@@ -8,6 +9,7 @@ import { SpecialistType } from '../specialists/specialist-registry'
 import { ApprovalGatesService } from '../approval-gates/approval-gates.service'
 import { DocumentationEngineService, DocType } from '../documentation-engine/documentation-engine.service'
 import { ClarificationService } from '../agent-dialogue/clarification.service'
+import { ContextEngineService } from '../context-engine/context-engine.service'
 
 type StepStatus = 'pending' | 'running' | 'done' | 'failed' | 'skipped'
 
@@ -65,6 +67,7 @@ export class WorkflowEngineService {
 
   constructor(
     private readonly missions:        MissionService,
+    private readonly missionResult:   MissionResultService,
     private readonly skillEngine:     SkillEngineService,
     private readonly aiRouter:        AiRouterService,
     private readonly specialists:     SpecialistService,
@@ -72,6 +75,7 @@ export class WorkflowEngineService {
     private readonly gates:           ApprovalGatesService,
     private readonly docs:            DocumentationEngineService,
     private readonly clarification:   ClarificationService,
+    private readonly contextEngine:   ContextEngineService,
   ) {}
 
   // Execute all pending steps respecting DAG dependencies
@@ -150,13 +154,18 @@ export class WorkflowEngineService {
       this.logger.log(`Mission ${missionId} pausada — ${blockedByHuman} step(s) aguardando ação humana`)
     } else if (stats.pending === 0) {
       await this.missions.transition(missionId, 'done').catch(() => null)
-      // Fire-and-forget: docs gerados em background após missão concluída
-      void this.docs.onMissionCompleted(missionId, projectId)
-        .then((types) => {
-          this.logger.log(`Docs gerados para missão ${missionId}: ${types.join(', ')}`)
-          stats.docsGenerated = types
-        })
-        .catch((e) => this.logger.warn(`doc generation failed for ${missionId}: ${e}`))
+      // Fire-and-forget em background: docs + result loop (idempotente)
+      void Promise.all([
+        this.docs.onMissionCompleted(missionId, projectId)
+          .then((types) => {
+            this.logger.log(`Docs gerados para missão ${missionId}: ${types.join(', ')}`)
+            stats.docsGenerated = types
+          })
+          .catch((e) => this.logger.warn(`doc generation failed for ${missionId}: ${e}`)),
+        this.missionResult.processCompletion(missionId)
+          .then((r) => this.logger.log(`Mission result loop concluído para ${missionId}: ${r.summary.slice(0, 80)}`))
+          .catch((e) => this.logger.warn(`mission result loop failed for ${missionId}: ${e}`)),
+      ])
     }
 
     return stats
@@ -256,13 +265,21 @@ export class WorkflowEngineService {
       if (agent) type = agent.domain as SpecialistType
     }
 
+    // Monta contexto cirúrgico do Rayzen para injetar no specialist (memória + políticas + gates)
+    const surgical = await this.contextEngine.buildSurgical({ projectId, task: baseTask, mode: 'implementation' })
+      .catch(() => null)
+    const fullContext = [
+      surgical?.context,
+      prevOutputs || undefined,
+    ].filter(Boolean).join('\n\n---\n\n') || undefined
+
     const instance = await this.specialists.spawn({
       type,
       task,
       missionId,
       stepId:    step.id,
       projectId,
-      context:   prevOutputs || undefined,
+      context:   fullContext,
     })
 
     // Wait for specialist to complete (max 60s)
