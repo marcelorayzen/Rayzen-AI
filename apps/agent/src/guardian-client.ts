@@ -64,6 +64,29 @@ export async function triggerGuardianAnalysis(params: {
       console.log(`[guardian] ${data.riskLevel.toUpperCase()} (${data.riskScore}) — ${data.summary}`)
     }
 
+    // Webhook notification for high/critical — fire-and-forget
+    const webhookUrl   = process.env.GUARDIAN_WEBHOOK_URL
+    const webhookToken = process.env.GUARDIAN_WEBHOOK_TOKEN
+    if (webhookUrl && (data.riskLevel === 'high' || data.riskLevel === 'critical')) {
+      axios.post(
+        webhookUrl,
+        {
+          source:            'rayzen-guardian',
+          riskLevel:         data.riskLevel,
+          riskScore:         data.riskScore,
+          summary:           data.summary,
+          filesWithoutTests: data.filesWithoutTests,
+          deployRecommend:   data.deployRecommend,
+          changedFiles:      params.changedFiles.slice(0, 5),
+          projectId:         params.projectId,
+        },
+        {
+          headers: webhookToken ? { Authorization: `Bearer ${webhookToken}` } : {},
+          timeout: 3000,
+        },
+      ).catch(() => null)
+    }
+
     return data
   } catch {
     return null
