@@ -61,7 +61,13 @@ function fetchJson(url, token) {
 
 async function main() {
   const repoRoot = findRepoRoot(process.cwd()) ?? process.cwd()
-  const env = { ...parseEnv(join(repoRoot, '.env')), ...process.env }
+  // Lê ambos os .env: raiz (API_PORT etc.) e apps/agent/.env (AGENT_TOKEN, GUARDIAN_* etc.)
+  // process.env tem prioridade máxima (vars setadas explicitamente no shell)
+  const env = {
+    ...parseEnv(join(repoRoot, '.env')),
+    ...parseEnv(join(repoRoot, 'apps', 'agent', '.env')),
+    ...process.env,
+  }
 
   if (env.AGENT_GUARDIAN_ENABLED === 'false') process.exit(0)
 
