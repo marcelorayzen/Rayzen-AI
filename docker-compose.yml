@@ -149,9 +149,11 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3101}
+        API_WS_URL: ${NEXT_PUBLIC_API_WS_URL:-wss://api.rayzen.com.br/ws}
     restart: unless-stopped
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3101}
+      NEXT_PUBLIC_API_WS_URL: ${NEXT_PUBLIC_API_WS_URL:-wss://api.rayzen.com.br/ws}
       NEXT_TELEMETRY_DISABLED: "1"
     ports:
       - '127.0.0.1:3100:3000'

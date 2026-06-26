@@ -1,4 +1,5 @@
 ARG API_URL=http://localhost:3101
+ARG API_WS_URL=
 
 FROM node:20-slim AS builder
 
@@ -18,8 +19,10 @@ COPY apps/web ./apps/web
 COPY packages ./packages
 
 ARG API_URL
+ARG API_WS_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NEXT_PUBLIC_API_URL=${API_URL}
+ENV NEXT_PUBLIC_API_WS_URL=${API_WS_URL}
 
 RUN pnpm --filter web build
 

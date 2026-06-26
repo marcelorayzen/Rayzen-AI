@@ -17,6 +17,10 @@ SERVICES="${*:-api mcp-http}"
 echo "[deploy] $(date '+%Y-%m-%d %H:%M:%S') — serviços: $SERVICES"
 echo "[deploy] dir: $PROJECT_DIR"
 
+echo "[deploy] atualizando código..."
+git fetch --prune origin
+git reset --hard origin/main
+
 docker compose up -d --build $SERVICES
 
 echo "[deploy] aguardando health checks..."
