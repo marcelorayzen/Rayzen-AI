@@ -1,6 +1,8 @@
 import axios from 'axios'
-import { readdirSync, statSync } from 'node:fs'
+import { readdirSync, writeFileSync } from 'node:fs'
 import { join, extname } from 'node:path'
+import { tmpdir } from 'node:os'
+import { createHash } from 'node:crypto'
 
 const GUARDABLE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.mjs'])
 const SKIP_DIRS = new Set(['node_modules', '.git', '.next', 'dist', 'build', 'coverage', 'generated'])
@@ -87,8 +89,23 @@ export async function triggerGuardianAnalysis(params: {
       ).catch(() => null)
     }
 
+    // Escreve cache local no tmpdir do agent — o context-hook lê daqui.
+    // A api-v2 escreve no tmpdir do container Docker (inacessível ao hook).
+    // Sem isso, riskLevel nunca chegaria ao contexto do Claude Code.
+    writeGuardianCache(params.projectId, data)
+
     return data
   } catch {
     return null
   }
+}
+
+const CACHE_TTL_MS = 10 * 60 * 1000
+
+function writeGuardianCache(projectId: string, report: GuardianAnalysisResult): void {
+  try {
+    const hash = createHash('sha256').update(projectId).digest('hex').slice(0, 8)
+    const file = join(tmpdir(), `rayzen-guardian-${hash}.json`)
+    writeFileSync(file, JSON.stringify({ report, expiresAt: Date.now() + CACHE_TTL_MS }))
+  } catch { /* non-critical */ }
 }
