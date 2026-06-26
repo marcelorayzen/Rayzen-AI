@@ -223,6 +223,31 @@ model TraceSpan {
   @@map("trace_spans")
 }
 
+// ─── Guardian Engine ──────────────────────────────────────────────────────────
+
+model GuardianReport {
+  id                String   @id @default(uuid())
+  projectId         String   @map("project_id")
+  repoPath          String   @map("repo_path")
+  changedFiles      String[] @map("changed_files")
+  impactedRoutes    Json     @default("[]") @map("impacted_routes")
+  impactedModules   String[] @map("impacted_modules")
+  filesWithoutTests String[] @map("files_without_tests")
+  suggestedTests    Json     @default("[]") @map("suggested_tests")
+  riskScore         Float    @map("risk_score")
+  riskLevel         String   @map("risk_level")       // low|medium|high|critical
+  deployRecommend   String   @map("deploy_recommend") // safe|review|block
+  summary           String
+  overridden        Boolean  @default(false)
+  overrideReason    String?  @map("override_reason")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@index([projectId])
+  @@index([createdAt])
+  @@schema("v2")
+  @@map("guardian_reports")
+}
+
 // ─── Discovery Engine ─────────────────────────────────────────────────────────
 
 model DiscoverySession {
