@@ -49,7 +49,7 @@ export function SynthesisModal({ synthesisArtifacts, synthesisLoading, synthesiz
                   {a.type === 'checkpoint' && (
                     <span className="text-[9px] bg-amber-900 text-amber-300 px-1.5 py-0.5 rounded-full font-medium">checkpoint</span>
                   )}
-                  {a.content.confidence && (
+                  {a.content?.confidence && (
                     <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${
                       a.content.confidence === 'high' ? 'bg-emerald-900 text-emerald-300' :
                       a.content.confidence === 'medium' ? 'bg-zinc-700 text-zinc-300' :
@@ -59,20 +59,20 @@ export function SynthesisModal({ synthesisArtifacts, synthesisLoading, synthesiz
                 </div>
                 <span className="text-[10px] text-zinc-600 font-mono truncate ml-2">{a.sessionId.slice(0, 8)}…</span>
               </div>
-              <p className="text-xs text-zinc-300">{a.content.summary}</p>
-              {a.content.decisions.length > 0 && (
+              <p className="text-xs text-zinc-300">{a.content?.summary}</p>
+              {(a.content?.decisions?.length ?? 0) > 0 && (
                 <div>
                   <p className="text-[10px] font-semibold text-indigo-400 mb-1">Decisões</p>
                   <ul className="space-y-0.5">{a.content.decisions.map((d, i) => <li key={i} className="text-xs text-zinc-400">· {d}</li>)}</ul>
                 </div>
               )}
-              {a.content.next_steps.length > 0 && (
+              {(a.content?.next_steps?.length ?? 0) > 0 && (
                 <div>
                   <p className="text-[10px] font-semibold text-amber-400 mb-1">Próximos passos</p>
                   <ul className="space-y-0.5">{a.content.next_steps.map((s, i) => <li key={i} className="text-xs text-zinc-400">· {s}</li>)}</ul>
                 </div>
               )}
-              {a.content.learnings.length > 0 && (
+              {(a.content?.learnings?.length ?? 0) > 0 && (
                 <div>
                   <p className="text-[10px] font-semibold text-emerald-400 mb-1">Aprendizados</p>
                   <ul className="space-y-0.5">{a.content.learnings.map((l, i) => <li key={i} className="text-xs text-zinc-400">· {l}</li>)}</ul>

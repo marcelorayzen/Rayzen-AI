@@ -608,7 +608,8 @@ export default function Home() {
         const err = await res.json() as { message?: string }
         throw new Error(err.message ?? `HTTP ${res.status}`)
       }
-      const artifact = await res.json() as SynthesisArtifact
+      const raw = await res.json() as Record<string, unknown>
+      const artifact = { ...raw, content: raw['content'] ?? raw['synthesis'] } as SynthesisArtifact
       setSynthesisArtifacts(prev => [artifact, ...prev])
     } catch (err) {
       alert(`Erro ao sintetizar: ${err instanceof Error ? err.message : 'falhou'}`)
@@ -794,7 +795,8 @@ export default function Home() {
         body: JSON.stringify({ projectId: activeProjectId, ...(workMode ? { workMode } : {}) }),
       })
       if (res.ok) {
-        const artifact = await res.json() as SynthesisArtifact
+        const raw = await res.json() as Record<string, unknown>
+        const artifact = { ...raw, content: raw['content'] ?? raw['synthesis'] } as SynthesisArtifact
         setSynthesisArtifacts(prev => [artifact, ...prev])
         setSynthesisOpen(true)
       }
