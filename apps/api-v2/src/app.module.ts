@@ -29,6 +29,7 @@ import { BenchmarkModule } from './benchmark/benchmark.module'
 import { AgentDialogueModule } from './agent-dialogue/agent-dialogue.module'
 import { EvolutionaryModule } from './evolutionary/evolutionary.module'
 import { QaScientistModule } from './qa-scientist/qa-scientist.module'
+import { GuardianModule } from './guardian/guardian.module'
 
 @Module({
   controllers: [PingController],
@@ -62,6 +63,7 @@ import { QaScientistModule } from './qa-scientist/qa-scientist.module'
     AgentDialogueModule,
     EvolutionaryModule,
     QaScientistModule,
+    GuardianModule,
   ],
 })
 export class AppModule {}
