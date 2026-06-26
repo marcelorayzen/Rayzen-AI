@@ -42,6 +42,12 @@ export class GuardianController {
     return this.guardian.getLatest(projectId)
   }
 
+  @Get('history/:projectId')
+  @ApiOperation({ summary: 'Lista os últimos 20 GuardianReports do projeto' })
+  getHistory(@Param('projectId') projectId: string) {
+    return this.guardian.getHistory(projectId)
+  }
+
   @Patch(':id/override')
   @ApiOperation({ summary: 'Marca um report como overridden (deploy liberado manualmente)' })
   override(@Param('id') id: string, @Body() dto: OverrideDto) {

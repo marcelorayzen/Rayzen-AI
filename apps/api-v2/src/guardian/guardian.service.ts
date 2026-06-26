@@ -99,6 +99,15 @@ export class GuardianService {
     return report as GuardianReport | null
   }
 
+  async getHistory(projectId: string): Promise<GuardianReport[]> {
+    const reports = await this.prisma.guardianReport.findMany({
+      where:   { projectId },
+      orderBy: { createdAt: 'desc' },
+      take:    20,
+    })
+    return reports as GuardianReport[]
+  }
+
   async override(id: string, reason: string): Promise<GuardianReport> {
     const report = await this.prisma.guardianReport.update({
       where: { id },
