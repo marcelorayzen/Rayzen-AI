@@ -117,7 +117,7 @@ describe('Fase 2 — gate → resume', () => {
       const ctrl = new ApprovalGatesController(gates as never, missions as never, workflow as never, events as never)
       await ctrl.approve('g1', { approvedBy: 'tester' } as never)
 
-      expect(missions.updateStep).toHaveBeenCalledWith('m1', 's1', { status: 'pending' })
+      expect(missions.updateStep).toHaveBeenCalledWith('m1', 's1', { status: 'pending', retries: 0 })
     })
 
     it('reject marca o step como failed e pausa a missão (sem re-rodar)', async () => {
