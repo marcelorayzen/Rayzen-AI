@@ -26,7 +26,7 @@ class OverrideDto {
 @ApiTags('guardian')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
-@Controller('v2/guardian')
+@Controller('guardian')
 export class GuardianController {
   constructor(private readonly guardian: GuardianService) {}
 
