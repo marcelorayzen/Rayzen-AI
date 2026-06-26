@@ -286,6 +286,37 @@ function formatStateFallback(state) {
   return lines.join('\n')
 }
 
+// ── Guardian cache (sync read < 5ms) ─────────────────────────────────────────
+
+function readGuardianCache(projectId) {
+  try {
+    const hash = createHash('sha256').update(projectId).digest('hex').slice(0, 8)
+    const file = join(tmpdir(), `rayzen-guardian-${hash}.json`)
+    const raw  = readFileSync(file, 'utf8')
+    const { report, expiresAt } = JSON.parse(raw)
+    if (Date.now() > expiresAt) return null
+    return report
+  } catch { return null }
+}
+
+function formatGuardianSection(report) {
+  if (!report) return null
+  const levels = ['low', 'medium', 'high', 'critical']
+  const threshold = process.env.AGENT_GUARDIAN_RISK_THRESHOLD ?? 'medium'
+  if (levels.indexOf(report.riskLevel) < levels.indexOf(threshold)) return null
+
+  const emoji = { low: '✅', medium: '⚠️', high: '🔴', critical: '🚨' }[report.riskLevel] ?? '⚠️'
+  const lines = [
+    `\n### ${emoji} Guardian — ${report.riskLevel.toUpperCase()} (${report.riskScore})`,
+    report.summary,
+  ]
+  if (report.filesWithoutTests?.length) {
+    lines.push(`**Sem spec:** ${report.filesWithoutTests.slice(0, 3).join(', ')}${report.filesWithoutTests.length > 3 ? ` +${report.filesWithoutTests.length - 3}` : ''}`)
+  }
+  lines.push(`**Deploy:** ${report.deployRecommend}`)
+  return lines.join('\n')
+}
+
 // ── Formatar missão ativa ─────────────────────────────────────────────────────
 
 function formatActiveMission(mission) {
@@ -347,8 +378,9 @@ async function main() {
 
   if (cached) {
     const mission = await missionPromise
-    const missionBlock = formatActiveMission(mission)
-    const full = missionBlock ? `${cached}${missionBlock}` : cached
+    const missionBlock  = formatActiveMission(mission)
+    const guardianBlock = formatGuardianSection(readGuardianCache(projectId))
+    const full = [cached, missionBlock, guardianBlock].filter(Boolean).join('')
     writeTimingFile({ hookDurationMs: Date.now() - t0, cacheHit: true, mode, projectId })
     console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: full } }))
     process.exit(0)
@@ -383,7 +415,8 @@ async function main() {
   // Append missão ativa (já em paralelo desde o início)
   const mission = await missionPromise
   const missionBlock = formatActiveMission(mission)
-  const full = missionBlock ? `${context}${missionBlock}` : context
+  const guardianBlock = formatGuardianSection(readGuardianCache(projectId))
+  const full = [context, missionBlock, guardianBlock].filter(Boolean).join('')
 
   writeTimingFile({ hookDurationMs: Date.now() - t0, contextEngineDurationMs: ceMs || null, cacheHit: false, mode, projectId })
   console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: full } }))

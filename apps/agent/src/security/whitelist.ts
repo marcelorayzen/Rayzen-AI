@@ -64,6 +64,9 @@ export const ALLOWED_ACTIONS = new Set([
   'jarvis:run_graphify',
   'jarvis:graphify_sync',
 
+  // Guardian — análise proativa de mudanças de código
+  'jarvis:guardian_analyze',
+
   // Supervisor — sessão autônoma Claude Code
   'jarvis:supervised_session',
 ])
