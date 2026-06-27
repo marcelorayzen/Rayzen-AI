@@ -2,9 +2,9 @@
 
 > 🤖 **GERADO AUTOMATICAMENTE** por `scripts/gen-agent-catalog.mjs` — não edite à mão.
 > Fonte de verdade: `whitelist.ts` · Metadata: `skill-registry.ts` (V2)
-> Gerado em: 2026-06-25T12:04:24.315Z
+> Gerado em: 2026-06-27T02:12:37.985Z
 
-**Total: 44 ações** · 🔴 5 high · 🟡 8 medium · 🟢 10 low · 🟢 21 none · ⚠️ 0 sem metadata
+**Total: 45 ações** · 🔴 5 high · 🟡 8 medium · 🟢 10 low · 🟢 22 none · ⚠️ 0 sem metadata
 
 | Ação | Nome | Risco | Runtime | Categoria | Metadata |
 |---|---|---|---|---|---|
@@ -51,6 +51,7 @@
 | `jarvis:get_calendar` | Get Calendar | 🟢 none | agent-desktop | calendar | ✓ |
 | `jarvis:run_graphify` | Run Graphify | 🟢 low | agent-server | system | ✓ |
 | `jarvis:graphify_sync` | Graphify Sync | 🟢 low | agent-server | system | ✓ |
+| `jarvis:guardian_analyze` | Guardian Analyze | 🟢 none | agent-desktop | system | ✓ |
 | `jarvis:supervised_session` | Supervised Session | 🔴 high | agent-server | system | ✓ |
 
 ✅ Sem drift: whitelist e registry estão sincronizados.

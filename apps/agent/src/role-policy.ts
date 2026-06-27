@@ -4,6 +4,7 @@ const DESKTOP_ACTIONS = new Set([
   'jarvis:open_app',
   'jarvis:open_url',
   'jarvis:open_vscode',
+  'jarvis:browse_and_screenshot',
   'jarvis:list_dir',
   'jarvis:file_search',
   'jarvis:organize_downloads',
