@@ -10,23 +10,25 @@ export interface ServiceStatus {
 export interface InfraHealthReport {
   ok:       boolean
   services: {
-    postgres: ServiceStatus
-    redis:    ServiceStatus
-    litellm:  ServiceStatus
-    api_v2:   ServiceStatus
-    mcp:      ServiceStatus
-    hook_jwt: ServiceStatus
+    postgres:      ServiceStatus
+    redis:         ServiceStatus
+    litellm:       ServiceStatus
+    api_v2:        ServiceStatus
+    mcp:           ServiceStatus
+    hook_jwt:      ServiceStatus
+    agent_desktop: ServiceStatus
   }
   checkedAt: string
 }
 
 const LABELS: Record<string, string> = {
-  postgres: 'pg',
-  redis:    'redis',
-  litellm:  'llm',
-  api_v2:   'v2',
-  mcp:      'mcp',
-  hook_jwt: 'jwt',
+  postgres:      'pg',
+  redis:         'redis',
+  litellm:       'llm',
+  api_v2:        'v2',
+  mcp:           'mcp',
+  hook_jwt:      'jwt',
+  agent_desktop: 'agent',
 }
 
 function dot(s: ServiceStatus | undefined): string {

@@ -472,6 +472,7 @@ export default function Home() {
   const [quickCaptureSaving, setQuickCaptureSaving] = useState(false)
   const [healthOpen, setHealthOpen] = useState(false)
   const [healthData, setHealthData] = useState<HealthData | null>(null)
+  const [agentOnline, setAgentOnline] = useState<boolean | null>(null)
   const [costsOpen, setCostsOpen] = useState(false)
   const [costsPeriod, setCostsPeriod] = useState<'today'|'week'|'month'|'all'>('month')
   const [costsData, setCostsData] = useState<CostSummary | null>(null)
@@ -546,6 +547,21 @@ export default function Home() {
     const id = setInterval(() => { loadActivityEvents(memoryClassFilter); loadHookHealth() }, 5000)
     return () => clearInterval(id)
   }, [activityOpen, memoryClassFilter, loadActivityEvents, loadHookHealth])
+
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const res = await fetch(`${API_URL}/infra/health`)
+        if (res.ok) {
+          const data = await res.json() as { services?: { agent_desktop?: { ok: boolean } } }
+          setAgentOnline(data.services?.agent_desktop?.ok ?? null)
+        }
+      } catch { /* silencioso */ }
+    }
+    void check()
+    const id = setInterval(check, 30_000)
+    return () => clearInterval(id)
+  }, [])
 
   const openSynthesis = useCallback(async () => {
     setSynthesisOpen(true)
@@ -1111,6 +1127,7 @@ export default function Home() {
         setStateOpen={setStateOpen}
         loadProjectState={loadProjectState}
         healthData={healthData}
+        agentOnline={agentOnline}
         setHealthOpen={setHealthOpen}
         setCostsOpen={setCostsOpen}
         loadCosts={loadCosts}

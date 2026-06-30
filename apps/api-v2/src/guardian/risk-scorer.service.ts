@@ -1,71 +1,120 @@
 import { Injectable } from '@nestjs/common'
+import {
+  RISK_SCORE_TABLE,
+  CRITICAL_MODULE_PATTERNS,
+  SCHEMA_PATTERNS,
+  MIGRATION_PATTERNS,
+  classifyRisk,
+  type RiskSignal,
+} from './risk-score-table.const'
 import type { SuggestedTest } from './test-gap-detector.service'
 
-export type RiskLevel      = 'low' | 'medium' | 'high' | 'critical'
+export type RiskLevel       = 'low' | 'medium' | 'high' | 'critical'
 export type DeployRecommend = 'safe' | 'review' | 'block'
 
-export interface RiskResult {
-  score:           number
-  level:           RiskLevel
-  deployRecommend: DeployRecommend
-  reasons:         string[]
+export interface RiskScoreInput {
+  changedFiles:        string[]
+  testGapCount:        number
+  suggestions:         SuggestedTest[]
+  totalChanged:        number
+  jwtExpiresInDays?:   number   // presente quando o caller conhece o JWT
 }
 
-// High-impact paths add weight regardless of test coverage
-const HIGH_IMPACT_PATTERNS = [
-  /auth/i, /security/i, /whitelist/i, /payment/i, /permission/i, /role/i,
-  /prisma/i, /migration/i, /gateway/i, /main\.ts$/,
-]
-
-const CRITICAL_PATTERNS = [
-  /whitelist\.ts$/, /deploy\.sh$/, /prisma\/schema\.prisma$/,
-]
+export interface RiskScoreResult {
+  score:           number       // 0-100 determinístico via RISK_SCORE_TABLE
+  level:           RiskLevel
+  deployRecommend: DeployRecommend
+  signals:         RiskSignal[] // critérios que dispararam
+  reasons:         string[]     // mensagens legíveis
+  recommendations: string[]     // sugestões de correção
+}
 
 @Injectable()
 export class RiskScorerService {
-  score(params: {
-    changedFiles:   string[]
-    testGapCount:   number
-    suggestions:    SuggestedTest[]
-    totalChanged:   number
-  }): RiskResult {
-    const { changedFiles, testGapCount, totalChanged } = params
-    const reasons: string[] = []
-    let score = 0
+  score(params: RiskScoreInput): RiskScoreResult {
+    const { changedFiles, testGapCount, jwtExpiresInDays } = params
+    const signals: RiskSignal[] = []
+    const reasons:          string[] = []
+    const recommendations:  string[] = []
+    let total = 0
 
-    // Base: one point per changed file
-    score += Math.min(totalChanged * 0.5, 3)
-
-    // Test gaps: 1.5 per untested file
-    if (testGapCount > 0) {
-      score += testGapCount * 1.5
-      reasons.push(`${testGapCount} file(s) sem spec correspondente`)
+    const add = (signal: RiskSignal, reason: string, rec: string) => {
+      if (signals.includes(signal)) return
+      signals.push(signal)
+      total += RISK_SCORE_TABLE[signal]
+      reasons.push(reason)
+      recommendations.push(rec)
     }
 
-    // High-impact files
+    // serviceSemSpec — arquivo testável sem spec
+    if (testGapCount > 0) {
+      add(
+        'serviceSemSpec',
+        `${testGapCount} arquivo(s) sem spec correspondente`,
+        'Criar specs em __tests__/ antes de fazer push',
+      )
+    }
+
     for (const f of changedFiles) {
-      if (CRITICAL_PATTERNS.some(p => p.test(f))) {
-        score += 8
-        reasons.push(`Arquivo crítico alterado: ${f}`)
-      } else if (HIGH_IMPACT_PATTERNS.some(p => p.test(f))) {
-        score += 1.5
-        reasons.push(`Arquivo de alto impacto: ${f}`)
+      const norm = f.replace(/\\/g, '/')
+
+      // moduloCritico
+      if (CRITICAL_MODULE_PATTERNS.some(p => p.test(norm))) {
+        add(
+          'moduloCritico',
+          `Modulo critico alterado: ${norm}`,
+          'Revisar mudancas em auth/mcp/hook/gateway/policy com cuidado redobrado',
+        )
+      }
+
+      // alteracaoSchema
+      if (SCHEMA_PATTERNS.some(p => p.test(norm))) {
+        add(
+          'alteracaoSchema',
+          `Schema Prisma alterado: ${norm}`,
+          'Executar db:generate e validar migration antes do push',
+        )
+      }
+
+      // migrationSemTeste — migration sem spec no mesmo PR
+      if (MIGRATION_PATTERNS.some(p => p.test(norm))) {
+        const hasMigrationSpec = changedFiles.some(cf =>
+          cf.includes('__tests__') && cf.includes('migration'),
+        )
+        if (!hasMigrationSpec) {
+          add(
+            'migrationSemTeste',
+            `Migration sem teste de reversao: ${norm}`,
+            'Adicionar teste que valida a migration pode ser revertida',
+          )
+        }
       }
     }
 
-    const level           = this.toLevel(score)
-    const deployRecommend = this.toRecommend(level)
+    // semTesteRodado — proxy: ha gaps abertos = testes nao foram rodados
+    if (testGapCount > 0 && !signals.includes('serviceSemSpec')) {
+      add(
+        'semTesteRodado',
+        'Existem gaps de teste sem evidencia de execucao',
+        'Rodar pnpm test e garantir suite verde antes do push',
+      )
+    }
+
+    // jwtProximoDeExpirar
+    if (jwtExpiresInDays !== undefined && jwtExpiresInDays <= 7) {
+      add(
+        'jwtProximoDeExpirar',
+        `JWT expira em ${jwtExpiresInDays} dia(s)`,
+        'Renovar JWT via POST /auth/login antes de continuar',
+      )
+    }
 
     if (reasons.length === 0) reasons.push('Nenhum risco significativo detectado')
 
-    return { score: Math.round(score * 10) / 10, level, deployRecommend, reasons }
-  }
+    const level           = classifyRisk(total)
+    const deployRecommend = this.toRecommend(level)
 
-  private toLevel(score: number): RiskLevel {
-    if (score >= 8) return 'critical'
-    if (score >= 6) return 'high'
-    if (score >= 3) return 'medium'
-    return 'low'
+    return { score: total, level, deployRecommend, signals, reasons, recommendations }
   }
 
   private toRecommend(level: RiskLevel): DeployRecommend {

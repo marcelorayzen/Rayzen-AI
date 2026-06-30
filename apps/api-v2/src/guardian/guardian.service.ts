@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import { PrismaV2Service } from '../core/prisma-v2.service'
 import { TestGapDetectorService } from './test-gap-detector.service'
 import { RiskScorerService, RiskLevel, DeployRecommend } from './risk-scorer.service'
+import { ApprovalGatesService } from '../approval-gates/approval-gates.service'
 import * as os from 'os'
 import * as path from 'path'
 import * as fs from 'fs'
@@ -38,9 +39,10 @@ export class GuardianService {
   private readonly logger = new Logger(GuardianService.name)
 
   constructor(
-    private readonly prisma:      PrismaV2Service,
-    private readonly gapDetector: TestGapDetectorService,
-    private readonly riskScorer:  RiskScorerService,
+    private readonly prisma:        PrismaV2Service,
+    private readonly gapDetector:   TestGapDetectorService,
+    private readonly riskScorer:    RiskScorerService,
+    private readonly approvalGates: ApprovalGatesService,
   ) {}
 
   async analyze(dto: GuardianAnalyzeDto): Promise<GuardianReport> {
@@ -79,11 +81,29 @@ export class GuardianService {
         riskLevel:         risk.level,
         deployRecommend:   risk.deployRecommend,
         summary,
+        // Blueprint v1.1 — campos determinísticos
+        score:           risk.score,
+        signals:         risk.signals as never,
+        reason:          risk.reasons[0] ?? null,
+        missingSpecs:    missing as never,
+        affectedFiles:   dto.changedFiles as never,
+        recommendations: risk.recommendations as never,
+        status:          'open',
       },
     })
 
     this.writeCache(dto.projectId, report as GuardianReport)
     this.logger.log(`Guardian report created: ${report.id} — ${risk.level} (${risk.score})`)
+
+    await this.approvalGates.createFromGuardianReport({
+      projectId: dto.projectId,
+      reportId:  report.id,
+      riskLevel: risk.level,
+      score:     risk.score,
+      summary,
+    }).catch(err => {
+      this.logger.warn(`Falha ao criar approval gate para guardian report ${report.id}: ${err instanceof Error ? err.message : err}`)
+    })
 
     return report as GuardianReport
   }

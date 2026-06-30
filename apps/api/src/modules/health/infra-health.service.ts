@@ -2,6 +2,8 @@ import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/commo
 import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../../prisma/prisma.service'
 import { createClient, RedisClientType } from 'redis'
+import { AgentHeartbeatService } from '../agent-bridge/agent-heartbeat.service'
+import { AgentRole } from '@rayzen/types'
 
 export interface ServiceStatus {
   ok:         boolean
@@ -13,12 +15,13 @@ export interface ServiceStatus {
 export interface InfraHealthReport {
   ok:       boolean
   services: {
-    postgres: ServiceStatus
-    redis:    ServiceStatus
-    litellm:  ServiceStatus
-    api_v2:   ServiceStatus
-    mcp:      ServiceStatus
-    hook_jwt: ServiceStatus
+    postgres:      ServiceStatus
+    redis:         ServiceStatus
+    litellm:       ServiceStatus
+    api_v2:        ServiceStatus
+    mcp:           ServiceStatus
+    hook_jwt:      ServiceStatus
+    agent_desktop: ServiceStatus
   }
   checkedAt: string
 }
@@ -30,8 +33,9 @@ export class InfraHealthService implements OnModuleInit, OnModuleDestroy {
   private redisReady = false
 
   constructor(
-    private readonly prisma:  PrismaService,
-    private readonly config:  ConfigService,
+    private readonly prisma:     PrismaService,
+    private readonly config:     ConfigService,
+    private readonly heartbeat:  AgentHeartbeatService,
   ) {}
 
   async onModuleInit() {
@@ -58,11 +62,22 @@ export class InfraHealthService implements OnModuleInit, OnModuleDestroy {
       this.checkHttp(this.apiV2Url()),
       this.checkHttp(this.mcpUrl()),
     ])
-    const hook_jwt = this.checkJwt()
+    const hook_jwt      = this.checkJwt()
+    const agent_desktop = this.checkAgentHeartbeat('desktop')
 
-    const services = { postgres, redis, litellm, api_v2, mcp, hook_jwt }
+    const services = { postgres, redis, litellm, api_v2, mcp, hook_jwt, agent_desktop }
     const ok = Object.values(services).every((s) => s.ok)
     return { ok, services, checkedAt: new Date().toISOString() }
+  }
+
+  private checkAgentHeartbeat(role: AgentRole): ServiceStatus {
+    const online   = this.heartbeat.isOnline(role)
+    const lastSeen = this.heartbeat.getLastSeenAt(role)
+    if (!online) {
+      const ago = lastSeen ? `offline ha ${Math.round((Date.now() - lastSeen) / 1000)}s` : 'nunca conectou'
+      return { ok: false, error: ago, meta: lastSeen ? { lastSeenAt: new Date(lastSeen).toISOString() } : undefined }
+    }
+    return { ok: true, meta: { lastSeenAt: lastSeen ? new Date(lastSeen).toISOString() : undefined } }
   }
 
   private async checkPostgres(): Promise<ServiceStatus> {

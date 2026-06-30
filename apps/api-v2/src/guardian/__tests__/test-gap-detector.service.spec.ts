@@ -45,12 +45,39 @@ describe('TestGapDetectorService', () => {
   describe('buildSuggestions()', () => {
     it('só inclui gaps sem spec', () => {
       const gaps = [
-        { sourceFile: 'a.service.ts', expectedSpecFile: 'a.spec.ts', exists: false },
-        { sourceFile: 'b.service.ts', expectedSpecFile: 'b.spec.ts', exists: true },
+        { sourceFile: 'a.service.ts', expectedSpecFile: 'a.spec.ts', exists: false, type: 'service' as const, reason: 'missing_spec' as const },
+        { sourceFile: 'b.service.ts', expectedSpecFile: 'b.spec.ts', exists: true,  type: 'service' as const, reason: 'no_coverage' as const },
       ]
       const suggestions = svc.buildSuggestions(gaps)
       expect(suggestions).toHaveLength(1)
       expect(suggestions[0].file).toBe('a.service.ts')
+    })
+  })
+
+  describe('type e reason discriminados', () => {
+    it('service sem spec → type=service, reason=missing_spec', () => {
+      const gaps = svc.detect(['apps/api-v2/src/guardian/guardian.service.ts'], [])
+      expect(gaps[0].type).toBe('service')
+      expect(gaps[0].reason).toBe('missing_spec')
+    })
+
+    it('service com spec → type=service, reason=no_coverage', () => {
+      const gaps = svc.detect(
+        ['apps/api-v2/src/guardian/guardian.service.ts'],
+        ['apps/api-v2/src/guardian/__tests__/guardian.service.spec.ts'],
+      )
+      expect(gaps[0].type).toBe('service')
+      expect(gaps[0].reason).toBe('no_coverage')
+    })
+
+    it('controller → type=controller', () => {
+      const gaps = svc.detect(['apps/api-v2/src/guardian/guardian.controller.ts'], [])
+      expect(gaps[0].type).toBe('controller')
+    })
+
+    it('gateway → type=service', () => {
+      const gaps = svc.detect(['apps/api-v2/src/events/events.gateway.ts'], [])
+      expect(gaps[0].type).toBe('service')
     })
   })
 })

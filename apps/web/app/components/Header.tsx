@@ -50,6 +50,7 @@ interface HeaderProps {
   onLogout: () => void
   sessionTokens: number
   dailyTokens: number | null
+  agentOnline: boolean | null
 }
 
 export function Header({
@@ -59,7 +60,7 @@ export function Header({
   loadProjectState, healthData, setHealthOpen, setCostsOpen, loadCosts, costsPeriod,
   gitContext, setGitOpen, recommendations, openRecommendations, setQuickCaptureOpen,
   doCheckpoint, checkpointing, openActivity, openMissions, openGraph, qaSummary, openQA, openEvidence,
-  autoVoice, setAutoVoice, openSynthesis, openDocs, onLogout, sessionTokens, dailyTokens,
+  autoVoice, setAutoVoice, openSynthesis, openDocs, onLogout, sessionTokens, dailyTokens, agentOnline,
 }: HeaderProps) {
   return (
     <div className="hud-header shrink-0 sticky top-0 z-30 px-6 py-4 flex items-center justify-between gap-4">
@@ -114,7 +115,16 @@ export function Header({
         <div className="flex items-center gap-2.5 shrink-0">
           <img src="/rayzen-icon.svg" width="34" height="34" alt="" aria-hidden="true" className="shrink-0" />
           <div>
-            <h1 className="hud-title text-base font-bold whitespace-nowrap">RAYZEN AI</h1>
+            <div className="flex items-center gap-1.5">
+              <h1 className="hud-title text-base font-bold whitespace-nowrap">RAYZEN AI</h1>
+              <span
+                title={agentOnline === null ? 'verificando agente…' : agentOnline ? 'agente desktop online' : 'agente desktop offline'}
+                style={{
+                  width: 7, height: 7, borderRadius: '50%', flexShrink: 0, display: 'inline-block',
+                  background: agentOnline === null ? '#555' : agentOnline ? '#4ade80' : '#f87171',
+                }}
+              />
+            </div>
             <p className="text-[10px] mt-0.5 whitespace-nowrap" style={{color:'var(--hud-dim)'}}>SID: {sessionId.slice(0, 8)}…</p>
           </div>
         </div>

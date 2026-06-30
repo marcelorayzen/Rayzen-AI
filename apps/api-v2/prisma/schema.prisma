@@ -226,24 +226,40 @@ model TraceSpan {
 // ─── Guardian Engine ──────────────────────────────────────────────────────────
 
 model GuardianReport {
-  id                String   @id @default(uuid())
-  projectId         String   @map("project_id")
-  repoPath          String   @map("repo_path")
-  changedFiles      String[] @map("changed_files")
-  impactedRoutes    Json     @default("[]") @map("impacted_routes")
-  impactedModules   String[] @map("impacted_modules")
-  filesWithoutTests String[] @map("files_without_tests")
-  suggestedTests    Json     @default("[]") @map("suggested_tests")
-  riskScore         Float    @map("risk_score")
-  riskLevel         String   @map("risk_level")       // low|medium|high|critical
-  deployRecommend   String   @map("deploy_recommend") // safe|review|block
+  id                String    @id @default(uuid())
+  projectId         String    @map("project_id")
+  repoPath          String    @map("repo_path")
+  changedFiles      String[]  @map("changed_files")
+  impactedRoutes    Json      @default("[]") @map("impacted_routes")
+  impactedModules   String[]  @map("impacted_modules")
+  filesWithoutTests String[]  @map("files_without_tests")
+  suggestedTests    Json      @default("[]") @map("suggested_tests")
+  riskScore         Float     @map("risk_score")
+  riskLevel         String    @map("risk_level")       // low|medium|high|critical
+  deployRecommend   String    @map("deploy_recommend") // safe|review|block
   summary           String
-  overridden        Boolean  @default(false)
-  overrideReason    String?  @map("override_reason")
-  createdAt         DateTime @default(now()) @map("created_at")
+  overridden        Boolean   @default(false)
+  overrideReason    String?   @map("override_reason")
+
+  // Blueprint v1.1 — campos adicionais para scoring determinístico
+  filePath          String?   @map("file_path")
+  module            String?
+  score             Int       @default(0)              // 0-100 via RISK_SCORE_TABLE
+  reason            String?
+  signals           Json?                              // string[] — critérios que dispararam
+  missingSpecs      Json?     @map("missing_specs")    // TestGap[]
+  affectedFiles     Json?     @map("affected_files")
+  requiredTests     Json?     @map("required_tests")
+  recommendations   Json?
+  blockingReasons   Json?     @map("blocking_reasons")
+  status            String    @default("open")         // open|resolved|suppressed
+  resolvedAt        DateTime? @map("resolved_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
 
   @@index([projectId])
   @@index([createdAt])
+  @@index([projectId, riskLevel])
+  @@index([projectId, status])
   @@schema("v2")
   @@map("guardian_reports")
 }

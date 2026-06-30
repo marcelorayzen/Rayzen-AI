@@ -42,8 +42,11 @@ function buildDeps(overrides: {
       reasons:        ['auth pattern', '1 arquivo sem teste'],
     }),
   }
-  const svc = new GuardianService(prisma as never, gapDetector as never, riskScorer as never)
-  return { svc, prisma, gapDetector, riskScorer, fakeReport }
+  const approvalGates = {
+    createFromGuardianReport: jest.fn().mockResolvedValue({ required: true, gate: { id: 'gate-1' } }),
+  }
+  const svc = new GuardianService(prisma as never, gapDetector as never, riskScorer as never, approvalGates as never)
+  return { svc, prisma, gapDetector, riskScorer, approvalGates, fakeReport }
 }
 
 const dto: GuardianAnalyzeDto = {
@@ -82,6 +85,20 @@ describe('GuardianService.analyze', () => {
     const report = await svc.analyze(dto)
     expect(report.summary).toContain('MEDIUM')
     expect(report.summary).toContain('3.5')
+  })
+
+  it('aciona approvalGates.createFromGuardianReport com o score e level do risco', async () => {
+    const { svc, approvalGates } = buildDeps()
+    const report = await svc.analyze(dto)
+    expect(approvalGates.createFromGuardianReport).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: 'p1', reportId: report.id, riskLevel: 'medium', score: 3.5 }),
+    )
+  })
+
+  it('não falha o analyze se o approval gate der erro', async () => {
+    const { svc, approvalGates } = buildDeps()
+    approvalGates.createFromGuardianReport.mockRejectedValueOnce(new Error('boom'))
+    await expect(svc.analyze(dto)).resolves.toMatchObject({ id: 'r1' })
   })
 })
 

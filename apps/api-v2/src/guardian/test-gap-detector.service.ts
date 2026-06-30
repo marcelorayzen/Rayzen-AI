@@ -1,28 +1,40 @@
 import { Injectable } from '@nestjs/common'
 import * as path from 'path'
 
+export type TestGapType   = 'service' | 'controller' | 'use-case' | 'module'
+export type TestGapReason = 'missing_spec' | 'spec_outdated' | 'no_coverage' | 'business_rule_changed'
+
 export interface TestGap {
-  sourceFile: string
+  sourceFile:       string
   expectedSpecFile: string
-  exists: boolean
+  exists:           boolean
+  type:             TestGapType
+  reason:           TestGapReason
 }
 
 export interface SuggestedTest {
-  file: string
+  file:     string
   testFile: string
-  reason: string
+  reason:   string
 }
 
-const TESTABLE_SUFFIXES = ['.service.ts', '.controller.ts', '.gateway.ts', '.guard.ts', '.pipe.ts', '.interceptor.ts']
+const SUFFIX_TYPE_MAP: Array<{ suffix: string; type: TestGapType }> = [
+  { suffix: '.service.ts',     type: 'service'     },
+  { suffix: '.controller.ts',  type: 'controller'  },
+  { suffix: '.gateway.ts',     type: 'service'     },
+  { suffix: '.guard.ts',       type: 'service'     },
+  { suffix: '.pipe.ts',        type: 'service'     },
+  { suffix: '.interceptor.ts', type: 'service'     },
+]
 
 // Convention: apps/api-v2/src/X/X.service.ts → apps/api-v2/src/X/__tests__/X.service.spec.ts
-function inferSpecPath(filePath: string): string | null {
+function inferSpec(filePath: string): { specPath: string; type: TestGapType } | null {
   const norm = filePath.replace(/\\/g, '/')
-  for (const suffix of TESTABLE_SUFFIXES) {
+  for (const { suffix, type } of SUFFIX_TYPE_MAP) {
     if (!norm.endsWith(suffix)) continue
     const dir  = path.posix.dirname(norm)
     const base = path.posix.basename(norm, '.ts')
-    return `${dir}/__tests__/${base}.spec.ts`
+    return { specPath: `${dir}/__tests__/${base}.spec.ts`, type }
   }
   return null
 }
@@ -34,9 +46,16 @@ export class TestGapDetectorService {
     const gaps: TestGap[] = []
 
     for (const file of changedFiles) {
-      const specPath = inferSpecPath(file)
-      if (!specPath) continue
-      gaps.push({ sourceFile: file, expectedSpecFile: specPath, exists: existingSet.has(specPath) })
+      const inferred = inferSpec(file)
+      if (!inferred) continue
+      const exists = existingSet.has(inferred.specPath)
+      gaps.push({
+        sourceFile:       file,
+        expectedSpecFile: inferred.specPath,
+        exists,
+        type:   inferred.type,
+        reason: exists ? 'no_coverage' : 'missing_spec',
+      })
     }
 
     return gaps
