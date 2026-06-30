@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common'
 import { ApprovalGatesService } from '../approval-gates/approval-gates.service'
 import { SkillRegistryService } from './skill-registry.service'
+import { GuardianService } from '../guardian/guardian.service'
 
 export interface SkillRunRequest {
   skillId:    string
@@ -26,6 +27,7 @@ export class SkillEngineService {
   constructor(
     private readonly gates:    ApprovalGatesService,
     private readonly registry: SkillRegistryService,
+    private readonly guardian: GuardianService,
   ) {}
 
   async run(req: SkillRunRequest): Promise<SkillRunResult> {
@@ -75,7 +77,9 @@ export class SkillEngineService {
         return result
       }
 
-      const output = await this.dispatchToAgent(req, skill, logs)
+      const output = skill.runtime === 'in-process'
+        ? await this.runInProcess(req, skill, logs)
+        : await this.dispatchToAgent(req, skill, logs)
       const durationMs = Date.now() - t0
       await this.registry.logUsage({ skillId: req.skillId, projectId: req.projectId, missionId: req.missionId, stepId: req.stepId, success: true, durationMs })
       return { skillId: req.skillId, success: true, output, durationMs, logs }
@@ -91,6 +95,51 @@ export class SkillEngineService {
         durationMs,
         logs: [...logs, `ERROR: ${msg}`],
       }
+    }
+  }
+
+  /**
+   * Skills 'in-process' rodam dentro da própria api-v2, sem round-trip pelo
+   * agent desktop/server — usadas para operações que já são chamadas de API
+   * internas (ex: consultas/ações do Guardian), evitando latência e a
+   * dependência da whitelist do agent para algo que não toca o filesystem local.
+   */
+  private async runInProcess(
+    req: SkillRunRequest,
+    skill: Awaited<ReturnType<SkillRegistryService['resolve']>>,
+    logs: string[],
+  ): Promise<Record<string, unknown>> {
+    logs.push(`executing ${skill!.id} in-process`)
+    const input = req.input as Record<string, unknown>
+
+    switch (skill!.id) {
+      case 'guardian:status': {
+        const report = await this.guardian.getLatest(String(input.projectId ?? req.projectId ?? ''))
+        return { report }
+      }
+      case 'guardian:history': {
+        const reports = await this.guardian.getHistory(String(input.projectId ?? req.projectId ?? ''))
+        return { reports }
+      }
+      case 'guardian:override': {
+        const report = await this.guardian.override(String(input.reportId), String(input.reason))
+        return { report }
+      }
+      case 'guardian:review_gates': {
+        const projectId = String(input.projectId ?? req.projectId ?? '')
+        const pending    = await this.gates.findPending(projectId)
+        return { gates: pending.filter((g) => g.type === 'guardian_review') }
+      }
+      case 'guardian:approve_review': {
+        const gate = await this.gates.approve(String(input.gateId), String(input.approvedBy ?? 'unknown'), input.comment as string | undefined)
+        return { gate }
+      }
+      case 'guardian:reject_review': {
+        const gate = await this.gates.reject(String(input.gateId), String(input.approvedBy ?? 'unknown'), input.comment as string | undefined)
+        return { gate }
+      }
+      default:
+        throw new Error(`No in-process handler registered for skill '${skill!.id}'`)
     }
   }
 
