@@ -12,8 +12,8 @@ function buildStep(overrides: Partial<{
   }
 }
 
-function buildMission(status: string, steps: ReturnType<typeof buildStep>[]) {
-  return { id: 'm1', title: 'Test', objective: 'Test obj', status, projectId: 'p1', specialistId: null, steps }
+function buildMission(status: string, steps: ReturnType<typeof buildStep>[], specialistId: string | null = null) {
+  return { id: 'm1', title: 'Test', objective: 'Test obj', status, projectId: 'p1', specialistId, steps }
 }
 
 function buildService() {
@@ -39,13 +39,19 @@ function buildService() {
   const docs          = { onMissionCompleted: jest.fn().mockResolvedValue([]) }
   const clarification = { checkTask: jest.fn().mockResolvedValue({ needsClarification: false }) }
   const contextEngine = { buildSurgical: jest.fn().mockResolvedValue(null) }
+  const policyEngine  = {
+    evaluate: jest.fn().mockResolvedValue({
+      allowed: true, violations: [], warnings: [], gateRequired: false, gateViolations: [], exemptions: [],
+    }),
+  }
 
   const svc = new WorkflowEngineService(
     missions as never, missionResult as never, skillEngine as never,
     aiRouter as never, specialists as never, specialistAgents as never,
     gates as never, docs as never, clarification as never, contextEngine as never,
+    policyEngine as never,
   )
-  return { svc, missions, missionResult, skillEngine, specialists, gates, docs, clarification, contextEngine }
+  return { svc, missions, missionResult, skillEngine, specialists, gates, docs, clarification, contextEngine, policyEngine, specialistAgents }
 }
 
 describe('WorkflowEngineService.execute — early exit', () => {
@@ -159,6 +165,69 @@ describe('WorkflowEngineService.execute — StepInterruptedError', () => {
 
     expect(missions.updateStep).toHaveBeenCalledWith('m1', 's1', { status: 'skipped', output: expect.any(Object) })
     // Não deve ter tentado retry (é StepInterruptedError, não falha real)
+  })
+})
+
+describe('WorkflowEngineService — política Synthesizer (Guardian Blueprint v1.1, item 10)', () => {
+  it('gateia (não falha) quando PolicyEngine exige gate para um specialist synthesizer', async () => {
+    const { svc, missions, specialists, gates, policyEngine, specialistAgents } = buildService()
+    const step = buildStep()
+    const mission = buildMission('active', [step], 'agent-1')
+
+    specialistAgents.findById.mockResolvedValue({ id: 'agent-1', domain: 'synthesizer' })
+    missions.findOne.mockResolvedValue(mission)
+    gates.findPending.mockResolvedValue([])
+    policyEngine.evaluate.mockResolvedValue({
+      allowed: true, violations: [], warnings: [],
+      gateRequired: true, gateViolations: [{ rule: 'synthesizer_requires_sources', action: 'gate', message: 'sem fontes' }],
+      gateId: 'gate-policy-1', exemptions: [],
+    })
+    missions.listSteps.mockResolvedValue([{ ...step, status: 'skipped' }])
+
+    await svc.execute('m1', 'p1')
+
+    expect(specialists.spawn).not.toHaveBeenCalled()
+    expect(policyEngine.evaluate).toHaveBeenCalledWith(expect.objectContaining({
+      operation: 'specialist_run',
+      data: expect.objectContaining({ specialistType: 'synthesizer' }),
+    }))
+    expect(missions.updateStep).toHaveBeenCalledWith('m1', 's1', {
+      status: 'skipped',
+      output: expect.objectContaining({ gateId: 'gate-policy-1', status: 'policy_gate_pending' }),
+    })
+  })
+
+  it('prossegue normalmente quando PolicyEngine permite o specialist synthesizer', async () => {
+    const { svc, missions, specialists, gates, policyEngine, specialistAgents } = buildService()
+    const step = buildStep()
+    const mission = buildMission('active', [step], 'agent-1')
+
+    specialistAgents.findById.mockResolvedValue({ id: 'agent-1', domain: 'synthesizer' })
+    missions.findOne.mockResolvedValue(mission)
+    gates.findPending.mockResolvedValue([])
+    specialists.spawn.mockResolvedValue({ id: 'sp1', status: 'done', output: { result: 'ok' } })
+    missions.listSteps.mockResolvedValue([{ ...step, status: 'done' }])
+
+    await svc.execute('m1', 'p1')
+
+    expect(policyEngine.evaluate).toHaveBeenCalledTimes(1)
+    expect(specialists.spawn).toHaveBeenCalledTimes(1)
+    expect(missions.transition).toHaveBeenCalledWith('m1', 'done')
+  })
+
+  it('não avalia política para specialists que não são synthesizer', async () => {
+    const { svc, missions, specialists, gates, policyEngine } = buildService()
+    const step = buildStep()
+
+    missions.findOne.mockResolvedValue(buildMission('active', [step])) // specialistId null → type undefined
+    gates.findPending.mockResolvedValue([])
+    specialists.spawn.mockResolvedValue({ id: 'sp1', status: 'done', output: { result: 'ok' } })
+    missions.listSteps.mockResolvedValue([{ ...step, status: 'done' }])
+
+    await svc.execute('m1', 'p1')
+
+    expect(policyEngine.evaluate).not.toHaveBeenCalled()
+    expect(specialists.spawn).toHaveBeenCalledTimes(1)
   })
 })
 

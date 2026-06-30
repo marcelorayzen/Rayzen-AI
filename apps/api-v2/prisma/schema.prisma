@@ -284,7 +284,7 @@ model DiscoverySession {
 model PolicyRule {
   id          String   @id @default(uuid())
   projectId   String?  @map("project_id")     // null = regra de sistema (default); valor = override por projeto
-  name        String                           // memory_requires_source | code_requires_adr | deployment_requires_review | low_confidence_knowledge
+  name        String                           // memory_requires_source | code_requires_adr | deployment_requires_review | low_confidence_knowledge | synthesizer_requires_sources
   description String
   enabled     Boolean  @default(true)
   action      String   @default("warn")        // warn | block | gate
@@ -292,10 +292,34 @@ model PolicyRule {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
+  exceptions  PolicyException[]
+
   @@index([projectId, enabled])
   @@index([name])
   @@schema("v2")
   @@map("policy_rules")
+}
+
+// Exceção formal e auditável a uma violação de PolicyRule — distinta de
+// simplesmente desabilitar a regra inteira (enabled=false). Escopo opcional
+// (ex: missionId/stepId) limita onde a exceção vale; sem escopo, vale para
+// todo o projeto até expirar/ser revogada.
+model PolicyException {
+  id        String    @id @default(uuid())
+  ruleId    String    @map("rule_id")
+  projectId String    @map("project_id")
+  reason    String
+  grantedBy String    @map("granted_by")
+  scope     Json      @default("{}")          // { missionId?, stepId? } — vazio = projeto inteiro
+  expiresAt DateTime? @map("expires_at")       // null = sem expiração
+  revokedAt DateTime? @map("revoked_at")       // null = ativa
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  rule      PolicyRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId, projectId])
+  @@schema("v2")
+  @@map("policy_exceptions")
 }
 
 // ─── Skill Engine (SkillOpt) ──────────────────────────────────────────────────

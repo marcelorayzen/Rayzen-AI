@@ -62,8 +62,8 @@ class UpdateRuleDto {
 }
 
 class EvaluateDto {
-  @ApiProperty({ enum: ['knowledge_add', 'knowledge_extract', 'code_commit', 'deployment', 'memory_add'] })
-  @IsIn(['knowledge_add', 'knowledge_extract', 'code_commit', 'deployment', 'memory_add'])
+  @ApiProperty({ enum: ['knowledge_add', 'knowledge_extract', 'code_commit', 'deployment', 'memory_add', 'specialist_run'] })
+  @IsIn(['knowledge_add', 'knowledge_extract', 'code_commit', 'deployment', 'memory_add', 'specialist_run'])
   operation!: PolicyOperation
 
   @ApiProperty()
@@ -75,6 +75,38 @@ class EvaluateDto {
   @IsOptional()
   @IsObject()
   data?: Record<string, unknown>
+}
+
+class CreateExceptionDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  ruleId!: string
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  projectId!: string
+
+  @ApiProperty({ description: 'Motivo da exceção — auditável' })
+  @IsString()
+  @IsNotEmpty()
+  reason!: string
+
+  @ApiProperty({ description: 'Quem concedeu a exceção' })
+  @IsString()
+  @IsNotEmpty()
+  grantedBy!: string
+
+  @ApiPropertyOptional({ description: 'Escopo opcional — { missionId?, stepId? }. Vazio = projeto inteiro' })
+  @IsOptional()
+  @IsObject()
+  scope?: Record<string, unknown>
+
+  @ApiPropertyOptional({ description: 'ISO date — null/omitido = sem expiração' })
+  @IsOptional()
+  @IsString()
+  expiresAt?: string
 }
 
 @ApiTags('policy')
@@ -116,5 +148,24 @@ export class PolicyEngineController {
       data:       dto.data ?? {},
     }
     return this.policy.evaluate(ctx)
+  }
+
+  @Get('exceptions')
+  @ApiQuery({ name: 'projectId', required: false })
+  @ApiQuery({ name: 'ruleId', required: false })
+  listExceptions(@Query('projectId') projectId?: string, @Query('ruleId') ruleId?: string) {
+    return this.policy.listExceptions(projectId, ruleId)
+  }
+
+  /** Concede uma exceção formal e auditável a uma regra — registrada, não apenas desabilitada. */
+  @Post('exceptions')
+  createException(@Body() dto: CreateExceptionDto) {
+    return this.policy.createException(dto)
+  }
+
+  @Delete('exceptions/:id')
+  @HttpCode(204)
+  revokeException(@Param('id') id: string) {
+    return this.policy.revokeException(id)
   }
 }

@@ -8,6 +8,7 @@ export type PolicyOperation =
   | 'code_commit'
   | 'deployment'
   | 'memory_add'
+  | 'specialist_run'
 
 export interface PolicyContext {
   operation:  PolicyOperation
@@ -21,6 +22,12 @@ export interface PolicyViolation {
   message: string
 }
 
+/** Violação coberta por uma PolicyException ativa — registrada, não bloqueia/gateia. */
+export interface PolicyExemption extends PolicyViolation {
+  exceptionId: string
+  reason:      string
+}
+
 export interface PolicyEvalResult {
   allowed:        boolean             // false se qualquer regra tem action='block'
   violations:     PolicyViolation[]   // block violations — operation permanently denied
@@ -28,6 +35,7 @@ export interface PolicyEvalResult {
   gateRequired:   boolean             // true se alguma regra gate foi violada
   gateViolations: PolicyViolation[]   // gate violations — ApprovalGate criado automaticamente
   gateId?:        string              // ID do ApprovalGate criado (se gateRequired=true)
+  exemptions:     PolicyExemption[]   // violações com PolicyException ativa — formalizadas, não bloqueiam
 }
 
 /** Pesos de origem — espelho do KnowledgeGovernanceService */
@@ -88,6 +96,18 @@ const RULE_TESTERS: Record<string, RuleTester> = {
       message:  'Deploy requer aprovação humana via ApprovalGate. Abra um gate antes de prosseguir.',
     }
   },
+
+  synthesizer_requires_sources: (ctx) => {
+    if (ctx.operation !== 'specialist_run' || ctx.data.specialistType !== 'synthesizer') {
+      return { violated: false, message: '' }
+    }
+    const hasSources = !!ctx.data.hasSources
+    if (hasSources) return { violated: false, message: '' }
+    return {
+      violated: true,
+      message:  'Specialist synthesizer foi acionado sem outputs/contexto prévio para sintetizar — risco de gerar documento sem fonte real.',
+    }
+  },
 }
 
 @Injectable()
@@ -123,6 +143,7 @@ export class PolicyEngineService {
     const violations:     PolicyViolation[] = []
     const gateViolations: PolicyViolation[] = []
     const warnings:       PolicyViolation[] = []
+    const exemptions:     PolicyExemption[] = []
 
     for (const rule of ruleMap.values()) {
       const tester = RULE_TESTERS[rule.name]
@@ -138,9 +159,20 @@ export class PolicyEngineService {
       const action = rule.action as 'warn' | 'block' | 'gate'
       const violation: PolicyViolation = { rule: rule.name, action, message }
 
+      // warn nunca bloqueia nada — não há motivo para procurar exceção.
       if (action === 'warn') {
         warnings.push(violation)
-      } else if (action === 'gate') {
+        continue
+      }
+
+      const exception = await this.findActiveException(rule.id, ctx)
+      if (exception) {
+        exemptions.push({ ...violation, exceptionId: exception.id, reason: exception.reason })
+        this.logger.log(`PolicyEngine: violação de "${rule.name}" coberta por exceção ${exception.id} (${exception.reason})`)
+        continue
+      }
+
+      if (action === 'gate') {
         gateViolations.push(violation)
       } else {
         violations.push(violation)
@@ -174,7 +206,70 @@ export class PolicyEngineService {
       }
     }
 
-    return { allowed, violations, warnings, gateRequired, gateViolations, gateId }
+    return { allowed, violations, warnings, gateRequired, gateViolations, gateId, exemptions }
+  }
+
+  /**
+   * Procura uma PolicyException ativa (não revogada, não expirada) para a regra+projeto.
+   * Se a exceção tem scope.missionId/stepId, só vale se ctx.data tiver o mesmo missionId/stepId
+   * — exceção com escopo vazio vale para o projeto inteiro.
+   */
+  private async findActiveException(ruleId: string, ctx: PolicyContext) {
+    const candidates = await this.prisma.policyException.findMany({
+      where: {
+        ruleId,
+        projectId: ctx.projectId,
+        revokedAt: null,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+    })
+
+    return candidates.find((exc) => {
+      const scope = (exc.scope ?? {}) as Record<string, unknown>
+      if (Object.keys(scope).length === 0) return true
+      if (scope.missionId && scope.missionId !== ctx.data.missionId) return false
+      if (scope.stepId && scope.stepId !== ctx.data.stepId) return false
+      return true
+    })
+  }
+
+  // ─── CRUD de exceções ──────────────────────────────────────────────────────
+
+  async listExceptions(projectId?: string, ruleId?: string) {
+    return this.prisma.policyException.findMany({
+      where: {
+        ...(projectId ? { projectId } : {}),
+        ...(ruleId ? { ruleId } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+  }
+
+  async createException(dto: {
+    ruleId:     string
+    projectId:  string
+    reason:     string
+    grantedBy:  string
+    scope?:     Record<string, unknown>
+    expiresAt?: string
+  }) {
+    return this.prisma.policyException.create({
+      data: {
+        ruleId:    dto.ruleId,
+        projectId: dto.projectId,
+        reason:    dto.reason,
+        grantedBy: dto.grantedBy,
+        scope:     (dto.scope ?? {}) as object,
+        expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
+      },
+    })
+  }
+
+  async revokeException(id: string) {
+    return this.prisma.policyException.update({
+      where: { id },
+      data:  { revokedAt: new Date() },
+    })
   }
 
   // ─── CRUD de regras ────────────────────────────────────────────────────────

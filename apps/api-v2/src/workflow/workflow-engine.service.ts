@@ -10,6 +10,7 @@ import { ApprovalGatesService } from '../approval-gates/approval-gates.service'
 import { DocumentationEngineService, DocType } from '../documentation-engine/documentation-engine.service'
 import { ClarificationService } from '../agent-dialogue/clarification.service'
 import { ContextEngineService } from '../context-engine/context-engine.service'
+import { PolicyEngineService } from '../policy-engine/policy-engine.service'
 
 type StepStatus = 'pending' | 'running' | 'done' | 'failed' | 'skipped'
 
@@ -76,6 +77,7 @@ export class WorkflowEngineService {
     private readonly docs:            DocumentationEngineService,
     private readonly clarification:   ClarificationService,
     private readonly contextEngine:   ContextEngineService,
+    private readonly policyEngine:    PolicyEngineService,
   ) {}
 
   // Execute all pending steps respecting DAG dependencies
@@ -272,6 +274,32 @@ export class WorkflowEngineService {
       surgical?.context,
       prevOutputs || undefined,
     ].filter(Boolean).join('\n\n---\n\n') || undefined
+
+    // Política Synthesizer: bloqueia/gateia synthesizer sem fonte real para sintetizar.
+    // Falha de infra do PolicyEngine não derruba o step — governança é advisory aqui,
+    // não segurança (mesmo padrão de fail-open do surgical context acima).
+    if (type === 'synthesizer') {
+      try {
+        const policyResult = await this.policyEngine.evaluate({
+          operation: 'specialist_run',
+          projectId,
+          data:      { specialistType: type, hasSources: !!fullContext, missionId, stepId: step.id },
+        })
+        if (!policyResult.allowed) {
+          throw new Error(`Bloqueado pela política: ${policyResult.violations.map((v) => v.message).join('; ')}`)
+        }
+        if (policyResult.gateRequired) {
+          throw new StepInterruptedError({
+            gateId: policyResult.gateId, status: 'policy_gate_pending',
+            message: policyResult.gateViolations.map((v) => v.message).join('; '),
+          })
+        }
+      } catch (e) {
+        if (e instanceof StepInterruptedError) throw e
+        if (e instanceof Error && e.message.startsWith('Bloqueado pela política')) throw e
+        this.logger.warn(`PolicyEngine indisponível para step ${step.id} — prosseguindo sem avaliação: ${e}`)
+      }
+    }
 
     const instance = await this.specialists.spawn({
       type,
