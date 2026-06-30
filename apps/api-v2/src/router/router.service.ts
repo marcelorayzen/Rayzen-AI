@@ -95,6 +95,53 @@ rollback plan, and blast radius — questions a senior engineer would insist on 
 Respond with JSON only:
 { "questions": ["...", "..."] }`
 
+// ─── Ultraplan — 6 perspectivas paralelas sobre o mesmo plano ─────────────────
+
+export type UltraplanPerspective = 'architecture' | 'security' | 'testing' | 'risk' | 'performance' | 'scope'
+export type UltraplanVerdict      = 'ok' | 'concern' | 'block'
+
+export interface UltraplanPerspectiveResult {
+  perspective:    UltraplanPerspective
+  verdict:        UltraplanVerdict
+  findings:       string[]
+  recommendation?: string
+}
+
+export interface UltraplanResult {
+  objective:        string
+  contract:         Omit<IntentContract, 'createdAt'>
+  steps:            Array<{ title: string; prompt: string; executor: string; skillId?: string; risk: string }>
+  perspectives:     UltraplanPerspectiveResult[]
+  overallVerdict:   UltraplanVerdict
+  blockingConcerns: string[]
+  durationMs:       number
+}
+
+const PERSPECTIVE_FOCUS: Record<UltraplanPerspective, string> = {
+  architecture: 'V1 (apps/api, schema public) vs V2 (apps/api-v2, schema v2) boundary; module placement; respects existing module structure instead of introducing parallel abstractions.',
+  security:     'auth/JWT handling, secrets exposure, path traversal, agent whitelist bypass, LiteLLM proxy bypass, injection risks.',
+  testing:      'whether the plan leaves services without corresponding specs, given the project convention <dir>/__tests__/<base>.spec.ts; testability of the proposed steps.',
+  risk:         'blast radius and reversibility of each step — is this safely rolled back if it fails? Should any step require an ApprovalGate?',
+  performance:  'latency/scaling concerns, N+1 patterns, blocking calls in hot paths, unnecessary LLM calls.',
+  scope:        'over-engineering, premature abstraction, scope creep beyond the stated objective — per project convention, prefer minimal diffs over speculative generality.',
+}
+
+const ULTRAPLAN_SYSTEM = (perspective: UltraplanPerspective) => `You are reviewing an execution plan from the "${perspective}" perspective ONLY.
+Focus exclusively on: ${PERSPECTIVE_FOCUS[perspective]}
+
+Given the objective and the proposed steps, respond with JSON only:
+{
+  "verdict": "ok" | "concern" | "block",
+  "findings": ["short, specific finding", "..."],
+  "recommendation": "one actionable sentence, or empty string if verdict is ok"
+}
+
+Rules:
+- "block" only for something that would cause real damage or violate a hard project rule if executed as-is.
+- "concern" for something worth a human glance but not blocking.
+- "ok" means nothing notable from this perspective.
+- findings must be specific to the plan given, never generic boilerplate.`
+
 // ─── Success criteria por IntentType ──────────────────────────────────────────
 
 const SUCCESS_CRITERIA: Record<IntentType, string[]> = {
@@ -294,6 +341,79 @@ export class RouterService {
       steps:  [],
       specialist: planResult.specialist,
       warnings:   [`Entrevista obrigatória (riskLevel=${riskLevel}) — gate ${gate.id} pendente antes do plano`],
+    }
+  }
+
+  /**
+   * Ultraplan — roda o mesmo plano gerado por plan() sob 6 perspectivas
+   * independentes em paralelo (Promise.all), cada uma um lente de revisão
+   * diferente. Falha de uma perspectiva individual não derruba as outras —
+   * vira 'concern' explícito, nunca é silenciosamente tratada como 'ok'.
+   */
+  async ultraplan(dto: { projectId: string; objective: string }): Promise<UltraplanResult> {
+    const t0 = Date.now()
+    const planResult = await this.plan(dto)
+    const contract    = planResult.contract!
+    const steps       = planResult.steps
+
+    const perspectiveIds = Object.keys(PERSPECTIVE_FOCUS) as UltraplanPerspective[]
+    const perspectives = await Promise.all(
+      perspectiveIds.map((p) => this.runPerspective(p, dto.objective, contract, steps)),
+    )
+
+    const overallVerdict: UltraplanVerdict =
+      perspectives.some((p) => p.verdict === 'block')   ? 'block'
+      : perspectives.some((p) => p.verdict === 'concern') ? 'concern'
+      : 'ok'
+
+    const blockingConcerns = perspectives
+      .filter((p) => p.verdict === 'block')
+      .flatMap((p) => p.findings)
+
+    return {
+      objective: dto.objective,
+      contract,
+      steps,
+      perspectives,
+      overallVerdict,
+      blockingConcerns,
+      durationMs: Date.now() - t0,
+    }
+  }
+
+  private async runPerspective(
+    perspective: UltraplanPerspective,
+    objective:   string,
+    contract:    Omit<IntentContract, 'createdAt'>,
+    steps:       Array<{ title: string; prompt: string; executor: string; skillId?: string; risk: string }>,
+  ): Promise<UltraplanPerspectiveResult> {
+    try {
+      const result = await this.llm.chat([
+        { role: 'system', content: ULTRAPLAN_SYSTEM(perspective) },
+        {
+          role: 'user',
+          content: `Objective: "${objective}"\nIntentType: ${contract.intentType} (riskLevel: ${contract.riskLevel})\n\nSteps:\n${
+            steps.map((s, i) => `${i + 1}. [${s.executor}/${s.risk}] ${s.title} — ${s.prompt}`).join('\n')
+          }`,
+        },
+      ], { model: 'gpt-4o-mini', temperature: 0.1 })
+
+      const parsed = this.llm.extractJson(result.content) as Partial<UltraplanPerspectiveResult>
+      const verdict: UltraplanVerdict = parsed.verdict === 'block' || parsed.verdict === 'concern' ? parsed.verdict : 'ok'
+
+      return {
+        perspective,
+        verdict,
+        findings:       parsed.findings?.length ? parsed.findings : [],
+        recommendation: parsed.recommendation || undefined,
+      }
+    } catch (e) {
+      this.logger.warn(`ultraplan perspective "${perspective}" failed: ${e}`)
+      return {
+        perspective,
+        verdict:  'concern',
+        findings: [`Análise via "${perspective}" falhou — revisão manual recomendada (${e instanceof Error ? e.message : String(e)})`],
+      }
     }
   }
 

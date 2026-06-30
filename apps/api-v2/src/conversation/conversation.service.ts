@@ -182,6 +182,14 @@ export class ConversationService {
   }
 
   /**
+   * Ultraplan — roda o plano sob 6 perspectivas paralelas (arquitetura,
+   * segurança, testes, risco, performance, escopo) antes de confirmar a missão.
+   */
+  async ultraplan(dto: { projectId: string; objective: string }) {
+    return this.router.ultraplan(dto)
+  }
+
+  /**
    * Cria uma Mission diretamente a partir de linguagem natural.
    * Sem necessidade de sessão prévia — NL → Mission + Steps + Gates em uma chamada.
    */

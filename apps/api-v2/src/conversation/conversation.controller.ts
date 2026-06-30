@@ -176,6 +176,18 @@ export class ConversationController {
   }
 
   /**
+   * Ultraplan — Rayzen Guardian Blueprint v1.1, item 9. Roda o plano sob
+   * 6 perspectivas independentes em paralelo (arquitetura, segurança, testes,
+   * risco, performance, escopo) antes de confirmar a missão.
+   */
+  @Post('ultraplan')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Ultraplan — 6 perspectivas paralelas revisando o plano antes da missão' })
+  ultraplan(@Body() dto: PlanMissionDto) {
+    return this.conversation.ultraplan(dto)
+  }
+
+  /**
    * NL → Mission: cria uma Mission diretamente a partir de linguagem natural.
    * Sem necessidade de sessão prévia.
    */
