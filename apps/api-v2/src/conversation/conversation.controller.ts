@@ -163,6 +163,19 @@ export class ConversationController {
   }
 
   /**
+   * Plan Mode — Rayzen Guardian Blueprint v1.1, item 8. Igual a /plan, mas
+   * riskLevel='high' sempre interrompe para uma entrevista de clarificação
+   * (gate pendente) antes de gerar qualquer step; riskLevel='medium' só
+   * interrompe se a classificação veio ambígua.
+   */
+  @Post('plan-mode')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Plan Mode — entrevista de clarificação obrigatória por riskLevel antes do plano' })
+  planMode(@Body() dto: PlanMissionDto) {
+    return this.conversation.planMode(dto)
+  }
+
+  /**
    * NL → Mission: cria uma Mission diretamente a partir de linguagem natural.
    * Sem necessidade de sessão prévia.
    */

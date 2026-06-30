@@ -87,6 +87,14 @@ Risk levels:
 - medium: writes to files or external state, but reversible
 - high: deploys, database writes, irreversible actions, external API calls with side effects`
 
+const INTERVIEW_SYSTEM = `You are conducting a pre-mission risk interview. The objective below was
+classified as HIGH RISK (deploy, database migration, or another irreversible/high-blast-radius
+action). Before any plan is generated, ask 2-4 sharp clarifying questions that surface scope,
+rollback plan, and blast radius — questions a senior engineer would insist on before proceeding.
+
+Respond with JSON only:
+{ "questions": ["...", "..."] }`
+
 // ─── Success criteria por IntentType ──────────────────────────────────────────
 
 const SUCCESS_CRITERIA: Record<IntentType, string[]> = {
@@ -237,6 +245,69 @@ export class RouterService {
       contextChars: brokerCtx.length,
       warnings,
       contract: (({ createdAt: _c, ...rest }) => rest)(contract),
+    }
+  }
+
+  /**
+   * Plan Mode — como plan(), mas a entrevista é obrigatória ou não dependendo do
+   * riskLevel do IntentContract: high sempre interrompe para perguntas; medium só
+   * interrompe se a classificação já veio ambígua; low nunca interrompe. Quando a
+   * entrevista é necessária, nenhum step é gerado — o caller deve aprovar o gate
+   * (POST /v2/approval-gates/:id/approve) e then chamar planMode/plan novamente
+   * com o objetivo refinado pelas respostas.
+   */
+  async planMode(dto: { projectId: string; objective: string }): Promise<{
+    contract:          Omit<IntentContract, 'createdAt'>
+    interviewRequired: boolean
+    questions:          string[]
+    gateId?:            string
+    steps:              Array<{ title: string; prompt: string; executor: string; skillId?: string; risk: string }>
+    specialist:        { id: string; name: string; domain: string } | null
+    warnings:          string[]
+  }> {
+    const planResult = await this.plan(dto)
+    const contract    = planResult.contract!
+    const riskLevel   = contract.riskLevel
+
+    const needsInterview = riskLevel === 'high' || (riskLevel === 'medium' && contract.ambiguous)
+    if (!needsInterview) {
+      return { ...planResult, contract, interviewRequired: false, questions: [] }
+    }
+
+    const questions = riskLevel === 'high'
+      ? await this.generateInterviewQuestions(dto.objective)
+      : [contract.clarificationNeeded ?? 'Pode detalhar melhor o objetivo antes de prosseguir?']
+
+    const gate = await this.gates.create({
+      projectId:   dto.projectId,
+      type:        'clarification',
+      description: questions[0] ?? 'Entrevista de risco necessária antes do plano',
+      context:     { questions, objective: dto.objective, riskLevel, intentType: contract.intentType },
+      riskLevel:   riskLevel === 'high' ? 'high' : 'medium',
+    })
+
+    return {
+      contract,
+      interviewRequired: true,
+      questions,
+      gateId: gate.id,
+      steps:  [],
+      specialist: planResult.specialist,
+      warnings:   [`Entrevista obrigatória (riskLevel=${riskLevel}) — gate ${gate.id} pendente antes do plano`],
+    }
+  }
+
+  private async generateInterviewQuestions(objective: string): Promise<string[]> {
+    try {
+      const result = await this.llm.chat([
+        { role: 'system', content: INTERVIEW_SYSTEM },
+        { role: 'user', content: `Objective: "${objective}"` },
+      ], { model: 'gpt-4o-mini', temperature: 0.2 })
+      const parsed = this.llm.extractJson(result.content) as { questions?: string[] }
+      return parsed.questions?.length ? parsed.questions : ['Qual o plano de rollback se esta ação falhar?']
+    } catch (e) {
+      this.logger.warn(`generateInterviewQuestions error: ${e}`)
+      return ['Qual o plano de rollback se esta ação falhar?']
     }
   }
 

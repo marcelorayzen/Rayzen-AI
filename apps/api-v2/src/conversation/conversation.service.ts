@@ -174,6 +174,14 @@ export class ConversationService {
   }
 
   /**
+   * Plan Mode — como planMission, mas alto risco interrompe para uma entrevista
+   * de clarificação (gate pendente) antes de gerar qualquer step.
+   */
+  async planMode(dto: { projectId: string; objective: string }) {
+    return this.router.planMode(dto)
+  }
+
+  /**
    * Cria uma Mission diretamente a partir de linguagem natural.
    * Sem necessidade de sessão prévia — NL → Mission + Steps + Gates em uma chamada.
    */
