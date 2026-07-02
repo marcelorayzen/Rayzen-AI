@@ -1,193 +1,198 @@
-# Architecture — Rayzen AI
+# ARCHITECTURE — Rayzen AI
 
-## System Overview
+> Referência operacional. Cobre V1 (:3101) + V2 (:3103). Atualiza a versão anterior V1-only.
+
+---
+
+## Objetivo
+
+Documentar o estado real da plataforma — componentes, fluxos de dados, contratos e invariantes de segurança — para orientar novas decisões sem rederivação.
+
+---
+
+## Visão geral
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                           CLIENT LAYER                                  │
-│   Browser (Next.js 16.2.2 App Router)  ·  PC Agent (Node.js desktop)   │
-└────────────────────┬────────────────────────────────┬───────────────────┘
-                     │ HTTP / SSE                      │ BullMQ poll (3 s)
-┌────────────────────▼────────────────────────────────▼───────────────────┐
-│                        API LAYER  (NestJS 10 + Fastify)                 │
-│                                                                         │
-│  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │               OrchestratorModule  (intent router)               │   │
-│  │   classify() → JSON {module, action, confidence}                │   │
-│  │   handleMessage() → validates → routes → streams reply via SSE  │   │
-│  └────┬──────────┬──────────┬──────────┬─────────────┬────────────┘   │
-│       │          │          │          │             │                  │
-│  ┌────▼──┐ ┌────▼────┐ ┌───▼──────┐ ┌▼───────────┐ │                  │
-│  │Memory │ │Execution│ │Document  │ │Content     │ │                  │
-│  │Module │ │Module   │ │Processing│ │Engine      │ │                  │
-│  └───┬───┘ └────┬────┘ └──────────┘ └────────────┘ │                  │
-│      │         │                                    │                  │
-│  ┌───▼──────────────────────────────────────────┐   │                  │
-│  │  ValidationModule  (cross-cutting)           │   │                  │
-│  │  prompt injection · output schema · routing  │   │                  │
-│  └──────────────────────────────────────────────┘   │                  │
-│                                                     │                  │
-│  ┌──────────────────────────────────────────────────▼──┐               │
-│  │  SessionModule  (GET /sessions, DELETE /sessions/:id)│               │
-│  └─────────────────────────────────────────────────────┘               │
-│                                                                         │
-│  CacheModule (@Global) ─── Redis TTL cache para ProjectState/Wiki/Brain │
-└──────────────┬──────────────────────────────────────────────────────────┘
-               │
-   ┌───────────▼────────────────────────────────────────┐
-   │               INFRASTRUCTURE LAYER                  │
-   │                                                     │
-   │  ┌──────────────┐  ┌──────────────┐  ┌──────────┐  │
-   │  │ PostgreSQL 16│  │  Redis 7     │  │LiteLLM   │  │
-   │  │ + pgvector   │  │  + BullMQ 5  │  │proxy     │  │
-   │  │  vector(1024)│  │  agent-tasks │  │:4100     │  │
-   │  │              │  │  + app cache │  │          │  │
-   │  └──────────────┘  └──────────────┘  └──────────┘  │
-   └─────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────┐
+│                             CLIENT LAYER                                   │
+│  Browser (Next.js 16)  ·  Claude Code (hooks)  ·  MCP client  ·  PC Agent │
+└──────────┬────────────────────────────────────┬────────────────────────────┘
+           │ HTTP / SSE                          │ BullMQ poll (3s)
+┌──────────▼──────────────┐   ┌─────────────────▼─────────────────────────┐
+│  V1 API — NestJS/Fastify│   │  V2 API — NestJS/Fastify                  │
+│  :3101  schema: public  │   │  :3103  schema: v2  prefixo: /v2          │
+│  28 módulos, uso diário │   │  26 módulos, Mission Oriented Engineering  │
+└──────────┬──────────────┘   └─────────────────┬─────────────────────────┘
+           │                                     │
+┌──────────▼─────────────────────────────────────▼──────────────────────────┐
+│                          INFRASTRUCTURE LAYER                              │
+│  PostgreSQL 16+pgvector │ Redis 7+BullMQ │ LiteLLM :4100 │ Langfuse :3200 │
+│  schemas: public/v2/    │  agent-tasks   │  proxy + cache │  traces LLM   │
+│  langfuse               │  app cache     │  fallback chain│               │
+└────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Module Catalogue
+---
 
-| Module | Controller prefix | Responsibility |
+## V1 — Módulos (:3101, schema `public`)
+
+| Módulo | Prefixo | Responsabilidade |
 |---|---|---|
-| `OrchestratorModule` | `/orchestrate` | LLM intent classification + routing + SSE streaming + work modes |
-| `MemoryModule` | `/memory` | Semantic document indexing + pgvector similarity search |
-| `BrainModule` | `/brain` | Embeddings Jina 1024-dim · indexDocument/indexUrl/indexText · busca pgvector |
-| `ExecutionModule` | `/execution` | Dispatch tasks to PC Agent via BullMQ |
-| `DocumentProcessingModule` | `/documents` | PDF generation (Puppeteer) + DOCX (docxtemplater) + download |
-| `ContentEngineModule` | `/content-engine` | Long-form content + editorial calendar + Mermaid diagrams |
-| `SessionModule` | `/sessions` | Conversation history, token stats, session management |
-| `VoiceModule` | `/voice` | TTS synthesis (Groq PlayAI) + STT transcription (Whisper) |
-| `ValidationModule` | `/validation` | Prompt injection detection, output schema validation |
-| `ConfigurationModule` | `/configuration` | System personality / behaviour via `rayzen.config.json` |
-| `AgentBridgeModule` | `/tasks` | PC Agent authentication + BullMQ task queue |
-| `AuthModule` | `/auth` | JWT authentication (8h expiry, throttle 10 req/min) |
-| `ProjectModule` | `/projects` | Project CRUD + Notion page auto-creation |
-| `ProjectStateModule` | `/projects/:id/state` | Structured state: milestones, backlog, activeFocus, resume brief |
-| `HealthModule` | `/projects/:id/health` | 6-dimension score (0–100) + 30-day history |
-| `SynthesisModule` | `/synthesis` | Session synthesis + checkpoint pipeline (state + docs + Universe) |
-| `DocumentationModule` | `/documentation` | 5 doc types: project_state, decisions_log, next_actions, work_journal, data_map |
-| `ProactiveModule` | `/projects/:id/recommendations` | 7 rules: inactivity, doc_stale, blocker, next_step, consistency, drift, goal_stagnant |
-| `EventModule` | `/events` | Event log with memory_class hierarchy (inbox → working → consolidated → archive) |
-| `WikiModule` | `/wiki` | Versioned knowledge base with source traceability |
-| `ObsidianModule` | `/obsidian` | Vault sync with conflict detection |
-| `GitModule` | `/events/git` | Git webhook + repository context |
-| `NotionModule` | `/notion` | Notion API: search, read, create, append, update title |
-| `DataQualityModule` | `/data-quality` | Rules, results, score history, schema diff |
-| `DataCatalogModule` | `/data-catalog` | Asset catalogue with lineage graph and impact analysis |
-| `QAModule` | `/qa` | Test run ingestion (JUnit XML / Allure JSON) |
-| `CacheModule` | — | @Global Redis cache: TTL per type, delPattern, graceful degradation |
-| `CostsModule` | `/costs` | LLM cost summary by module/project with USD estimates |
-| `BlueprintModule` | `/blueprint` | External plan import: wiki + brain + state + events in one command |
-| `GraphModule` | `/projects/:id/graph` | Goal Graph: milestones, blockers, gap analysis (LLM), KPI auto-track |
-| `MetricsModule` | `/metrics` | Prometheus metrics endpoint (JWT-protected): HTTP duration, LLM tokens, Agent tasks, queue size, Node.js runtime |
+| `OrchestratorModule` | `/orchestrate` | Classify intent + routing + SSE + work modes |
+| `MemoryModule` | `/memory` | Indexação semântica + busca pgvector (Jina 1024-dim) |
+| `BrainModule` | `/brain` | indexDocument/URL/text + similaridade |
+| `ExecutionModule` | `/execution` | Dispatch para PC Agent via BullMQ |
+| `SynthesisModule` | `/synthesis` | Síntese de sessão + checkpoint pipeline |
+| `DocumentationModule` | `/documentation` | 5 tipos de doc gerados por LLM |
+| `ProjectStateModule` | `/projects/:id/state` | Estado estruturado: milestones, backlog, activeFocus |
+| `HealthModule` | `/projects/:id/health` | Score 0-100, 6 dimensões, histórico 30 dias |
+| `EventModule` | `/events` | Log com hierarchy `inbox→working→consolidated→archive` |
+| `WikiModule` | `/wiki` | Knowledge base versionada com lock/merge |
+| `BlueprintModule` | `/blueprint` | Importação de planos → wiki + brain + state + events |
+| `GraphModule` | `/projects/:id/graph` | Goal Graph com `@xyflow/react`, KPIs, gap analysis |
+| `ProactiveModule` | `/projects/:id/recommendations` | 7 regras proativas |
+| `DocumentProcessingModule` | `/documents` | PDF (Puppeteer) + DOCX (docxtemplater) |
+| `MetricsModule` | `/metrics` | Prometheus: HTTP, tokens, Agent tasks, queue |
+| `DataQualityModule` | `/data-quality` | Regras, score, schema diff |
+| `QAModule` | `/qa` | JUnit XML / Allure JSON ingestion |
+| `CostsModule` | `/costs` | Custo real por módulo/projeto |
+| `AgentBridgeModule` | `/tasks` | Auth agent + BullMQ lifecycle |
+| `AuthModule` | `/auth` | JWT 8h, throttle 10 req/min |
 
-## Data Stores
+---
 
-### PostgreSQL 16 + pgvector 0.7
+## V2 — Módulos (:3103, prefixo `/v2`, schema `v2`)
 
-| Table | Purpose |
+| Módulo | Prefixo | Responsabilidade |
+|---|---|---|
+| `RouterModule` | `/v2/route` | Entry point público — classifica e despacha para missions |
+| `MissionModule` | `/v2/missions` | CRUD missões + steps + DAG dependsOn |
+| `WorkflowEngineModule` | interno | Execução do DAG, gate detection, transitions |
+| `StepExecutorModule` | interno | Spawn specialist, coleta prevOutputs (só `result`, max 12k chars) |
+| `SpecialistModule` | `/v2/specialists` | runtime loop: tool dispatch, maxIterations, custo |
+| `SpecialistRegistryModule` | interno | 7 tipos: coder/reviewer/tester/architect/researcher/debugger/synthesizer |
+| `SkillEngineModule` | `/v2/skills` | Dispatch de tools para PC Agent; `toToolName()` sanitiza `:` → `__` |
+| `AIRouterModule` | interno | Chamadas LLM com tool definitions, Anthropic-compatible |
+| `ApprovalGatesModule` | `/v2/approvals` | Gates pending/approve/reject; gate-resume reseta step para `pending` |
+| `AgentDialogueModule` | `/v2/dialogue` | ClarificationService: `checkTask` antes de spawn |
+| `ContextEngineModule` | `/v2/context` | Build cirúrgico por modo (5 sections), cache 5 min in-memory |
+| `MemoryModule` (V2) | `/v2/memory` | MemoryMeta lifecycle + V1 bridge para pgvector |
+| `KnowledgeModule` | `/v2/knowledge` | Grafo: extractor, governance, query, impact, lineage |
+| `BenchmarkModule` | `/v2/benchmark` | Casos golden + run por estratégia + extração de traces |
+| `QAScientistModule` | `/v2/qa-scientist` | Ciclo 24h: collectFailures → hypotheses → experiments |
+| `EvolutionaryPromptingModule` | `/v2/evolutionary` | Geração e mutação de estratégias de prompt |
+| `PolicyEngineModule` | `/v2/policy` | Regras GATE/BLOCK/WARN por projeto |
+
+---
+
+## Data stores
+
+### PostgreSQL 16 + pgvector
+
+| Schema | Tabelas-chave |
 |---|---|
-| `documents` | Indexed knowledge chunks with `embedding vector(1024)` |
-| `conversation_messages` | Full message history with `tokens_used`, `module`, `projectId` per call |
-| `events` | Activity log: source, type, intent, memory_class |
-| `project_states` | Structured project state: milestones, blockers, nextSteps, backlog, activeFocus |
-| `project_health_scores` | Score 0–100 with 6-dimension breakdown, 30-day history |
-| `project_documents` | Generated docs (project_state, decisions_log, next_actions, work_journal, data_map) |
-| `project_document_versions` | Version history with diff and sourceIds |
-| `session_artifacts` | Synthesis and checkpoint artifacts |
-| `project_recommendations` | Proactive recommendations (7 rule types) |
-| `project_goals` | Goal Graph: successCriteria (JSON), kpis (JSON), status, hierarchy |
-| `wiki_pages` | Knowledge base with editStatus and lock protection |
-| `wiki_page_versions` | Version history |
-| `task_logs` | PC Agent task queue: module, action, status, result |
-| `configurations` | System persona + behaviour settings |
-| `data_quality_rules` | Data quality rule definitions |
-| `data_quality_results` | Rule execution results |
-| `data_assets` | Data catalogue entries with embedding |
-| `test_runs` | QA test results (JUnit / Allure) |
-| `agent_audit_logs` | Agent execution audit trail: taskId, actor, module, action, command, risk, dryRun, durationMs, status, hostname, workspace, targetRole |
+| `public` (V1) | `documents` (embedding vector(1024)), `conversation_messages`, `events`, `project_states`, `project_documents`, `session_artifacts`, `project_goals`, `wiki_pages`, `task_logs`, `agent_audit_logs` |
+| `v2` (V2) | `Mission`, `MissionStep`, `ApprovalGate`, `SpecialistInstance`, `BenchmarkCase`, `BenchmarkResult`, `KnowledgeNode`, `KnowledgeEdge`, `MemoryMeta`, `PromptStrategy`, `TraceSpan` |
+| `langfuse` | Banco dedicado, isolado — traces de todas as chamadas LiteLLM |
 
 ### Redis 7
 
-| Usage | Purpose |
+| Uso | TTL |
 |---|---|
-| BullMQ `agent-tasks` | PC Agent task lifecycle (pending → active → done/failed) |
-| Application cache | ProjectState (10 min), Wiki (15 min), Brain search (5 min) — via CacheModule |
-| LiteLLM cache | Exact-match response cache (5 min TTL) |
+| BullMQ `agent-tasks` (dispatch V1) | Lifecycle (sem TTL) |
+| App cache ProjectState | 10 min |
+| App cache Wiki | 15 min |
+| App cache Brain search | 5 min |
+| LiteLLM exact-match | 5 min |
+| Context Engine (in-memory Map) | 5 min |
 
-## LiteLLM Proxy (port 4100)
+---
 
-All LLM calls route through LiteLLM for:
-- **Provider abstraction** — swap OpenAI ↔ Anthropic ↔ Groq via config, zero code changes
-- **Automatic fallback** — `gpt-4o` tries Groq llama-3.3-70b first, falls back to Claude Sonnet on failure
-- **Exact-match response cache** — Redis backend, 5 min TTL
+## LiteLLM Proxy (:4100)
 
-### Aliases
+**Invariante:** toda chamada LLM passa pelo proxy. Nunca apontar direto para OpenAI/Groq/Anthropic.
 
 | Alias | Primary | Fallback |
 |---|---|---|
-| `gpt-4o` | Groq llama-3.3-70b-versatile | Claude Sonnet 4 |
+| `gpt-4o` | Groq llama-3.3-70b-versatile | Claude Sonnet 4.6 |
 | `gpt-4o-mini` | Groq llama-3.1-8b-instant | Claude Haiku 4.5 |
-| `gpt-4o-premium` | Claude Sonnet 4 (direct) | — |
-| `gpt-4o-mini-premium` | Claude Haiku 4.5 (direct) | — |
+| `gpt-4o-premium` | Claude Sonnet 4.6 (direto) | — |
+| `gpt-local` | Groq llama-3.1-8b | `gpt-4o-mini` |
 
-### Model assignments per module
+Fallback chain em `infra/litellm/config.yaml` — evita bloqueio por Groq TPD (100k tokens/dia).
 
-| Module | Model (alias) | Temperature |
+---
+
+## Contratos críticos
+
+### V1 Agent dispatch (BullMQ)
+
+```
+POST /execution/dispatch → { projectId, module, action, payload }
+PATCH /tasks/:id         → { status, result?, actor, module, action, risk, dryRun, durationMs }
+```
+
+### V2 prevOutputs injection
+
+```
+// StepExecutorService injeta só output.result (texto puro), truncado a 12k chars
+### Step "título" output
+<conteúdo do resultado>
+[... truncado após 12k chars]
+```
+
+### V2 Specialist types e inferência
+
+| Tipo | Modelo | Regex de inferência |
 |---|---|---|
-| Orchestrator (classify) | gpt-4o-mini | 0 |
-| Orchestrator (chat) | gpt-4o | 0.7 |
-| ProjectState refresh | gpt-4o-premium | 0.2 |
-| Synthesis / Checkpoint | gpt-4o | 0.3 |
-| Documentation | gpt-4o | 0.3 |
-| Blueprint (plan) | gpt-4o | 0.3 |
-| Graph — gap analysis | gpt-4o-mini | 0.2 |
-| Graph — KPI auto-track | gpt-4o-mini | 0.1 |
-| Memory — synthesis | gpt-4o-mini | 0.3 |
-| Content Engine | gpt-4o | 0.8 |
-| Document Processing | gpt-4o-mini | 0.2 |
-| Embeddings | Jina AI direct (1024-dim) | — |
+| `synthesizer` | gpt-4o-premium | `summarize\|tabela\|com base\|relatorio\|resumo` |
+| `researcher` | gpt-4o | `leia\|liste\|inspect\|read.*file` |
+| `coder` | gpt-4o | `implement\|build\|develop\|code` |
+| `reviewer` | gpt-4o | `review\|check\|audit\|validate` |
+| `tester` | gpt-4o | `\btests?\b\|\bspecs?\b\|coverage\|assert` (word boundary) |
+| `architect` | gpt-4o-premium | `architect\|design\|structure\|\badr\b` |
+| `debugger` | gpt-4o | `debug\|fix\|error\|bug\|crash` |
 
-## PC Agent Security Model
+---
 
-The PC Agent runs on the user's Windows machine and polls the BullMQ queue every 3 seconds.
+## Modelo de segurança
 
-```
-API → Redis queue → Agent polls → whitelist.ts check → executor.ts → action
-                                        ↓ reject silently if not in whitelist
-```
-
-Key invariants:
-- `whitelist.ts` is the single source of truth — 29 allowed actions, never bypassed
-- Path traversal blocked via `path.relative()` — `../` and absolute paths outside sandbox rejected
-- Sandbox roots: `~/Downloads`, `~/Documents`, `~/Desktop`, `~/Projects`
-- Medium/high-risk actions implement `dryRun: true` before real execution
-- No free `exec()` or `spawn()` — only typed action functions
-- `restart_api` always routed to `server` Agent on the VPS (never desktop)
-
-## Security Controls (SEC-1 to SEC-10)
-
-| Control | Implementation |
+| Controle | Onde |
 |---|---|
-| SEC-1 | `@Throttle` on `POST /auth/login` — 10 req/60s |
-| SEC-2 | argon2 password hashing with `timingSafeEqual` fallback |
-| SEC-3 | JWT expiry reduced from 30d to 8h |
-| SEC-4 | CORS whitelist callback via `CORS_ORIGINS` env var (origin allowlist, not `origin: true`) |
-| SEC-5 | `timingSafeEqual` for agent token comparison (constant-time) |
-| SEC-6 | `path.relative()` for all path validation in agent actions |
-| SEC-7 | pnpm 10.33.2 across all Dockerfiles |
-| SEC-8–10 | README security section, shared path-guard utility, `onlyBuiltDependencies` |
-| SEC-11 | `@fastify/helmet` v11 — CSP, HSTS (31536000s), X-Frame-Options, XSS protection, noSniff (disabled in dev) |
-| SEC-12 | Agent Audit Log — every Agent execution stored in `agent_audit_logs`; `GET /tasks/audit` with filters |
+| JWT 8h, throttle login | `AuthModule` + `@Throttle` |
+| CORS whitelist | `CORS_ORIGINS` env var |
+| Security headers | `@fastify/helmet` — CSP, HSTS 1 ano |
+| Agent whitelist (44 ações) | `apps/agent/src/security/whitelist.ts` |
+| Role policy (desktop/server) | `apps/agent/src/role-policy.ts` |
+| Path traversal bloqueado | `path.relative()` em todo acesso filesystem |
+| dryRun obrigatório | Ações de risco médio/alto |
+| Prompt injection | `ValidationService.assertValidPrompt()` |
+| Audit trail | `agent_audit_logs` — toda execução persistida |
 
-## Checkpoint Pipeline
+---
 
-```
-rayzen_checkpoint() or Stop hook (≥3 code edits)
-  └─→ SynthesisService.checkpoint()
-        ├─→ runSynthesis() — gpt-4o, temp 0.3
-        ├─→ ProjectStateService.refresh() — gpt-4o-premium, temp 0.2
-        └─→ DocumentationService.generateAll() (parallel, 5 doc types)
-              └─→ each doc auto-refreshes state if called individually
-```
+## Riscos conhecidos
+
+| Risco | Mitigação atual |
+|---|---|
+| V1/V2 coexistindo indefinidamente | V1BridgeService: V2 lê `public`, nunca escreve |
+| Groq TPD (100k/dia) bloqueando specialists | Fallback `gpt-4o → gpt-4o-premium` |
+| `prisma db push` sem histórico no schema v2 | Decisão documentada em ADR — shadow DB falha multi-schema |
+| Anthropic rejeita tool names com `:` | `toToolName()` sanitiza `jarvis:x → jarvis__x` |
+
+---
+
+## Critérios de pronto
+
+- Toda rota nova documentada neste arquivo antes do merge
+- Mudança de schema → `pnpm --filter api db:generate` antes do commit
+- Novo specialist type → `infer()` atualizado + missão de verificação executada
+- Novo módulo V2 → V1BridgeService auditado (sem escrita em `public`)
+
+---
+
+## Próximos ajustes
+
+- Definir plano de convergência V1→V2 ou separação intencional de responsabilidades
+- Testes de inferência de tipo de specialist automatizados (evitar regressão do `spec` em `specialist`)
+- Documentar limites do `file_read` no context do researcher (500KB, paginação por `lines`)
