@@ -72,6 +72,7 @@ export function EvidenceModal({
                       {items.map((item) => (
                         <div key={item.id} className="rounded-xl border border-zinc-800 bg-zinc-950/60 overflow-hidden">
                           {item.remotePath ? (
+                            // eslint-disable-next-line @next/next/no-img-element -- screenshot dinâmico servido pela API autenticada; otimizador do next/image não se aplica
                             <img
                               src={`${API_URL}/evidence/file/${item.remotePath.replace(/\\/g, '/')}`}
                               alt={item.prompt ? `Evidencia: ${item.prompt}` : 'Screenshot do projeto'}

@@ -232,15 +232,19 @@ export function useMissions(activeProjectId: string | null) {
     finally { setGateActionLoading(false) }
   }, [loadMissionDetail, loadPendingGates])
 
-  // Carrega gates quando a missão selecionada está paused ou active
+  // Carrega gates quando a missão selecionada está paused ou active.
+  // Depende de id/status extraídos (não do objeto) para não refazer o fetch
+  // a cada reload silencioso do detalhe da missão.
+  const selectedMissionId = selectedMission?.id
+  const selectedMissionStatus = selectedMission?.status
   useEffect(() => {
-    if (!selectedMission) { setPendingGates([]); return }
-    if (selectedMission.status === 'paused' || selectedMission.status === 'active') {
-      void loadPendingGates(selectedMission.id)
+    if (!selectedMissionId) { setPendingGates([]); return }
+    if (selectedMissionStatus === 'paused' || selectedMissionStatus === 'active') {
+      void loadPendingGates(selectedMissionId)
     } else {
       setPendingGates([])
     }
-  }, [selectedMission?.id, selectedMission?.status, loadPendingGates])
+  }, [selectedMissionId, selectedMissionStatus, loadPendingGates])
 
   // WebSocket: atualiza missões e gates em tempo real quando o gateway estiver acessível
   useRayzenEvents(activeProjectId, (e) => {

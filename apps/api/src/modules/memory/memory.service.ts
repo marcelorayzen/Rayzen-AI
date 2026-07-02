@@ -5,7 +5,7 @@ import OpenAI from 'openai'
 import { createHash } from 'crypto'
 import { EventService } from '../event/event.service'
 import { MetricsService } from '../metrics/metrics.service'
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+ 
 const pdfParse = require('pdf-parse') as (buf: Buffer) => Promise<{ text: string }>
 
 export interface IndexResult {

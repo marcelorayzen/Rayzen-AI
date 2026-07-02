@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common'
+import { APP_GUARD } from '@nestjs/core'
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler'
 import { PingController } from './ping.controller'
 import { CoreModule } from './core/core.module'
 import { LlmModule } from './llm/llm.module'
@@ -34,6 +36,8 @@ import { GuardianModule } from './guardian/guardian.module'
 @Module({
   controllers: [PingController],
   imports: [
+    // Mesmo limite da V1 — a V2 também fica exposta via Cloudflare Tunnel
+    ThrottlerModule.forRoot([{ ttl: 60000, limit: 120 }]),
     CoreModule,
     LlmModule,
     CostControllerModule,
@@ -64,6 +68,9 @@ import { GuardianModule } from './guardian/guardian.module'
     EvolutionaryModule,
     QaScientistModule,
     GuardianModule,
+  ],
+  providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
 })
 export class AppModule {}

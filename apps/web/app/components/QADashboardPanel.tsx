@@ -257,6 +257,7 @@ export function QADashboardPanel({
                             className="rounded-lg border border-zinc-800 bg-zinc-950/60 overflow-hidden hover:border-cyan-800 transition-colors"
                           >
                             {item.remotePath && (
+                              // eslint-disable-next-line @next/next/no-img-element -- screenshot dinâmico servido pela API autenticada; otimizador do next/image não se aplica
                               <img src={`${API_URL}/evidence/file/${item.remotePath.replace(/\\/g, '/')}`} alt={item.description ?? 'Evidencia do TestRun'} className="h-28 w-full object-cover border-b border-zinc-800" />
                             )}
                             <div className="p-2">

@@ -10,13 +10,6 @@ function normalizeApiUrl(value: string): string {
   return value.trim().replace(/\/+$/, '')
 }
 
-function shouldUseLocalDefault(): boolean {
-  if (typeof window === 'undefined') return true
-
-  const host = window.location.hostname.toLowerCase()
-  return host === 'localhost' || host === '127.0.0.1' || host === '::1'
-}
-
 // Cache em memória — getApiUrl() é chamado em toda coerção de API_URL/V2_URL (cada fetch).
 // Ler localStorage a cada chamada era desperdício; invalidamos só quando setApiUrl muda.
 let cachedApiUrl: string | null = null

@@ -5,13 +5,12 @@ import { API_URL } from '../lib/api-url'
 import { authHeaders, TOKEN_KEY } from '../lib/api-client'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
-import { useProjects, type Project, type ImportTab } from './hooks/useProjects'
+import { useProjects } from './hooks/useProjects'
 import { useMemory, type MemoryDoc } from './hooks/useMemory'
 import { useGoalGraph, type ProjectState, type PlanningNode } from './hooks/useGoalGraph'
-import { useChatStream, type Message, type Session, type WorkMode } from './hooks/useChatStream'
+import { useChatStream } from './hooks/useChatStream'
 import { useQA } from './hooks/useQA'
 import { useMissions } from './hooks/useMissions'
-import { HelpTip } from './components/HelpTip'
 import { VersionsModal } from './components/VersionsModal'
 import { HealthModal } from './components/HealthModal'
 import { CostsModal } from './components/CostsModal'
@@ -259,7 +258,7 @@ export default function Home() {
 
   // ── domain hooks ─────────────────────────────────────────────────────────────
   const {
-    projects, setProjects,
+    projects,
     activeProjectId, setActiveProjectId,
     newProjectOpen, setNewProjectOpen,
     newProjectName, setNewProjectName,
@@ -267,7 +266,6 @@ export default function Home() {
     newProjectSlug, setNewProjectSlug,
     creatingProject,
     onboardStep, setOnboardStep,
-    onboardProjectId,
     onboardSrcTab, setOnboardSrcTab,
     onboardIndexing,
     onboardIndexResult,
@@ -312,9 +310,6 @@ export default function Home() {
     graphStateRefreshing,
     graphEventData,
     graphEventLoading,
-    knowledgeData,
-    knowledgeLoading,
-    loadKnowledgeGraph,
     universeData,
     universeLoading,
     universeSaving,
@@ -322,7 +317,7 @@ export default function Home() {
     loadUniverse,
     saveUniverse,
     importUniverse,
-    goalsHistory, setGoalsHistory,
+    goalsHistory,
     historyOpen,
     historyLoading,
     editingKpi, setEditingKpi,
@@ -344,7 +339,6 @@ export default function Home() {
     openEditGoalForm,
     saveGoal,
     toggleCriteria,
-    loadGoalsHistory,
     toggleHistory,
     achieveGoal,
     deleteGoal,
@@ -355,12 +349,12 @@ export default function Home() {
   } = useGoalGraph(activeProjectId)
 
   const {
-    messages, setMessages,
+    messages,
     input, setInput,
     loading,
-    sessionId, setSessionId,
-    sessionTokens, setSessionTokens,
-    dailyTokens, setDailyTokens,
+    sessionId,
+    sessionTokens,
+    dailyTokens,
     playingIndex,
     autoVoice, setAutoVoice,
     recording,
@@ -373,12 +367,9 @@ export default function Home() {
     bottomRef,
     messagesContainerRef,
     shouldAutoScrollRef,
-    submitMessageRef,
-    drainQueue,
     playAudio,
     sendMessage,
     toggleRecording,
-    loadSessions,
     openSidebar,
     loadSession,
     deleteSession,
@@ -501,7 +492,7 @@ export default function Home() {
   useEffect(() => {
     if (!shouldAutoScrollRef.current) return
     bottomRef.current?.scrollIntoView({ behavior: 'auto' })
-  }, [messages])
+  }, [messages, bottomRef, shouldAutoScrollRef])
 
   const loadActivityEvents = useCallback(async (memClass: MemoryClassFilter) => {
     setActivityLoading(true)
@@ -630,7 +621,8 @@ export default function Home() {
     } catch (err) {
       alert(`Erro ao sintetizar: ${err instanceof Error ? err.message : 'falhou'}`)
     } finally { setSynthesizing(false) }
-  }, [sessionId, activeProjectId, messages])
+    // workMode nas deps: sem ele a síntese enviava o modo antigo após troca (stale closure)
+  }, [sessionId, activeProjectId, messages, workMode])
 
   const openDocs = useCallback(async () => {
     if (!activeProjectId) return
@@ -818,7 +810,8 @@ export default function Home() {
       }
     } catch { /* silencioso */ }
     finally { setCheckpointing(false) }
-  }, [activeProjectId])
+    // workMode nas deps: sem ele o checkpoint enviava o modo antigo após troca (stale closure)
+  }, [activeProjectId, workMode])
 
   const submitQuickCapture = useCallback(async () => {
     if (!quickCaptureText.trim() || !activeProjectId) return

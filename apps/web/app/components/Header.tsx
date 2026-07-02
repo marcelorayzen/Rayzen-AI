@@ -113,6 +113,7 @@ export function Header({
           </svg>
         </button>
         <div className="flex items-center gap-2.5 shrink-0">
+          {/* eslint-disable-next-line @next/next/no-img-element -- SVG local minúsculo; next/image não otimiza SVG */}
           <img src="/rayzen-icon.svg" width="34" height="34" alt="" aria-hidden="true" className="shrink-0" />
           <div>
             <div className="flex items-center gap-1.5">

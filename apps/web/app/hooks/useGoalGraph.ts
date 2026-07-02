@@ -182,7 +182,7 @@ export function useGoalGraph(activeProjectId: string | null) {
     if (sub === 'universe') {
       await loadUniverse()
     }
-  }, [activeProjectId, loadKnowledgeGraph, loadUniverse, loadGoalsHistory])
+  }, [activeProjectId, loadUniverse, loadGoalsHistory])
 
   const refreshGraphState = useCallback(async () => {
     if (!activeProjectId) return

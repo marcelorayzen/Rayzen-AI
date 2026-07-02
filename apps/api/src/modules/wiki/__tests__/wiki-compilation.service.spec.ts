@@ -28,7 +28,7 @@ describe('WikiCompilationService', () => {
     }).compile()
     service = module.get<WikiCompilationService>(WikiCompilationService)
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     ;(service as any).llm = {
       chat: {
         completions: {
@@ -66,7 +66,7 @@ describe('WikiCompilationService', () => {
     })
 
     it('uses fallback title when LLM returns empty', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       ;(service as any).llm.chat.completions.create.mockResolvedValueOnce({
         choices: [{ message: { content: '{}' } }],
       })
@@ -76,7 +76,7 @@ describe('WikiCompilationService', () => {
     })
 
     it('includes source context in LLM call when sources are provided', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const spy = jest.spyOn((service as any).llm.chat.completions, 'create')
 
       await service.compile('content', [

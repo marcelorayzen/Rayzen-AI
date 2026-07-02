@@ -38,7 +38,7 @@ export class AgentBridgeService {
     })
     if (!matching) return null
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const client = (this.queue as unknown as { client: any }).client
     const lockKey = `claim:task:${matching.id}`
     const locked = await client.set(lockKey, '1', 'PX', CLAIM_LOCK_TTL_MS, 'NX')

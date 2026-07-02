@@ -160,7 +160,7 @@ interface Props {
   importing?: boolean
 }
 
-export function UniverseCanvas({ projectId: _projectId, initialNodes, initialEdges, onSave, onImport, saving, importing }: Props) {
+export function UniverseCanvas({ initialNodes, initialEdges, onSave, onImport, saving, importing }: Props) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<UniverseNodeData>>(
     initialNodes.map(n => ({
       ...n,

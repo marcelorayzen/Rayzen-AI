@@ -8,7 +8,7 @@ function makeContext(authHeader?: string) {
         headers: authHeader !== undefined ? { authorization: authHeader } : {},
       }),
     }),
-  } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+  } as any  
 }
 
 describe('AgentTokenGuard', () => {

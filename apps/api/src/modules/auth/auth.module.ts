@@ -9,12 +9,20 @@ import { AuthService } from './auth.service'
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        secret: config.get('JWT_SECRET'),
-        // 30d para alinhar com o max-age do cookie no web — evita expirar
-        // silenciosamente no meio do uso (rotas não-guardadas mascaram o 401).
-        signOptions: { expiresIn: '30d' },
-      }),
+      useFactory: (config: ConfigService) => {
+        const secret = config.get<string>('JWT_SECRET')
+        // Fail-fast no boot: sem secret, @nestjs/jwt só falharia por requisição,
+        // com erro genérico — e a API está exposta via Cloudflare Tunnel.
+        if (!secret && process.env.NODE_ENV !== 'test' && !process.env.JEST_WORKER_ID) {
+          throw new Error('JWT_SECRET não definido — a api se recusa a subir sem secret explícito')
+        }
+        return {
+          secret: secret ?? 'test-secret',
+          // 30d para alinhar com o max-age do cookie no web — evita expirar
+          // silenciosamente no meio do uso (rotas não-guardadas mascaram o 401).
+          signOptions: { expiresIn: '30d' },
+        }
+      },
     }),
   ],
   controllers: [AuthController],
