@@ -185,6 +185,8 @@ export class ApprovalGatesService {
   }): Promise<{ required: boolean; gate?: Awaited<ReturnType<ApprovalGatesService['create']>> }> {
     if (opts.riskLevel === 'low') return { required: false }
 
+    await this.supersedeGuardianGates(opts.projectId, opts.reportId)
+
     const gate = await this.create({
       projectId:   opts.projectId,
       type:        opts.riskLevel === 'critical' ? 'irreversible' : 'guardian_review',
@@ -200,6 +202,27 @@ export class ApprovalGatesService {
     }
 
     return { required: true, gate }
+  }
+
+  // O watcher dispara analyze a cada mudança no working tree — sem dedupe,
+  // cada save relevante criaria mais um gate pendente para o mesmo projeto.
+  private async supersedeGuardianGates(projectId: string, newReportId: string) {
+    const pending = await this.prisma.approvalGate.findMany({
+      where: { projectId, status: 'pending', type: { in: ['guardian_review', 'irreversible'] } },
+    })
+    const stale = pending.filter(g => (g.context as Record<string, unknown> | null)?.guardianReportId)
+    if (stale.length === 0) return
+
+    await this.prisma.approvalGate.updateMany({
+      where: { id: { in: stale.map(g => g.id) }, status: 'pending' },
+      data: {
+        status:     'expired',
+        approvedBy: 'guardian-system',
+        approvedAt: new Date(),
+        comment:    `Substituído por guardian report ${newReportId}`,
+      },
+    })
+    this.logger.log(`${stale.length} gate(s) Guardian pendente(s) substituído(s) pelo report ${newReportId}`)
   }
 
   private async expireStale() {

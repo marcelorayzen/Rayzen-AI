@@ -1,14 +1,17 @@
 import axios from 'axios'
 import { readdirSync, writeFileSync } from 'node:fs'
-import { join, extname } from 'node:path'
+import { join, extname, relative } from 'node:path'
 import { tmpdir } from 'node:os'
 import { createHash } from 'node:crypto'
 
 const GUARDABLE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.mjs'])
 const SKIP_DIRS = new Set(['node_modules', '.git', '.next', 'dist', 'build', 'coverage', 'generated'])
+const MAX_SCAN_DEPTH = 8 // precisa alcançar apps/X/src/Y/__tests__/Z.spec.ts
 
-function collectFiles(dir: string, depth = 0): string[] {
-  if (depth > 4) return []
+// Retorna paths relativos à raiz do repo (mesma base do git status usado em changedFiles) —
+// o TestGapDetector compara os dois conjuntos diretamente.
+export function collectFiles(root: string, dir = root, depth = 0): string[] {
+  if (depth > MAX_SCAN_DEPTH) return []
   const result: string[] = []
   let entries
   try { entries = readdirSync(dir, { withFileTypes: true }) } catch { return result }
@@ -17,9 +20,9 @@ function collectFiles(dir: string, depth = 0): string[] {
     if (SKIP_DIRS.has(e.name)) continue
     const full = join(dir, e.name)
     if (e.isDirectory()) {
-      result.push(...collectFiles(full, depth + 1))
+      result.push(...collectFiles(root, full, depth + 1))
     } else if (GUARDABLE_EXTENSIONS.has(extname(e.name))) {
-      result.push(full.replace(/\\/g, '/'))
+      result.push(relative(root, full).replace(/\\/g, '/'))
     }
   }
   return result
@@ -95,7 +98,14 @@ export async function triggerGuardianAnalysis(params: {
     writeGuardianCache(params.projectId, data)
 
     return data
-  } catch {
+  } catch (err) {
+    // Não relançar (Guardian nunca bloqueia o watcher), mas deixar rastro:
+    // token expirado / API fora do ar / DTO rejeitado precisam aparecer no log.
+    const status = axios.isAxiosError(err) ? err.response?.status : undefined
+    const detail = axios.isAxiosError(err) && err.response?.data
+      ? JSON.stringify(err.response.data).slice(0, 200)
+      : err instanceof Error ? err.message : String(err)
+    console.warn(`[guardian] analyze falhou${status ? ` (HTTP ${status})` : ''}: ${detail}`)
     return null
   }
 }

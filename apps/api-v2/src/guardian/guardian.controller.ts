@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common'
+import { Body, Controller, Get, Headers, Param, Patch, Post, UseGuards } from '@nestjs/common'
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger'
 import { IsArray, IsOptional, IsString } from 'class-validator'
 import { JwtAuthGuard } from '../core/auth.guard'
@@ -23,6 +23,21 @@ class OverrideDto {
   reason!: string
 }
 
+// Alimenta o sinal jwtProximoDeExpirar com o exp do token da própria requisição.
+// Decodificar sem verificar é seguro aqui: o JwtAuthGuard já validou a assinatura.
+function jwtDaysLeft(authHeader?: string): number | undefined {
+  if (!authHeader?.startsWith('Bearer ')) return undefined
+  try {
+    const payload = JSON.parse(
+      Buffer.from(authHeader.slice(7).split('.')[1] ?? '', 'base64url').toString('utf8'),
+    ) as { exp?: number }
+    if (typeof payload.exp !== 'number') return undefined
+    return Math.floor((payload.exp * 1000 - Date.now()) / 86_400_000)
+  } catch {
+    return undefined
+  }
+}
+
 @ApiTags('guardian')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
@@ -32,8 +47,8 @@ export class GuardianController {
 
   @Post('analyze')
   @ApiOperation({ summary: 'Analisa mudanças de código e gera GuardianReport' })
-  analyze(@Body() dto: AnalyzeDto) {
-    return this.guardian.analyze(dto)
+  analyze(@Body() dto: AnalyzeDto, @Headers('authorization') auth?: string) {
+    return this.guardian.analyze(dto, jwtDaysLeft(auth))
   }
 
   @Get('latest/:projectId')

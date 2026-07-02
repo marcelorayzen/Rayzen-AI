@@ -43,13 +43,14 @@ describe('ApprovalGatesService.checkAndCreate — reaproveita gate já aprovado'
 })
 
 describe('ApprovalGatesService.createFromGuardianReport', () => {
-  function buildService() {
+  function buildService(pendingGuardianGates: unknown[] = []) {
     const pendingGate = { id: 'gate-1', status: 'pending', projectId: 'p1', type: 'guardian_review', missionId: null }
     const prisma = {
       approvalGate: {
         create:      jest.fn().mockResolvedValue(pendingGate),
         updateMany:  jest.fn().mockResolvedValue({ count: 1 }),
         findUnique:  jest.fn().mockResolvedValue({ ...pendingGate, status: 'rejected' }),
+        findMany:    jest.fn().mockResolvedValue(pendingGuardianGates),
       },
     }
     const events   = { approvalGate: jest.fn() }
@@ -84,6 +85,43 @@ describe('ApprovalGatesService.createFromGuardianReport', () => {
     })
     const data = prisma.approvalGate.create.mock.calls[0][0].data
     expect(data.type).toBe('guardian_review')
+  })
+
+  it('expira gate Guardian pendente anterior antes de criar o novo (dedupe)', async () => {
+    const staleGate = {
+      id: 'gate-old', status: 'pending', projectId: 'p1', type: 'guardian_review',
+      context: { guardianReportId: 'r-old' },
+    }
+    const { service, prisma } = buildService([staleGate])
+
+    await service.createFromGuardianReport({
+      projectId: 'p1', reportId: 'r-new', riskLevel: 'medium', score: 45, summary: 'gap de teste',
+    })
+
+    expect(prisma.approvalGate.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: { in: ['gate-old'] }, status: 'pending' },
+        data:  expect.objectContaining({ status: 'expired', approvedBy: 'guardian-system' }),
+      }),
+    )
+    expect(prisma.approvalGate.create).toHaveBeenCalledTimes(1)
+  })
+
+  it('não expira gates pendentes que não vieram do Guardian', async () => {
+    const humanGate = {
+      id: 'gate-human', status: 'pending', projectId: 'p1', type: 'irreversible',
+      context: { skillId: 'jarvis:run_command' },
+    }
+    const { service, prisma } = buildService([humanGate])
+
+    await service.createFromGuardianReport({
+      projectId: 'p1', reportId: 'r-new', riskLevel: 'medium', score: 45, summary: 'gap de teste',
+    })
+
+    const expiredCalls = prisma.approvalGate.updateMany.mock.calls.filter(
+      (c: [{ data?: { status?: string } }]) => c[0]?.data?.status === 'expired',
+    )
+    expect(expiredCalls).toHaveLength(0)
   })
 
   it('cria e rejeita automaticamente quando riskLevel é critical', async () => {

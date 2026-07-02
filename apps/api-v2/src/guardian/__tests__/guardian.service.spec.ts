@@ -24,10 +24,12 @@ function buildDeps(overrides: {
 
   const prisma = {
     guardianReport: {
-      create:    overrides.create    ?? jest.fn().mockResolvedValue(fakeReport),
-      findFirst: overrides.findFirst ?? jest.fn().mockResolvedValue(null),
-      findMany:  jest.fn().mockResolvedValue([fakeReport]),
-      update:    overrides.update    ?? jest.fn().mockResolvedValue({ ...fakeReport, overridden: true }),
+      create:     overrides.create    ?? jest.fn().mockResolvedValue(fakeReport),
+      findFirst:  overrides.findFirst ?? jest.fn().mockResolvedValue(null),
+      findMany:   jest.fn().mockResolvedValue([fakeReport]),
+      findUnique: jest.fn().mockResolvedValue(fakeReport),
+      update:     overrides.update    ?? jest.fn().mockResolvedValue({ ...fakeReport, overridden: true }),
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
   }
   const gapDetector = {
@@ -67,6 +69,37 @@ describe('GuardianService.analyze', () => {
     expect(prisma.guardianReport.create).toHaveBeenCalledTimes(1)
     expect(report.riskLevel).toBe('medium')
     expect(report.id).toBe('r1')
+  })
+
+  it('normaliza allFiles absolutos para relativos ao repoPath antes do detect', async () => {
+    const { svc, gapDetector } = buildDeps()
+    await svc.analyze({
+      ...dto,
+      repoPath: 'C:\\Users\\dev\\repo',
+      allFiles: [
+        'C:/Users/dev/repo/apps/api-v2/src/auth/__tests__/auth.service.spec.ts',
+        'apps/api-v2/src/auth/auth.service.ts', // já relativo — passa intocado
+      ],
+    })
+    expect(gapDetector.detect).toHaveBeenCalledWith(dto.changedFiles, [
+      'apps/api-v2/src/auth/__tests__/auth.service.spec.ts',
+      'apps/api-v2/src/auth/auth.service.ts',
+    ])
+  })
+
+  it('repassa jwtExpiresInDays ao riskScorer', async () => {
+    const { svc, riskScorer } = buildDeps()
+    await svc.analyze(dto, 5)
+    expect(riskScorer.score).toHaveBeenCalledWith(expect.objectContaining({ jwtExpiresInDays: 5 }))
+  })
+
+  it('marca reports open anteriores como resolved ao criar um novo', async () => {
+    const { svc, prisma } = buildDeps()
+    await svc.analyze(dto)
+    expect(prisma.guardianReport.updateMany).toHaveBeenCalledWith({
+      where: { projectId: 'p1', status: 'open', id: { not: 'r1' } },
+      data:  expect.objectContaining({ status: 'resolved' }),
+    })
   })
 
   it('impactedModules extrai o segmento após src/ para cada arquivo alterado', async () => {
@@ -137,5 +170,24 @@ describe('GuardianService.override', () => {
       data:  { overridden: true, overrideReason: 'deploy emergencial aprovado' },
     })
     expect(result.overridden).toBe(true)
+  })
+
+  it('lança NotFoundException quando o report não existe', async () => {
+    const { svc, prisma } = buildDeps()
+    prisma.guardianReport.findUnique.mockResolvedValueOnce(null)
+    await expect(svc.override('nao-existe', 'x')).rejects.toThrow('not found')
+    expect(prisma.guardianReport.update).not.toHaveBeenCalled()
+  })
+
+  it('reescreve o cache: getLatest reflete overridden imediatamente, sem esperar TTL', async () => {
+    const { svc, prisma } = buildDeps()
+    await svc.analyze(dto) // popula cache com overridden:false
+
+    await svc.override('r1', 'liberado manualmente')
+    prisma.guardianReport.findFirst.mockClear()
+
+    const latest = await svc.getLatest('p1')
+    expect(latest?.overridden).toBe(true)
+    expect(prisma.guardianReport.findFirst).not.toHaveBeenCalled() // veio do cache atualizado
   })
 })

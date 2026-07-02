@@ -44,6 +44,31 @@ describe('RiskScorerService', () => {
     expect(r.signals).toContain('moduloCritico')
   })
 
+  it('nao marca moduloCritico por substring: author, webhook e hooks React', () => {
+    const r = svc.score({
+      changedFiles: [
+        'apps/web/src/components/author-card.tsx',
+        'apps/api/src/modules/webhook/webhook.service.ts',
+        'apps/web/src/hooks/useGoalGraph.ts',
+      ],
+      testGapCount: 0,
+      suggestions:  [],
+      totalChanged: 3,
+    })
+    expect(r.signals).not.toContain('moduloCritico')
+  })
+
+  it('marca moduloCritico para policy-engine, whitelist e hooks do agent', () => {
+    for (const file of [
+      'apps/api-v2/src/policy-engine/policy-engine.controller.ts',
+      'apps/agent/src/security/whitelist.ts',
+      'apps/agent/src/hooks/rayzen-context-hook.mjs',
+    ]) {
+      const r = svc.score({ changedFiles: [file], testGapCount: 0, suggestions: [], totalChanged: 1 })
+      expect(r.signals).toContain('moduloCritico')
+    }
+  })
+
   it('soma alteracaoSchema (20) para mudanca no schema.prisma', () => {
     const r = svc.score({
       changedFiles: ['apps/api-v2/prisma/schema.prisma'],

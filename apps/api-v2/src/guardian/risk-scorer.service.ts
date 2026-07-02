@@ -91,15 +91,6 @@ export class RiskScorerService {
       }
     }
 
-    // semTesteRodado — proxy: ha gaps abertos = testes nao foram rodados
-    if (testGapCount > 0 && !signals.includes('serviceSemSpec')) {
-      add(
-        'semTesteRodado',
-        'Existem gaps de teste sem evidencia de execucao',
-        'Rodar pnpm test e garantir suite verde antes do push',
-      )
-    }
-
     // jwtProximoDeExpirar
     if (jwtExpiresInDays !== undefined && jwtExpiresInDays <= 7) {
       add(

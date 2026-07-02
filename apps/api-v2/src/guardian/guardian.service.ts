@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger, NotFoundException } from '@nestjs/common'
 import { PrismaV2Service } from '../core/prisma-v2.service'
 import { TestGapDetectorService } from './test-gap-detector.service'
 import { RiskScorerService, RiskLevel, DeployRecommend } from './risk-scorer.service'
@@ -45,8 +45,10 @@ export class GuardianService {
     private readonly approvalGates: ApprovalGatesService,
   ) {}
 
-  async analyze(dto: GuardianAnalyzeDto): Promise<GuardianReport> {
-    const allFiles = dto.allFiles ?? []
+  async analyze(dto: GuardianAnalyzeDto, jwtExpiresInDays?: number): Promise<GuardianReport> {
+    // changedFiles vem do git (relativo ao repo); allFiles pode chegar absoluto
+    // de agents antigos — normaliza para a mesma base antes de comparar.
+    const allFiles = (dto.allFiles ?? []).map(f => this.toRepoRelative(f, dto.repoPath))
     const gaps     = this.gapDetector.detect(dto.changedFiles, allFiles)
     const missing  = gaps.filter(g => !g.exists)
     const suggestions = this.gapDetector.buildSuggestions(gaps)
@@ -56,6 +58,7 @@ export class GuardianService {
       testGapCount:  missing.length,
       suggestions,
       totalChanged:  dto.changedFiles.length,
+      jwtExpiresInDays,
     })
 
     const impactedModules = [...new Set(
@@ -91,6 +94,12 @@ export class GuardianService {
         status:          'open',
       },
     })
+
+    // Um report novo torna os anteriores obsoletos — sem isso, status 'open' acumula para sempre.
+    await this.prisma.guardianReport.updateMany({
+      where: { projectId: dto.projectId, status: 'open', id: { not: report.id } },
+      data:  { status: 'resolved', resolvedAt: new Date() },
+    }).catch(() => null)
 
     this.writeCache(dto.projectId, report as GuardianReport)
     this.logger.log(`Guardian report created: ${report.id} — ${risk.level} (${risk.score})`)
@@ -129,11 +138,25 @@ export class GuardianService {
   }
 
   async override(id: string, reason: string): Promise<GuardianReport> {
+    const existing = await this.prisma.guardianReport.findUnique({ where: { id } })
+    if (!existing) throw new NotFoundException(`GuardianReport ${id} not found`)
+
     const report = await this.prisma.guardianReport.update({
       where: { id },
       data:  { overridden: true, overrideReason: reason },
     })
+
+    // getLatest serve o cache primeiro — sem reescrever aqui, o pre-push
+    // continuaria bloqueando com overridden=false até o TTL expirar.
+    this.writeCache(report.projectId, report as GuardianReport)
+    this.logger.warn(`Guardian report ${id} overridden: ${reason}`)
     return report as GuardianReport
+  }
+
+  private toRepoRelative(file: string, repoPath: string): string {
+    const norm = file.replace(/\\/g, '/')
+    const root = repoPath.replace(/\\/g, '/').replace(/\/+$/, '')
+    return norm.startsWith(`${root}/`) ? norm.slice(root.length + 1) : norm
   }
 
   private buildSummary(changed: number, gaps: number, score: number, level: RiskLevel, reasons: string[]): string {
