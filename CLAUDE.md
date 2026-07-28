@@ -71,6 +71,7 @@ pnpm scan:secrets     # varre segredos em arquivos versionados
 | Modelos de dados | `apps/api/prisma/schema.prisma` · `apps/api-v2/prisma/schema.prisma` |
 | Arquitetura V2 (engines) | `blueprints/` (24 documentos) |
 | Dados sensíveis | `docs/security/data-inventory.md` (gerado por `pnpm scan:secrets`) |
+| História do projeto desde o nascimento (decisões, incidentes, pivots) | `docs/historia/00-indice.md` |
 
 ---
 
