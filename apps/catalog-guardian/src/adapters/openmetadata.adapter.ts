@@ -173,6 +173,16 @@ export class OpenMetadataAdapter implements CatalogAdapter {
     return isPII ? 'read' : 'full' // metadado de PII: nunca 'full' (valor bruto nunca é servido por este app)
   }
 
+  // Sem guarda de permissão de propósito — ver interface. Confirmado
+  // empiricamente: GET /v1/domains/name/{name}?fields=owners devolve
+  // `owners: EntityRef[]` no mesmo formato de tabelas.
+  async getDomainOwner(domain: string): Promise<{ owner: string | null }> {
+    const result = await this.request<{ owners?: OmEntityRef[] }>(
+      `/v1/domains/name/${encodeURIComponent(domain)}?fields=owners`,
+    ).catch(() => ({ owners: [] as OmEntityRef[] }))
+    return { owner: result.owners?.[0]?.displayName ?? result.owners?.[0]?.name ?? null }
+  }
+
   private toRawAsset(table: OmTable): RawCatalogAsset {
     const columnTags = (table.columns ?? []).flatMap((c) => c.tags ?? [])
     const allTags = [...(table.tags ?? []), ...columnTags]

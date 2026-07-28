@@ -5,11 +5,12 @@ import { RiskScorerModule } from '../risk-scorer/risk-scorer.module'
 import { ReviewGateModule } from '../review-gate/review-gate.module'
 import { AuditModule } from '../audit/audit.module'
 import { LlmModule } from '../llm/llm.module'
+import { AdaptersModule } from '../adapters/adapters.module'
 import { QueryService } from './query.service'
 import { QueryController } from './query.controller'
 
 @Module({
-  imports: [CoreModule, PermissionGuardModule, RiskScorerModule, ReviewGateModule, AuditModule, LlmModule],
+  imports: [CoreModule, PermissionGuardModule, RiskScorerModule, ReviewGateModule, AuditModule, LlmModule, AdaptersModule],
   controllers: [QueryController],
   providers: [QueryService],
   exports: [QueryService],

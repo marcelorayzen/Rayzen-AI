@@ -14,6 +14,12 @@ export interface CatalogAdapter {
   // fonte. Sem esse mapeamento fechado, o PermissionGuardService (Fase 2) não
   // tem o que verificar.
   getUserAccessLevel(userId: string, externalId: string): Promise<AccessLevel>
+
+  // Metadado administrativo (quem é o responsável/steward de um domínio) —
+  // deliberadamente sem guarda de permissão: OWN-002/OWN-003 do golden
+  // dataset estabelecem que saber QUEM é responsável é público mesmo sem
+  // acesso ao domínio. Ver QueryService.askOwnership().
+  getDomainOwner(domain: string): Promise<{ owner: string | null }>
 }
 
 export const CATALOG_ADAPTER = Symbol('CATALOG_ADAPTER')

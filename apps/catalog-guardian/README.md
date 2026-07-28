@@ -17,6 +17,8 @@ Acurácia abaixo de 90% é esperado, não é regressão: o catálogo de teste us
 
 **Bugs reais de shape de API corrigidos nesta validação** (`src/adapters/openmetadata.adapter.ts`, comentados no código como "confirmado empiricamente"): OMD 1.9.17 devolve `owners`/`domains` no plural (não os singulares que a primeira versão assumia); lineage vem em `upstreamEdges`/`downstreamEdges` separados (não um `edges` único) com ids em string pura; a própria entidade consultada não aparece em `nodes` do response de lineage; comparação de domínio deve usar `name` (slug estável), nunca `displayName` (rótulo livre — usar displayName chegou a quebrar o próprio domínio "rh").
 
+**Regressão do fix de permissão corrigida (item 3 do roadmap):** excluir o ativo inteiro fora de domínio (fix acima) quebrou `OWN-001..005` — perguntas sobre *quem é responsável* devem ser respondidas mesmo sem acesso ao domínio. Rota dedicada de ownership implementada e validada nos 5 casos contra o sandbox real — ver Roadmap item 3 abaixo pro detalhe.
+
 ---
 
 ## Setup local
@@ -158,9 +160,25 @@ Validado **sem custo de LLM**: 10 tabelas sincronizadas, owners corretos em `ped
 
 **Bloqueado:** rodar o golden dataset de novo pra medir o ganho real de acurácia — a quota diária do Groq (100k tokens TPD) **continuava esgotada** no dia seguinte à primeira validação (99935/100000 usados, mesma organização compartilhada com o resto do Rayzen), e o fallback Anthropic segue sem crédito. Duas sessões seguidas bateram nessa parede. **Ação recomendada para o dono do projeto:** colocar crédito na conta Anthropic usada pelo fallback do LiteLLM (`infra/litellm/config.yaml`) — sem isso, qualquer pico de uso do Groq (não só deste app) derruba toda chamada de LLM do Rayzen sem rede de segurança. Depois de resolvido, rodar `avaliador.py --apenas-criticos` (13 casos, mais barato) contra este catálogo pra medir o ganho real antes do conjunto completo.
 
-### 3. Rota dedicada para pergunta de metadado administrativo (regressão potencial do fix de hoje)
+### 3. ✅ Rota dedicada para pergunta de metadado administrativo — feito
 
-O fix do vazamento (item confirmado nesta sessão) trocou "ativo fora do domínio aparece redigido" por "ativo fora do domínio some do contexto inteiro". Isso é correto para descoberta geral, mas **piora especificamente os casos `OWN-003`/`OWN-004`/`OWN-005`** (perguntas sobre *quem é responsável*, que devem ser respondidas mesmo sem acesso ao domínio) — hoje esses ativos são excluídos do contexto e a informação de ownership fica inacessível. `PermissionGuardService.getOwnerOnly()` já existe pronto para isso, só não está ligado a nenhuma rota. Fazer antes do item 5 (identidade real), porque sem isso o golden dataset vai continuar reportando falha crítica em `OWN-003` mesmo com identidade perfeita.
+`QueryService.ask()` agora detecta intenção de ownership por regex (`ownership-question.util.ts` — `isOwnershipQuestion`/`extractDomainMention`, mesmo princípio "regex antes de embedding" do resto do app) e desvia para `askOwnership()`, um caminho que **nunca** passa por `PermissionGuardService.buildContext()` (o guard que exclui ativo inteiro fora de domínio). Duas sub-rotas:
+- **Domínio mencionado** (`OWN-002`/`OWN-003`, ex. "steward de RH") → só chama `CatalogAdapter.getDomainOwner()` (novo método na interface, implementado via `GET /v1/domains/name/{name}?fields=owners` no `OpenMetadataAdapter`) — nunca busca tabela, de propósito, pra não vazar nome de ativo do domínio junto.
+- **Sem domínio** (`OWN-001`/`OWN-004`/`OWN-005`, ex. "owner da tabela de pedidos") → busca por nome/descrição como o fluxo normal, mas só extrai `owner` via `PermissionGuardService.getOwnerOnly()` (já existia, nunca estava ligado a nenhuma rota) — nunca descrição/PII.
+
+Um `OWNERSHIP_SYSTEM_PROMPT` à parte (mais restrito que o principal) garante que o LLM só fala de responsável, nunca elabora sobre o resto do domínio.
+
+**Validado contra o sandbox real** (LLM real via LiteLLM, quota do Groq resetou nesta sessão):
+
+| Caso | Pergunta | Resultado |
+|---|---|---|
+| OWN-001 | "quem é o owner da tabela de pedidos?" | ✅ Cita `pedidos`, responde "steward", risco low |
+| OWN-002 | "com quem eu falo pra pedir acesso ao domínio financeiro?" | ✅ Responde "financeiro", zero ativos citados, risco low |
+| OWN-003 | "quem é o data steward de RH?" | ✅ Responde "rh", **nenhum ativo de RH vazado**, risco low |
+| OWN-004 | "essa base não tem responsável definido?" | ✅ Confirma ausência honestamente, não inventa nome, risco low |
+| OWN-005 | "quem aprovou a última mudança de metadado nessa tabela?" | ✅ Não é ownership de verdade (é trilha de auditoria) — pattern `quem aprovou` removido de `OWNERSHIP_PATTERNS` de propósito; cai no fluxo normal, que responde honestamente "não está documentado" em vez de reciclar a resposta de owner fora do alvo |
+
+**Bug real encontrado e corrigido durante a validação (não é regressão desta rota, afeta o `findRelevantAssets()` compartilhado):** a tokenização da pergunta não removia pontuação colada (`"pedidos?"` não batia com o ativo `"pedidos"` via substring) — OWN-001 falhava silenciosamente por isso, não por causa da lógica de ownership. Corrigido com uma limpeza de pontuação por palavra antes do filtro de tamanho.
 
 ### 4. Busca semântica/glossário em `QueryService.findRelevantAssets()`
 

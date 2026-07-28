@@ -8,6 +8,7 @@ function fakeAdapter(level: AccessLevel): CatalogAdapter {
     listAssets: async () => [],
     getLineage: async () => [],
     getUserAccessLevel: async () => level,
+    getDomainOwner: async () => ({ owner: null }),
   }
 }
 
