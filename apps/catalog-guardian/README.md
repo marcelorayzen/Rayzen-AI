@@ -51,11 +51,35 @@ A UI sobe em `http://localhost:8585` (usuário/senha padrão `admin@open-metadat
 
 **Gotcha de porta em máquina com múltiplos projetos:** o compose oficial do OMD mapeia `5432:5432` pro Postgres dele — se você já tem outro projeto com um Postgres nessa porta (ex: outro cliente), o `docker compose up` falha com "port is already allocated". Edite `docker-compose-postgres.yml` (linha do serviço `postgresql`, campo `ports`) pra outra porta livre no host, ex. `25432:5432` — a comunicação interna entre os serviços do OMD usa o nome do serviço na rede Docker (`DB_PORT` continua `5432` internamente), então só o mapeamento externo muda.
 
-Gere um token de bot (Settings → Bots → ingestion-bot → Generate New Token) e coloque em `OPENMETADATA_TOKEN` no `.env`.
+Gere um Personal Access Token do admin logo após o primeiro boot (não precisa de bot dedicado pra este sandbox de teste):
 
-**Decisão sobre o dataset:** em vez de reescrever os 50 casos do golden dataset para os nomes do sample data (`dim_customer`...), o recomendado é criar no OMD sandbox entidades/domínios/termos de glossário customizados que espelhem os nomes já usados em `golden-dataset/golden-dataset.yaml` (`pedidos`, `estoque`, `clientes`, domínios `vendas/marketing/produto/financeiro/rh`) — via a própria API do OMD (`POST /api/v1/tables`, `POST /api/v1/domains`, `POST /api/v1/glossaries`). Preserva a curadoria já feita nos 50 casos. Se preferir o caminho inverso, ajuste só o YAML.
+```bash
+curl -X POST http://localhost:8585/api/v1/users/login -H "Content-Type: application/json" \
+  -d '{"email":"admin@open-metadata.org","password":"YWRtaW4="}'
+# copiar accessToken da resposta, pegar o id do admin:
+curl http://localhost:8585/api/v1/users/name/admin -H "Authorization: Bearer <accessToken>"
+# gerar o PAT de longa duracao:
+curl -X PUT http://localhost:8585/api/v1/users/generateToken/<admin-id> \
+  -H "Authorization: Bearer <accessToken>" -H "Content-Type: application/json" \
+  -d '{"JWTTokenExpiry":"Unlimited"}'
+```
 
-### 3. Subir a API
+Coloque o `JWTToken` retornado em `OPENMETADATA_TOKEN` no `.env`.
+
+**Gotcha confirmado:** gerar esse PAT pro usuário `admin` quebra o login por senha dele depois (`POST /users/login` passa a devolver `NullPointerException`/"charSequence is null"). O token em si continua funcionando normalmente — só não dá pra logar de novo por senha. Gere o PAT uma vez, guarde o token, não tente relogar.
+
+**Decisão sobre o dataset:** em vez de reescrever os 50 casos do golden dataset para os nomes do sample data (`dim_customer`...), o recomendado é popular o sandbox com entidades/domínios que espelham os nomes já usados em `golden-dataset/golden-dataset.yaml` (`pedidos`, `estoque`, `clientes`, domínios `vendas/marketing/produto/financeiro/rh`). Preserva a curadoria já feita nos 50 casos.
+
+### 3. Popular o catálogo de teste (seed automatizado)
+
+```bash
+cd golden-dataset
+python seed_sandbox.py --token "<OPENMETADATA_TOKEN>"
+```
+
+Cria os 5 domains, 4 usuários (`geral`/`financeiro`/`rh`/`steward`, com `dominios_permitidos` espelhando `golden-dataset.yaml`), o service/database/schema, as 5 tabelas com colunas e tags PII, e 1 edge de lineage. **Idempotente** — usa `PUT` (create-or-update nativo do OMD; `POST` numa entidade existente devolve 409) em vez de `POST`, então rodar de novo não duplica nem falha. Validado nesta sessão rodando duas vezes seguidas contra o mesmo sandbox sem erro.
+
+### 4. Subir a API
 
 ```bash
 pnpm dev
@@ -65,7 +89,7 @@ pnpm dev
 `GET http://localhost:4001/ping` deve responder `{ ok: true, service: 'catalog-guardian' }`.
 Swagger em `http://localhost:4001/docs`.
 
-### 4. Rodar o sync
+### 5. Rodar o sync
 
 ```bash
 pnpm sync:once
@@ -73,15 +97,17 @@ pnpm sync:once
 
 Confirma no log quantos ativos e edges de lineage foram sincronizados. Em produção, o `SyncModule` agenda isso automaticamente via BullMQ (`CATALOG_SYNC_INTERVAL_MS`, default 15 min).
 
-### 5. Rodar o golden dataset
+### 6. Rodar o golden dataset
 
 ```bash
 cd golden-dataset
-pip install pyyaml requests   # requests só se você adaptar consultar_agente para chamar via HTTP
+pip install pyyaml
 python avaliador.py --dataset golden-dataset.yaml --apenas-criticos
 ```
 
 `consultar_agente`, `ativos_existentes` e `dominios_do_ativo` em `avaliador.py` já chamam a API real (`CATALOG_GUARDIAN_URL`, default `http://localhost:4001`) — nenhum stub `NotImplementedError` restante. `consultar_agente` mapeia `perfil` → `userId` assumindo um usuário de mesmo nome no sandbox OMD (`geral`/`financeiro`/`rh`/`steward`); ajuste via `CATALOG_GUARDIAN_USER_<PERFIL>` se os nomes reais forem outros.
+
+**Cuidado com quota de LLM ao rodar o conjunto completo (50 casos):** cada caso consome ~500-600 tokens via LiteLLM. O Groq tem limite diário de 100k tokens (TPD) compartilhado com o resto do Rayzen nesta mesma infra — rodar o conjunto completo repetidas vezes no mesmo dia pode esgotar a quota (confirmado nesta sessão: 429 do Groq com o fallback Anthropic também bloqueado por falta de crédito). Isso é uma restrição externa de provider, não bug do Catalog Guardian — ver `docs/architecture.md` § Riscos conhecidos. Prefira `--apenas-criticos` (13 casos) pra iteração rápida e reserve o conjunto completo pra quando precisar do número real.
 
 ---
 
@@ -93,7 +119,7 @@ apps/catalog-guardian/
 ├── docker-compose.yml        # postgres + redis + api próprios (NÃO inclui o sandbox OMD)
 ├── Dockerfile                # build standalone (npm, não pnpm workspace) — deployável isolado
 ├── prisma/schema.prisma      # CatalogAsset, CatalogLineageEdge, QueryAudit, ReviewGate, CatalogRecommendation
-├── golden-dataset/           # os 4 arquivos de referência (yaml, avaliador.py, gerar_planilha.py, README.md)
+├── golden-dataset/           # os 4 arquivos de referência (yaml, avaliador.py, gerar_planilha.py, README.md) + seed_sandbox.py
 └── src/
     ├── adapters/              # CatalogAdapter (contrato) + OpenMetadataAdapter (Fase 1)
     ├── sync/                  # job BullMQ periódico + CLI manual (pnpm sync:once)
@@ -118,9 +144,11 @@ Cobertura atual: `CatalogRiskScorerService` e `PermissionGuardService` (mesmo pa
 
 A ordem abaixo não é por número de fase do blueprint — é por dependência real: cada item destrava o próximo, ou evita retrabalho se feito fora de ordem.
 
-### 1. Seed do sandbox como script (bloqueia tudo o mais)
+### 1. ✅ Seed do sandbox como script — feito
 
-Nesta validação, os 5 domains + 4 usuários + 5 tabelas do OMD foram criados via `curl` manual, não versionado. Sem um script idempotente (`golden-dataset/seed-sandbox.py` ou similar, usando a REST API do OMD), **toda validação futura exige redescobrir os mesmos comandos**. Primeiro passo antes de qualquer outro, porque os itens 2 e 3 abaixo só valem a pena repetir se puderem rodar de novo sem esforço manual.
+`golden-dataset/seed_sandbox.py` substitui os `curl` manuais desta validação — usa `PUT` (create-or-update nativo do OMD) pra ser idempotente, validado rodando duas vezes seguidas contra o mesmo sandbox sem erro nem duplicação. Ver "Setup local" § 3 acima.
+
+**Achado colateral ao revalidar:** rodar o conjunto completo do golden dataset múltiplas vezes no mesmo dia esgotou a quota diária do Groq (100k tokens TPD, compartilhada com o resto do Rayzen) — o fallback pro Anthropic também falhou por falta de crédito. É uma restrição externa de provider (ver `docs/architecture.md` § Riscos conhecidos), não algo pra "consertar" aqui; só planejar validações completas com essa quota em mente.
 
 ### 2. Catálogo de teste mais rico
 
