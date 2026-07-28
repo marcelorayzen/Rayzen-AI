@@ -150,9 +150,13 @@ A ordem abaixo não é por número de fase do blueprint — é por dependência 
 
 **Achado colateral ao revalidar:** rodar o conjunto completo do golden dataset múltiplas vezes no mesmo dia esgotou a quota diária do Groq (100k tokens TPD, compartilhada com o resto do Rayzen) — o fallback pro Anthropic também falhou por falta de crédito. É uma restrição externa de provider (ver `docs/architecture.md` § Riscos conhecidos), não algo pra "consertar" aqui; só planejar validações completas com essa quota em mente.
 
-### 2. Catálogo de teste mais rico
+### 2. ✅ Catálogo de teste mais rico — seed feito, validação por LLM bloqueada por quota externa
 
-Com o seed automatizado, popular os ~25 conceitos que os 50 casos do golden dataset referenciam e ainda não existem (glossário de negócio, siglas internas como PMR, classificações LGPD detalhadas, lineage multi-hop, ativos sem owner de propósito para os casos `OWN-004`/`SEM-005`). Sem isso, nenhuma melhoria de código consegue empurrar a acurácia muito além de ~35%, porque a maioria das falhas é "conceito não existe no catálogo", não erro do agente.
+`seed_sandbox.py` cresceu de 5 para **10 tabelas** (+ `produtos`, `cadastro_fornecedores`, `acordos_comerciais`, `clientes_cancelamentos`, `contas_a_receber`), ganhou um **glossário** (`termos_de_negocio`, 7 termos: `venda_bruta`, `pmr`, `cliente_ativo`/`cliente_vigente`, `cliente`/`consumidor`, `churn`), **owners** (`pedidos` → `steward`; domínio `financeiro` → usuário `financeiro`; domínio `rh` → usuário `rh`), uma tag `Tier.Tier1` em `clientes`, e **lineage multi-hop** (`produtos → estoque → pedidos`, `contas_a_receber → fin_faturamento_mensal`). Mapeamento completo caso-a-caso nos comentários do próprio script. Casos de `PROCESSO` (`PRO-001..004`) ficaram de fora de propósito — são perguntas de política institucional, não metadado de catálogo.
+
+Validado **sem custo de LLM**: 10 tabelas sincronizadas, owners corretos em `pedidos`/`financeiro`/`rh` confirmados via API direta do OMD, lineage `produtos→estoque→pedidos` traçado corretamente em 2 hops, script rodado duas vezes seguidas sem duplicar nada.
+
+**Bloqueado:** rodar o golden dataset de novo pra medir o ganho real de acurácia — a quota diária do Groq (100k tokens TPD) **continuava esgotada** no dia seguinte à primeira validação (99935/100000 usados, mesma organização compartilhada com o resto do Rayzen), e o fallback Anthropic segue sem crédito. Duas sessões seguidas bateram nessa parede. **Ação recomendada para o dono do projeto:** colocar crédito na conta Anthropic usada pelo fallback do LiteLLM (`infra/litellm/config.yaml`) — sem isso, qualquer pico de uso do Groq (não só deste app) derruba toda chamada de LLM do Rayzen sem rede de segurança. Depois de resolvido, rodar `avaliador.py --apenas-criticos` (13 casos, mais barato) contra este catálogo pra medir o ganho real antes do conjunto completo.
 
 ### 3. Rota dedicada para pergunta de metadado administrativo (regressão potencial do fix de hoje)
 
@@ -181,4 +185,4 @@ Trocar a heurística por domínio pela avaliação real da policy engine do OMD 
 
 ## Ambiente de validação
 
-O sandbox OpenMetadata e o stack próprio do app foram **derrubados** ao fim da validação desta sessão (`docker compose down` nos dois lugares) — não há nada rodando para reconectar. Para retomar, seguir "Setup local" acima do zero (e, idealmente, começar pelo item 1 do Roadmap antes de repetir o seed manual).
+O sandbox OpenMetadata e o stack próprio do app foram **derrubados** de novo ao fim de cada rodada de validação (`docker compose down` nos dois lugares) — não há nada rodando para reconectar. Para retomar, seguir "Setup local" acima do zero — agora com `seed_sandbox.py` fazendo o trabalho pesado do catálogo em segundos.
