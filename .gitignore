@@ -78,3 +78,9 @@ graphify-out/
 # Prisma client gerado (regenerado via db:generate no build)
 apps/api-v2/generated/
 apps/api-v2/src/generated/
+apps/catalog-guardian/generated/
+
+# Catalog Guardian — resultados de execução do golden dataset (efêmero,
+# depende do estado do catálogo de teste no momento; regenerar via
+# `python avaliador.py`, não é fonte de verdade versionável)
+apps/catalog-guardian/golden-dataset/resultado-*.json

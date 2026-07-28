@@ -31,15 +31,16 @@ rayzen-ai/
 │   ├── api/                    # NestJS V1 (28 módulos) · prisma/schema.prisma
 │   ├── api-v2/                 # NestJS V2 (26 módulos, schema v2)
 │   ├── web/                    # Next.js App Router
-│   └── agent/
-│       ├── src/
-│       │   ├── poller.ts · executor.ts
-│       │   ├── security/whitelist.ts   # CRÍTICO — 44 ações, nunca bypassar
-│       │   ├── actions/                # implementações jarvis:*
-│       │   ├── mcp/                    # MCP stdio + HTTP
-│       │   └── hooks/
-│       │       ├── rayzen-hook.mjs         # PostToolUse/Stop → POST /events/cli
-│       │       └── rayzen-context-hook.mjs # UserPromptSubmit → injeta contexto
+│   ├── agent/
+│   │   ├── src/
+│   │   │   ├── poller.ts · executor.ts
+│   │   │   ├── security/whitelist.ts   # CRÍTICO — 44 ações, nunca bypassar
+│   │   │   ├── actions/                # implementações jarvis:*
+│   │   │   ├── mcp/                    # MCP stdio + HTTP
+│   │   │   └── hooks/
+│   │   │       ├── rayzen-hook.mjs         # PostToolUse/Stop → POST /events/cli
+│   │   │       └── rayzen-context-hook.mjs # UserPromptSubmit → injeta contexto
+│   └── catalog-guardian/       # produto de consultoria — isolado, Prisma/DB próprios, sem import cross-app (ver BLUEPRINT.md)
 ├── blueprints/                 # design da V2 (24 docs)
 ├── docs/                       # manual-de-uso.md · agent-actions.md · security/
 └── infra/                      # caddy · litellm · postgres
