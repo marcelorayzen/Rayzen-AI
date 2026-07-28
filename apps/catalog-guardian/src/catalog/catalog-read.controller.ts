@@ -15,4 +15,16 @@ export class CatalogReadController {
     })
     return assets
   }
+
+  // Termos de glossário citáveis por QueryService.askOwnership()/ask() —
+  // sem domínio de propósito (ver CatalogGlossaryTerm no schema.prisma).
+  // avaliador.py precisa disto pra não marcar citação de termo como
+  // "ativo inexistente" (alucinação).
+  @Get('glossary-terms')
+  async listGlossaryTerms() {
+    const terms = await this.prisma.catalogGlossaryTerm.findMany({
+      select: { name: true, displayName: true, externalId: true },
+    })
+    return terms
+  }
 }

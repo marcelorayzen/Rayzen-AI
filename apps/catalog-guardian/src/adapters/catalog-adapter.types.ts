@@ -24,3 +24,12 @@ export interface RawLineageEdge {
   targetExternalId: string
   transform?: string | null
 }
+
+// Termo de glossário — metadado conceitual, sem domínio/sensibilidade (ver
+// CatalogGlossaryTerm no schema.prisma sobre por que isso é deliberado).
+export interface RawGlossaryTerm {
+  externalId: string
+  name: string
+  displayName?: string | null
+  description?: string | null
+}

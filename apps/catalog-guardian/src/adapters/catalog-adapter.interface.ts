@@ -1,4 +1,4 @@
-import { AccessLevel, CatalogSource, RawCatalogAsset, RawLineageEdge } from './catalog-adapter.types'
+import { AccessLevel, CatalogSource, RawCatalogAsset, RawGlossaryTerm, RawLineageEdge } from './catalog-adapter.types'
 
 // Contrato que qualquer catálogo fonte precisa implementar. Fase 1 traz o
 // OpenMetadataAdapter; a Fase 6 do blueprint prova a abstração com um segundo
@@ -8,6 +8,12 @@ export interface CatalogAdapter {
 
   listAssets(): Promise<RawCatalogAsset[]>
   getLineage(externalId: string): Promise<RawLineageEdge[]>
+
+  // Termos de glossário de negócio — SEM-002/003/005/006 e DESC-008 do golden
+  // dataset exigem resolver sigla/conceito ("PMR", "churn") por definição
+  // documentada, não por conhecimento genérico do LLM. Ver
+  // QueryService.findRelevantGlossaryTerms().
+  listGlossaryTerms(): Promise<RawGlossaryTerm[]>
 
   // Maior risco em aberto do blueprint (ver BLUEPRINT.md, seção "Riscos"):
   // depende de mapear o usuário do Catalog Guardian pro RBAC real do catálogo

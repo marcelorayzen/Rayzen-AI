@@ -9,6 +9,7 @@ function fakeAdapter(level: AccessLevel): CatalogAdapter {
     getLineage: async () => [],
     getUserAccessLevel: async () => level,
     getDomainOwner: async () => ({ owner: null }),
+    listGlossaryTerms: async () => [],
   }
 }
 

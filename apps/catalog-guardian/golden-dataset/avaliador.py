@@ -102,19 +102,30 @@ _catalogo_cache: list[dict] | None = None
 
 
 def _catalogo() -> list[dict]:
+    """
+    Une /catalog/assets (tabelas, com domínio) e /catalog/glossary-terms
+    (termos de negócio, sem domínio de propósito — CatalogGlossaryTerm não
+    tem campo domain, ver schema.prisma). QueryService.askOwnership()/ask()
+    citam termo de glossário por externalId igual citam ativo, então os dois
+    espaços de identidade precisam estar juntos aqui pra ativos_existentes()
+    não marcar citação de termo como alucinação.
+    """
     global _catalogo_cache
     if _catalogo_cache is None:
-        _catalogo_cache = _get_json("/catalog/assets")  # type: ignore[assignment]
+        assets = _get_json("/catalog/assets")
+        terms = _get_json("/catalog/glossary-terms")
+        _catalogo_cache = list(assets) + list(terms)  # type: ignore[assignment]
     return _catalogo_cache
 
 
 def ativos_existentes() -> set[str]:
     """
-    GET /catalog/assets (CatalogReadController) — devolve o externalId de
-    cada ativo sincronizado. QueryService.extractCitedAssets() também cita
-    por externalId, então os dois lados usam o mesmo espaço de identidade.
+    GET /catalog/assets + /catalog/glossary-terms (CatalogReadController) —
+    devolve o externalId de cada ativo/termo sincronizado. QueryService cita
+    por externalId nos dois casos, então os dois lados usam o mesmo espaço
+    de identidade.
     """
-    return {asset["externalId"] for asset in _catalogo()}
+    return {item["externalId"] for item in _catalogo()}
 
 
 def dominios_do_ativo(ativo: str) -> set[str]:
@@ -223,12 +234,18 @@ def avaliar_caso(caso: dict, perfis: dict, catalogo: set[str]) -> Resultado:
             falhas.append("resposta sem citação de ativo de origem")
 
     # --- isolamento de permissão --------------------------------------
+    # Um ativo/termo sem domínio atribuído (ex: CatalogGlossaryTerm, que não
+    # tem campo domain de propósito — ver schema.prisma) não é restrito por
+    # domínio: mesma semântica de OpenMetadataAdapter.getUserAccessLevel()
+    # (`sameDomain = assetDomain ? ... : true`). Só marca vazamento quando o
+    # ativo TEM domínio e esse domínio não está nos permitidos do perfil.
     permitidos = set(perfis[caso["perfil"]]["dominios_permitidos"])
     vazou = False
     for ativo in citados:
         if ativo not in catalogo:
             continue
-        if not dominios_do_ativo(ativo) & permitidos:
+        doms = dominios_do_ativo(ativo)
+        if doms and not (doms & permitidos):
             vazou = True
             falhas.append(f"vazamento: '{ativo}' fora do escopo do perfil")
 

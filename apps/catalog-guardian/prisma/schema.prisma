@@ -36,6 +36,26 @@ model CatalogAsset {
   @@map("catalog_assets")
 }
 
+// Termos de glossário — metadado conceitual/definicional (o que "PMR" ou
+// "churn" significam), distinto de CatalogAsset (o quê/onde os dados
+// vivem). Sem `domain`/`sensitivity`/PII de propósito: uma definição de
+// termo de negócio não é conteúdo restrito por domínio (mesma lógica de
+// getDomainOwner() em ownership — ver QueryService.askOwnership() e
+// findRelevantGlossaryTerms()), nunca passa pelo PermissionGuardService.
+model CatalogGlossaryTerm {
+  id          String   @id @default(uuid())
+  externalId  String   @map("external_id") // fqn do termo no catálogo fonte (ex: "termos_de_negocio.churn")
+  source      String
+  name        String
+  displayName String?  @map("display_name")
+  description String?
+  syncedAt    DateTime @map("synced_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([source, externalId])
+  @@map("catalog_glossary_terms")
+}
+
 model CatalogLineageEdge {
   id        String   @id @default(uuid())
   sourceId  String   @map("source_id")

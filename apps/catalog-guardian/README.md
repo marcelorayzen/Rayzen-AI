@@ -120,7 +120,7 @@ apps/catalog-guardian/
 ├── BLUEPRINT.md              # arquitetura completa em 6 fases (original, com encoding corrigido)
 ├── docker-compose.yml        # postgres + redis + api próprios (NÃO inclui o sandbox OMD)
 ├── Dockerfile                # build standalone (npm, não pnpm workspace) — deployável isolado
-├── prisma/schema.prisma      # CatalogAsset, CatalogLineageEdge, QueryAudit, ReviewGate, CatalogRecommendation
+├── prisma/schema.prisma      # CatalogAsset, CatalogGlossaryTerm, CatalogLineageEdge, QueryAudit, ReviewGate, CatalogRecommendation
 ├── golden-dataset/           # os 4 arquivos de referência (yaml, avaliador.py, gerar_planilha.py, README.md) + seed_sandbox.py
 └── src/
     ├── adapters/              # CatalogAdapter (contrato) + OpenMetadataAdapter (Fase 1)
@@ -140,7 +140,7 @@ apps/catalog-guardian/
 pnpm test
 ```
 
-Cobertura atual: `CatalogRiskScorerService` e `PermissionGuardService` (mesmo padrão de `apps/api-v2/src/guardian/__tests__/`).
+Cobertura atual: `CatalogRiskScorerService`, `PermissionGuardService` (mesmo padrão de `apps/api-v2/src/guardian/__tests__/`), `ownership-question.util.ts` e `substring-match.util.ts`.
 
 ## Roadmap (ordem recomendada de ataque)
 
@@ -180,13 +180,34 @@ Um `OWNERSHIP_SYSTEM_PROMPT` à parte (mais restrito que o principal) garante qu
 
 **Bug real encontrado e corrigido durante a validação (não é regressão desta rota, afeta o `findRelevantAssets()` compartilhado):** a tokenização da pergunta não removia pontuação colada (`"pedidos?"` não batia com o ativo `"pedidos"` via substring) — OWN-001 falhava silenciosamente por isso, não por causa da lógica de ownership. Corrigido com uma limpeza de pontuação por palavra antes do filtro de tamanho.
 
-### 4. Busca semântica/glossário em `QueryService.findRelevantAssets()`
+### 4. ✅ Busca por glossário — feito
 
-Hoje é substring simples. Os casos `DESC-003`, `SEM-002`, `SEM-005` (busca por conceito de negócio, não nome técnico) só têm chance real de passar com embeddings ou um glossário estruturado. Fazer depois do item 2 (catálogo mais rico) — não adianta melhorar a busca sobre um catálogo que ainda não tem os conceitos.
+Termos de glossário agora são um cidadão de primeira classe, não mais texto solto em descrição de tabela. Implementado:
+- `CatalogAdapter.listGlossaryTerms()` — novo método na interface. `OpenMetadataAdapter` lista TODOS os glossários da instância via `GET /v1/glossaryTerms` (paginado, sem nome de glossário hardcoded — mesmo princípio de `listAssets()` não assumir service/database/schema fixo).
+- `CatalogGlossaryTerm` — novo model Prisma. Sem `domain`/`sensitivity`/PII de propósito: definição de termo de negócio não é conteúdo restrito por domínio (mesmo raciocínio de `getDomainOwner()` do item 3), nunca passa por `PermissionGuardService`.
+- `SyncService.syncOnce()` sincroniza termos junto com ativos/lineage (falha isolada — glossário vazio no catálogo fonte não derruba o sync inteiro).
+- `QueryService.findRelevantGlossaryTerms()` — mesmo princípio "substring antes de embedding" de `findRelevantAssets()`, mas com `minLength` menor (3 em vez de 4): siglas de negócio (`PMR`) têm 3 letras e o corpus de termos é pequeno o bastante pra não gerar ruído com o corte menor.
+- `ask()` agora injeta um bloco de "termos de glossário relevantes" no prompt junto com os ativos guardados, e o `SYSTEM_PROMPT` ganhou uma regra explícita contra inventar sinonímia entre termos parecidos (SEM-002/006 testam exatamente isso).
+- Tokenizador extraído para `substring-match.util.ts` (compartilhado por `findRelevantAssets`/`findRelevantGlossaryTerms`), com teste próprio.
+- `/catalog/glossary-terms` — novo endpoint de leitura; `avaliador.py` (`_catalogo()`) agora mescla `/catalog/assets` + `/catalog/glossary-terms` num único espaço de identidade, e o cálculo de vazamento (`avaliar_caso`) foi corrigido pra não marcar citação de ativo/termo *sem domínio atribuído* como vazamento — mesma semântica que `OpenMetadataAdapter.getUserAccessLevel()` já usa em produção (`sameDomain = assetDomain ? ... : true`). Sem essa correção, TODO termo de glossário citado seria um falso positivo de vazamento.
+
+**Validado contra o sandbox real** (7 termos sincronizados de primeira, sem bug de shape):
+
+| Caso | Pergunta | Resultado |
+|---|---|---|
+| SEM-002 | "qual a diferença entre cliente_ativo e cliente_vigente?" | ✅ Apresenta as duas definições lado a lado, cita ambos os termos, não afirma equivalência |
+| SEM-003 | "o que é considerado venda bruta aqui?" | ✅ Cita a definição oficial do glossário |
+| SEM-005 | "o que quer dizer PMR nas tabelas de crédito?" (perfil financeiro) | ✅ Resolve a sigla pelo glossário, não usa conhecimento genérico |
+| SEM-006 | "cliente e consumidor são a mesma coisa?" | ✅ Reconhece o uso inconsistente documentado, não inventa sinonímia — ficou em gate `medium` por mistura de sensibilidade de duas tabelas que bateram na busca (`clientes`/`clientes_cancelamentos`), comportamento pré-existente do risk scorer da Fase 3, não regressão desta feature |
+| DESC-003/DESC-008 | busca por "contrato"/"churn" | ⚠️ Não testados ao vivo desta rodada — quota do Groq esgotou de novo no meio da validação (ver nota abaixo). Mesma lógica de `findRelevantGlossaryTerms`/`findRelevantAssets` já validada nos casos acima; risco de comportamento diferente é baixo, mas fica pendente de confirmação numa próxima sessão |
+
+**Bug real encontrado e corrigido durante a validação:** o filtro de tamanho de palavra (`length > 3`) descartava siglas de 3 letras como `"pmr"` *antes* de comparar com o glossário — quebrava exatamente o caso que a feature deveria resolver (SEM-005). Corrigido tornando o corte mínimo configurável (`tokenizeQuestion(question, minLength)`), com `findRelevantGlossaryTerms` usando 3 em vez do padrão 4. Também corrigido: a regex de limpeza de pontuação removia `_`, quebrando nomes em snake_case citados na própria pergunta (`"cliente_ativo"` virava `"clienteativo"`, nunca batendo com o termo real) — a regex agora preserva `_`.
+
+**Groq esgotou a quota de novo no meio da validação** (99881/100000 e depois 99874/100000 tokens usados) — mesma restrição externa das rodadas anteriores, quota compartilhada com o resto da infra Rayzen. Confirmado que a integração Python (`avaliador.py`) funciona sem custo de LLM: `ativos_existentes()` retorna 17 itens (10 tabelas + 7 termos), termo `pmr` presente e com domínio vazio (não seria marcado como alucinação nem vazamento).
 
 ### 5. Identidade real em `OpenMetadataAdapter.getUserAccessLevel()`
 
-Trocar a heurística por domínio pela avaliação real da policy engine do OMD (Teams/Roles/Policies/Personas). Maior risco de segurança em aberto do blueprint original — mas só vale a pena depois dos itens 1-3, porque sem seed automatizado e sem a rota de metadado administrativo, não dá para validar a mudança de forma repetível.
+Trocar a heurística por domínio pela avaliação real da policy engine do OMD (Teams/Roles/Policies/Personas). Maior risco de segurança em aberto do blueprint original — mas só vale a pena depois dos itens 1-4, porque sem seed automatizado, catálogo rico, rota de ownership e busca por glossário, não dá para validar a mudança de forma repetível nem isolar o que de fato mudou.
 
 ### 6. Fases 4-6 do blueprint (nessa ordem)
 

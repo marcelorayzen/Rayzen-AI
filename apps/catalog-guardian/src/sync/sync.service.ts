@@ -11,9 +11,11 @@ export class SyncService {
     @Inject(CATALOG_ADAPTER) private readonly adapter: CatalogAdapter,
   ) {}
 
-  // Upsert de CatalogAsset a partir do adapter, depois lineage por asset.
+  // Upsert de CatalogAsset a partir do adapter, depois lineage por asset, e
+  // por fim os termos de glossário (independentes de asset/lineage — nunca
+  // falham a sincronização inteira se o catálogo fonte não tiver glossário).
   // Roda via SyncProcessor (BullMQ, periódico) ou via `pnpm sync:once` (manual).
-  async syncOnce(): Promise<{ assets: number; edges: number }> {
+  async syncOnce(): Promise<{ assets: number; edges: number; glossaryTerms: number }> {
     const started = Date.now()
     const rawAssets = await this.adapter.listAssets()
     const syncedAt = new Date()
@@ -69,8 +71,34 @@ export class SyncService {
       }
     }
 
+    const rawTerms = await this.adapter.listGlossaryTerms().catch((err) => {
+      this.logger.warn(`listGlossaryTerms() falhou: ${(err as Error).message}`)
+      return []
+    })
+    for (const raw of rawTerms) {
+      await this.prisma.catalogGlossaryTerm.upsert({
+        where: { source_externalId: { source: this.adapter.source, externalId: raw.externalId } },
+        create: {
+          externalId: raw.externalId,
+          source: this.adapter.source,
+          name: raw.name,
+          displayName: raw.displayName ?? null,
+          description: raw.description ?? null,
+          syncedAt,
+        },
+        update: {
+          name: raw.name,
+          displayName: raw.displayName ?? null,
+          description: raw.description ?? null,
+          syncedAt,
+        },
+      })
+    }
+
     const ms = Date.now() - started
-    this.logger.log(`sync concluído em ${ms}ms — ${rawAssets.length} ativo(s), ${edgeCount} edge(s) de lineage`)
-    return { assets: rawAssets.length, edges: edgeCount }
+    this.logger.log(
+      `sync concluído em ${ms}ms — ${rawAssets.length} ativo(s), ${edgeCount} edge(s) de lineage, ${rawTerms.length} termo(s) de glossário`,
+    )
+    return { assets: rawAssets.length, edges: edgeCount, glossaryTerms: rawTerms.length }
   }
 }

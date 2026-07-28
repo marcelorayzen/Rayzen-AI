@@ -17,7 +17,7 @@ async function main() {
   const app = await NestFactory.createApplicationContext(SyncCliModule)
   const syncService = app.get(SyncService)
   const result = await syncService.syncOnce()
-  console.log(`Sync manual concluído: ${result.assets} ativo(s), ${result.edges} edge(s)`)
+  console.log(`Sync manual concluído: ${result.assets} ativo(s), ${result.edges} edge(s), ${result.glossaryTerms} termo(s) de glossário`)
   await app.close()
 }
 

@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { CatalogAdapter } from './catalog-adapter.interface'
-import { AccessLevel, RawCatalogAsset, RawLineageEdge } from './catalog-adapter.types'
+import { AccessLevel, RawCatalogAsset, RawGlossaryTerm, RawLineageEdge } from './catalog-adapter.types'
 
 interface OmEntityRef {
   id: string
@@ -36,6 +36,18 @@ interface OmTable {
 
 interface OmTableListResponse {
   data: OmTable[]
+  paging: { after?: string; before?: string }
+}
+
+interface OmGlossaryTerm {
+  name: string
+  fullyQualifiedName: string
+  displayName?: string
+  description?: string
+}
+
+interface OmGlossaryTermListResponse {
+  data: OmGlossaryTerm[]
   paging: { after?: string; before?: string }
 }
 
@@ -117,6 +129,34 @@ export class OpenMetadataAdapter implements CatalogAdapter {
 
     this.logger.log(`listAssets: ${assets.length} tabela(s) sincronizada(s) do OpenMetadata`)
     return assets
+  }
+
+  // Não filtra por glossário específico (nenhum nome hardcoded) — lista todos
+  // os termos de todos os glossários da instância, mesmo padrão de listAssets()
+  // não assumir um service/database/schema fixo. Um cliente real pode ter
+  // vários glossários; o Catalog Guardian não deveria conhecer o nome de
+  // nenhum deles de antemão.
+  async listGlossaryTerms(): Promise<RawGlossaryTerm[]> {
+    const terms: RawGlossaryTerm[] = []
+    let after: string | undefined
+
+    do {
+      const qs = new URLSearchParams({ limit: '100', ...(after ? { after } : {}) })
+      const page = await this.request<OmGlossaryTermListResponse>(`/v1/glossaryTerms?${qs}`)
+
+      for (const term of page.data) {
+        terms.push({
+          externalId: term.fullyQualifiedName,
+          name: term.name,
+          displayName: term.displayName ?? null,
+          description: term.description ?? null,
+        })
+      }
+      after = page.paging?.after
+    } while (after)
+
+    this.logger.log(`listGlossaryTerms: ${terms.length} termo(s) de glossário sincronizado(s) do OpenMetadata`)
+    return terms
   }
 
   async getLineage(externalId: string): Promise<RawLineageEdge[]> {

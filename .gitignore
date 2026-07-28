@@ -84,3 +84,4 @@ apps/catalog-guardian/generated/
 # depende do estado do catálogo de teste no momento; regenerar via
 # `python avaliador.py`, não é fonte de verdade versionável)
 apps/catalog-guardian/golden-dataset/resultado-*.json
+__pycache__/
