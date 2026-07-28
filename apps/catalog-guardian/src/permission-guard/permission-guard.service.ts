@@ -25,14 +25,22 @@ export interface GuardedAsset {
   piiFieldsNote: string | null // "[RESTRITO: nível none]" quando aplicável
 }
 
-// Requisito de negócio (casos NEG-002 / OWN-003 / OWN-004 do golden dataset):
-// um campo restrito NUNCA desaparece em silêncio — ele vira um rótulo
-// explícito. O único campo sempre visível independente de nível de acesso é
-// o "owner" (metadado administrativo, não é o dado em si) — ver
-// getOwnerOnly(). Tudo o mais no conteúdo do ativo segue o accessLevel:
-//   'none' → conteúdo inteiro vira "[RESTRITO: nível none]"
-//   'read' → conteúdo visível, mas colunas de PII ficam rotuladas
-//   'full' → conteúdo completo
+// Decisão de produto confirmada após a validação real contra o golden
+// dataset: citar o NOME de um ativo fora do domínio do usuário já conta
+// como vazamento de permissão — mesmo com o conteúdo redigido. Por isso
+// accessLevel 'none' (fora do domínio) faz o ativo ser EXCLUÍDO do contexto
+// inteiro em buildContext(), não apenas com o conteúdo nulado — o LLM nunca
+// chega a ver que esse ativo existe. (Versão anterior incluía o nome com
+// `[RESTRITO: ...]`; o próprio golden dataset provou isso como vazamento.)
+//
+// Dentro do domínio certo, PII só redige campo a campo ('read'), sem
+// excluir o ativo — ver applyGuard().
+//
+// O único caminho que ainda revela metadado administrativo (owner/steward)
+// independente de domínio é getOwnerOnly() — não é chamado por buildContext,
+// existe pra uma futura rota dedicada a pergunta de responsabilidade
+// (OWN-003: "quem é o steward de X" é público mesmo sem acesso ao domínio,
+// mas isso é uma pergunta *sobre* o ativo, não uma busca/descoberta geral).
 @Injectable()
 export class PermissionGuardService {
   constructor(@Inject(CATALOG_ADAPTER) private readonly adapter: CatalogAdapter) {}
@@ -41,11 +49,17 @@ export class PermissionGuardService {
     const guarded: GuardedAsset[] = []
     for (const asset of assets) {
       const accessLevel = await this.adapter.getUserAccessLevel(userId, asset.externalId)
+      if (accessLevel === 'none') continue // fora do domínio — nem o nome entra no contexto do LLM
       guarded.push(this.applyGuard(asset, accessLevel))
     }
     return guarded
   }
 
+  // Ainda não é chamado por nenhuma rota (QueryService só usa buildContext).
+  // TODO quando for ligar a um endpoint real: decidir se um lookup de um
+  // único ativo por accessLevel 'none' deve devolver algo (como faz hoje,
+  // via applyGuard) ou lançar/retornar null — mesma pergunta de produto que
+  // já resolvemos para buildContext, ainda não decidida para este caminho.
   async guardOne(userId: string, asset: GuardableAsset): Promise<GuardedAsset> {
     const accessLevel = await this.adapter.getUserAccessLevel(userId, asset.externalId)
     return this.applyGuard(asset, accessLevel)

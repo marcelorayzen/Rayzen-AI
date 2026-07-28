@@ -4,9 +4,16 @@ Camada de governança, segurança e resposta em linguagem natural sobre um catá
 
 **App isolado** — Prisma/DB/deploy próprios, não lê `public` nem `v2` do Rayzen em runtime. Reaproveita apenas *padrões de arquitetura* do resto do monorepo (replicados aqui como código próprio, sem import cross-app), para poder ser extraído e deployado sozinho na infra de um cliente de consultoria.
 
-Estado atual: Fases 0-3 do blueprint implementadas **e validadas ponta a ponta contra um sandbox OpenMetadata 1.9.17 real** (não só typecheck/unit test) — golden dataset completo rodou contra o `QueryController` real com LLM real via LiteLLM. Resultado em `golden-dataset/resultado-completo.json`: 26% de acurácia, 0% de alucinação, 10 vazamentos de permissão — número baixo de acurácia é esperado, não é regressão: o catálogo de teste usado tem só 5 tabelas contra os ~30+ conceitos que os 50 casos referenciam. Fases 4-6 (motor proativo, auditoria/relatório de maturidade, segundo adapter) ainda não implementadas — ver `BLUEPRINT.md` § Fases.
+Estado atual: Fases 0-3 do blueprint implementadas **e validadas ponta a ponta contra um sandbox OpenMetadata 1.9.17 real** (não só typecheck/unit test) — golden dataset completo rodou duas vezes contra o `QueryController` real com LLM real via LiteLLM:
 
-**Achado de design real dos 10 vazamentos** (não é bug de infra): `PermissionGuardService` inclui o ativo fora do domínio permitido no contexto do LLM com conteúdo redigido, mas o **nome** do ativo continua visível — e o LLM às vezes cita esse nome mesmo declarando que está restrito, o que o `avaliador.py` conta como vazamento (mesmo padrão que `NEG-002` já cobre: nem a localização de um dado deve vazar). Se essa leitura estiver certa, o fix é `QueryService.findRelevantAssets()` excluir o ativo do contexto inteiro quando fora do domínio, não só redigir o conteúdo — ainda não implementado, ver `memory/project_catalog_guardian_status.md` para o achado completo.
+| Rodada | Acurácia | Alucinação | Recusa correta | Vazamento de permissão |
+|---|---|---|---|---|
+| 1ª (design original) | 26% | 0% | 66.7% | 10 |
+| 2ª (pós-fix de permissão) | 34% | 0% | **100%** | **0** |
+
+Acurácia abaixo de 90% é esperado, não é regressão: o catálogo de teste usado tem só 5 tabelas contra os ~30+ conceitos que os 50 casos referenciam (ver Roadmap). Fases 4-6 (motor proativo, auditoria/relatório de maturidade, segundo adapter) ainda não implementadas — ver `BLUEPRINT.md` § Fases.
+
+**Vazamento de permissão corrigido (decisão de produto confirmada):** citar o nome de um ativo fora do domínio do usuário — mesmo com conteúdo redigido — conta como vazamento (mesmo padrão que `NEG-002` já cobre para dado de terceiro). `OpenMetadataAdapter.getUserAccessLevel()` agora trata domínio como portão primário (fora do domínio → `'none'` sempre, independente de PII — antes um ativo não-PII cross-domain ainda saía liberado); `PermissionGuardService.buildContext()` exclui ativos `'none'` do contexto inteiro, não só redige o conteúdo.
 
 **Bugs reais de shape de API corrigidos nesta validação** (`src/adapters/openmetadata.adapter.ts`, comentados no código como "confirmado empiricamente"): OMD 1.9.17 devolve `owners`/`domains` no plural (não os singulares que a primeira versão assumia); lineage vem em `upstreamEdges`/`downstreamEdges` separados (não um `edges` único) com ids em string pura; a própria entidade consultada não aparece em `nodes` do response de lineage; comparação de domínio deve usar `name` (slug estável), nunca `displayName` (rótulo livre — usar displayName chegou a quebrar o próprio domínio "rh").
 
@@ -107,16 +114,43 @@ pnpm test
 
 Cobertura atual: `CatalogRiskScorerService` e `PermissionGuardService` (mesmo padrão de `apps/api-v2/src/guardian/__tests__/`).
 
-## Próximos passos (não implementados nesta rodada)
+## Roadmap (ordem recomendada de ataque)
 
-- **Decisão de produto sobre os 10 vazamentos** achados na validação real (ver acima) — provavelmente exige `QueryService.findRelevantAssets()` excluir ativo fora de domínio do contexto inteiro, não só redigir conteúdo.
-- Fechar de verdade o mapeamento de identidade em `OpenMetadataAdapter.getUserAccessLevel()` — a implementação atual é uma heurística por domínio (`name`, não `displayName`), não a avaliação completa da policy engine nativa do OMD (Teams/Roles/Policies/Personas). Maior risco em aberto do blueprint.
-- Fase 4 — motor proativo de qualidade de catálogo (5 regras).
-- Fase 5 — exportação de auditoria + relatório de maturidade DAMA.
-- Fase 6 — segundo adapter (Unity Catalog ou Dataplex) provando a abstração.
-- Busca de ativos hoje é substring simples (`QueryService.findRelevantAssets`) — os casos DESC-003/SEM-002/SEM-005 do golden dataset (busca semântica/glossário) vão exigir embeddings ou um glossário estruturado.
-- Catálogo de teste usado na validação (`golden-dataset/resultado-completo.json`) tem só 5 tabelas — para fitness real do dataset, popular os outros ~25 conceitos referenciados (glossário de negócio, siglas internas, classificações LGPD detalhadas, lineage multi-hop).
+A ordem abaixo não é por número de fase do blueprint — é por dependência real: cada item destrava o próximo, ou evita retrabalho se feito fora de ordem.
 
-## Ambiente de validação desta sessão (2026-07-27)
+### 1. Seed do sandbox como script (bloqueia tudo o mais)
 
-Sandbox OpenMetadata 1.9.17 + dados de teste ficaram no ar para inspeção — ver `memory/project_catalog_guardian_status.md` para como reconectar (token, portas, decisões) ou desligar (`docker compose down` no app e no sandbox OMD clonado em `docker/docker-compose-quickstart/`).
+Nesta validação, os 5 domains + 4 usuários + 5 tabelas do OMD foram criados via `curl` manual, não versionado. Sem um script idempotente (`golden-dataset/seed-sandbox.py` ou similar, usando a REST API do OMD), **toda validação futura exige redescobrir os mesmos comandos**. Primeiro passo antes de qualquer outro, porque os itens 2 e 3 abaixo só valem a pena repetir se puderem rodar de novo sem esforço manual.
+
+### 2. Catálogo de teste mais rico
+
+Com o seed automatizado, popular os ~25 conceitos que os 50 casos do golden dataset referenciam e ainda não existem (glossário de negócio, siglas internas como PMR, classificações LGPD detalhadas, lineage multi-hop, ativos sem owner de propósito para os casos `OWN-004`/`SEM-005`). Sem isso, nenhuma melhoria de código consegue empurrar a acurácia muito além de ~35%, porque a maioria das falhas é "conceito não existe no catálogo", não erro do agente.
+
+### 3. Rota dedicada para pergunta de metadado administrativo (regressão potencial do fix de hoje)
+
+O fix do vazamento (item confirmado nesta sessão) trocou "ativo fora do domínio aparece redigido" por "ativo fora do domínio some do contexto inteiro". Isso é correto para descoberta geral, mas **piora especificamente os casos `OWN-003`/`OWN-004`/`OWN-005`** (perguntas sobre *quem é responsável*, que devem ser respondidas mesmo sem acesso ao domínio) — hoje esses ativos são excluídos do contexto e a informação de ownership fica inacessível. `PermissionGuardService.getOwnerOnly()` já existe pronto para isso, só não está ligado a nenhuma rota. Fazer antes do item 5 (identidade real), porque sem isso o golden dataset vai continuar reportando falha crítica em `OWN-003` mesmo com identidade perfeita.
+
+### 4. Busca semântica/glossário em `QueryService.findRelevantAssets()`
+
+Hoje é substring simples. Os casos `DESC-003`, `SEM-002`, `SEM-005` (busca por conceito de negócio, não nome técnico) só têm chance real de passar com embeddings ou um glossário estruturado. Fazer depois do item 2 (catálogo mais rico) — não adianta melhorar a busca sobre um catálogo que ainda não tem os conceitos.
+
+### 5. Identidade real em `OpenMetadataAdapter.getUserAccessLevel()`
+
+Trocar a heurística por domínio pela avaliação real da policy engine do OMD (Teams/Roles/Policies/Personas). Maior risco de segurança em aberto do blueprint original — mas só vale a pena depois dos itens 1-3, porque sem seed automatizado e sem a rota de metadado administrativo, não dá para validar a mudança de forma repetível.
+
+### 6. Fases 4-6 do blueprint (nessa ordem)
+
+- **Fase 4** — motor proativo de qualidade de catálogo (5 regras: `unclassified_asset`, `orphan_owner`, etc.) — só faz sentido com catálogo real povoado (item 2).
+- **Fase 5** — exportação de auditoria + relatório de maturidade DAMA — depende de já ter rodado validações reais o suficiente pra ter dado histórico.
+- **Fase 6** — segundo adapter (Unity Catalog ou Dataplex) provando que a abstração não é lock-in — só compensa depois do adapter OpenMetadata estar maduro (itens 1-5), senão duplica retrabalho de shape de API duas vezes.
+
+### 7. Polimento operacional (qualquer momento, baixo risco, sem dependência)
+
+- `SyncProcessor` sem listener de falha do BullMQ (`worker.on('failed', ...)`) — job falho fica silencioso, sem log visível.
+- `SyncService.syncOnce()` conta a mesma lineage edge duas vezes no log quando descoberta dos dois lados — upsert no banco é idempotente (correto), só o contador do log superestima.
+- Sem `.dockerignore` explícito — o `Dockerfile` já faz `COPY` seletivo, então não vaza segredo, mas seria mais à prova de futuro.
+- `pnpm test` na raiz do monorepo só roda `apps/api` (script fixo, não glob) — os testes do Catalog Guardian rodam via `pnpm --filter catalog-guardian test`. Mesmo padrão já existia para `api-v2`, não é regressão nova.
+
+## Ambiente de validação
+
+O sandbox OpenMetadata e o stack próprio do app foram **derrubados** ao fim da validação desta sessão (`docker compose down` nos dois lugares) — não há nada rodando para reconectar. Para retomar, seguir "Setup local" acima do zero (e, idealmente, começar pelo item 1 do Roadmap antes de repetir o seed manual).

@@ -146,6 +146,14 @@ export class OpenMetadataAdapter implements CatalogAdapter {
   // aberto do blueprint: fechar isto de verdade exige mapear o usuário do
   // Catalog Guardian para uma Team/Role real do OMD e avaliar a política
   // nativa dele, não só comparar nome de domínio. Ver BLUEPRINT.md § Riscos.
+  //
+  // Domínio é o portão PRIMÁRIO — decisão de produto confirmada após a
+  // validação real: citar a existência/nome de um ativo fora do domínio do
+  // usuário já conta como vazamento de permissão (mesmo padrão que NEG-002
+  // já exige para dado pessoal de terceiro — nem a localização pode vazar).
+  // Por isso domínio errado sempre vira 'none' independente de PII; dentro
+  // do domínio certo, PII só refina pra 'read' (conteúdo visível, colunas
+  // sensíveis redigidas) em vez de excluir o ativo inteiro.
   async getUserAccessLevel(userId: string, externalId: string): Promise<AccessLevel> {
     const table = await this.request<OmTable>(
       `/v1/tables/name/${encodeURIComponent(externalId)}?fields=owners,tags,domains`,
@@ -160,10 +168,9 @@ export class OpenMetadataAdapter implements CatalogAdapter {
     const userDomains = new Set((user.domains ?? []).map((d) => domainSlug(d.name)).filter(Boolean))
 
     const sameDomain = assetDomain ? userDomains.has(assetDomain) : true
+    if (!sameDomain) return 'none'
 
-    if (isPII && !sameDomain) return 'none'
-    if (isPII && sameDomain) return 'read' // metadado de PII: nunca 'full' (valor bruto nunca é servido por este app)
-    return sameDomain ? 'full' : 'read'
+    return isPII ? 'read' : 'full' // metadado de PII: nunca 'full' (valor bruto nunca é servido por este app)
   }
 
   private toRawAsset(table: OmTable): RawCatalogAsset {

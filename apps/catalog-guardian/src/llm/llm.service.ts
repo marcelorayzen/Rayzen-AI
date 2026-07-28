@@ -20,6 +20,7 @@ export class LlmService {
   }
 
   async complete(systemPrompt: string, userPrompt: string): Promise<string> {
+    const startedAt = Date.now()
     const res = await fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -40,9 +41,17 @@ export class LlmService {
       throw new Error(`LiteLLM ${this.baseUrl}/chat/completions → HTTP ${res.status}: ${await res.text()}`)
     }
 
-    const body = (await res.json()) as { choices: { message: { content: string } }[] }
+    const body = (await res.json()) as {
+      choices: { message: { content: string } }[]
+      usage?: { total_tokens?: number; prompt_tokens?: number; completion_tokens?: number }
+    }
     const content = body.choices?.[0]?.message?.content ?? ''
     if (!content) this.logger.warn('LiteLLM retornou resposta vazia')
+
+    // Regra do CLAUDE.md: logar tokens_used e duration_ms em toda chamada LiteLLM
+    this.logger.log(
+      `LiteLLM ${this.model} — tokens_used=${body.usage?.total_tokens ?? 'n/a'} duration_ms=${Date.now() - startedAt}`,
+    )
     return content
   }
 }

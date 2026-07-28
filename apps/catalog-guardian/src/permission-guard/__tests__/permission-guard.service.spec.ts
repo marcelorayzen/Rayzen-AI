@@ -26,15 +26,16 @@ function asset(overrides: Partial<GuardableAsset> = {}): GuardableAsset {
 }
 
 describe('PermissionGuardService', () => {
-  it('nível none: conteúdo vira [RESTRITO] mas não desaparece silenciosamente', async () => {
+  // Decisão de produto (confirmada após o golden dataset flagar isso como
+  // vazamento real): buildContext() EXCLUI o ativo inteiro do contexto do
+  // LLM quando accessLevel === 'none' — nem o nome pode aparecer. Antes
+  // disso, o ativo entrava com `[RESTRITO: ...]` mas o nome continuava
+  // visível, e o LLM às vezes o citava mesmo assim.
+  it('nível none: ativo é excluído do contexto inteiro, não aparece nem redigido', async () => {
     const svc = new PermissionGuardService(fakeAdapter('none'))
-    const [result] = await svc.buildContext('user-geral', [asset()])
+    const result = await svc.buildContext('user-geral', [asset()])
 
-    expect(result.restricted).toBe(true)
-    expect(result.description).toBeNull()
-    expect(result.piiFieldsNote).toMatch(/^\[RESTRITO: nível/)
-    // owner nunca é omitido — é metadado administrativo (OWN-003)
-    expect(result.owner).toBe('Maria Souza')
+    expect(result).toHaveLength(0)
   })
 
   it('nível read com PII: descrição visível, mas nota de campos PII restritos', async () => {
@@ -67,5 +68,17 @@ describe('PermissionGuardService', () => {
     const svc = new PermissionGuardService(fakeAdapter('none'))
     const result = await svc.getOwnerOnly(asset())
     expect(result.owner).toBe('Maria Souza')
+  })
+
+  // guardOne() ainda não é chamado por nenhuma rota (ver TODO no service) —
+  // este teste documenta o comportamento atual de applyGuard() em isolado,
+  // não uma garantia de produto como o teste de buildContext acima.
+  it('guardOne com nível none: comportamento de applyGuard isolado (rota ainda não ligada)', async () => {
+    const svc = new PermissionGuardService(fakeAdapter('none'))
+    const result = await svc.guardOne('user-geral', asset())
+
+    expect(result.restricted).toBe(true)
+    expect(result.description).toBeNull()
+    expect(result.piiFieldsNote).toMatch(/^\[RESTRITO: nível/)
   })
 })
