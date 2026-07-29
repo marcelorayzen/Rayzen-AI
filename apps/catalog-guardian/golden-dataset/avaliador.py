@@ -39,6 +39,18 @@ import yaml
 
 CATALOG_GUARDIAN_URL = os.environ.get("CATALOG_GUARDIAN_URL", "http://localhost:4001")
 
+# Toda rota (exceto /ping) agora exige "Authorization: Bearer <chave>" — ver
+# apps/catalog-guardian/src/auth/api-key.guard.ts. Mesmo valor configurado em
+# CATALOG_GUARDIAN_API_KEY no .env do servidor.
+CATALOG_GUARDIAN_API_KEY = os.environ.get("CATALOG_GUARDIAN_API_KEY", "")
+
+
+def _auth_headers(extra: dict | None = None) -> dict:
+    headers = dict(extra or {})
+    if CATALOG_GUARDIAN_API_KEY:
+        headers["Authorization"] = f"Bearer {CATALOG_GUARDIAN_API_KEY}"
+    return headers
+
 # consultar_agente(pergunta, perfil) só recebe o perfil de acesso (geral,
 # financeiro, rh, steward — ver golden-dataset.yaml § perfis), não um userId
 # individual. O Catalog Guardian precisa de um userId real pra resolver
@@ -56,7 +68,7 @@ def _post_json(path: str, payload: dict) -> dict:
     req = urllib.request.Request(
         f"{CATALOG_GUARDIAN_URL}{path}",
         data=body,
-        headers={"Content-Type": "application/json"},
+        headers=_auth_headers({"Content-Type": "application/json"}),
         method="POST",
     )
     with urllib.request.urlopen(req, timeout=30) as resp:
@@ -64,7 +76,7 @@ def _post_json(path: str, payload: dict) -> dict:
 
 
 def _get_json(path: str) -> object:
-    req = urllib.request.Request(f"{CATALOG_GUARDIAN_URL}{path}", method="GET")
+    req = urllib.request.Request(f"{CATALOG_GUARDIAN_URL}{path}", headers=_auth_headers(), method="GET")
     with urllib.request.urlopen(req, timeout=30) as resp:
         return json.loads(resp.read().decode("utf-8"))
 

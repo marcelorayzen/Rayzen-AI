@@ -29,6 +29,12 @@ cp .env.example .env          # ajustar OPENMETADATA_TOKEN depois de subir o san
 pnpm install                  # a partir da raiz do monorepo (workspace pnpm) — ou npm install aqui dentro isoladamente
 ```
 
+**Toda rota (exceto `/ping`) exige `Authorization: Bearer <chave>` — `ApiKeyGuard` global, ver `src/auth/`.** Gere um valor real e coloque em `CATALOG_GUARDIAN_API_KEY` no `.env` antes de subir a API (sem isso, o servidor recusa toda request com 401 — fail-closed por padrão, mesmo padrão do `AgentTokenGuard` em `apps/api`):
+
+```bash
+node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"
+```
+
 ### 1. Banco e fila próprios
 
 ```bash
@@ -104,8 +110,11 @@ Confirma no log quantos ativos e edges de lineage foram sincronizados. Em produ�
 ```bash
 cd golden-dataset
 pip install pyyaml
+export CATALOG_GUARDIAN_API_KEY="<mesma chave do .env da API>"   # Windows: set CATALOG_GUARDIAN_API_KEY=...
 python avaliador.py --dataset golden-dataset.yaml --apenas-criticos
 ```
+
+Sem essa env var, toda chamada de `avaliador.py` à API recebe `401 Unauthorized` — `_post_json`/`_get_json` já enviam o header `Authorization: Bearer` quando a variável está definida.
 
 `consultar_agente`, `ativos_existentes` e `dominios_do_ativo` em `avaliador.py` já chamam a API real (`CATALOG_GUARDIAN_URL`, default `http://localhost:4001`) — nenhum stub `NotImplementedError` restante. `consultar_agente` mapeia `perfil` → `userId` assumindo um usuário de mesmo nome no sandbox OMD (`geral`/`financeiro`/`rh`/`steward`); ajuste via `CATALOG_GUARDIAN_USER_<PERFIL>` se os nomes reais forem outros.
 
@@ -123,6 +132,7 @@ apps/catalog-guardian/
 ├── prisma/schema.prisma      # CatalogAsset, CatalogGlossaryTerm, CatalogLineageEdge, QueryAudit, QueryAuditFlag, ReviewGate, CatalogRecommendation
 ├── golden-dataset/           # os 4 arquivos de referência (yaml, avaliador.py, gerar_planilha.py, README.md) + seed_sandbox.py
 └── src/
+    ├── auth/                  # ApiKeyGuard global (Bearer estático) + @Public() — backlog de autenticação
     ├── adapters/              # CatalogAdapter (contrato) + OpenMetadataAdapter (Fase 1, item 5) + UnityCatalogAdapter (Fase 6)
     ├── sync/                  # job BullMQ periódico + CLI manual (pnpm sync:once) + regra permission_drift (Fase 4)
     ├── permission-guard/      # Fase 2 — retrieval permission-aware
@@ -315,8 +325,9 @@ Item original (4 pontos, todos baixo risco/sem dependência) mais uma auditoria 
 
 Levantamento completo pedido pelo dono do projeto antes de fechar o item 7: tudo que funciona mas tem uma simplificação, decisão adiada ou gap real por baixo, e que **não** coube no escopo "pequeno e contido" acima. Cada item aqui merece sua própria sessão, não um fold-in de última hora.
 
-**Segurança — o mais importante:**
-- **Zero autenticação em qualquer endpoint** (`/query`, `/maturity/*`, `/query-audits/*`, `/proactive/*`, `/review-gates/*`) — verdade desde a Fase 0, mas ficou mais grave com o export CSV em massa da Fase 5 (dump completo de `QueryAudit`, sem controle de quem acessa). Precisa de uma estratégia de auth de verdade (API key? JWT? por endpoint?), não um patch.
+**Segurança:**
+- ✅ **Autenticação em endpoints — feito.** `ApiKeyGuard` global (`src/auth/`), 1 chave via `Authorization: Bearer` (env `CATALOG_GUARDIAN_API_KEY`), mesmo padrão do `AgentTokenGuard` de `apps/api` (Bearer estático, `timingSafeEqual`, fail-closed se a env var não estiver setada). Único endpoint público: `GET /ping` (health check, via `@Public()`). Decisão explícita: 1 chave única pra tudo, não 2 níveis (read vs steward) — o app ainda não tem conceito de identidade de operador diferenciado, só o `userId`/`profile` de negócio que já é outro problema (ver item abaixo). Reabrir pra 2 níveis se um cliente real precisar diferenciar quem pode aprovar gate/exportar CSV de quem só consulta.
+- **Identidade do usuário de negócio em `/query` não é verificada** — `userId`/`profile` no body são uma *alegação* do chamador, não uma prova. A chave de API (item acima) garante que só um chamador autorizado bate na API, mas não impede esse chamador de mentir sobre qual usuário de negócio está representando — quem detém a chave pode se passar por qualquer `userId`/perfil e herdar o nível de acesso dele. Resolver de verdade exige decidir integração com o IdP do cliente (SSO/JWT com claim de identidade), não um ajuste pequeno — deliberadamente separado do item de auth de endpoint acima, tratam de camadas diferentes do problema.
 
 **Identidade (item 5 — Role/Policy do OMD):**
 - `evaluateCondition()` só reconhece `matchAnyTag('X')` — OMD tem `isOwner()`, `hasAnyRole()`, `matchTeam()`, `inAnyTeam()`, `hasDomain()` nativas (confirmadas no log de boot do servidor); qualquer policy real que use uma dessas vira fail-closed silencioso.

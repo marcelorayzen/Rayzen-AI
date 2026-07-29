@@ -43,6 +43,7 @@ services:
       redis:
         condition: service_started
     environment:
+      CATALOG_GUARDIAN_API_KEY: ${CATALOG_GUARDIAN_API_KEY:?defina CATALOG_GUARDIAN_API_KEY no .env antes de subir}
       DATABASE_URL: postgresql://catalog_guardian:${POSTGRES_PASSWORD:-catalog_guardian_dev}@postgres:5432/catalog_guardian
       REDIS_HOST: redis
       REDIS_PORT: 6379

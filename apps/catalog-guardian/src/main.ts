@@ -24,6 +24,7 @@ async function bootstrap() {
     .setTitle('Catalog Guardian')
     .setDescription('Governança, segurança e resposta em linguagem natural sobre um catálogo de dados existente')
     .setVersion('0.0.1')
+    .addBearerAuth()
     .build()
   SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, config))
 

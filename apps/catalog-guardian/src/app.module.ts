@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common'
 import { APP_GUARD } from '@nestjs/core'
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler'
 import { PingController } from './ping.controller'
+import { ApiKeyGuard } from './auth/api-key.guard'
 import { CoreModule } from './core/core.module'
 import { AdaptersModule } from './adapters/adapters.module'
 import { SyncModule } from './sync/sync.module'
@@ -32,6 +33,9 @@ import { CatalogProactiveModule } from './proactive/catalog-proactive.module'
     CatalogProactiveModule,
     CatalogMaturityModule,
   ],
-  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: ApiKeyGuard },
+  ],
 })
 export class AppModule {}
