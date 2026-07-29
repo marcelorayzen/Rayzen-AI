@@ -55,16 +55,6 @@ export class PermissionGuardService {
     return guarded
   }
 
-  // Ainda não é chamado por nenhuma rota (QueryService só usa buildContext).
-  // TODO quando for ligar a um endpoint real: decidir se um lookup de um
-  // único ativo por accessLevel 'none' deve devolver algo (como faz hoje,
-  // via applyGuard) ou lançar/retornar null — mesma pergunta de produto que
-  // já resolvemos para buildContext, ainda não decidida para este caminho.
-  async guardOne(userId: string, asset: GuardableAsset): Promise<GuardedAsset> {
-    const accessLevel = await this.adapter.getUserAccessLevel(userId, asset.externalId)
-    return this.applyGuard(asset, accessLevel)
-  }
-
   // Metadado administrativo (owner/steward) é público mesmo sem acesso ao
   // domínio — saber QUEM é responsável não é o mesmo que VER o dado (OWN-003).
   async getOwnerOnly(asset: Pick<GuardableAsset, 'externalId' | 'owner' | 'domain'>) {

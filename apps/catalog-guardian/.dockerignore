@@ -1,0 +1,13 @@
+# O Dockerfile já faz COPY seletivo (package.json, tsconfig.json, prisma,
+# src) — nada aqui vaza segredo hoje. Isto existe pra acelerar o build
+# context enviado ao daemon e blindar contra um futuro "COPY . ." que
+# alguém adicione sem revisar o que isso arrastaria junto.
+node_modules
+generated
+dist
+coverage
+.env
+.env.*
+*.log
+.git
+golden-dataset

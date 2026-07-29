@@ -27,7 +27,7 @@ function renderHtml(report: MaturityReport): string {
     .map(
       (d) => `
         <tr>
-          <td>${d.label}</td>
+          <td>${d.label}${d.insufficientData ? ' <span class="warn">⚠ amostra insuficiente</span>' : ''}</td>
           <td class="score">${d.score}</td>
           <td class="evidence"><pre>${JSON.stringify(d.evidence, null, 2)}</pre></td>
         </tr>`,
@@ -51,6 +51,7 @@ function renderHtml(report: MaturityReport): string {
   .score { font-weight: bold; width: 4rem; }
   .evidence pre { margin: 0; font-size: 0.8rem; white-space: pre-wrap; }
   .disclaimer { margin-top: 2rem; font-size: 0.85rem; color: #555; border-top: 1px solid #ccc; padding-top: 1rem; }
+  .warn { font-size: 0.8rem; color: #a15c00; font-weight: normal; }
   @media print { body { margin: 0.5rem; } }
 </style>
 </head>

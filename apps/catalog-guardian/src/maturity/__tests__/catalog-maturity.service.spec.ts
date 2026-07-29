@@ -71,15 +71,34 @@ function fakePrisma(data: {
 }
 
 describe('CatalogMaturityService', () => {
-  it('catálogo vazio: nenhuma dimensão quebra, todas defaultam pra 100 (sem evidência de problema)', async () => {
+  it('catálogo vazio: nenhuma dimensão quebra, mas a banda vira "dados insuficientes" em vez de "otimizado"', async () => {
     const svc = new CatalogMaturityService(fakePrisma({}))
     const report = await svc.computeReport()
 
     expect(report.overallScore).toBe(100)
-    expect(report.band).toBe('otimizado')
+    // Item 7: catálogo vazio não pode aparentar "otimizado" — todas as
+    // dimensões ficam sem amostra, o override de banda cobre isso.
+    expect(report.band).toBe('dados insuficientes')
     for (const d of report.dimensions) {
       expect(Number.isNaN(d.score)).toBe(false)
+      expect(d.insufficientData).toBe(true)
     }
+  })
+
+  it('só entra "dados insuficientes" quando TODAS as dimensões estão sem amostra — uma sozinha não derruba a banda', async () => {
+    const assets: FakeAsset[] = [
+      { id: '1', owner: 'a', tags: ['x'] },
+      { id: '2', owner: 'a', tags: ['x'] },
+      { id: '3', owner: 'a', tags: ['x'] },
+    ]
+    const svc = new CatalogMaturityService(fakePrisma({ assets }))
+    const report = await svc.computeReport()
+
+    const ownership = report.dimensions.find((d) => d.key === 'ownership')!
+    const queryQuality = report.dimensions.find((d) => d.key === 'query_quality')!
+    expect(ownership.insufficientData).toBe(false) // 3 ativos ≥ MIN_SAMPLE_SIZE
+    expect(queryQuality.insufficientData).toBe(true) // zero query registrada
+    expect(report.band).not.toBe('dados insuficientes') // nem todas insuficientes
   })
 
   it('ownership: score reflete % de ativos com owner', async () => {
@@ -163,13 +182,19 @@ describe('CatalogMaturityService', () => {
   })
 
   it('overallScore é a média simples das 6 dimensões, arredondada', async () => {
-    const svc = new CatalogMaturityService(
-      fakePrisma({ assets: [{ id: '1', owner: null, tags: [] }] }), // ownership=0, classification=0, lineage=0, resto=100
-    )
+    // 3 ativos (≥ MIN_SAMPLE_SIZE) pra ownership/classification/lineage/
+    // governance_debt não ficarem "insuficientes" e derrubarem a banda por
+    // engano — o que este teste quer verificar é só a média aritmética.
+    const assets: FakeAsset[] = [
+      { id: '1', owner: null, tags: [] },
+      { id: '2', owner: null, tags: [] },
+      { id: '3', owner: null, tags: [] },
+    ]
+    const svc = new CatalogMaturityService(fakePrisma({ assets }))
     const report = await svc.computeReport()
 
     expect(report.dimensions).toHaveLength(6)
-    // 0+0+0+100+100+100 = 300 / 6 = 50
+    // ownership=0, classification=0, lineage=0, resto=100 → 300 / 6 = 50
     expect(report.overallScore).toBe(50)
     expect(report.band).toBe('em desenvolvimento')
   })

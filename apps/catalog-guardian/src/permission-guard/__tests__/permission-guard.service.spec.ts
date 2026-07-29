@@ -71,16 +71,4 @@ describe('PermissionGuardService', () => {
     const result = await svc.getOwnerOnly(asset())
     expect(result.owner).toBe('Maria Souza')
   })
-
-  // guardOne() ainda não é chamado por nenhuma rota (ver TODO no service) —
-  // este teste documenta o comportamento atual de applyGuard() em isolado,
-  // não uma garantia de produto como o teste de buildContext acima.
-  it('guardOne com nível none: comportamento de applyGuard isolado (rota ainda não ligada)', async () => {
-    const svc = new PermissionGuardService(fakeAdapter('none'))
-    const result = await svc.guardOne('user-geral', asset())
-
-    expect(result.restricted).toBe(true)
-    expect(result.description).toBeNull()
-    expect(result.piiFieldsNote).toMatch(/^\[RESTRITO: nível/)
-  })
 })

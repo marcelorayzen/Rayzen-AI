@@ -65,7 +65,13 @@ export class SyncService {
       idByExternalId.set(raw.externalId, asset.id)
     }
 
+    // Item 7: uma mesma edge A→B aparece na chamada de getLineage() tanto de
+    // A (como downstream) quanto de B (como upstream) — o upsert no banco já
+    // era idempotente (correto, nunca duplicava linha), mas o contador do
+    // log incrementava a cada aparição, superestimando o total. `seenEdges`
+    // deduplica pelo par sourceId/targetId antes de contar.
     let edgeCount = 0
+    const seenEdges = new Set<string>()
     for (const raw of rawAssets) {
       const rawEdges = await this.adapter.getLineage(raw.externalId).catch((err) => {
         this.logger.warn(`getLineage(${raw.externalId}) falhou: ${(err as Error).message}`)
@@ -80,7 +86,11 @@ export class SyncService {
           create: { sourceId, targetId, transform: edge.transform ?? null },
           update: { transform: edge.transform ?? null },
         })
-        edgeCount++
+        const edgeKey = `${sourceId}:${targetId}`
+        if (!seenEdges.has(edgeKey)) {
+          seenEdges.add(edgeKey)
+          edgeCount++
+        }
       }
     }
 

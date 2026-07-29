@@ -248,10 +248,19 @@ export class OpenMetadataAdapter implements CatalogAdapter {
 
   // Só resolve roles atribuídas DIRETAMENTE ao usuário — roles herdadas via
   // team.defaultRoles ficam fora de propósito (nenhum persona do golden
-  // dataset depende disso hoje; ver README § Roadmap item 5). Só é chamada
-  // quando o ativo já é PII, então não adiciona custo de chamada nenhum
-  // para o caso comum (ativo não-PII).
+  // dataset depende disso hoje; ver README § Roadmap item 5 e § Backlog). Só
+  // é chamada quando o ativo já é PII, então não adiciona custo de chamada
+  // nenhum para o caso comum (ativo não-PII).
+  //
+  // Item 7 (revisão pós-Fase 6): `deny` explícito agora vence `allow` —
+  // antes só `effect === 'allow'` era considerado, então uma policy real com
+  // um `deny` mais específico por cima de um `allow` amplo (padrão comum de
+  // governança) era silenciosamente ignorada e o `allow` prevalecia sozinho.
+  // Retorna false assim que QUALQUER regra `deny` bater (nenhuma role
+  // "salva" a clearance depois disso), só retorna true no fim se nenhum
+  // deny bateu e pelo menos um allow bateu.
   private async hasPiiClearance(roles: OmEntityRef[], assetTagFQNs: string[]): Promise<boolean> {
+    let allowed = false
     for (const role of roles) {
       const fullRole = await this.request<OmRole>(
         `/v1/roles/name/${encodeURIComponent(role.name)}?fields=policies`,
@@ -260,16 +269,15 @@ export class OpenMetadataAdapter implements CatalogAdapter {
         const policy = await this.request<OmPolicy>(
           `/v1/policies/name/${encodeURIComponent(policyRef.name)}?fields=rules`,
         ).catch(() => null)
-        const grants = (policy?.rules ?? []).some(
-          (rule) =>
-            rule.effect === 'allow'
-            && (rule.operations ?? []).includes('ViewAll')
-            && this.evaluateCondition(rule.condition, assetTagFQNs),
-        )
-        if (grants) return true
+        for (const rule of policy?.rules ?? []) {
+          if (!(rule.operations ?? []).includes('ViewAll')) continue
+          if (!this.evaluateCondition(rule.condition, assetTagFQNs)) continue
+          if (rule.effect === 'deny') return false
+          allowed = true
+        }
       }
     }
-    return false
+    return allowed
   }
 
   // Deliberadamente NÃO é um parser genérico de SpEL — reconhece só o

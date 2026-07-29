@@ -112,4 +112,23 @@ describe('OpenMetadataAdapter.getUserAccessLevel', () => {
 
     expect(level).toBe('read')
   })
+
+  it('item 7: deny explícito vence allow — policy com allow amplo + deny específico nunca concede clearance', async () => {
+    mockFetch({
+      '/v1/tables/name/': PII_TABLE,
+      '/v1/users/name/': { domains: [{ name: 'vendas' }], roles: [PII_VIEWER_ROLE] },
+      '/v1/roles/name/PIIViewer': { name: 'PIIViewer', policies: [{ id: 'p1', type: 'policy', name: 'PIIViewerPolicy' }] },
+      '/v1/policies/name/PIIViewerPolicy': {
+        rules: [
+          { name: 'AllowViewAllPII', resources: ['table'], operations: ['ViewAll'], effect: 'allow', condition: "matchAnyTag('PII.Sensitive')" },
+          { name: 'DenyViewAllPII', resources: ['table'], operations: ['ViewAll'], effect: 'deny', condition: "matchAnyTag('PII.Sensitive')" },
+        ],
+      },
+    })
+    const adapter = new OpenMetadataAdapter(fakeConfig())
+
+    const level = await adapter.getUserAccessLevel('steward', PII_TABLE.fullyQualifiedName)
+
+    expect(level).toBe('read')
+  })
 })

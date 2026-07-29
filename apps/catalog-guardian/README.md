@@ -294,12 +294,48 @@ O blueprint descrevia isto em 2 linhas ("QueryAudit exportável CSV/PDF" + "rela
 4. `DECIMAL` quebra o parser de colunas da CLI ("Unknown primitive type decimal") mesmo com precisão/escala explícita — troca pragmática por `DOUBLE` (não precisamos de decimal exato pra um smoke test).
 5. **Não resolvido, documentado como limitação real:** `uc permission create` aceita o principal (não erra) e devolve exit 0, mas `uc permission get` logo depois nunca mostra o grant — tentado em 4 combinações (catalog+email, catalog maiúsculo, catalog+nome, table+email), nenhuma persistiu. Possível bug da build `v0.5.0` (grants é feature nova o suficiente pra ter esse tipo de instabilidade). Não bloqueia a prova da abstração: o caminho de leitura (`GET /permissions/...`) foi confirmado retornando exatamente o shape `{"privilege_assignments":[...]}` que o adapter espera, e a lógica de decisão (`getUserAccessLevel`) está coberta por 3 casos unitários com esse shape mockado. O caminho **negativo** (sem grant → `'none'` → conteúdo corretamente excluído) foi validado ao vivo com sucesso — é o comportamento de segurança mais crítico dos dois.
 
-### 7. Polimento operacional (qualquer momento, baixo risco, sem dependência)
+### 7. ✅ Polimento operacional — feito (escopo ampliado)
 
-- `SyncProcessor` sem listener de falha do BullMQ (`worker.on('failed', ...)`) — job falho fica silencioso, sem log visível.
-- `SyncService.syncOnce()` conta a mesma lineage edge duas vezes no log quando descoberta dos dois lados — upsert no banco é idempotente (correto), só o contador do log superestima.
-- Sem `.dockerignore` explícito — o `Dockerfile` já faz `COPY` seletivo, então não vaza segredo, mas seria mais à prova de futuro.
-- `pnpm test` na raiz do monorepo só roda `apps/api` (script fixo, não glob) — os testes do Catalog Guardian rodam via `pnpm --filter catalog-guardian test`. Mesmo padrão já existia para `api-v2`, não é regressão nova.
+Item original (4 pontos, todos baixo risco/sem dependência) mais uma auditoria pedida pelo dono do projeto ("detalhe o que ficou mascarado/perfumado pra funcionar") sobre as Fases 3-6 inteiras — o que era pequeno o suficiente entrou aqui, o resto virou § Backlog abaixo, explicitamente para não ficar mascarado.
+
+**Escopo original:**
+- `SyncProcessor` ganhou `@OnWorkerEvent('failed')` — job de sync que falha (catálogo fonte fora do ar, token expirado) agora loga erro explícito em vez de falhar silenciosamente até a próxima tentativa agendada.
+- `SyncService.syncOnce()` deduplica a contagem de lineage edge no log — uma edge A→B aparecia tanto na consulta de A (downstream) quanto de B (upstream); o upsert no banco já era idempotente (correto), só o contador superestimava. Teste novo confirma 1 edge contada, não 2, quando a mesma edge aparece dos dois lados.
+- `.dockerignore` adicionado — o `Dockerfile` já fazia `COPY` seletivo (não vazava segredo), isto só acelera o build context e blinda contra um futuro `COPY . .` desavisado.
+- `pnpm test` raiz do monorepo continua só rodando `apps/api` — **movido pro Backlog**, não é escopo de um app isolado (toca `package.json` raiz, blast radius de todo o monorepo, merece decisão própria).
+
+**Da auditoria, dobrado pra dentro do escopo (pequeno, contido, sem infra nova):**
+- **`hasPiiClearance()` agora respeita `effect: 'deny'`** — antes só `allow` era considerado; uma policy real com um `deny` específico sobre um `allow` amplo (padrão comum de governança) era silenciosamente ignorada e o `allow` vencia sozinho. `deny` agora vence sempre, independente de quantas roles/policies o usuário tenha. Teste novo cobre o caso.
+- **`CatalogMaturityService` não aparenta "otimizado" num catálogo vazio** — dimensão sem amostra (`sampleSize < 3`) agora carrega `insufficientData: true`; se **todas** as dimensões estiverem assim, a banda geral vira `"dados insuficientes"` em vez do score-default enganoso. HTML do relatório mostra "⚠ amostra insuficiente" ao lado da dimensão afetada.
+- **`guardOne()` removido** do `PermissionGuardService` — código morto desde a Fase 2, nunca ligado a nenhuma rota (documentado como TODO desde então; a rota de ownership real usa `getOwnerOnly()`, não `guardOne()`).
+- **`CatalogProactiveService.compute()` trocou blocklist por allowlist** — apagava tudo que NÃO estivesse numa lista de "tipos donos de outro serviço" (`TYPES_OWNED_BY_SYNC`, só `permission_drift`); um novo tipo escrito por outro serviço no futuro, se esquecido dessa lista, seria apagado silenciosamente a cada ciclo. Invertido para `TYPES_COMPUTED_HERE` (allowlist dos 5 tipos que este serviço realmente calcula) — qualquer tipo novo de outra origem fica protegido por padrão.
+- **Convenção de PII do `UnityCatalogAdapter` documentada como bespoke** em `BLUEPRINT.md § Riscos` — `properties.pii == "true"` é nossa, não um padrão do produto; um cliente real de Unity Catalog precisaria adotar essa convenção explicitamente antes de confiar na detecção de PII.
+
+## Backlog (auditado, não implementado nesta rodada — por quê)
+
+Levantamento completo pedido pelo dono do projeto antes de fechar o item 7: tudo que funciona mas tem uma simplificação, decisão adiada ou gap real por baixo, e que **não** coube no escopo "pequeno e contido" acima. Cada item aqui merece sua própria sessão, não um fold-in de última hora.
+
+**Segurança — o mais importante:**
+- **Zero autenticação em qualquer endpoint** (`/query`, `/maturity/*`, `/query-audits/*`, `/proactive/*`, `/review-gates/*`) — verdade desde a Fase 0, mas ficou mais grave com o export CSV em massa da Fase 5 (dump completo de `QueryAudit`, sem controle de quem acessa). Precisa de uma estratégia de auth de verdade (API key? JWT? por endpoint?), não um patch.
+
+**Identidade (item 5 — Role/Policy do OMD):**
+- `evaluateCondition()` só reconhece `matchAnyTag('X')` — OMD tem `isOwner()`, `hasAnyRole()`, `matchTeam()`, `inAnyTeam()`, `hasDomain()` nativas (confirmadas no log de boot do servidor); qualquer policy real que use uma dessas vira fail-closed silencioso.
+- Roles herdadas via `team.defaultRoles` não são resolvidas — só role atribuída direto ao usuário; padrão comum de org real (role no Team, não na pessoa) sai sub-permissionado sem erro.
+
+**Segundo adapter (Fase 6 — Unity Catalog):**
+- O caminho positivo de permissão (`read`/`full`) nunca foi confirmado ao vivo contra um payload real populado — só o `GET` vazio (`{"privilege_assignments":[]}`) foi visto de verdade; os nomes de campo dentro de um assignment (`principal`, `privileges`) são inferência da documentação. Bloqueado pelo bug de grant da CLI documentado no item 6; reabrir quando uma build mais nova resolver isso.
+- Domínio = nome do catalog é uma simplificação que quebra se um catalog real do cliente misturar múltiplos domínios de negócio.
+- `KNOWN_DOMAINS` em `ownership-question.util.ts` continua hardcoded — trocar por lista viva exigiria um novo método no contrato `CatalogAdapter` (`listDomains()`), decisão de contrato que merece pensar nos dois adapters junto.
+
+**Ownership/glossário (itens 3-4):**
+- Citação de domínio em `askOwnership()` fica fora do cálculo de fundamentação de `avaliador.py` — estendê-lo pra contar isso sem reintroduzir falso-positivo de vazamento (domínio sem `dominios_permitidos` do perfil) é mais delicado do que parece; já analisado uma vez e adiado de propósito.
+- Busca ainda é substring, não semântica — funciona no golden dataset porque os nomes foram desenhados pra bater; numa base real com descrições ruins, precisa de embeddings ou glossário estruturado (já era conhecido, recapeado aqui).
+
+**Motor proativo (Fase 4):**
+- `dismiss()` só suprime até o próximo `compute()` (30min) — se a condição ainda existir, a recomendação reaparece sempre. Corrigir de verdade exigiria uma chave de dedupe estável por instância (tipo + ativo-alvo), redesenho do ciclo `compute()`, não um ajuste pequeno.
+
+**Tooling do monorepo:**
+- `pnpm test` raiz continua só rodando `apps/api` — mexe em `package.json` da raiz, fora do escopo de um app isolado; decisão pra quando alguém for mexer no pipeline de CI do monorepo como um todo.
 
 ## Ambiente de validação
 

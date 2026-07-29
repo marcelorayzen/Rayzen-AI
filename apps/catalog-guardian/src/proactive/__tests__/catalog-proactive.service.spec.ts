@@ -29,10 +29,10 @@ function fakePrisma(opts: {
     opts.initialRecs ?? []
   ).map((r, i) => ({ id: `rec-${i}`, dismissedAt: null, ...r })) as any
 
-  const deleteMany = jest.fn(async (args: { where: { type: { notIn: string[] } } }) => {
-    const notIn = args.where.type.notIn
+  const deleteMany = jest.fn(async (args: { where: { type: { in: string[] } } }) => {
+    const allowed = args.where.type.in
     for (let i = recs.length - 1; i >= 0; i--) {
-      if (recs[i].dismissedAt === null && !notIn.includes(recs[i].type as string)) recs.splice(i, 1)
+      if (recs[i].dismissedAt === null && allowed.includes(recs[i].type as string)) recs.splice(i, 1)
     }
   })
   const createMany = jest.fn(async (args: { data: Array<Record<string, unknown>> }) => {

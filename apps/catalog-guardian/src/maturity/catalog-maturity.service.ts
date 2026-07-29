@@ -6,6 +6,7 @@ export interface MaturityDimension {
   label: string
   score: number // 0-100
   evidence: Record<string, unknown>
+  insufficientData: boolean // sampleSize abaixo de MIN_SAMPLE_SIZE — ver comentário em pct()
 }
 
 export interface MaturityReport {
@@ -29,6 +30,13 @@ const BANDS: Array<{ min: number; label: string }> = [
   { min: 0, label: 'inicial' },
 ]
 
+// Item 7 (revisão pós-Fase 6): abaixo deste limiar, uma dimensão sem nenhum
+// dado (denominador 0 → pct() default 100, "sem evidência de problema") não
+// pode fazer o relatório inteiro aparentar "otimizado" — um catálogo recém
+// sincronizado, sem nenhum uso ainda, não é maduro, só não tem dado. Ver
+// `insufficientData` em cada dimensão e o override de banda em computeReport().
+const MIN_SAMPLE_SIZE = 3
+
 function bandFor(score: number): string {
   return BANDS.find((b) => score >= b.min)!.label
 }
@@ -50,35 +58,43 @@ export class CatalogMaturityService {
   constructor(private readonly prisma: PrismaService) {}
 
   async computeReport(): Promise<MaturityReport> {
+    const totalAssets = await this.prisma.catalogAsset.count()
     const dimensions = await Promise.all([
-      this.ownership(),
+      this.ownership(totalAssets),
       this.classification(),
       this.lineageCoverage(),
       this.queryQuality(),
       this.governanceProcessHealth(),
-      this.governanceDebt(),
+      this.governanceDebt(totalAssets),
     ])
 
     const overallScore = Math.round(dimensions.reduce((sum, d) => sum + d.score, 0) / dimensions.length)
+    // Item 7: se NENHUMA dimensão tem amostra suficiente, o catálogo só está
+    // vazio/recém-sincronizado — "otimizado"/"gerenciado" seria enganoso pra
+    // um comitê que veja este relatório sem o contexto de que não há dado
+    // nenhum ainda. Banda por score só se aplica quando pelo menos uma
+    // dimensão tem evidência real.
+    const allInsufficient = dimensions.every((d) => d.insufficientData)
+    const band = allInsufficient ? 'dados insuficientes' : bandFor(overallScore)
 
     return {
       generatedAt: new Date().toISOString(),
       overallScore,
-      band: bandFor(overallScore),
+      band,
       dimensions,
       disclaimer:
         'Scorecard heurístico calculado a partir do catálogo sincronizado e do histórico de consultas deste Catalog Guardian — inspirado nos knowledge areas do DAMA-DMBOK, não uma avaliação de maturidade DAMA certificada (que exige entrevista/auditoria humana).',
     }
   }
 
-  private async ownership(): Promise<MaturityDimension> {
-    const total = await this.prisma.catalogAsset.count()
+  private async ownership(total: number): Promise<MaturityDimension> {
     const withOwner = await this.prisma.catalogAsset.count({ where: { owner: { not: null } } })
     return {
       key: 'ownership',
       label: 'Ownership',
       score: pct(withOwner, total),
       evidence: { totalAssets: total, withOwner, sampleSize: total },
+      insufficientData: total < MIN_SAMPLE_SIZE,
     }
   }
 
@@ -90,6 +106,7 @@ export class CatalogMaturityService {
       label: 'Classificação',
       score: pct(classified, assets.length),
       evidence: { totalAssets: assets.length, classified, sampleSize: assets.length },
+      insufficientData: assets.length < MIN_SAMPLE_SIZE,
     }
   }
 
@@ -103,6 +120,7 @@ export class CatalogMaturityService {
       label: 'Cobertura de linhagem',
       score: pct(withLineage, assets.length),
       evidence: { totalAssets: assets.length, withLineage, sampleSize: assets.length },
+      insufficientData: assets.length < MIN_SAMPLE_SIZE,
     }
   }
 
@@ -118,6 +136,7 @@ export class CatalogMaturityService {
     const flags = await this.prisma.queryAuditFlag.count()
     const resolvedFlags = await this.prisma.queryAuditFlag.count({ where: { resolvedAt: { not: null } } })
     const flagScore = pct(resolvedFlags, flags)
+    const sampleSize = audits.length + flags
 
     return {
       key: 'query_quality',
@@ -128,8 +147,9 @@ export class CatalogMaturityService {
         altoRiscoOuCritico: highRisk,
         flagsTotal: flags,
         flagsResolvidas: resolvedFlags,
-        sampleSize: audits.length + flags,
+        sampleSize,
       },
+      insufficientData: sampleSize < MIN_SAMPLE_SIZE,
     }
   }
 
@@ -141,10 +161,15 @@ export class CatalogMaturityService {
       label: 'Saúde do processo de governança',
       score: pct(decided, total),
       evidence: { totalGates: total, decididos: decided, sampleSize: total },
+      insufficientData: total < MIN_SAMPLE_SIZE,
     }
   }
 
-  private async governanceDebt(): Promise<MaturityDimension> {
+  // sampleSize aqui é o tamanho do CATÁLOGO (totalAssets), não a contagem de
+  // recomendações ativas — zero recomendação ativa é o resultado BOM desta
+  // dimensão (motor proativo rodou e não achou problema), não falta de
+  // amostra. Falta de amostra é não ter catálogo nenhum pra avaliar.
+  private async governanceDebt(totalAssets: number): Promise<MaturityDimension> {
     const active = await this.prisma.catalogRecommendation.findMany({
       where: { dismissedAt: null, type: { not: 'all_clear' } },
       select: { priority: true },
@@ -162,7 +187,8 @@ export class CatalogMaturityService {
       key: 'governance_debt',
       label: 'Débito de governança em aberto',
       score: Math.max(0, 100 - penalty),
-      evidence: { recomendacoesAtivas: active.length, ...counts },
+      evidence: { recomendacoesAtivas: active.length, ...counts, sampleSize: totalAssets },
+      insufficientData: totalAssets < MIN_SAMPLE_SIZE,
     }
   }
 }

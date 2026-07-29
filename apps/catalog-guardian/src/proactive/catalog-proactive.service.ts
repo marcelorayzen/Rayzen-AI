@@ -24,11 +24,20 @@ const LOW_CONFIDENCE_MIN_QUERIES = 5
 const LOW_CONFIDENCE_HIGH_RISK_RATIO = 0.4
 const FLAGGED_UNRESOLVED_MIN_DAYS = 3
 
-// permission_drift NÃO é computada aqui — é escrita diretamente pelo
-// SyncService (ver sync.service.ts), no único momento em que "valor antigo
-// vs valor novo" existe de verdade. Esta lista existe só pra excluir esse
-// tipo do cleanup abaixo, sem apagar os eventos que o sync gravou.
-const TYPES_OWNED_BY_SYNC = ['permission_drift']
+// Tipos que ESTE serviço computa e, por isso, tem permissão de apagar e
+// recriar a cada ciclo. permission_drift NÃO está aqui de propósito — é
+// escrita diretamente pelo SyncService (ver sync.service.ts), no único
+// momento em que "valor antigo vs valor novo" existe de verdade.
+//
+// Item 7 (revisão pós-Fase 6): isto era um blocklist (`notIn`) até esta
+// revisão — apagava tudo que NÃO estivesse numa lista de "tipos donos de
+// outro serviço". Perigoso por construção: se um novo tipo escrito por
+// outro serviço aparecesse no futuro e alguém esquecesse de adicioná-lo à
+// exclusão, o próximo `compute()` apagaria silenciosamente esses registros.
+// Allowlist (`in`) inverte o risco — este serviço só mexe nos tipos que ele
+// mesmo reconhece como seus; qualquer tipo novo de outra origem fica
+// protegido por padrão, sem precisar de nenhuma mudança aqui.
+const TYPES_COMPUTED_HERE = ['unclassified_asset', 'orphan_owner', 'low_confidence_pattern', 'flagged_unresolved', 'all_clear']
 
 @Injectable()
 export class CatalogProactiveService {
@@ -71,7 +80,7 @@ export class CatalogProactiveService {
     const computedAt = new Date()
 
     await this.prisma.catalogRecommendation.deleteMany({
-      where: { dismissedAt: null, type: { notIn: TYPES_OWNED_BY_SYNC } },
+      where: { dismissedAt: null, type: { in: TYPES_COMPUTED_HERE } },
     })
 
     const assets = await this.prisma.catalogAsset.findMany()

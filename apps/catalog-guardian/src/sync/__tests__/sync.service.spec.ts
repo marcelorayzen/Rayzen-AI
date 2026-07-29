@@ -90,3 +90,29 @@ describe('SyncService — permission_drift (regra proativa Fase 4)', () => {
     expect(recommendations[0]).toMatchObject({ type: 'permission_drift', priority: 'medium' })
   })
 })
+
+describe('SyncService — dedupe de contagem de lineage (item 7)', () => {
+  it('a mesma edge A→B aparece na consulta de A (downstream) E de B (upstream) — conta 1 edge, não 2', async () => {
+    const assetA = asset({ externalId: 'svc.db.schema.produtos', name: 'produtos' })
+    const assetB = asset({ externalId: 'svc.db.schema.estoque', name: 'estoque' })
+
+    // Mesmo padrão do OMD real: getLineage(produtos) devolve a edge como
+    // downstream, getLineage(estoque) devolve a MESMA edge como upstream —
+    // a origem consultada não importa pro teste, só que a edge se repete.
+    const adapter: CatalogAdapter = {
+      source: 'openmetadata',
+      listAssets: async () => [assetA, assetB],
+      getLineage: async () => [{ sourceExternalId: assetA.externalId, targetExternalId: assetB.externalId }],
+      listGlossaryTerms: async () => [],
+      getUserAccessLevel: async () => 'full',
+      getDomainOwner: async () => ({ owner: null }),
+    }
+
+    const { prisma } = fakePrisma(null)
+    const svc = new SyncService(prisma, adapter)
+
+    const result = await svc.syncOnce()
+
+    expect(result.edges).toBe(1)
+  })
+})
