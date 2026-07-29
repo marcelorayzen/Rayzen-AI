@@ -45,4 +45,18 @@ export class QueryAuditService {
       take: limit,
     })
   }
+
+  // Triagem humana (steward sinaliza resposta incorreta) — tabela separada
+  // QueryAuditFlag, não um update no QueryAudit (ver comentário do model no
+  // schema.prisma). O registro original nunca é tocado.
+  async flag(queryAuditId: string, reason: string) {
+    return this.prisma.queryAuditFlag.create({ data: { queryAuditId, reason } })
+  }
+
+  async resolveFlag(flagId: string) {
+    return this.prisma.queryAuditFlag.update({
+      where: { id: flagId },
+      data: { resolvedAt: new Date() },
+    })
+  }
 }

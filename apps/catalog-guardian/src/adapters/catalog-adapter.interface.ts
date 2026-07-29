@@ -15,10 +15,9 @@ export interface CatalogAdapter {
   // QueryService.findRelevantGlossaryTerms().
   listGlossaryTerms(): Promise<RawGlossaryTerm[]>
 
-  // Maior risco em aberto do blueprint (ver BLUEPRINT.md, seção "Riscos"):
-  // depende de mapear o usuário do Catalog Guardian pro RBAC real do catálogo
-  // fonte. Sem esse mapeamento fechado, o PermissionGuardService (Fase 2) não
-  // tem o que verificar.
+  // Roadmap item 5: gate de domínio + clearance de PII via Role/Policy real
+  // do catálogo fonte (ver OpenMetadataAdapter.hasPiiClearance). Escopo
+  // deliberado, não uma policy engine genérica — ver BLUEPRINT.md § Riscos.
   getUserAccessLevel(userId: string, externalId: string): Promise<AccessLevel>
 
   // Metadado administrativo (quem é o responsável/steward de um domínio) —

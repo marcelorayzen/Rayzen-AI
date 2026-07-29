@@ -25,7 +25,13 @@ model CatalogAsset {
   containsPII Boolean  @default(false) @map("contains_pii")
   piiFields   Json?    @map("pii_fields") // string[]
   tags        Json?    // string[] — tags/classifications originais do catálogo fonte
-  syncedAt    DateTime @map("synced_at")
+  syncedAt    DateTime @map("synced_at") // reescrito a cada sync (15min) — NÃO representa "há quanto tempo existe"
+  // Setado só na criação (SyncService nunca toca no update) — permite regra
+  // proativa unclassified_asset calcular "há quanto tempo está sem
+  // classificação" de verdade. @default(now()) cobre o backfill de linhas
+  // pré-existentes na migração (ficam com "agora", não disparam a regra
+  // imediatamente — conservador, aceitável).
+  firstSyncedAt DateTime @default(now()) @map("first_synced_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   lineageFrom CatalogLineageEdge[] @relation("LineageTarget")
@@ -86,9 +92,30 @@ model QueryAudit {
   gateId                  String?  @map("gate_id")
   createdAt               DateTime @default(now()) @map("created_at")
 
+  flags QueryAuditFlag[]
+
   @@index([userId])
   @@index([createdAt])
   @@map("query_audits")
+}
+
+// Triagem humana (steward sinaliza uma resposta como incorreta) — tabela
+// separada de propósito. QueryAudit é append-only por design (comentário em
+// query-audit.service.ts); flag/resolve são updates de verdade e não podem
+// morar lá. O registro do que de fato aconteceu (question/answer/riskScore)
+// continua imutável; só o ciclo de vida da triagem é mutável, aqui.
+model QueryAuditFlag {
+  id           String    @id @default(uuid())
+  queryAuditId String    @map("query_audit_id")
+  reason       String
+  flaggedAt    DateTime  @default(now()) @map("flagged_at")
+  resolvedAt   DateTime? @map("resolved_at")
+
+  queryAudit QueryAudit @relation(fields: [queryAuditId], references: [id], onDelete: Cascade)
+
+  @@index([queryAuditId])
+  @@index([resolvedAt])
+  @@map("query_audit_flags")
 }
 
 // Gate de revisão — equivalente ao ApprovalGate do Rayzen, mas reimplementado

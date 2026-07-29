@@ -76,7 +76,7 @@ interface CatalogAdapter {
   listAssets(): Promise<RawCatalogAsset[]>
   getLineage(assetId: string): Promise<RawLineageEdge[]>
   getUserAccessLevel(userId: string, assetId: string): Promise<AccessLevel>
-  // ponto crítico — ver "Riscos", identidade é o maior gap
+  // roadmap item 5 — gate de domínio + clearance de PII via Role/Policy real, ver "Riscos"
 }
 ```
 
@@ -140,7 +140,7 @@ NestJS 10 + Fastify · PostgreSQL 16 (schema próprio) · Redis + BullMQ · Pris
 
 ## Riscos / pontos em aberto
 
-1. **Identidade — o maior gap, resolve antes da Fase 2 valer alguma coisa.** `getUserAccessLevel()` depende de mapear o usuário do Catalog Guardian pro IAM/RBAC real do cliente no catálogo fonte. Sem isso o Permission Guard não tem o que verificar — é pré-requisito, não detalhe.
+1. ✅ **Identidade** — resolvido no roadmap item 5 (`README.md § Roadmap`), escopo deliberado: gate de domínio inalterado (já era real, via Domains nativos do OMD) + clearance de PII via Role/Policy reais (`matchAnyTag('PII.Sensitive')`), não uma policy engine genérica — sem `deny`, sem herança de role via Team, sem outras condition functions do OMD (`isOwner`, `matchTeam`, `hasAnyRole` etc.). Suficiente pro golden dataset atual; expandir escopo só se um cliente real precisar de regra que não caiba nisso.
 2. Custo de chamadas à API do catálogo fonte em sync frequente — precisa cache e rate limit.
 3. Latência: filtro de permissão por query, antes do LLM, adiciona uma chamada externa por pergunta — precisa cache de `AccessLevel` com TTL curto.
 

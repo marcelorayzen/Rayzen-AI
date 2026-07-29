@@ -12,6 +12,7 @@ import { AuditModule } from './audit/audit.module'
 import { LlmModule } from './llm/llm.module'
 import { QueryModule } from './query/query.module'
 import { CatalogModule } from './catalog/catalog.module'
+import { CatalogProactiveModule } from './proactive/catalog-proactive.module'
 
 @Module({
   controllers: [PingController],
@@ -27,6 +28,7 @@ import { CatalogModule } from './catalog/catalog.module'
     AuditModule,
     QueryModule,
     CatalogModule,
+    CatalogProactiveModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

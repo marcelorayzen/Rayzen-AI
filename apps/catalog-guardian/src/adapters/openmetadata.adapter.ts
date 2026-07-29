@@ -15,6 +15,30 @@ interface OmTagLabel {
   tagFQN: string
 }
 
+// Item 5 do roadmap — identidade real via Role/Policy do OMD (ver
+// getUserAccessLevel abaixo). Shape confirmado empiricamente contra o
+// sandbox real (mesmo princípio dos outros itens): rule.condition é uma
+// string de expressão (ex. "matchAnyTag('PII.Sensitive')") que o OMD avalia
+// server-side via SpEL — este adapter NÃO reimplementa um parser genérico,
+// só reconhece o subconjunto usado pelas policies deste app (ver
+// evaluateCondition).
+interface OmRule {
+  name: string
+  resources?: string[]
+  operations?: string[]
+  effect: 'allow' | 'deny'
+  condition?: string
+}
+
+interface OmPolicy {
+  rules?: OmRule[]
+}
+
+interface OmRole {
+  name: string
+  policies?: OmEntityRef[]
+}
+
 interface OmColumn {
   name: string
   tags?: OmTagLabel[]
@@ -181,36 +205,84 @@ export class OpenMetadataAdapter implements CatalogAdapter {
       .filter((e): e is { sourceExternalId: string; targetExternalId: string } => !!e.sourceExternalId && !!e.targetExternalId)
   }
 
-  // Implementação Fase 1 — heurística por domínio, não avaliação completa da
-  // policy engine do OMD (Teams/Roles/Policies/Personas). É o maior risco em
-  // aberto do blueprint: fechar isto de verdade exige mapear o usuário do
-  // Catalog Guardian para uma Team/Role real do OMD e avaliar a política
-  // nativa dele, não só comparar nome de domínio. Ver BLUEPRINT.md § Riscos.
-  //
   // Domínio é o portão PRIMÁRIO — decisão de produto confirmada após a
   // validação real: citar a existência/nome de um ativo fora do domínio do
   // usuário já conta como vazamento de permissão (mesmo padrão que NEG-002
   // já exige para dado pessoal de terceiro — nem a localização pode vazar).
-  // Por isso domínio errado sempre vira 'none' independente de PII; dentro
-  // do domínio certo, PII só refina pra 'read' (conteúdo visível, colunas
-  // sensíveis redigidas) em vez de excluir o ativo inteiro.
+  // Por isso domínio errado sempre vira 'none' independente de PII/role.
+  //
+  // Item 5 do roadmap — dentro do domínio certo, a clearance de PII deixou
+  // de ser "tem tag PII → sempre read" e passou a depender de Role/Policy
+  // reais do usuário no OMD (ver hasPiiClearance). Antes disso NENHUM
+  // usuário tinha clearance de verdade, nem o steward — a "visão ampla" dele
+  // vinha só de estar em todos os domínios, nunca de uma permissão elevada
+  // de fato.
   async getUserAccessLevel(userId: string, externalId: string): Promise<AccessLevel> {
+    // Bug real pré-existente encontrado na validação empírica do item 5:
+    // faltava `columns` aqui — PII marcado só na coluna (ex. clientes.cpf,
+    // sem tag no nível da tabela) nunca era detectado, e o guard liberava
+    // 'full' pra qualquer usuário em qualquer ativo PII-por-coluna,
+    // independente de domínio ou role. listAssets()/toRawAsset() já pediam
+    // `columns` corretamente — só este método vivia com o fetch incompleto.
     const table = await this.request<OmTable>(
-      `/v1/tables/name/${encodeURIComponent(externalId)}?fields=owners,tags,domains`,
+      `/v1/tables/name/${encodeURIComponent(externalId)}?fields=owners,tags,domains,columns`,
     )
-    const isPII = (table.tags ?? []).some((t) => t.tagFQN === PII_SENSITIVE_TAG)
-      || (table.columns ?? []).some((c) => (c.tags ?? []).some((t) => t.tagFQN === PII_SENSITIVE_TAG))
+    const tagFQNs = [
+      ...(table.tags ?? []),
+      ...(table.columns ?? []).flatMap((c) => c.tags ?? []),
+    ].map((t) => t.tagFQN)
+    const isPII = tagFQNs.includes(PII_SENSITIVE_TAG)
     const assetDomain = domainSlug(table.domains?.[0]?.name)
 
-    const user = await this.request<{ domains?: OmEntityRef[] }>(
-      `/v1/users/name/${encodeURIComponent(userId)}?fields=domains`,
-    ).catch(() => ({ domains: [] as OmEntityRef[] }))
+    const user = await this.request<{ domains?: OmEntityRef[]; roles?: OmEntityRef[] }>(
+      `/v1/users/name/${encodeURIComponent(userId)}?fields=domains,roles`,
+    ).catch(() => ({ domains: [] as OmEntityRef[], roles: [] as OmEntityRef[] }))
     const userDomains = new Set((user.domains ?? []).map((d) => domainSlug(d.name)).filter(Boolean))
 
     const sameDomain = assetDomain ? userDomains.has(assetDomain) : true
     if (!sameDomain) return 'none'
 
-    return isPII ? 'read' : 'full' // metadado de PII: nunca 'full' (valor bruto nunca é servido por este app)
+    if (!isPII) return 'full'
+    return (await this.hasPiiClearance(user.roles ?? [], tagFQNs)) ? 'full' : 'read'
+  }
+
+  // Só resolve roles atribuídas DIRETAMENTE ao usuário — roles herdadas via
+  // team.defaultRoles ficam fora de propósito (nenhum persona do golden
+  // dataset depende disso hoje; ver README § Roadmap item 5). Só é chamada
+  // quando o ativo já é PII, então não adiciona custo de chamada nenhum
+  // para o caso comum (ativo não-PII).
+  private async hasPiiClearance(roles: OmEntityRef[], assetTagFQNs: string[]): Promise<boolean> {
+    for (const role of roles) {
+      const fullRole = await this.request<OmRole>(
+        `/v1/roles/name/${encodeURIComponent(role.name)}?fields=policies`,
+      ).catch(() => null)
+      for (const policyRef of fullRole?.policies ?? []) {
+        const policy = await this.request<OmPolicy>(
+          `/v1/policies/name/${encodeURIComponent(policyRef.name)}?fields=rules`,
+        ).catch(() => null)
+        const grants = (policy?.rules ?? []).some(
+          (rule) =>
+            rule.effect === 'allow'
+            && (rule.operations ?? []).includes('ViewAll')
+            && this.evaluateCondition(rule.condition, assetTagFQNs),
+        )
+        if (grants) return true
+      }
+    }
+    return false
+  }
+
+  // Deliberadamente NÃO é um parser genérico de SpEL — reconhece só o
+  // subconjunto de condition string que as policies deste app usam:
+  // ausência de condition (sempre concede) e `matchAnyTag('X')`. Qualquer
+  // outra sintaxe é fail-closed (nunca concede clearance), com log — regra
+  // igual ao resto do app: condição não reconhecida nunca vira acesso maior.
+  private evaluateCondition(condition: string | undefined, assetTagFQNs: string[]): boolean {
+    if (!condition) return true
+    const match = condition.match(/^matchAnyTag\(\s*'([^']+)'\s*\)$/)
+    if (match) return assetTagFQNs.includes(match[1])
+    this.logger.warn(`evaluateCondition: condition não reconhecida, tratando como não-concedida: ${condition}`)
+    return false
   }
 
   // Sem guarda de permissão de propósito — ver interface. Confirmado

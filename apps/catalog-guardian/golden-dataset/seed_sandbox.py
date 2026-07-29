@@ -60,13 +60,24 @@ DOMAINS = [
     {"name": "rh", "displayName": "Recursos Humanos", "description": "Dominio de Recursos Humanos", "owner_user": "rh"},
 ]
 
-# perfil -> dominios_permitidos, espelhando golden-dataset.yaml § perfis
+# perfil -> dominios_permitidos, espelhando golden-dataset.yaml § perfis.
+# "roles" (roadmap item 5) so existe no steward: clearance real de PII via
+# Role/Policy do OMD, nao mais so "esta em todos os dominios" — antes desse
+# item nenhum usuario tinha clearance de fato, nem o steward.
 USERS = [
     {"name": "geral", "email": "geral@demo.local", "domains": ["vendas", "marketing", "produto"]},
     {"name": "financeiro", "email": "financeiro@demo.local", "domains": ["vendas", "financeiro", "produto"]},
     {"name": "rh", "email": "rh@demo.local", "domains": ["rh"]},
-    {"name": "steward", "email": "steward@demo.local", "domains": ["vendas", "marketing", "produto", "financeiro", "rh"]},
+    {"name": "steward", "email": "steward@demo.local", "domains": ["vendas", "marketing", "produto", "financeiro", "rh"], "roles": ["PIIViewer"]},
 ]
+
+# Item 5 do roadmap — Role/Policy reais do OMD pra clearance de PII (ver
+# OpenMetadataAdapter.hasPiiClearance/evaluateCondition). Escopo deliberado:
+# uma unica policy allow com condition "matchAnyTag('PII.Sensitive')" —
+# nao tenta reproduzir toda a policy engine (deny, matchTeam, isOwner etc.),
+# so o suficiente pra dar ao steward uma clearance de PII de verdade.
+PII_POLICY_NAME = "PIIViewerPolicy"
+PII_ROLE_NAME = "PIIViewer"
 
 SERVICE_NAME = "catalog_guardian_demo"
 DATABASE_NAME = "rayzen_ai"
@@ -269,8 +280,34 @@ def seed(base_url: str, token: str) -> None:
         put(base_url, token, "/v1/domains", payload)
     print(f"  domains: {len(DOMAINS)} ok")
 
+    put(base_url, token, "/v1/policies", {
+        "name": PII_POLICY_NAME,
+        "description": "Concede ViewAll em ativos com tag PII.Sensitive - clearance real de PII (roadmap item 5).",
+        "rules": [{
+            "name": "AllowViewAllPII",
+            "resources": ["table"],
+            "operations": ["ViewAll"],
+            "effect": "allow",
+            "condition": "matchAnyTag('PII.Sensitive')",
+        }],
+    })
+    role_result = put(base_url, token, "/v1/roles", {
+        "name": PII_ROLE_NAME,
+        "description": "Usuarios com clearance real pra ver metadado de PII sem redacao.",
+        "policies": [PII_POLICY_NAME],
+    })
+    role_ids = {PII_ROLE_NAME: role_result["id"]}
+    print("  policy/role de clearance PII: ok")
+
+    # Confirmado empiricamente: CreateUser.roles espera lista de UUID, nao
+    # nome (diferente de CreateRole.policies, que aceita nome de policy) —
+    # por isso resolve nome -> id aqui antes do PUT, mantendo USERS legivel
+    # com nome de role.
     for u in USERS:
-        put(base_url, token, "/v1/users", u)
+        payload = dict(u)
+        if "roles" in payload:
+            payload["roles"] = [role_ids[r] for r in payload["roles"]]
+        put(base_url, token, "/v1/users", payload)
     print(f"  users: {len(USERS)} ok")
 
     # resolve ids de usuario uma vez — precisos pra owners de tabela/domain
