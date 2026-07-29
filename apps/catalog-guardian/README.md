@@ -123,7 +123,7 @@ apps/catalog-guardian/
 ├── prisma/schema.prisma      # CatalogAsset, CatalogGlossaryTerm, CatalogLineageEdge, QueryAudit, QueryAuditFlag, ReviewGate, CatalogRecommendation
 ├── golden-dataset/           # os 4 arquivos de referência (yaml, avaliador.py, gerar_planilha.py, README.md) + seed_sandbox.py
 └── src/
-    ├── adapters/              # CatalogAdapter (contrato) + OpenMetadataAdapter (Fase 1) + item 5 (Role/Policy real)
+    ├── adapters/              # CatalogAdapter (contrato) + OpenMetadataAdapter (Fase 1, item 5) + UnityCatalogAdapter (Fase 6)
     ├── sync/                  # job BullMQ periódico + CLI manual (pnpm sync:once) + regra permission_drift (Fase 4)
     ├── permission-guard/      # Fase 2 — retrieval permission-aware
     ├── risk-scorer/           # Fase 3 — CatalogRiskScorerService (padrão do Guardian do Rayzen)
@@ -142,7 +142,7 @@ apps/catalog-guardian/
 pnpm test
 ```
 
-Cobertura atual (62 testes, 10 suites): `CatalogRiskScorerService`, `PermissionGuardService` (mesmo padrão de `apps/api-v2/src/guardian/__tests__/`), `ownership-question.util.ts`, `substring-match.util.ts`, `OpenMetadataAdapter`, `SyncService`, `QueryAuditService`, `CatalogProactiveService`, `CatalogMaturityService` e `csv.util.ts`.
+Cobertura atual (70 testes, 11 suites): `CatalogRiskScorerService`, `PermissionGuardService` (mesmo padrão de `apps/api-v2/src/guardian/__tests__/`), `ownership-question.util.ts`, `substring-match.util.ts`, `OpenMetadataAdapter`, `UnityCatalogAdapter`, `SyncService`, `QueryAuditService`, `CatalogProactiveService`, `CatalogMaturityService` e `csv.util.ts`.
 
 ## Roadmap (ordem recomendada de ataque)
 
@@ -271,9 +271,28 @@ O blueprint descrevia isto em 2 linhas ("QueryAudit exportável CSV/PDF" + "rela
 
 **Validado ao vivo** contra o Postgres do catalog-guardian já povoado por sessões anteriores (não precisou subir o sandbox OMD): `GET /maturity/report` devolveu score geral 33 ("inicial") com números reais e coerentes com o que já sabíamos do catálogo de teste — Ownership 10 (1 de 10 ativos com owner), Classificação 20 (2 de 10 com tag), Cobertura de linhagem 50 (5 de 10 aparecem em `CatalogLineageEdge`), Qualidade de resposta 99 (168 consultas nos últimos 30 dias, só 4 de risco alto/crítico), Saúde do processo 0 (29 `ReviewGate` gerados, nenhum decidido — nunca chamei `/review-gates/:id/approve` nesta linha de trabalho), Débito de governança 20 (10 recomendações medium ativas, principalmente `orphan_owner`). `GET /query-audits/export.csv` gerou 179 linhas reais, incluindo uma com vírgula dentro do texto da flag corretamente escapada entre aspas. `GET /maturity/report.html` renderiza HTML válido com acentuação correta.
 
-#### Fase 6 — segundo adapter (Unity Catalog ou Dataplex)
+#### Fase 6 — ✅ segundo adapter (Unity Catalog OSS) — feito
 
-Prova que a abstração não é lock-in — só compensa depois do adapter OpenMetadata estar maduro (itens 1-5, já feito), senão duplica retrabalho de shape de API duas vezes.
+**Escolha confirmada com o dono do projeto:** Unity Catalog OSS, não Dataplex — Dataplex é serviço gerenciado do GCP sem emulador local (exigiria conta/billing real); Unity Catalog OSS (`unitycatalog/unitycatalog`) tem servidor standalone que roda via `docker compose up -d`, sem custo nem conta cloud. **Profundidade confirmada:** smoke test ao vivo (não paridade completa com o golden dataset, não só unit tests mockados) — sobe o servidor real, cria um punhado de catalogs/schemas/tables de prova, confirma que o `CatalogAdapter` funciona contra o shape real da API.
+
+**O que realmente prova a abstração:** `AdaptersModule` trocou o binding fixo de `CATALOG_ADAPTER` (`useExisting: OpenMetadataAdapter`) por uma `useFactory` condicionada à env var `CATALOG_SOURCE` (`openmetadata` default, `unity_catalog` opcional) — o cliente troca de catálogo fonte só editando `.env`, sem recompilar nada. `SyncService`, `PermissionGuardService`, `QueryService`, `CatalogProactiveService` e `CatalogMaturityService` não mudaram **nenhuma linha** — validado ao vivo rodando `pnpm sync:once` e `/query` reais contra o Unity Catalog, com o mesmo binário do app.
+
+**Mapeamento de domínio:** Unity Catalog não tem "Domains" nativos como o OMD — o **nome do catalog UC é o domínio** (nível de granularidade mais próximo; catalogs já carregam `owner`, cobrindo `getDomainOwner()` de graça). PII é modelado via convenção de `properties` (`{"pii":"true"}` em tabela ou coluna) — UC não tem Tags/Classification como o OMD.
+
+**2 limitações reais e documentadas da versão OSS (não são gaps do nosso adapter):**
+- **Sem suporte a lineage** — feature request em aberto, [issue #137](https://github.com/unitycatalog/unitycatalog/issues/137) do próprio repo. `getLineage()` sempre retorna `[]`; `SyncService` já tolera isso (mesmo tratamento de quando `getLineage` do OMD falha pontualmente).
+- **Sem conceito de glossário de negócio** — `listGlossaryTerms()` sempre retorna `[]`.
+
+**Implementado:** `src/adapters/unitycatalog.adapter.ts` (`listAssets`, `getLineage`, `listGlossaryTerms`, `getUserAccessLevel`, `getDomainOwner`), `src/adapters/__tests__/unitycatalog.adapter.spec.ts` (8 casos, fetch mockado — mesmo padrão do `openmetadata.adapter.spec.ts`), `golden-dataset/seed_unitycatalog.py` (seed mínimo de smoke test, não o golden dataset completo).
+
+**Validado ao vivo** contra `unitycatalog/unitycatalog:latest` (servidor OSS real via `docker compose up -d server`, sem UI): `listAssets()` sincronizou 7 tabelas reais (4 de amostra padrão da UC + 3 do seed), domínio mapeado corretamente pro nome do catalog, PII detectada via `properties` (`clientes` → `sensitivity: restricted`, `containsPII: true`, confirmado via `/catalog/assets`). Pipeline completo (`/query`) funcionando sem nenhuma mudança de código: pergunta de ownership sobre o domínio `vendas` respondeu honestamente "não há responsável definido" (owner é `null` neste ambiente sem auth — esperado, ver gotcha abaixo) sem quebrar nada; pergunta sobre um ativo sem grant de acesso foi corretamente excluída do contexto (mesmo comportamento de vazamento-zero já validado pro OMD).
+
+**5 achados reais durante a validação** (typescript do adapter em si não teve bug nenhum — todos os achados foram na ferramentação de seed/CLI da UC):
+1. `POST /tables` via REST puro exige um campo `type_json` por coluna sem exemplo documentado em lugar nenhum — duas tentativas plausíveis (`"bigint"`, depois `"long"` com serialização dupla) falharam contra o servidor real. Resolvido usando o CLI `uc` embutido no container (`docker exec ... bin/uc table create`), que monta esse payload internamente — o adapter em si só faz `GET`, nunca precisa criar nada.
+2. UC sinaliza duplicata com **HTTP 400 + `error_code` estruturado** (`CATALOG_ALREADY_EXISTS`), não com HTTP 409 como o OMD — idempotência do seed script precisou checar o corpo do erro, não o status HTTP.
+3. `EXTERNAL` table com `storage_location` tipo `s3://` fake tenta materializar um Delta table via credenciais AWS reais e quebra com NPE — trocado por `file:///tmp/...` dentro do próprio container, sem depender de nuvem nenhuma pro smoke test.
+4. `DECIMAL` quebra o parser de colunas da CLI ("Unknown primitive type decimal") mesmo com precisão/escala explícita — troca pragmática por `DOUBLE` (não precisamos de decimal exato pra um smoke test).
+5. **Não resolvido, documentado como limitação real:** `uc permission create` aceita o principal (não erra) e devolve exit 0, mas `uc permission get` logo depois nunca mostra o grant — tentado em 4 combinações (catalog+email, catalog maiúsculo, catalog+nome, table+email), nenhuma persistiu. Possível bug da build `v0.5.0` (grants é feature nova o suficiente pra ter esse tipo de instabilidade). Não bloqueia a prova da abstração: o caminho de leitura (`GET /permissions/...`) foi confirmado retornando exatamente o shape `{"privilege_assignments":[...]}` que o adapter espera, e a lógica de decisão (`getUserAccessLevel`) está coberta por 3 casos unitários com esse shape mockado. O caminho **negativo** (sem grant → `'none'` → conteúdo corretamente excluído) foi validado ao vivo com sucesso — é o comportamento de segurança mais crítico dos dois.
 
 ### 7. Polimento operacional (qualquer momento, baixo risco, sem dependência)
 
