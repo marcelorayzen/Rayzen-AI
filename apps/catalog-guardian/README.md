@@ -120,15 +120,17 @@ apps/catalog-guardian/
 ├── BLUEPRINT.md              # arquitetura completa em 6 fases (original, com encoding corrigido)
 ├── docker-compose.yml        # postgres + redis + api próprios (NÃO inclui o sandbox OMD)
 ├── Dockerfile                # build standalone (npm, não pnpm workspace) — deployável isolado
-├── prisma/schema.prisma      # CatalogAsset, CatalogGlossaryTerm, CatalogLineageEdge, QueryAudit, ReviewGate, CatalogRecommendation
+├── prisma/schema.prisma      # CatalogAsset, CatalogGlossaryTerm, CatalogLineageEdge, QueryAudit, QueryAuditFlag, ReviewGate, CatalogRecommendation
 ├── golden-dataset/           # os 4 arquivos de referência (yaml, avaliador.py, gerar_planilha.py, README.md) + seed_sandbox.py
 └── src/
-    ├── adapters/              # CatalogAdapter (contrato) + OpenMetadataAdapter (Fase 1)
-    ├── sync/                  # job BullMQ periódico + CLI manual (pnpm sync:once)
+    ├── adapters/              # CatalogAdapter (contrato) + OpenMetadataAdapter (Fase 1) + item 5 (Role/Policy real)
+    ├── sync/                  # job BullMQ periódico + CLI manual (pnpm sync:once) + regra permission_drift (Fase 4)
     ├── permission-guard/      # Fase 2 — retrieval permission-aware
     ├── risk-scorer/           # Fase 3 — CatalogRiskScorerService (padrão do Guardian do Rayzen)
     ├── review-gate/           # Fase 3 — gate de revisão (padrão do ApprovalGatesService do Rayzen)
-    ├── audit/                 # QueryAuditService — append-only
+    ├── audit/                 # QueryAuditService (append-only) + flag/resolve (Fase 4) + export CSV (Fase 5)
+    ├── proactive/             # Fase 4 — motor proativo de qualidade de catálogo (5 regras)
+    ├── maturity/              # Fase 5 — scorecard de maturidade determinístico
     ├── llm/                   # cliente LiteLLM (nunca aponta direto pra provider)
     ├── query/                 # QueryController/QueryService — o "agente" que o avaliador.py chama
     └── catalog/                # endpoint de leitura pro avaliador.py consultar o catálogo sincronizado
@@ -140,7 +142,7 @@ apps/catalog-guardian/
 pnpm test
 ```
 
-Cobertura atual: `CatalogRiskScorerService`, `PermissionGuardService` (mesmo padrão de `apps/api-v2/src/guardian/__tests__/`), `ownership-question.util.ts` e `substring-match.util.ts`.
+Cobertura atual (62 testes, 10 suites): `CatalogRiskScorerService`, `PermissionGuardService` (mesmo padrão de `apps/api-v2/src/guardian/__tests__/`), `ownership-question.util.ts`, `substring-match.util.ts`, `OpenMetadataAdapter`, `SyncService`, `QueryAuditService`, `CatalogProactiveService`, `CatalogMaturityService` e `csv.util.ts`.
 
 ## Roadmap (ordem recomendada de ataque)
 
@@ -251,9 +253,23 @@ Decisão adicional (não ambígua, só documentada): `CatalogAsset.sensitivity` 
 
 **Validado ao vivo** contra o Postgres do catalog-guardian (dados já sincronizados de sessão anterior, não precisou recriar o sandbox OMD — `permission_drift` não depende de API nova, só do `listAssets()` já usado, coberto pelo teste unitário com adapter fake): manipulação manual via SQL (backdatar `first_synced_at` de 1 ativo, inserir 1 `QueryAuditFlag` antigo) confirmou `unclassified_asset` (1), `orphan_owner` (9 de 10 ativos sem owner — achado real do próprio catálogo de teste, não simulado), `flagged_unresolved` (1) disparando corretamente, sem `all_clear` falso-positivo. `dismiss()` e `resolveFlag()` funcionam; confirmado que uma recomendação resolvida via flag só some do resultado no próximo ciclo de cache (30min) — comportamento herdado do padrão V1, não um bug.
 
-#### Fase 5 — exportação de auditoria + relatório de maturidade DAMA
+#### Fase 5 — ✅ exportação de auditoria + relatório de maturidade — feito
 
-Depende de já ter rodado validações reais o suficiente pra ter dado histórico.
+O blueprint descrevia isto em 2 linhas ("QueryAudit exportável CSV/PDF" + "relatório de maturidade DAMA"), sem dimensões/formato definidos — precisou de desenho próprio (não confundir com `golden-dataset/gerar_planilha.py`, que revisa os 50 casos de TESTE do golden dataset, um dataset e propósito completamente diferente do histórico real de uso em produção).
+
+**Decisões de escopo:**
+- **CSV, não PDF, pro export de `QueryAudit`.** Formato padrão pra dado tabular; "PDF de uma lista de linhas" não agrega nada que o CSV não tenha.
+- **Relatório de maturidade é um scorecard determinístico, sem LLM como árbitro** (mesmo princípio de `CatalogRiskScorerService`) — 6 dimensões 0-100 medidas direto do que o próprio app já acumula: Ownership (`CatalogAsset.owner`), Classificação (`tags` não vazio), Cobertura de linhagem (`CatalogLineageEdge`), Qualidade de resposta (`QueryAudit.riskLevel` + taxa de resolução de `QueryAuditFlag`), Saúde do processo de governança (`ReviewGate` decidido vs pendente), Débito de governança em aberto (`CatalogRecommendation` ativas, penalidade por prioridade). Score geral = média simples das 6, sem peso "cientificamente calibrado". A rotulagem de faixa (inicial/em desenvolvimento/gerenciado/otimizado) é **inspirada** nos knowledge areas do DAMA-DMBOK, não uma avaliação DAMA certificada — o relatório carrega um `disclaimer` explícito pra nunca ser confundido com um selo oficial (avaliação DAMA de verdade exige entrevista/auditoria humana, não é algo que se automatiza a partir de uma tabela `CatalogRecommendation`).
+- **Formato do relatório: JSON + HTML simples, sem lib nova.** `GET /maturity/report` (JSON) e `GET /maturity/report.html` (HTML server-side com CSS inline) — o "PDF" vem do usuário apertando Imprimir → Salvar como PDF no navegador, evitando trazer Puppeteer/Chromium pro deploy do cliente só por causa deste artefato. `package.json` do app continua enxuto (NestJS/Prisma/Fastify/BullMQ, nada mais).
+
+**Implementado:**
+- `src/audit/csv.util.ts` — `toCsv()` genérico com escaping RFC4180 (aspas, vírgula, quebra de linha).
+- `QueryAuditService.exportRows()` — inclui as `QueryAuditFlag` junto (join simples via `include`), filtrável por `userId`/período.
+- `GET /query-audits/export.csv` (`AuditController`) — `Content-Disposition: attachment`, mesmo padrão de resposta de arquivo já usado em `apps/api/src/modules/evidence/evidence.controller.ts` (`@Res() reply: FastifyReply`).
+- `src/maturity/` (novo módulo) — `CatalogMaturityService.computeReport()` roda as 6 queries (todas sobre models que já existiam, nenhuma migration nova) e retorna score + evidência bruta por dimensão, nunca só um número opaco. `GET /maturity/report` e `GET /maturity/report.html`.
+- Testes novos: `audit/__tests__/csv.util.spec.ts` (6 casos de escaping) e `maturity/__tests__/catalog-maturity.service.spec.ts` (8 casos, incluindo catálogo vazio nunca gerar `NaN`/exceção — todas as dimensões defaultam pra 100 quando não há dado, documentado como "sem evidência de problema", não "sem problema confirmado").
+
+**Validado ao vivo** contra o Postgres do catalog-guardian já povoado por sessões anteriores (não precisou subir o sandbox OMD): `GET /maturity/report` devolveu score geral 33 ("inicial") com números reais e coerentes com o que já sabíamos do catálogo de teste — Ownership 10 (1 de 10 ativos com owner), Classificação 20 (2 de 10 com tag), Cobertura de linhagem 50 (5 de 10 aparecem em `CatalogLineageEdge`), Qualidade de resposta 99 (168 consultas nos últimos 30 dias, só 4 de risco alto/crítico), Saúde do processo 0 (29 `ReviewGate` gerados, nenhum decidido — nunca chamei `/review-gates/:id/approve` nesta linha de trabalho), Débito de governança 20 (10 recomendações medium ativas, principalmente `orphan_owner`). `GET /query-audits/export.csv` gerou 179 linhas reais, incluindo uma com vírgula dentro do texto da flag corretamente escapada entre aspas. `GET /maturity/report.html` renderiza HTML válido com acentuação correta.
 
 #### Fase 6 — segundo adapter (Unity Catalog ou Dataplex)
 

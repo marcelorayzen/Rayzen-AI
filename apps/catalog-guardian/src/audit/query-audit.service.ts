@@ -46,6 +46,23 @@ export class QueryAuditService {
     })
   }
 
+  // Fase 5 — exportação para steward/comitê. Sem limit (é uma exportação
+  // completa do período, não uma página de histórico) e inclui as flags de
+  // triagem já resolvidas ou não, pra dar visão completa num único arquivo.
+  async exportRows(filters: { userId?: string; from?: Date; to?: Date } = {}) {
+    return this.prisma.queryAudit.findMany({
+      where: {
+        userId: filters.userId,
+        createdAt:
+          filters.from || filters.to
+            ? { gte: filters.from, lte: filters.to }
+            : undefined,
+      },
+      include: { flags: true },
+      orderBy: { createdAt: 'desc' },
+    })
+  }
+
   // Triagem humana (steward sinaliza resposta incorreta) — tabela separada
   // QueryAuditFlag, não um update no QueryAudit (ver comentário do model no
   // schema.prisma). O registro original nunca é tocado.
