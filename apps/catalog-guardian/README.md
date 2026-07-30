@@ -35,6 +35,12 @@ pnpm install                  # a partir da raiz do monorepo (workspace pnpm) �
 node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"
 ```
 
+**`/query` exige *também* `X-Identity-Token: <JWT>` — `IdentityGuard`, ver `src/auth/`.** A chave acima só prova "quem pode chamar a API"; este JWT prova "qual usuário de negócio a API está representando" (claim `sub` = `userId`), assinado pelo **backend do cliente** (que já autentica o usuário final no próprio login) com o secret `CATALOG_GUARDIAN_IDENTITY_JWT_SECRET`. Este servidor só verifica, nunca emite token — gere um secret real do mesmo jeito:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"
+```
+
 ### 1. Banco e fila próprios
 
 ```bash
@@ -110,11 +116,12 @@ Confirma no log quantos ativos e edges de lineage foram sincronizados. Em produ�
 ```bash
 cd golden-dataset
 pip install pyyaml
-export CATALOG_GUARDIAN_API_KEY="<mesma chave do .env da API>"   # Windows: set CATALOG_GUARDIAN_API_KEY=...
+export CATALOG_GUARDIAN_API_KEY="<mesma chave do .env da API>"                    # Windows: set CATALOG_GUARDIAN_API_KEY=...
+export CATALOG_GUARDIAN_IDENTITY_JWT_SECRET="<mesmo secret do .env da API>"        # Windows: set CATALOG_GUARDIAN_IDENTITY_JWT_SECRET=...
 python avaliador.py --dataset golden-dataset.yaml --apenas-criticos
 ```
 
-Sem essa env var, toda chamada de `avaliador.py` à API recebe `401 Unauthorized` — `_post_json`/`_get_json` já enviam o header `Authorization: Bearer` quando a variável está definida.
+Sem a primeira env var, toda chamada de `avaliador.py` à API recebe `401 Unauthorized` — `_post_json`/`_get_json` já enviam o header `Authorization: Bearer` quando a variável está definida. Sem a segunda, `POST /query` especificamente recebe `401` do `IdentityGuard` — `consultar_agente()` assina um JWT HS256 à mão (stdlib `hmac`/`hashlib`, sem dependência nova) com claim `sub` = userId e manda em `X-Identity-Token`.
 
 `consultar_agente`, `ativos_existentes` e `dominios_do_ativo` em `avaliador.py` já chamam a API real (`CATALOG_GUARDIAN_URL`, default `http://localhost:4001`) — nenhum stub `NotImplementedError` restante. `consultar_agente` mapeia `perfil` → `userId` assumindo um usuário de mesmo nome no sandbox OMD (`geral`/`financeiro`/`rh`/`steward`); ajuste via `CATALOG_GUARDIAN_USER_<PERFIL>` se os nomes reais forem outros.
 
@@ -132,7 +139,7 @@ apps/catalog-guardian/
 ├── prisma/schema.prisma      # CatalogAsset, CatalogGlossaryTerm, CatalogLineageEdge, QueryAudit, QueryAuditFlag, ReviewGate, CatalogRecommendation
 ├── golden-dataset/           # os 4 arquivos de referência (yaml, avaliador.py, gerar_planilha.py, README.md) + seed_sandbox.py
 └── src/
-    ├── auth/                  # ApiKeyGuard global (Bearer estático) + @Public() — backlog de autenticação
+    ├── auth/                  # ApiKeyGuard global (Bearer estático) + @Public() + IdentityGuard (JWT de identidade em /query)
     ├── adapters/              # CatalogAdapter (contrato) + OpenMetadataAdapter (Fase 1, item 5) + UnityCatalogAdapter (Fase 6)
     ├── sync/                  # job BullMQ periódico + CLI manual (pnpm sync:once) + regra permission_drift (Fase 4)
     ├── permission-guard/      # Fase 2 — retrieval permission-aware
@@ -341,7 +348,7 @@ Levantamento completo pedido pelo dono do projeto antes de fechar o item 7: tudo
 
 **Segurança:**
 - ✅ **Autenticação em endpoints — feito.** `ApiKeyGuard` global (`src/auth/`), 1 chave via `Authorization: Bearer` (env `CATALOG_GUARDIAN_API_KEY`), mesmo padrão do `AgentTokenGuard` de `apps/api` (Bearer estático, `timingSafeEqual`, fail-closed se a env var não estiver setada). Único endpoint público: `GET /ping` (health check, via `@Public()`). Decisão explícita: 1 chave única pra tudo, não 2 níveis (read vs steward) — o app ainda não tem conceito de identidade de operador diferenciado, só o `userId`/`profile` de negócio que já é outro problema (ver item abaixo). Reabrir pra 2 níveis se um cliente real precisar diferenciar quem pode aprovar gate/exportar CSV de quem só consulta.
-- **Identidade do usuário de negócio em `/query` não é verificada** — `userId`/`profile` no body são uma *alegação* do chamador, não uma prova. A chave de API (item acima) garante que só um chamador autorizado bate na API, mas não impede esse chamador de mentir sobre qual usuário de negócio está representando — quem detém a chave pode se passar por qualquer `userId`/perfil e herdar o nível de acesso dele. Resolver de verdade exige decidir integração com o IdP do cliente (SSO/JWT com claim de identidade), não um ajuste pequeno — deliberadamente separado do item de auth de endpoint acima, tratam de camadas diferentes do problema.
+- ✅ **Identidade do usuário de negócio em `/query` — feito (2026-07-30).** `userId` não vem mais do body (o chamador podia alegar ser qualquer um). `IdentityGuard` (`src/auth/`) exige `X-Identity-Token: <JWT>`, verificado via `@nestjs/jwt` (`JwtModule.registerAsync`, mesmo padrão fail-fast-no-boot do `AuthModule` de `apps/api` — sem `CATALOG_GUARDIAN_IDENTITY_JWT_SECRET`, o servidor se recusa a subir) e extrai o `userId` verificado do claim `sub`. **Quem assina o JWT é o backend do cliente** (que já autentica o usuário final no próprio login) — este servidor só verifica, nunca emite. `profile` continua vindo do body (metadado de auditoria, não gate nada, ok ser auto-declarado). `avaliador.py` assina o JWT à mão com a stdlib (`hmac`/`hashlib`/`base64`, HS256) — zero dependência nova, mesmo princípio de todo o resto do script. 6 casos novos em `identity.guard.spec.ts` (válido, header ausente, secret errado, expirado, sem claim `sub`, malformado). 97 testes, 14 suites.
 
 **Identidade (item 5 — Role/Policy do OMD):**
 - ✅ **`evaluateCondition()` + herança via `team.defaultRoles` — feito** (ver "Backlog Identidade" na seção do item 5 acima). `isOwner()`, `hasAnyRole()`, `inAnyTeam()`, `hasDomain()` reconhecidas de verdade; `matchTeam()` reconhecida mas fail-closed de propósito (precisa de contexto de anexação de policy não modelado). Roles herdadas via time agora entram na descoberta de policy, não só nas condições.

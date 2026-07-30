@@ -16,6 +16,9 @@ O resto do arquivo não precisa mudar.
 from __future__ import annotations
 
 import argparse
+import base64
+import hashlib
+import hmac
 import json
 import os
 import re
@@ -51,6 +54,29 @@ def _auth_headers(extra: dict | None = None) -> dict:
         headers["Authorization"] = f"Bearer {CATALOG_GUARDIAN_API_KEY}"
     return headers
 
+
+# Backlog "identidade do usuário de negócio": /query não aceita mais um
+# userId solto no body (o chamador podia alegar ser qualquer um) — exige um
+# JWT assinado em X-Identity-Token, claim "sub" = userId (ver IdentityGuard).
+# Mesmo secret compartilhado configurado no .env do servidor
+# (CATALOG_GUARDIAN_IDENTITY_JWT_SECRET). Assinatura HS256 feita à mão com a
+# stdlib (hmac/hashlib/base64) — sem adicionar PyJWT só pra isto, mesmo
+# princípio de dependência zero já usado no resto deste script.
+CATALOG_GUARDIAN_IDENTITY_JWT_SECRET = os.environ.get("CATALOG_GUARDIAN_IDENTITY_JWT_SECRET", "")
+
+
+def _b64url(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
+
+def _sign_identity_jwt(user_id: str) -> str:
+    header = _b64url(json.dumps({"alg": "HS256", "typ": "JWT"}).encode("utf-8"))
+    payload = _b64url(json.dumps({"sub": user_id}).encode("utf-8"))
+    signing_input = f"{header}.{payload}".encode("ascii")
+    signature = hmac.new(CATALOG_GUARDIAN_IDENTITY_JWT_SECRET.encode("utf-8"), signing_input, hashlib.sha256).digest()
+    return f"{header}.{payload}.{_b64url(signature)}"
+
+
 # consultar_agente(pergunta, perfil) só recebe o perfil de acesso (geral,
 # financeiro, rh, steward — ver golden-dataset.yaml § perfis), não um userId
 # individual. O Catalog Guardian precisa de um userId real pra resolver
@@ -63,12 +89,12 @@ def _user_id_para_perfil(perfil: str) -> str:
     return os.environ.get(f"CATALOG_GUARDIAN_USER_{perfil.upper()}", perfil)
 
 
-def _post_json(path: str, payload: dict) -> dict:
+def _post_json(path: str, payload: dict, extra_headers: dict | None = None) -> dict:
     body = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
         f"{CATALOG_GUARDIAN_URL}{path}",
         data=body,
-        headers=_auth_headers({"Content-Type": "application/json"}),
+        headers=_auth_headers({"Content-Type": "application/json", **(extra_headers or {})}),
         method="POST",
     )
     with urllib.request.urlopen(req, timeout=30) as resp:
@@ -90,9 +116,9 @@ def consultar_agente(pergunta: str, perfil: str) -> dict:
             "/query",
             {
                 "question": pergunta,
-                "userId": _user_id_para_perfil(perfil),
                 "profile": perfil,
             },
+            extra_headers={"X-Identity-Token": _sign_identity_jwt(_user_id_para_perfil(perfil))},
         )
     except (urllib.error.URLError, urllib.error.HTTPError) as exc:
         raise RuntimeError(

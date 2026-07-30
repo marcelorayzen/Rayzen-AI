@@ -1,16 +1,17 @@
-import { Body, Controller, Post } from '@nestjs/common'
+import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common'
+import { ApiHeader } from '@nestjs/swagger'
 import { IsNotEmpty, IsString } from 'class-validator'
 import { QueryService } from './query.service'
+import { IdentityGuard, IdentityRequest } from '../auth/identity.guard'
 
 class AskDto {
   @IsString()
   @IsNotEmpty()
   question!: string
 
-  @IsString()
-  @IsNotEmpty()
-  userId!: string
-
+  // userId NÃO vem mais daqui — o chamador podia alegar ser qualquer um
+  // (backlog "identidade do usuário de negócio"). O userId real vem do claim
+  // `sub` do JWT verificado em X-Identity-Token, ver IdentityGuard.
   @IsString()
   @IsNotEmpty()
   profile!: string
@@ -23,7 +24,9 @@ export class QueryController {
   constructor(private readonly queryService: QueryService) {}
 
   @Post()
-  ask(@Body() dto: AskDto) {
-    return this.queryService.ask(dto.question, dto.userId, dto.profile)
+  @UseGuards(IdentityGuard)
+  @ApiHeader({ name: 'X-Identity-Token', description: 'JWT assinado pelo backend do cliente, claim "sub" = userId', required: true })
+  ask(@Body() dto: AskDto, @Req() req: IdentityRequest) {
+    return this.queryService.ask(dto.question, req.identityUserId!, dto.profile)
   }
 }
