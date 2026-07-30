@@ -39,6 +39,27 @@ interface OmRole {
   policies?: OmEntityRef[]
 }
 
+// Campos confirmados contra o source real do OMD (SubjectContext.TEAM_FIELDS,
+// versão 1.13.2-release): defaultRoles = roles herdadas por todo membro do
+// time; parents = hierarquia (um time pode ter múltiplos pais).
+interface OmTeam {
+  name: string
+  defaultRoles?: OmEntityRef[]
+  parents?: OmEntityRef[]
+}
+
+// Contexto resolvido ANTES de avaliar qualquer rule.condition — toda a parte
+// assíncrona (percorrer hierarquia de times) já aconteceu, evaluateCondition
+// fica síncrona e pura.
+interface ConditionContext {
+  tagFQNs: string[]
+  userId: string
+  resourceOwners: OmEntityRef[]
+  userDirectTeamNames: Set<string>
+  teamHierarchyNames: Set<string>
+  effectiveRoleNames: Set<string>
+}
+
 interface OmColumn {
   name: string
   tags?: OmTagLabel[]
@@ -234,36 +255,86 @@ export class OpenMetadataAdapter implements CatalogAdapter {
     const isPII = tagFQNs.includes(PII_SENSITIVE_TAG)
     const assetDomain = domainSlug(table.domains?.[0]?.name)
 
-    const user = await this.request<{ domains?: OmEntityRef[]; roles?: OmEntityRef[] }>(
-      `/v1/users/name/${encodeURIComponent(userId)}?fields=domains,roles`,
-    ).catch(() => ({ domains: [] as OmEntityRef[], roles: [] as OmEntityRef[] }))
+    const user = await this.request<{ domains?: OmEntityRef[]; roles?: OmEntityRef[]; teams?: OmEntityRef[] }>(
+      `/v1/users/name/${encodeURIComponent(userId)}?fields=domains,roles,teams`,
+    ).catch(() => ({ domains: [] as OmEntityRef[], roles: [] as OmEntityRef[], teams: [] as OmEntityRef[] }))
     const userDomains = new Set((user.domains ?? []).map((d) => domainSlug(d.name)).filter(Boolean))
 
     const sameDomain = assetDomain ? userDomains.has(assetDomain) : true
     if (!sameDomain) return 'none'
 
     if (!isPII) return 'full'
-    return (await this.hasPiiClearance(user.roles ?? [], tagFQNs)) ? 'full' : 'read'
+
+    const directTeams = user.teams ?? []
+    const { inheritedRoleNames, teamHierarchyNames } = await this.resolveTeamHierarchy(directTeams)
+    const directRoleNames = (user.roles ?? []).map((r) => r.name)
+    const roleNamesToCheck = new Set([...directRoleNames, ...inheritedRoleNames])
+
+    return (
+      await this.hasPiiClearance(roleNamesToCheck, {
+        tagFQNs,
+        userId,
+        resourceOwners: table.owners ?? [],
+        userDirectTeamNames: new Set(directTeams.map((t) => t.name)),
+        teamHierarchyNames,
+        effectiveRoleNames: roleNamesToCheck,
+      })
+    )
+      ? 'full'
+      : 'read'
   }
 
-  // Só resolve roles atribuídas DIRETAMENTE ao usuário — roles herdadas via
-  // team.defaultRoles ficam fora de propósito (nenhum persona do golden
-  // dataset depende disso hoje; ver README § Roadmap item 5 e § Backlog). Só
-  // é chamada quando o ativo já é PII, então não adiciona custo de chamada
-  // nenhum para o caso comum (ativo não-PII).
+  // Sobe a hierarquia de times do usuário (team.parents, recursivo) juntando
+  // roles herdadas (team.defaultRoles) e o conjunto de nomes de times sob os
+  // quais o usuário está — mesmo algoritmo do SubjectContext.hasRole()/
+  // isUserUnderTeam() do OMD real (confirmado no source da versão
+  // 1.13.2-release), com proteção contra ciclo via visitedTeams (por id).
+  // Um único walk serve tanto pra descoberta de policy (hasAnyRole efetivo)
+  // quanto pra inAnyTeam() — evita buscar cada time duas vezes.
+  private async resolveTeamHierarchy(
+    directTeams: OmEntityRef[],
+  ): Promise<{ inheritedRoleNames: string[]; teamHierarchyNames: Set<string> }> {
+    const teamHierarchyNames = new Set(directTeams.map((t) => t.name))
+    const inheritedRoleNames: string[] = []
+    const visitedTeamIds = new Set<string>()
+    const stack = [...directTeams]
+
+    while (stack.length) {
+      const teamRef = stack.pop()!
+      if (visitedTeamIds.has(teamRef.id)) continue
+      visitedTeamIds.add(teamRef.id)
+
+      const team = await this.request<OmTeam>(
+        `/v1/teams/name/${encodeURIComponent(teamRef.name)}?fields=defaultRoles,parents`,
+      ).catch(() => null)
+      if (!team) continue
+
+      for (const role of team.defaultRoles ?? []) inheritedRoleNames.push(role.name)
+      for (const parent of team.parents ?? []) {
+        teamHierarchyNames.add(parent.name)
+        stack.push(parent)
+      }
+    }
+
+    return { inheritedRoleNames, teamHierarchyNames }
+  }
+
+  // Item 5 original: só resolvia roles atribuídas DIRETAMENTE ao usuário.
+  // Item de backlog "identidade" fechado agora: roleNamesToCheck já vem com
+  // diretas + herdadas via team.defaultRoles (resolveTeamHierarchy acima) —
+  // um role concedido só por membership de time (padrão comum de org real)
+  // deixa de ficar invisível pra este adapter. Só é chamada quando o ativo já
+  // é PII, então não adiciona custo de chamada nenhum pro caso comum.
   //
-  // Item 7 (revisão pós-Fase 6): `deny` explícito agora vence `allow` —
-  // antes só `effect === 'allow'` era considerado, então uma policy real com
-  // um `deny` mais específico por cima de um `allow` amplo (padrão comum de
-  // governança) era silenciosamente ignorada e o `allow` prevalecia sozinho.
-  // Retorna false assim que QUALQUER regra `deny` bater (nenhuma role
-  // "salva" a clearance depois disso), só retorna true no fim se nenhum
-  // deny bateu e pelo menos um allow bateu.
-  private async hasPiiClearance(roles: OmEntityRef[], assetTagFQNs: string[]): Promise<boolean> {
+  // Item 7 (revisão pós-Fase 6): `deny` explícito vence `allow` — retorna
+  // false assim que QUALQUER regra `deny` bater (nenhum role "salva" a
+  // clearance depois disso), só retorna true no fim se nenhum deny bateu e
+  // pelo menos um allow bateu.
+  private async hasPiiClearance(roleNamesToCheck: Set<string>, ctx: ConditionContext): Promise<boolean> {
     let allowed = false
-    for (const role of roles) {
+    for (const roleName of roleNamesToCheck) {
       const fullRole = await this.request<OmRole>(
-        `/v1/roles/name/${encodeURIComponent(role.name)}?fields=policies`,
+        `/v1/roles/name/${encodeURIComponent(roleName)}?fields=policies`,
       ).catch(() => null)
       for (const policyRef of fullRole?.policies ?? []) {
         const policy = await this.request<OmPolicy>(
@@ -271,7 +342,7 @@ export class OpenMetadataAdapter implements CatalogAdapter {
         ).catch(() => null)
         for (const rule of policy?.rules ?? []) {
           if (!(rule.operations ?? []).includes('ViewAll')) continue
-          if (!this.evaluateCondition(rule.condition, assetTagFQNs)) continue
+          if (!this.evaluateCondition(rule.condition, ctx)) continue
           if (rule.effect === 'deny') return false
           allowed = true
         }
@@ -281,16 +352,69 @@ export class OpenMetadataAdapter implements CatalogAdapter {
   }
 
   // Deliberadamente NÃO é um parser genérico de SpEL — reconhece só o
-  // subconjunto de condition string que as policies deste app usam:
-  // ausência de condition (sempre concede) e `matchAnyTag('X')`. Qualquer
-  // outra sintaxe é fail-closed (nunca concede clearance), com log — regra
-  // igual ao resto do app: condição não reconhecida nunca vira acesso maior.
-  private evaluateCondition(condition: string | undefined, assetTagFQNs: string[]): boolean {
+  // subconjunto de condition function que as policies deste app usam,
+  // confirmado contra o source real do OMD (RuleEvaluator.java, versão
+  // 1.13.2-release): ausência de condition (sempre concede), `matchAnyTag`,
+  // `isOwner`, `hasAnyRole`, `inAnyTeam`, `hasDomain`. `matchTeam()` é
+  // reconhecida mas fica fail-closed de propósito (ver comentário abaixo).
+  // Qualquer outra sintaxe também é fail-closed — condição não reconhecida
+  // nunca vira acesso maior.
+  private evaluateCondition(condition: string | undefined, ctx: ConditionContext): boolean {
     if (!condition) return true
-    const match = condition.match(/^matchAnyTag\(\s*'([^']+)'\s*\)$/)
-    if (match) return assetTagFQNs.includes(match[1])
+
+    const matchAnyTag = condition.match(/^matchAnyTag\(\s*'([^']+)'\s*\)$/)
+    if (matchAnyTag) return ctx.tagFQNs.includes(matchAnyTag[1])
+
+    if (condition === 'isOwner()') {
+      // Mesma semântica do SubjectContext.isOwner() real: dono direto (owner
+      // é o próprio usuário) OU dono é um time do qual o usuário é membro
+      // DIRETO (sem subir hierarquia — o OMD real também não sobe aqui).
+      return ctx.resourceOwners.some((owner) =>
+        owner.type === 'user'
+          ? owner.name === ctx.userId
+          : owner.type === 'team' && ctx.userDirectTeamNames.has(owner.name),
+      )
+    }
+
+    const hasAnyRole = condition.match(/^hasAnyRole\(\s*(.+)\s*\)$/)
+    if (hasAnyRole) {
+      return this.parseStringArgs(hasAnyRole[1]).some((name) => ctx.effectiveRoleNames.has(name))
+    }
+
+    const inAnyTeam = condition.match(/^inAnyTeam\(\s*(.+)\s*\)$/)
+    if (inAnyTeam) {
+      return this.parseStringArgs(inAnyTeam[1]).some((name) => ctx.teamHierarchyNames.has(name))
+    }
+
+    if (condition === 'hasDomain()') {
+      // Neste ponto do fluxo (dentro de hasPiiClearance, chamado só depois
+      // do gate de domínio de getUserAccessLevel já ter passado) hasDomain()
+      // é sempre true por construção — se o usuário não tivesse acesso ao
+      // domínio do ativo, getUserAccessLevel já teria retornado 'none' antes
+      // de chegar aqui. Não reimplementa a hierarquia real de domínio do OMD
+      // (domínio pai acessa sub-domínio) — o gate deste app é mais simples
+      // (slug exato), gap já documentado em README § Backlog ("domínio é uma
+      // simplificação").
+      return true
+    }
+
+    if (condition === 'matchTeam()') {
+      // Reconhecida, mas genuinamente não implementável sem modelar a qual
+      // TEAM a própria policy está anexada (policyContext no OMD real) — este
+      // adapter busca Role→Policy→Rule direto por nome e nunca sabe em qual
+      // entidade a policy foi atribuída. Gap documentado, não bug silencioso.
+      this.logger.warn(
+        "evaluateCondition: 'matchTeam()' reconhecida mas não suportada (precisa de contexto de anexação de policy, não modelado neste adapter) — tratando como não-concedida",
+      )
+      return false
+    }
+
     this.logger.warn(`evaluateCondition: condition não reconhecida, tratando como não-concedida: ${condition}`)
     return false
+  }
+
+  private parseStringArgs(argsRaw: string): string[] {
+    return [...argsRaw.matchAll(/'([^']+)'/g)].map((m) => m[1])
   }
 
   // Sem guarda de permissão de propósito — ver interface. Confirmado
