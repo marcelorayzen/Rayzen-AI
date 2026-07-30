@@ -12,10 +12,14 @@ export interface Recommendation {
 }
 
 // Mesma forma do ProactiveService do Rayzen V1 (apps/api/src/modules/proactive)
-// — cache com TTL, compute() apaga as recomendações não descartadas e recria,
-// dismiss() marca dismissedAt. Característica herdada do padrão V1, não
-// "consertada" aqui: um dismiss() só suprime até o próximo compute() — se a
-// condição ainda existir, a recomendação reaparece no ciclo seguinte.
+// — cache com TTL, compute() recalcula, dismiss() marca dismissedAt.
+//
+// Backlog "dismiss() não-sticky" (fechado): até esta revisão, compute()
+// apagava TODAS as recomendações ativas e recriava do zero a cada ciclo —
+// um dismiss() só suprimia até o próximo compute() (30min), porque a nova
+// linha criada tinha um id novo, nunca dismissado. Corrigido com dedupeKey
+// (chave estável por tipo+alvo, ex. "orphan_owner:svc.db.schema.clientes")
+// e upsert em vez de delete+create — ver compute() abaixo.
 const CACHE_TTL_MS = 30 * 60 * 1000 // 30min
 
 const UNCLASSIFIED_MIN_DAYS = 7
@@ -79,12 +83,16 @@ export class CatalogProactiveService {
   private async compute(): Promise<void> {
     const computedAt = new Date()
 
+    // Linhas de sessões antes do dedupeKey existir nunca vão bater em nenhum
+    // upsert por chave — limpa esse lixo órfão uma vez, incondicional (não é
+    // uma condição real que ainda vale, é resíduo de schema antigo).
     await this.prisma.catalogRecommendation.deleteMany({
-      where: { dismissedAt: null, type: { in: TYPES_COMPUTED_HERE } },
+      where: { type: { in: TYPES_COMPUTED_HERE }, dedupeKey: null },
     })
 
     const assets = await this.prisma.catalogAsset.findMany()
-    const newRecs: Array<{
+    const candidates: Array<{
+      dedupeKey: string
       type: string
       title: string
       description: string
@@ -99,7 +107,8 @@ export class CatalogProactiveService {
       const tags = (asset.tags as string[] | null) ?? []
       if (tags.length === 0 && asset.firstSyncedAt < unclassifiedCutoff) {
         const days = Math.floor((Date.now() - asset.firstSyncedAt.getTime()) / 86400000)
-        newRecs.push({
+        candidates.push({
+          dedupeKey: `unclassified_asset:${asset.externalId}`,
           type: 'unclassified_asset',
           title: `"${asset.name}" sem nenhuma classificação há ${days} dias`,
           description: 'Este ativo nunca recebeu tag/classificação no catálogo fonte desde que foi sincronizado pela primeira vez.',
@@ -113,7 +122,8 @@ export class CatalogProactiveService {
     // ── Regra: orphan_owner ──────────────────────────────────────────────────
     for (const asset of assets) {
       if (!asset.owner) {
-        newRecs.push({
+        candidates.push({
+          dedupeKey: `orphan_owner:${asset.externalId}`,
           type: 'orphan_owner',
           title: `"${asset.name}" sem owner definido`,
           description: 'Nenhum responsável está atribuído a este ativo no catálogo fonte.',
@@ -148,7 +158,8 @@ export class CatalogProactiveService {
       const ratio = stats.highRisk / stats.total
       if (ratio <= LOW_CONFIDENCE_HIGH_RISK_RATIO) continue
       const asset = assets.find((a) => a.externalId === externalId)
-      newRecs.push({
+      candidates.push({
+        dedupeKey: `low_confidence_pattern:${externalId}`,
         type: 'low_confidence_pattern',
         title: `Respostas sobre "${asset?.name ?? externalId}" com risco alto em ${Math.round(ratio * 100)}% das consultas`,
         description: `${stats.highRisk} de ${stats.total} consultas dos últimos ${LOW_CONFIDENCE_WINDOW_DAYS} dias sobre este ativo geraram risco alto/crítico.`,
@@ -159,6 +170,8 @@ export class CatalogProactiveService {
     }
 
     // ── Regra: flagged_unresolved ────────────────────────────────────────────
+    // dedupeKey usa o id do próprio QueryAuditFlag — cada flag não resolvida
+    // mapeia 1:1 pra uma recomendação (não o ativo, que pode ter várias flags).
     const flaggedCutoff = new Date(Date.now() - FLAGGED_UNRESOLVED_MIN_DAYS * 86400000)
     const unresolvedFlags = await this.prisma.queryAuditFlag.findMany({
       where: { resolvedAt: null, flaggedAt: { lte: flaggedCutoff } },
@@ -166,7 +179,8 @@ export class CatalogProactiveService {
     })
     for (const flag of unresolvedFlags) {
       const days = Math.floor((Date.now() - flag.flaggedAt.getTime()) / 86400000)
-      newRecs.push({
+      candidates.push({
+        dedupeKey: `flagged_unresolved:${flag.id}`,
         type: 'flagged_unresolved',
         title: `Resposta sinalizada como incorreta há ${days} dias sem ajuste`,
         description: `Pergunta: "${flag.queryAudit.question.slice(0, 80)}" — motivo: ${flag.reason}.`,
@@ -176,25 +190,71 @@ export class CatalogProactiveService {
       })
     }
 
-    if (newRecs.length > 0) {
-      await this.prisma.catalogRecommendation.createMany({ data: newRecs })
+    // Upsert por dedupeKey — se a recomendação já existia (mesmo tipo+alvo),
+    // atualiza o conteúdo (título/descrição podem mudar, ex. contagem de
+    // dias) SEM tocar em dismissedAt. É este update-sem-tocar-dismissedAt que
+    // corrige o backlog: antes, delete+create de tudo a cada ciclo dava um id
+    // novo pra cada recomendação, então nenhum dismiss() sobrevivia.
+    for (const c of candidates) {
+      await this.prisma.catalogRecommendation.upsert({
+        where: { dedupeKey: c.dedupeKey },
+        create: {
+          dedupeKey: c.dedupeKey,
+          type: c.type,
+          title: c.title,
+          description: c.description,
+          priority: c.priority,
+          action: c.action,
+          computedAt: c.computedAt,
+        },
+        update: {
+          title: c.title,
+          description: c.description,
+          priority: c.priority,
+          action: c.action,
+          computedAt: c.computedAt,
+        },
+      })
+    }
+
+    // Remove recomendações computadas cuja condição não bate mais neste ciclo
+    // (ex. asset ganhou owner) — dismissada ou não, deixou de ser relevante.
+    // Ramo explícito pro caso "nenhum candidato" em vez de confiar em notIn
+    // com array vazio (semântica de NULL/vazio em NOT IN é sutil o bastante
+    // pra não valer a pena arriscar).
+    const currentKeys = candidates.map((c) => c.dedupeKey)
+    const realTypes = TYPES_COMPUTED_HERE.filter((t) => t !== 'all_clear')
+    if (currentKeys.length > 0) {
+      await this.prisma.catalogRecommendation.deleteMany({
+        where: { type: { in: realTypes }, dedupeKey: { notIn: currentKeys } },
+      })
     } else {
-      // "Tudo em ordem" só quando não há NENHUMA recomendação ativa — inclui
-      // permission_drift, que este método não gerencia mas cujo estado ainda
-      // deve impedir o placeholder de "tudo limpo".
-      const anyActive = await this.prisma.catalogRecommendation.count({ where: { dismissedAt: null } })
-      if (anyActive === 0) {
-        await this.prisma.catalogRecommendation.create({
-          data: {
-            type: 'all_clear',
-            title: 'Catálogo em ordem',
-            description: 'Nenhuma inconsistência ou ação urgente identificada.',
-            priority: 'low',
-            action: null,
-            computedAt,
-          },
-        })
-      }
+      await this.prisma.catalogRecommendation.deleteMany({ where: { type: { in: realTypes } } })
+    }
+
+    // "Tudo em ordem" só quando não há NENHUMA recomendação ativa — inclui
+    // permission_drift, que este método não gerencia mas cujo estado ainda
+    // deve impedir o placeholder de "tudo limpo".
+    const anyActive = await this.prisma.catalogRecommendation.count({ where: { dismissedAt: null } })
+    if (anyActive === 0) {
+      await this.prisma.catalogRecommendation.upsert({
+        where: { dedupeKey: 'all_clear' },
+        create: {
+          dedupeKey: 'all_clear',
+          type: 'all_clear',
+          title: 'Catálogo em ordem',
+          description: 'Nenhuma inconsistência ou ação urgente identificada.',
+          priority: 'low',
+          action: null,
+          computedAt,
+        },
+        update: { computedAt },
+      })
+    } else {
+      // Havia um all_clear de um ciclo anterior e agora surgiu algo real —
+      // remove incondicionalmente, não deixa o placeholder "tudo em ordem"
+      // sobrevivendo (dismissado ou não) ao lado de recomendações reais.
+      await this.prisma.catalogRecommendation.deleteMany({ where: { dedupeKey: 'all_clear' } })
     }
   }
 }

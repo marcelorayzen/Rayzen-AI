@@ -16,31 +16,51 @@ interface FakeFlag {
   queryAudit: { question: string }
 }
 
+type FakeRec = Record<string, unknown> & { id: string; dismissedAt: Date | null; dedupeKey?: string | null }
+
+function matchesWhere(rec: FakeRec, where: Record<string, any>): boolean {
+  return Object.entries(where).every(([key, cond]) => {
+    const value = (rec as any)[key]
+    if (cond === null) return value === null
+    if (cond !== null && typeof cond === 'object') {
+      if ('in' in cond) return cond.in.includes(value)
+      if ('notIn' in cond) return !cond.notIn.includes(value)
+    }
+    return value === cond
+  })
+}
+
 // Fake Prisma mínimo — só os métodos que CatalogProactiveService usa.
 // `initialRecs` simula o que já está gravado em CatalogRecommendation antes
-// de getRecommendations() rodar (permite testar o cache TTL e o caso
-// permission_drift-ativo-mas-sem-regra-própria-disparada).
+// de getRecommendations() rodar (permite testar cache TTL, stickiness de
+// dismiss() e o caso permission_drift-ativo-mas-sem-regra-própria-disparada).
 function fakePrisma(opts: {
   assets?: FakeAsset[]
   flags?: FakeFlag[]
   initialRecs?: Array<Record<string, unknown>>
 }) {
-  const recs: Array<Record<string, unknown> & { id: string; dismissedAt: Date | null }> = (
-    opts.initialRecs ?? []
-  ).map((r, i) => ({ id: `rec-${i}`, dismissedAt: null, ...r })) as any
+  const recs: FakeRec[] = (opts.initialRecs ?? []).map((r, i) => ({ id: `rec-${i}`, dismissedAt: null, ...r })) as any
 
-  const deleteMany = jest.fn(async (args: { where: { type: { in: string[] } } }) => {
-    const allowed = args.where.type.in
+  const deleteMany = jest.fn(async (args: { where: Record<string, any> }) => {
     for (let i = recs.length - 1; i >= 0; i--) {
-      if (recs[i].dismissedAt === null && allowed.includes(recs[i].type as string)) recs.splice(i, 1)
+      if (matchesWhere(recs[i], args.where)) recs.splice(i, 1)
     }
   })
-  const createMany = jest.fn(async (args: { data: Array<Record<string, unknown>> }) => {
-    args.data.forEach((d, i) => recs.push({ id: `new-${recs.length}-${i}`, dismissedAt: null, ...d } as any))
-  })
-  const create = jest.fn(async (args: { data: Record<string, unknown> }) => {
-    const row = { id: `new-${recs.length}`, dismissedAt: null, ...args.data }
-    recs.push(row as any)
+  const upsert = jest.fn(
+    async (args: { where: { dedupeKey: string }; create: Record<string, unknown>; update: Record<string, unknown> }) => {
+      const existing = recs.find((r) => r.dedupeKey === args.where.dedupeKey)
+      if (existing) {
+        Object.assign(existing, args.update)
+        return existing
+      }
+      const row: FakeRec = { id: `new-${recs.length}`, dismissedAt: null, ...args.create } as any
+      recs.push(row)
+      return row
+    },
+  )
+  const update = jest.fn(async (args: { where: { id: string }; data: Record<string, unknown> }) => {
+    const row = recs.find((r) => r.id === args.where.id)
+    if (row) Object.assign(row, args.data)
     return row
   })
   const findManyAssets = jest.fn(async () => opts.assets ?? [])
@@ -56,9 +76,8 @@ function fakePrisma(opts: {
         findMany: async () => recs.filter((r) => r.dismissedAt === null),
         count: async () => recs.filter((r) => r.dismissedAt === null).length,
         deleteMany,
-        createMany,
-        create,
-        update: async () => ({}),
+        upsert,
+        update,
       },
       catalogAsset: { findMany: findManyAssets },
       queryAudit: { findMany: async () => [] },
@@ -72,15 +91,22 @@ function fakePrisma(opts: {
           ),
       },
     } as any,
-    spies: { deleteMany, createMany, create, findManyAssets },
+    spies: { deleteMany, upsert, update, findManyAssets },
     recs,
   }
 }
 
+// Backdata computedAt de toda linha ativa pra forçar isStale() a recomputar
+// no próximo getRecommendations() — sem isto, o cache TTL (30min) esconde
+// qualquer mudança feita nos assets/flags entre duas chamadas no teste.
+function forceStale(recs: FakeRec[]) {
+  for (const r of recs) r.computedAt = new Date(Date.now() - 40 * 60000)
+}
+
 describe('CatalogProactiveService', () => {
-  it('cache ainda fresco: não recomputa (sem deleteMany/createMany/findMany de assets)', async () => {
+  it('cache ainda fresco: não recomputa (sem deleteMany/upsert/findMany de assets)', async () => {
     const { prisma, spies } = fakePrisma({
-      initialRecs: [{ type: 'all_clear', title: 'ok', description: '', priority: 'low', action: null, computedAt: new Date() }],
+      initialRecs: [{ type: 'all_clear', dedupeKey: 'all_clear', title: 'ok', description: '', priority: 'low', action: null, computedAt: new Date() }],
     })
     const svc = new CatalogProactiveService(prisma)
 
@@ -180,5 +206,85 @@ describe('CatalogProactiveService', () => {
 
     expect(result.some((r) => r.type === 'all_clear')).toBe(false)
     expect(result.some((r) => r.type === 'permission_drift')).toBe(true)
+  })
+
+  describe('backlog "dismiss() não-sticky" — dedupeKey + upsert', () => {
+    it('dismiss() sobrevive ao próximo compute() enquanto a condição continuar valendo', async () => {
+      const asset: FakeAsset = { externalId: 'a1', name: 'sem_owner', owner: null, tags: ['x'], firstSyncedAt: new Date() }
+      const { prisma, recs } = fakePrisma({ assets: [asset] })
+      const svc = new CatalogProactiveService(prisma)
+
+      const first = await svc.getRecommendations()
+      const orphan = first.find((r) => r.type === 'orphan_owner')!
+      await svc.dismiss(orphan.id)
+
+      forceStale(recs)
+      const second = await svc.getRecommendations()
+
+      expect(second.some((r) => r.type === 'orphan_owner')).toBe(false)
+      // A linha dismissada continua existindo (histórico), só não aparece na
+      // lista ativa — prova que compute() fez upsert, não delete+create.
+      expect(recs.some((r) => r.dedupeKey === 'orphan_owner:a1')).toBe(true)
+    })
+
+    it('recomendação dismissada some de vez quando a condição deixa de valer (ativo ganhou owner)', async () => {
+      const asset: FakeAsset = { externalId: 'a1', name: 'sem_owner', owner: null, tags: ['x'], firstSyncedAt: new Date() }
+      const { prisma, recs } = fakePrisma({ assets: [asset] })
+      const svc = new CatalogProactiveService(prisma)
+
+      const first = await svc.getRecommendations()
+      const orphan = first.find((r) => r.type === 'orphan_owner')!
+      await svc.dismiss(orphan.id)
+
+      asset.owner = 'steward' // condição resolvida
+      forceStale(recs)
+      await svc.getRecommendations()
+
+      expect(recs.some((r) => r.dedupeKey === 'orphan_owner:a1')).toBe(false)
+    })
+
+    it('duas recomendações do mesmo tipo em ativos diferentes não colidem (dedupeKey inclui o alvo)', async () => {
+      const { prisma } = fakePrisma({
+        assets: [
+          { externalId: 'a1', name: 'orfao_1', owner: null, tags: [], firstSyncedAt: new Date() },
+          { externalId: 'a2', name: 'orfao_2', owner: null, tags: [], firstSyncedAt: new Date() },
+        ],
+      })
+      const svc = new CatalogProactiveService(prisma)
+
+      const result = await svc.getRecommendations()
+
+      const orphanRecs = result.filter((r) => r.type === 'orphan_owner')
+      expect(orphanRecs).toHaveLength(2)
+    })
+
+    it('all_clear dismissado é removido (não sobrevive) quando surge uma recomendação real no ciclo seguinte', async () => {
+      const { prisma, recs } = fakePrisma({
+        assets: [],
+        flags: [],
+        initialRecs: [
+          {
+            type: 'all_clear',
+            dedupeKey: 'all_clear',
+            dismissedAt: new Date(),
+            title: 'ok',
+            description: '',
+            priority: 'low',
+            action: null,
+            computedAt: new Date(Date.now() - 40 * 60000),
+          },
+        ],
+      })
+      const svc = new CatalogProactiveService(prisma)
+
+      // Introduz uma condição real DEPOIS do estado inicial, antes do recompute.
+      const asset: FakeAsset = { externalId: 'a1', name: 'sem_owner', owner: null, tags: [], firstSyncedAt: new Date() }
+      ;(prisma.catalogAsset.findMany as any) = jest.fn(async () => [asset])
+
+      const result = await svc.getRecommendations()
+
+      expect(recs.some((r) => r.dedupeKey === 'all_clear')).toBe(false)
+      expect(result.some((r) => r.type === 'orphan_owner')).toBe(true)
+    })
   })
 })

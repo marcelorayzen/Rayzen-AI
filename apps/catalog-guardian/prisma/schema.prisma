@@ -147,6 +147,13 @@ model CatalogRecommendation {
   action      String?
   computedAt  DateTime  @map("computed_at")
   dismissedAt DateTime? @map("dismissed_at")
+  // Backlog "dismiss() não-sticky" (Fase 4): chave estável por instância
+  // (ex. "unclassified_asset:svc.db.schema.clientes"), só preenchida pelos
+  // tipos calculados em CatalogProactiveService.compute() — permission_drift
+  // (escrito pelo SyncService) continua null, fora deste mecanismo de novo.
+  // Permite compute() fazer upsert por instância em vez de apagar/recriar
+  // tudo a cada ciclo, preservando dismissedAt de uma recomendação já vista.
+  dedupeKey   String?   @unique @map("dedupe_key")
 
   @@index([dismissedAt])
   @@map("catalog_recommendations")
