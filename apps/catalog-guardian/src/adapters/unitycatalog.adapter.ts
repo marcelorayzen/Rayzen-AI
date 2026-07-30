@@ -24,6 +24,10 @@ interface UcCatalogListResponse {
 interface UcSchema {
   name: string
   catalog_name: string
+  // Confirmado no api/all.yaml oficial (SchemaInfo.owner) — "Username of
+  // current owner of schema", exatamente o que getDomainOwner() precisa
+  // agora que domain = nome do schema, não do catalog.
+  owner?: string | null
 }
 
 interface UcSchemaListResponse {
@@ -88,11 +92,42 @@ export class UnityCatalogAdapter implements CatalogAdapter {
     return res.json() as Promise<T>
   }
 
-  // Sem "Domains" nativos como no OMD — o catalog UC é o nível de granularidade
-  // mais próximo (e já carrega `owner`, cobrindo getDomainOwner() de graça).
-  // Decisão de mapeamento documentada no README, não um detalhe escondido.
+  // Backlog "domínio=catalog" fechado: domínio deixou de ser o catalog e
+  // passou a ser o nome do SCHEMA. Motivo: um catalog real do cliente pode
+  // misturar vários domínios de negócio (schemas diferentes dentro do mesmo
+  // catalog) — catalog = namespace/ambiente (ex. "producao"), schema = o
+  // domínio de verdade (ex. "vendas", "financeiro"), exatamente a palavra
+  // que extractDomainMention() casa contra a pergunta em linguagem natural
+  // (ver ownership-question.util.ts). "catalog.schema" composto foi cogitado
+  // e descartado: ninguém diz "vendas.public" numa frase.
   async listAssets(): Promise<RawCatalogAsset[]> {
     const assets: RawCatalogAsset[] = []
+
+    for (const { schema } of await this.listAllSchemas()) {
+      let tablePageToken: string | undefined
+      do {
+        const tableQs = new URLSearchParams({
+          catalog_name: schema.catalog_name,
+          schema_name: schema.name,
+          ...(tablePageToken ? { page_token: tablePageToken } : {}),
+        })
+        const tablePage = await this.request<UcTableListResponse>(`/tables?${tableQs}`)
+
+        for (const table of tablePage.tables ?? []) {
+          assets.push(this.toRawAsset(table, schema))
+        }
+        tablePageToken = tablePage.next_page_token
+      } while (tablePageToken)
+    }
+
+    this.logger.log(`listAssets: ${assets.length} tabela(s) sincronizada(s) do Unity Catalog`)
+    return assets
+  }
+
+  // Compartilhado por listAssets() e listDomains() — os dois precisam
+  // enumerar catalog→schema inteiro, só o que fazem com cada schema difere.
+  private async listAllSchemas(): Promise<Array<{ catalog: UcCatalog; schema: UcSchema }>> {
+    const result: Array<{ catalog: UcCatalog; schema: UcSchema }> = []
     let catalogPageToken: string | undefined
 
     do {
@@ -108,30 +143,22 @@ export class UnityCatalogAdapter implements CatalogAdapter {
           })
           const schemaPage = await this.request<UcSchemaListResponse>(`/schemas?${schemaQs}`)
 
-          for (const schema of schemaPage.schemas ?? []) {
-            let tablePageToken: string | undefined
-            do {
-              const tableQs = new URLSearchParams({
-                catalog_name: catalog.name,
-                schema_name: schema.name,
-                ...(tablePageToken ? { page_token: tablePageToken } : {}),
-              })
-              const tablePage = await this.request<UcTableListResponse>(`/tables?${tableQs}`)
-
-              for (const table of tablePage.tables ?? []) {
-                assets.push(this.toRawAsset(table, catalog))
-              }
-              tablePageToken = tablePage.next_page_token
-            } while (tablePageToken)
-          }
+          for (const schema of schemaPage.schemas ?? []) result.push({ catalog, schema })
           schemaPageToken = schemaPage.next_page_token
         } while (schemaPageToken)
       }
       catalogPageToken = catalogPage.next_page_token
     } while (catalogPageToken)
 
-    this.logger.log(`listAssets: ${assets.length} tabela(s) sincronizada(s) do Unity Catalog`)
-    return assets
+    return result
+  }
+
+  // Backlog "KNOWN_DOMAINS hardcoded" fechado junto — nomes de schema
+  // dedupados (o mesmo nome de domínio pode existir em catalogs/namespaces
+  // diferentes, ex. "vendas" em "producao" e em "staging").
+  async listDomains(): Promise<string[]> {
+    const schemas = await this.listAllSchemas()
+    return [...new Set(schemas.map(({ schema }) => schema.name))]
   }
 
   // Limitação real e documentada da versão OSS do Unity Catalog — não há
@@ -149,13 +176,18 @@ export class UnityCatalogAdapter implements CatalogAdapter {
     return []
   }
 
-  // Domínio (= catalog UC) continua o portão PRIMÁRIO, mesmo princípio do
-  // OpenMetadataAdapter: sem NENHUM privilege no catalog/schema/table →
-  // 'none' direto, PII nunca é sequer considerado. Mais simples que o
-  // Role→Policy→Rule do OMD porque o próprio modelo de permissão da UC já é
-  // mais simples (grant direto principal→privilege, com herança catalog →
-  // schema → table) — não é uma versão incompleta do mesmo conceito, é o
-  // conceito real deste catálogo fonte.
+  // O gate de domínio aqui é implícito, não uma comparação explícita de
+  // string como no OMD: sem NENHUM privilege no catalog/schema/table →
+  // 'none' direto, PII nunca é sequer considerado. Não muda com o backlog
+  // "domínio=catalog" (domain virou nome do schema, ver toRawAsset) porque
+  // este método já opera direto sobre catalog/schema/table extraídos do
+  // externalId, nunca sobre o campo `domain` do CatalogAsset — a herança
+  // real de privilege (catalog → schema → table) da UC já cobre a mesma
+  // garantia que o campo domain expressa pros outros usos (ownership etc).
+  // Mais simples que o Role→Policy→Rule do OMD porque o próprio modelo de
+  // permissão da UC já é mais simples (grant direto principal→privilege) —
+  // não é uma versão incompleta do mesmo conceito, é o conceito real deste
+  // catálogo fonte.
   async getUserAccessLevel(userId: string, externalId: string): Promise<AccessLevel> {
     const [catalogName, schemaName, tableName] = externalId.split('.')
     const table = await this.request<UcTable>(
@@ -196,21 +228,39 @@ export class UnityCatalogAdapter implements CatalogAdapter {
     return (table.columns ?? []).some((c) => c.properties?.[PII_PROPERTY_KEY] === 'true')
   }
 
+  // domain aqui é nome de SCHEMA, não de catalog — precisa descobrir em qual
+  // catalog esse schema vive (schema.name não é globalmente único por
+  // constrói, mas é único o bastante numa organização real; primeiro match
+  // vence, mesma aposta que OMD já faz assumindo slugs de Domain únicos).
+  // GET direto por full_name (catalog.schema) em vez de listar+filtrar —
+  // 1 chamada por catalog candidato, para no primeiro que responder 200.
   async getDomainOwner(domain: string): Promise<{ owner: string | null }> {
-    const catalog = await this.request<UcCatalog>(`/catalogs/${encodeURIComponent(domain)}`).catch(
-      () => ({ owner: null }) as UcCatalog,
-    )
-    return { owner: catalog.owner ?? null }
+    let catalogPageToken: string | undefined
+    do {
+      const catalogQs = new URLSearchParams(catalogPageToken ? { page_token: catalogPageToken } : {})
+      const catalogPage = await this.request<UcCatalogListResponse>(`/catalogs?${catalogQs}`).catch(
+        () => ({ catalogs: [] as UcCatalog[] }) as UcCatalogListResponse,
+      )
+
+      for (const catalog of catalogPage.catalogs ?? []) {
+        const fullName = `${catalog.name}.${domain}`
+        const schema = await this.request<UcSchema>(`/schemas/${encodeURIComponent(fullName)}`).catch(() => null)
+        if (schema) return { owner: schema.owner ?? null }
+      }
+      catalogPageToken = catalogPage.next_page_token
+    } while (catalogPageToken)
+
+    return { owner: null }
   }
 
-  private toRawAsset(table: UcTable, catalog: UcCatalog): RawCatalogAsset {
+  private toRawAsset(table: UcTable, schema: UcSchema): RawCatalogAsset {
     const containsPII = this.isPii(table)
     return {
       externalId: `${table.catalog_name}.${table.schema_name}.${table.name}`,
       name: table.name,
       description: table.comment ?? null,
       owner: table.owner ?? null,
-      domain: catalog.name,
+      domain: schema.name,
       sensitivity: containsPII ? 'restricted' : 'internal',
       containsPII,
       piiFields: (table.columns ?? [])

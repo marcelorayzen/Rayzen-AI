@@ -5,12 +5,18 @@ function fakeConfig(): ConfigService {
   return { get: (_key: string, defaultValue?: unknown) => defaultValue } as unknown as ConfigService
 }
 
-const CATALOG_VENDAS = { name: 'vendas', owner: 'maria@empresa.com' }
+// Backlog "domínio=catalog" fechado: catalog virou namespace/ambiente
+// ("producao"), schema é o domínio de negócio de verdade ("vendas") —
+// exatamente a palavra que extractDomainMention() casa contra a pergunta em
+// linguagem natural. Fixtures deste arquivo refletem esse modelo, não o
+// antigo (1 catalog por domínio, schema "public" fixo).
+const CATALOG_PRODUCAO = { name: 'producao' }
+const SCHEMA_VENDAS = { name: 'vendas', catalog_name: 'producao', owner: 'maria@empresa.com' }
 
 const TABLE_PEDIDOS = {
   name: 'pedidos',
-  catalog_name: 'vendas',
-  schema_name: 'public',
+  catalog_name: 'producao',
+  schema_name: 'vendas',
   comment: 'Pedidos de venda',
   owner: 'steward@empresa.com',
   properties: {},
@@ -19,8 +25,8 @@ const TABLE_PEDIDOS = {
 
 const TABLE_CLIENTES_PII = {
   name: 'clientes',
-  catalog_name: 'vendas',
-  schema_name: 'public',
+  catalog_name: 'producao',
+  schema_name: 'vendas',
   comment: 'Cadastro de clientes',
   owner: null,
   properties: {},
@@ -48,10 +54,10 @@ describe('UnityCatalogAdapter', () => {
   afterEach(() => jest.restoreAllMocks())
 
   describe('listAssets', () => {
-    it('pagina catalogs → schemas → tables e mapeia domain = nome do catalog', async () => {
+    it('pagina catalogs → schemas → tables e mapeia domain = nome do SCHEMA (não do catalog)', async () => {
       mockFetch({
-        '/catalogs?': { catalogs: [CATALOG_VENDAS] },
-        '/schemas?': { schemas: [{ name: 'public', catalog_name: 'vendas' }] },
+        '/catalogs?': { catalogs: [CATALOG_PRODUCAO] },
+        '/schemas?': { schemas: [SCHEMA_VENDAS] },
         '/tables?': { tables: [TABLE_PEDIDOS] },
       })
       const adapter = new UnityCatalogAdapter(fakeConfig())
@@ -60,7 +66,7 @@ describe('UnityCatalogAdapter', () => {
 
       expect(assets).toHaveLength(1)
       expect(assets[0]).toMatchObject({
-        externalId: 'vendas.public.pedidos',
+        externalId: 'producao.vendas.pedidos',
         domain: 'vendas',
         owner: 'steward@empresa.com',
         containsPII: false,
@@ -69,8 +75,8 @@ describe('UnityCatalogAdapter', () => {
 
     it('marca containsPII quando alguma coluna tem properties.pii=true', async () => {
       mockFetch({
-        '/catalogs?': { catalogs: [CATALOG_VENDAS] },
-        '/schemas?': { schemas: [{ name: 'public', catalog_name: 'vendas' }] },
+        '/catalogs?': { catalogs: [CATALOG_PRODUCAO] },
+        '/schemas?': { schemas: [SCHEMA_VENDAS] },
         '/tables?': { tables: [TABLE_CLIENTES_PII] },
       })
       const adapter = new UnityCatalogAdapter(fakeConfig())
@@ -85,12 +91,28 @@ describe('UnityCatalogAdapter', () => {
 
   it('getLineage sempre retorna vazio — limitação real da versão OSS (issue #137)', async () => {
     const adapter = new UnityCatalogAdapter(fakeConfig())
-    await expect(adapter.getLineage('vendas.public.pedidos')).resolves.toEqual([])
+    await expect(adapter.getLineage('producao.vendas.pedidos')).resolves.toEqual([])
   })
 
   it('listGlossaryTerms sempre retorna vazio — sem conceito equivalente na UC', async () => {
     const adapter = new UnityCatalogAdapter(fakeConfig())
     await expect(adapter.listGlossaryTerms()).resolves.toEqual([])
+  })
+
+  describe('listDomains — backlog "KNOWN_DOMAINS hardcoded" fechado junto', () => {
+    it('lista nomes de schema de todos os catalogs, sem duplicar', async () => {
+      mockFetch({
+        '/catalogs?': { catalogs: [{ name: 'producao' }, { name: 'staging' }] },
+        '/schemas?catalog_name=producao': { schemas: [SCHEMA_VENDAS, { name: 'financeiro', catalog_name: 'producao' }] },
+        '/schemas?catalog_name=staging': { schemas: [{ name: 'vendas', catalog_name: 'staging' }] },
+      })
+      const adapter = new UnityCatalogAdapter(fakeConfig())
+
+      const domains = await adapter.listDomains()
+
+      // "vendas" existe em dois catalogs (producao/staging) — dedupado.
+      expect(domains.sort()).toEqual(['financeiro', 'vendas'])
+    })
   })
 
   describe('getUserAccessLevel', () => {
@@ -101,7 +123,7 @@ describe('UnityCatalogAdapter', () => {
       })
       const adapter = new UnityCatalogAdapter(fakeConfig())
 
-      const level = await adapter.getUserAccessLevel('geral@empresa.com', 'vendas.public.pedidos')
+      const level = await adapter.getUserAccessLevel('geral@empresa.com', 'producao.vendas.pedidos')
 
       expect(level).toBe('none')
     })
@@ -113,7 +135,7 @@ describe('UnityCatalogAdapter', () => {
       })
       const adapter = new UnityCatalogAdapter(fakeConfig())
 
-      const level = await adapter.getUserAccessLevel('geral@empresa.com', 'vendas.public.pedidos')
+      const level = await adapter.getUserAccessLevel('geral@empresa.com', 'producao.vendas.pedidos')
 
       expect(level).toBe('full')
     })
@@ -134,18 +156,50 @@ describe('UnityCatalogAdapter', () => {
       }) as unknown as typeof fetch
       const adapter = new UnityCatalogAdapter(fakeConfig())
 
-      const level = await adapter.getUserAccessLevel('geral@empresa.com', 'vendas.public.clientes')
+      const level = await adapter.getUserAccessLevel('geral@empresa.com', 'producao.vendas.clientes')
 
       expect(level).toBe('read')
     })
   })
 
-  it('getDomainOwner lê o owner do catalog UC', async () => {
-    mockFetch({ '/catalogs/': CATALOG_VENDAS })
-    const adapter = new UnityCatalogAdapter(fakeConfig())
+  describe('getDomainOwner — domain agora é nome de SCHEMA, não de catalog', () => {
+    it('encontra o schema no primeiro catalog que o contém e lê o owner dele', async () => {
+      mockFetch({
+        '/catalogs?': { catalogs: [CATALOG_PRODUCAO] },
+        '/schemas/producao.vendas': SCHEMA_VENDAS,
+      })
+      const adapter = new UnityCatalogAdapter(fakeConfig())
 
-    const result = await adapter.getDomainOwner('vendas')
+      const result = await adapter.getDomainOwner('vendas')
 
-    expect(result).toEqual({ owner: 'maria@empresa.com' })
+      expect(result).toEqual({ owner: 'maria@empresa.com' })
+    })
+
+    it('percorre catalogs até achar o schema — não para no primeiro catalog se ele não tiver esse schema', async () => {
+      global.fetch = jest.fn(async (url: string) => {
+        if (url.includes('/catalogs?')) return { ok: true, json: async () => ({ catalogs: [{ name: 'staging' }, { name: 'producao' }] }) } as Response
+        if (url.includes('/schemas/staging.vendas')) return { ok: false, status: 404, text: async () => 'not found' } as Response
+        if (url.includes('/schemas/producao.vendas')) return { ok: true, json: async () => SCHEMA_VENDAS } as Response
+        throw new Error(`URL não mapeada: ${url}`)
+      }) as unknown as typeof fetch
+      const adapter = new UnityCatalogAdapter(fakeConfig())
+
+      const result = await adapter.getDomainOwner('vendas')
+
+      expect(result).toEqual({ owner: 'maria@empresa.com' })
+    })
+
+    it('nenhum catalog tem esse schema: owner null, não lança erro', async () => {
+      global.fetch = jest.fn(async (url: string) => {
+        if (url.includes('/catalogs?')) return { ok: true, json: async () => ({ catalogs: [CATALOG_PRODUCAO] }) } as Response
+        if (url.includes('/schemas/')) return { ok: false, status: 404, text: async () => 'not found' } as Response
+        throw new Error(`URL não mapeada: ${url}`)
+      }) as unknown as typeof fetch
+      const adapter = new UnityCatalogAdapter(fakeConfig())
+
+      const result = await adapter.getDomainOwner('inexistente')
+
+      expect(result).toEqual({ owner: null })
+    })
   })
 })

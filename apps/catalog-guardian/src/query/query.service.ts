@@ -7,7 +7,7 @@ import { QueryAuditService } from '../audit/query-audit.service'
 import { LlmService } from '../llm/llm.service'
 import { CATALOG_ADAPTER, CatalogAdapter } from '../adapters/catalog-adapter.interface'
 import { detectSpeculativeLanguage } from './speculative-language.util'
-import { isOwnershipQuestion, extractDomainMention } from './ownership-question.util'
+import { isOwnershipQuestion, extractDomainMention, KNOWN_DOMAINS } from './ownership-question.util'
 import { tokenizeQuestion, topMatchesBySubstring } from './substring-match.util'
 
 interface RelevantGlossaryTerm {
@@ -112,7 +112,16 @@ export class QueryService {
   // pedidos") → busca por nome/descrição como o fluxo normal, mas só extrai
   // owner via PermissionGuardService.getOwnerOnly() — nunca descrição/PII.
   private async askOwnership(question: string, userId: string, profile: string): Promise<AskResult> {
-    const domain = extractDomainMention(question)
+    // Backlog "KNOWN_DOMAINS hardcoded" fechado: lista viva via
+    // adapter.listDomains() em vez do const fixo. KNOWN_DOMAINS continua
+    // como fallback só se o catálogo fonte falhar (rede instável) — degrada
+    // graciosamente em vez de derrubar a pergunta inteira, mesmo padrão já
+    // usado em getDomainOwner()/getUserAccessLevel() dos adapters.
+    const domains = await this.adapter.listDomains().catch((err) => {
+      this.logger.warn(`listDomains() falhou, usando KNOWN_DOMAINS como fallback: ${err.message}`)
+      return KNOWN_DOMAINS
+    })
+    const domain = extractDomainMention(question, domains)
     // label = o que aparece no contexto pro LLM e é checado contra a
     // resposta pra detectar citação (nome curto, igual ao extractCitedAssets
     // do fluxo principal — o LLM narra em prosa, nunca o FQN pontilhado).

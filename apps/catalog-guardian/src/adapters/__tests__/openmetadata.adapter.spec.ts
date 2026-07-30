@@ -304,3 +304,18 @@ describe('OpenMetadataAdapter.getUserAccessLevel', () => {
     expect(level).toBe('read')
   })
 })
+
+describe('OpenMetadataAdapter.listDomains — backlog "KNOWN_DOMAINS hardcoded" fechado junto', () => {
+  afterEach(() => jest.restoreAllMocks())
+
+  it('lista domínios reais via GET /v1/domains, usando name (slug) e não displayName', async () => {
+    mockFetch({
+      '/v1/domains?': { data: [{ name: 'vendas', displayName: 'Vendas' }, { name: 'rh', displayName: 'Recursos Humanos' }], paging: {} },
+    })
+    const adapter = new OpenMetadataAdapter(fakeConfig())
+
+    const domains = await adapter.listDomains()
+
+    expect(domains).toEqual(['vendas', 'rh'])
+  })
+})

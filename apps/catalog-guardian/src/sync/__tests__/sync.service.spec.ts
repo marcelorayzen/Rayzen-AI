@@ -10,6 +10,7 @@ function fakeAdapter(assets: RawCatalogAsset[]): CatalogAdapter {
     listGlossaryTerms: async () => [],
     getUserAccessLevel: async () => 'full',
     getDomainOwner: async () => ({ owner: null }),
+    listDomains: async () => [],
   }
 }
 
@@ -106,6 +107,7 @@ describe('SyncService — dedupe de contagem de lineage (item 7)', () => {
       listGlossaryTerms: async () => [],
       getUserAccessLevel: async () => 'full',
       getDomainOwner: async () => ({ owner: null }),
+      listDomains: async () => [],
     }
 
     const { prisma } = fakePrisma(null)

@@ -25,6 +25,17 @@ export interface CatalogAdapter {
   // dataset estabelecem que saber QUEM é responsável é público mesmo sem
   // acesso ao domínio. Ver QueryService.askOwnership().
   getDomainOwner(domain: string): Promise<{ owner: string | null }>
+
+  // Backlog "KNOWN_DOMAINS hardcoded" + "domínio=catalog (UC)" — os dois
+  // itens do backlog eram o mesmo problema visto de dois ângulos: sem uma
+  // lista viva de domínios, extractDomainMention() só reconhecia um const
+  // fixo no código, e a UC não tinha como expressar mais de um domínio por
+  // catalog. Lista plana de nomes (mesmo formato de KNOWN_DOMAINS) — cada
+  // adapter decide o que "domínio" significa na sua própria hierarquia (OMD:
+  // Domains nativos; UC: nome do schema, não do catalog — ver
+  // UnityCatalogAdapter). Usado por QueryService.askOwnership() no lugar do
+  // const hardcoded.
+  listDomains(): Promise<string[]>
 }
 
 export const CATALOG_ADAPTER = Symbol('CATALOG_ADAPTER')

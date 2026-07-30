@@ -12,13 +12,23 @@ principal->privilege), não replicar os 50 casos do golden-dataset.yaml.
 Pré-requisito: criar os diretórios de storage dentro do container antes de
 rodar (EXTERNAL table exige um storage_location que já exista):
     docker exec unitycatalog-server-1 mkdir -p \\
-      /tmp/uc-demo/vendas/public/pedidos \\
-      /tmp/uc-demo/vendas/public/clientes \\
-      /tmp/uc-demo/financeiro/public/faturamento
+      /tmp/uc-demo/empresa/vendas/pedidos \\
+      /tmp/uc-demo/empresa/vendas/clientes \\
+      /tmp/uc-demo/empresa/financeiro/faturamento
 
 Uso:
     python seed_unitycatalog.py
     python seed_unitycatalog.py --container unitycatalog-server-1
+
+Backlog "domínio=catalog" fechado (ver README § Roadmap Fase 6): domínio
+deixou de ser o nome do catalog e passou a ser o nome do SCHEMA —
+UnityCatalogAdapter.getUserAccessLevel()/listAssets() já refletem isso.
+Este seed foi remodelado pra combinar: 1 catalog só ("empresa", namespace/
+ambiente, não domínio nenhum) contendo os schemas "vendas"/"financeiro"
+(esses sim são os domínios de negócio) — antes era 1 catalog POR domínio
+com um schema "public" fixo, o que não provava mais de um domínio
+coexistindo no mesmo catalog (o cenário real que o backlog apontava como
+frágil).
 
 Achado real durante esta sessão: criar tables via REST puro (POST /tables)
 exige um campo `type_json` por coluna cujo formato exato não é documentado
@@ -45,12 +55,9 @@ import argparse
 import subprocess
 import sys
 
-CATALOGS = [
-    ("vendas", "Domínio de vendas"),
-    ("financeiro", "Domínio financeiro"),
-]
+CATALOG = ("empresa", "Namespace único — schemas dentro dele são os domínios de negócio")
 
-SCHEMAS = [("vendas", "public"), ("financeiro", "public")]
+SCHEMAS = [("empresa", "vendas"), ("empresa", "financeiro")]
 
 # Achado real: storage_location precisa ser um caminho de verdade — EXTERNAL
 # table com "s3://" fake tenta materializar um Delta table via credenciais
@@ -65,14 +72,14 @@ SCHEMAS = [("vendas", "public"), ("financeiro", "public")]
 # (não precisamos de decimal exato aqui, só de um tipo numérico qualquer).
 TABLES = [
     {
-        "full_name": "vendas.public.pedidos",
+        "full_name": "empresa.vendas.pedidos",
         "columns": "id_pedido LONG, valor_total DOUBLE",
-        "storage_location": "file:///tmp/uc-demo/vendas/public/pedidos",
+        "storage_location": "file:///tmp/uc-demo/empresa/vendas/pedidos",
     },
     {
-        "full_name": "vendas.public.clientes",
+        "full_name": "empresa.vendas.clientes",
         "columns": "id_cliente LONG, cpf STRING",
-        "storage_location": "file:///tmp/uc-demo/vendas/public/clientes",
+        "storage_location": "file:///tmp/uc-demo/empresa/vendas/clientes",
         # Convenção que UnityCatalogAdapter reconhece pra PII — UC não tem
         # Tags/Classification como o OMD. CLI --columns não aceita
         # propriedade por coluna (só "nome TIPO"), então a marcação fica no
@@ -81,17 +88,19 @@ TABLES = [
         "properties": '{"pii":"true"}',
     },
     {
-        "full_name": "financeiro.public.faturamento",
+        "full_name": "empresa.financeiro.faturamento",
         "columns": "mes_referencia DATE, valor_bruto DOUBLE",
-        "storage_location": "file:///tmp/uc-demo/financeiro/public/faturamento",
+        "storage_location": "file:///tmp/uc-demo/empresa/financeiro/faturamento",
     },
 ]
 
-# Grant de teste: "geral@empresa.com" só recebe SELECT no catalog vendas
-# (herda pra public.pedidos/public.clientes) — financeiro fica de fora de
-# propósito, pra provar que getUserAccessLevel() devolve 'none' lá.
+# Grant de teste: "geral@empresa.com" só recebe SELECT no SCHEMA vendas
+# (herda pra vendas.pedidos/vendas.clientes) — financeiro fica de fora de
+# propósito, pra provar que getUserAccessLevel() devolve 'none' lá. Grant no
+# nível de schema (não mais catalog) — domain=schema agora, faz mais sentido
+# testar o grant exatamente no nível que representa o domínio.
 GRANT_PRINCIPAL = "geral@empresa.com"
-GRANT_CATALOG = "vendas"
+GRANT_SCHEMA = "empresa.vendas"
 
 
 def uc(container: str, *args: str) -> str:
@@ -119,9 +128,9 @@ def uc(container: str, *args: str) -> str:
 def seed(container: str) -> None:
     print(f"Semeando Unity Catalog no container {container}...")
 
-    for name, comment in CATALOGS:
-        out = uc(container, "catalog", "create", "--name", name, "--comment", comment)
-        print(f"  catalog {name}: {'já existia' if out == '_already_exists_' else 'criado'}")
+    name, comment = CATALOG
+    out = uc(container, "catalog", "create", "--name", name, "--comment", comment)
+    print(f"  catalog {name}: {'já existia' if out == '_already_exists_' else 'criado'}")
 
     for catalog, schema in SCHEMAS:
         out = uc(container, "schema", "create", "--catalog", catalog, "--name", schema)
@@ -150,12 +159,12 @@ def seed(container: str) -> None:
     uc(
         container,
         "permission", "create",
-        "--securable_type", "catalog",
-        "--name", GRANT_CATALOG,
+        "--securable_type", "schema",
+        "--name", GRANT_SCHEMA,
         "--principal", GRANT_PRINCIPAL,
         "--privilege", "SELECT",
     )
-    print(f"  grant: SELECT em catalog '{GRANT_CATALOG}' para {GRANT_PRINCIPAL} ok")
+    print(f"  grant: SELECT no schema '{GRANT_SCHEMA}' para {GRANT_PRINCIPAL} ok")
 
     print("Seed do Unity Catalog concluído.")
 

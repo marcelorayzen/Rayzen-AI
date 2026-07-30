@@ -96,6 +96,15 @@ interface OmGlossaryTermListResponse {
   paging: { after?: string; before?: string }
 }
 
+interface OmDomain {
+  name: string
+}
+
+interface OmDomainListResponse {
+  data: OmDomain[]
+  paging: { after?: string; before?: string }
+}
+
 // Confirmado empiricamente contra OMD 1.9.17: fromEntity/toEntity no GET de
 // lineage são ids em string puros (não `{id, type}` como no PUT de criação),
 // e vêm em dois arrays separados (upstream/downstream), não um `edges` único.
@@ -202,6 +211,28 @@ export class OpenMetadataAdapter implements CatalogAdapter {
 
     this.logger.log(`listGlossaryTerms: ${terms.length} termo(s) de glossário sincronizado(s) do OpenMetadata`)
     return terms
+  }
+
+  // Backlog "KNOWN_DOMAINS hardcoded" — substitui o const fixo que
+  // extractDomainMention() usava. Usa `name` (slug estável), nunca
+  // `displayName`, mesmo raciocínio de domainSlug() acima (comparar por
+  // displayName já quebrou o domínio "rh" numa validação anterior).
+  async listDomains(): Promise<string[]> {
+    const domains: string[] = []
+    let after: string | undefined
+
+    do {
+      const qs = new URLSearchParams({ limit: '100', ...(after ? { after } : {}) })
+      const page = await this.request<OmDomainListResponse>(`/v1/domains?${qs}`)
+
+      for (const domain of page.data) {
+        const slug = domainSlug(domain.name)
+        if (slug) domains.push(slug)
+      }
+      after = page.paging?.after
+    } while (after)
+
+    return domains
   }
 
   async getLineage(externalId: string): Promise<RawLineageEdge[]> {

@@ -24,9 +24,10 @@ export function isOwnershipQuestion(text: string): boolean {
   return OWNERSHIP_PATTERNS.some((p) => p.test(text))
 }
 
-// Domínios conhecidos hardcoded — mesmo padrão pragmático do resto do app
-// nesta fase (ver domainSlug() em openmetadata.adapter.ts). Fase 4/5 deveria
-// puxar isso de uma lista viva de domains em vez de um const.
+// Backlog "KNOWN_DOMAINS hardcoded" fechado: QueryService.askOwnership()
+// agora busca a lista real via CatalogAdapter.listDomains(). Este const
+// sobrevive só como FALLBACK (se listDomains() falhar) e como fixture de
+// teste — não é mais a fonte de verdade em produção.
 export const KNOWN_DOMAINS = ['vendas', 'marketing', 'produto', 'financeiro', 'rh']
 
 function stripAccents(text: string): string {
