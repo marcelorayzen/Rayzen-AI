@@ -6,9 +6,17 @@ import { ReviewGateService } from '../review-gate/review-gate.service'
 import { QueryAuditService } from '../audit/query-audit.service'
 import { LlmService } from '../llm/llm.service'
 import { CATALOG_ADAPTER, CatalogAdapter } from '../adapters/catalog-adapter.interface'
+import { EmbeddingService } from '../embedding/embedding.service'
 import { detectSpeculativeLanguage } from './speculative-language.util'
 import { isOwnershipQuestion, extractDomainMention, KNOWN_DOMAINS } from './ownership-question.util'
 import { tokenizeQuestion, topMatchesBySubstring } from './substring-match.util'
+import { aboveThreshold } from './embedding-match.util'
+
+// Backlog "busca substring" fechado: abaixo do limiar, o candidato é tratado
+// como "não relevante" (mesma semântica de zero hits no substring) — não é
+// tunado contra o golden dataset completo (bloqueado pela quota Groq), só
+// validado manualmente ao vivo. Ajustável, documentado como valor inicial.
+const EMBEDDING_SIMILARITY_THRESHOLD = 0.5
 
 interface RelevantGlossaryTerm {
   externalId: string
@@ -67,6 +75,7 @@ export class QueryService {
     private readonly audit: QueryAuditService,
     private readonly llm: LlmService,
     @Inject(CATALOG_ADAPTER) private readonly adapter: CatalogAdapter,
+    private readonly embedding: EmbeddingService,
   ) {}
 
   async ask(question: string, userId: string, profile: string): Promise<AskResult> {
@@ -221,13 +230,56 @@ export class QueryService {
     }
   }
 
-  // Baseline propositalmente simples — busca por substring em nome/descrição/
-  // tags do que já foi sincronizado localmente. Não é o motor de descoberta
-  // semântica que os casos DESC-003/DESC-008 do golden dataset eventualmente
-  // vão exigir (isso pede embeddings ou glossário estruturado) — é o
-  // suficiente pra Fase 3 validar o pipeline de risco/gate/auditoria de
-  // ponta a ponta contra o sandbox.
+  // Backlog "busca substring" fechado: busca semântica via embedding no
+  // lugar de casar palavra solta — resolve o caso real (descrição mal
+  // escrita, sinônimo, nome diferente do que a pergunta usa) que o
+  // substring só acertava porque o golden dataset foi desenhado pra bater.
+  // Cai pro substring (findRelevantAssetsBySubstring) só em falha técnica
+  // (Jina fora do ar, DB sem a extensão etc.) — mesmo princípio de
+  // degradação graciosa já usado em askOwnership()/listDomains().
   private async findRelevantAssets(question: string): Promise<GuardableAsset[]> {
+    try {
+      const vector = await this.embedding.embed(question)
+      const rows = await this.prisma.$queryRaw<
+        Array<{
+          external_id: string
+          name: string
+          description: string | null
+          owner: string | null
+          domain: string | null
+          sensitivity: string
+          contains_pii: boolean
+          pii_fields: unknown
+          score: number
+        }>
+      >`
+        SELECT external_id, name, description, owner, domain, sensitivity, contains_pii, pii_fields,
+               1 - (embedding <=> ${JSON.stringify(vector)}::vector) AS score
+        FROM catalog_assets
+        WHERE embedding IS NOT NULL
+        ORDER BY embedding <=> ${JSON.stringify(vector)}::vector
+        LIMIT 5
+      `
+
+      return aboveThreshold(rows, EMBEDDING_SIMILARITY_THRESHOLD).map((r) => ({
+        externalId: r.external_id,
+        name: r.name,
+        description: r.description,
+        owner: r.owner,
+        domain: r.domain,
+        sensitivity: r.sensitivity,
+        containsPII: r.contains_pii,
+        piiFields: (r.pii_fields as string[] | null) ?? [],
+      }))
+    } catch (err) {
+      this.logger.warn(`busca semântica de ativos falhou, caindo pro substring: ${(err as Error).message}`)
+      return this.findRelevantAssetsBySubstring(question)
+    }
+  }
+
+  // Baseline anterior ao backlog "busca substring" — mantido como fallback
+  // (ver findRelevantAssets acima), não mais o caminho primário.
+  private async findRelevantAssetsBySubstring(question: string): Promise<GuardableAsset[]> {
     const words = tokenizeQuestion(question)
     if (words.length === 0) return []
 
@@ -251,7 +303,37 @@ export class QueryService {
   // tabela acima (que casa nome/descrição de ATIVO, não de CONCEITO). Nunca
   // passa por PermissionGuardService — definição de termo de negócio não é
   // conteúdo restrito por domínio (mesmo raciocínio de getDomainOwner()).
+  // Mesmo desenho de findRelevantAssets: embedding primeiro, substring como
+  // fallback de falha técnica.
   private async findRelevantGlossaryTerms(question: string): Promise<RelevantGlossaryTerm[]> {
+    try {
+      const vector = await this.embedding.embed(question)
+      const rows = await this.prisma.$queryRaw<
+        Array<{ external_id: string; name: string; display_name: string | null; description: string | null; score: number }>
+      >`
+        SELECT external_id, name, display_name, description,
+               1 - (embedding <=> ${JSON.stringify(vector)}::vector) AS score
+        FROM catalog_glossary_terms
+        WHERE embedding IS NOT NULL
+        ORDER BY embedding <=> ${JSON.stringify(vector)}::vector
+        LIMIT 5
+      `
+
+      return aboveThreshold(rows, EMBEDDING_SIMILARITY_THRESHOLD).map((r) => ({
+        externalId: r.external_id,
+        name: r.name,
+        displayName: r.display_name,
+        description: r.description,
+      }))
+    } catch (err) {
+      this.logger.warn(`busca semântica de glossário falhou, caindo pro substring: ${(err as Error).message}`)
+      return this.findRelevantGlossaryTermsBySubstring(question)
+    }
+  }
+
+  // Baseline anterior ao backlog "busca substring" — mantido como fallback
+  // (ver findRelevantGlossaryTerms acima), não mais o caminho primário.
+  private async findRelevantGlossaryTermsBySubstring(question: string): Promise<RelevantGlossaryTerm[]> {
     // minLength 3 (não 4, default de findRelevantAssets) — siglas de negócio
     // como "PMR" têm 3 letras (SEM-005); corpus de termos é pequeno o
     // suficiente pra não gerar ruído com o corte menor.

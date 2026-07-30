@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common'
 import { PrismaService } from '../core/prisma.service'
 import { CATALOG_ADAPTER, CatalogAdapter } from '../adapters/catalog-adapter.interface'
 import { RawCatalogAsset } from '../adapters/catalog-adapter.types'
+import { EmbeddingService } from '../embedding/embedding.service'
 
 @Injectable()
 export class SyncService {
@@ -10,6 +11,7 @@ export class SyncService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(CATALOG_ADAPTER) private readonly adapter: CatalogAdapter,
+    private readonly embedding: EmbeddingService,
   ) {}
 
   // Upsert de CatalogAsset a partir do adapter, depois lineage por asset, e
@@ -63,6 +65,15 @@ export class SyncService {
         },
       })
       idByExternalId.set(raw.externalId, asset.id)
+
+      const contentChanged = !existing || existing.name !== raw.name || existing.description !== (raw.description ?? null)
+      await this.maybeUpdateEmbedding(
+        'catalog_assets',
+        asset.id,
+        !existing,
+        contentChanged,
+        `${raw.name} ${raw.description ?? ''}`.trim(),
+      )
     }
 
     // Item 7: uma mesma edge A→B aparece na chamada de getLineage() tanto de
@@ -99,7 +110,11 @@ export class SyncService {
       return []
     })
     for (const raw of rawTerms) {
-      await this.prisma.catalogGlossaryTerm.upsert({
+      const existingTerm = await this.prisma.catalogGlossaryTerm.findUnique({
+        where: { source_externalId: { source: this.adapter.source, externalId: raw.externalId } },
+      })
+
+      const term = await this.prisma.catalogGlossaryTerm.upsert({
         where: { source_externalId: { source: this.adapter.source, externalId: raw.externalId } },
         create: {
           externalId: raw.externalId,
@@ -116,6 +131,19 @@ export class SyncService {
           syncedAt,
         },
       })
+
+      const contentChanged =
+        !existingTerm ||
+        existingTerm.name !== raw.name ||
+        existingTerm.displayName !== (raw.displayName ?? null) ||
+        existingTerm.description !== (raw.description ?? null)
+      await this.maybeUpdateEmbedding(
+        'catalog_glossary_terms',
+        term.id,
+        !existingTerm,
+        contentChanged,
+        `${raw.name} ${raw.displayName ?? ''} ${raw.description ?? ''}`.trim(),
+      )
     }
 
     const ms = Date.now() - started
@@ -123,6 +151,39 @@ export class SyncService {
       `sync concluído em ${ms}ms — ${rawAssets.length} ativo(s), ${edgeCount} edge(s) de lineage, ${rawTerms.length} termo(s) de glossário`,
     )
     return { assets: rawAssets.length, edges: edgeCount, glossaryTerms: rawTerms.length }
+  }
+
+  // Backlog "busca substring" fechado: embedding calculado só quando precisa
+  // — ativo novo, conteúdo mudou, ou (self-heal) a linha ainda não tinha
+  // embedding de um sync anterior a esta migration. `embedding` é
+  // Unsupported() no Prisma Client (nunca aparece no objeto normal), por
+  // isso o SELECT via $queryRawUnsafe só roda no caso "conteúdo igual" —
+  // evita 1 SELECT extra por ativo inalterado na maioria dos syncs.
+  // table é sempre um literal fixo chamado por este arquivo, nunca input
+  // externo — @executeRawUnsafe/@queryRawUnsafe seguros aqui.
+  private async maybeUpdateEmbedding(
+    table: 'catalog_assets' | 'catalog_glossary_terms',
+    id: string,
+    isNew: boolean,
+    contentChanged: boolean,
+    text: string,
+  ): Promise<void> {
+    let needsEmbedding = isNew || contentChanged
+    if (!needsEmbedding) {
+      const rows = await this.prisma.$queryRawUnsafe<Array<{ embedding: unknown }>>(
+        `SELECT embedding FROM ${table} WHERE id = $1`,
+        id,
+      )
+      needsEmbedding = rows[0]?.embedding == null
+    }
+    if (!needsEmbedding) return
+
+    try {
+      const vector = await this.embedding.embed(text)
+      await this.prisma.$executeRawUnsafe(`UPDATE ${table} SET embedding = $1::vector WHERE id = $2`, JSON.stringify(vector), id)
+    } catch (err) {
+      this.logger.warn(`embedding falhou pra ${table} ${id}: ${(err as Error).message}`)
+    }
   }
 
   // Regra proativa permission_drift (Fase 4) — mora aqui, não no

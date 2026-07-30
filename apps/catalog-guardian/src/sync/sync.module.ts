@@ -5,6 +5,7 @@ import { InjectQueue } from '@nestjs/bullmq'
 import { Queue } from 'bullmq'
 import { CoreModule } from '../core/core.module'
 import { AdaptersModule } from '../adapters/adapters.module'
+import { EmbeddingModule } from '../embedding/embedding.module'
 import { SyncService } from './sync.service'
 import { SyncProcessor } from './sync.processor'
 
@@ -14,6 +15,7 @@ const SYNC_INTERVAL_MS = 15 * 60 * 1000 // 15 min — ajustável via CATALOG_SYN
   imports: [
     CoreModule,
     AdaptersModule,
+    EmbeddingModule,
     BullModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({

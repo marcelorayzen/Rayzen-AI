@@ -7,7 +7,10 @@ name: catalog-guardian
 
 services:
   postgres:
-    image: postgres:16
+    # pgvector/pgvector:pg16 (não postgres:16 puro) — backlog "busca substring"
+    # fechado: CatalogAsset/CatalogGlossaryTerm ganharam coluna embedding
+    # vector(1024), mesma imagem já usada no Postgres principal do Rayzen.
+    image: pgvector/pgvector:pg16
     container_name: catalog-guardian-postgres
     restart: unless-stopped
     environment:
@@ -53,6 +56,7 @@ services:
       LITELLM_URL: ${LITELLM_URL:-http://host.docker.internal:4100}
       LITELLM_API_KEY: ${LITELLM_API_KEY:-}
       LITELLM_MODEL: ${LITELLM_MODEL:-gpt-4o}
+      JINA_API_KEY: ${JINA_API_KEY:-}
       PORT: 4001
     ports:
       - '127.0.0.1:4001:4001'

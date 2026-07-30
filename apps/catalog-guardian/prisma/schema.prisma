@@ -33,6 +33,12 @@ model CatalogAsset {
   // imediatamente — conservador, aceitável).
   firstSyncedAt DateTime @default(now()) @map("first_synced_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
+  // Backlog "busca substring" fechado: embedding de `${name} ${description}`,
+  // calculado pelo SyncService só quando esses campos mudam (não em todo
+  // sync). Unsupported() porque o Prisma Client não gera CRUD tipado pra
+  // pgvector — leitura/escrita via $queryRaw/$executeRaw (ver
+  // EmbeddingService), mesmo padrão do Document.embedding em apps/api.
+  embedding   Unsupported("vector(1024)")?
 
   lineageFrom CatalogLineageEdge[] @relation("LineageTarget")
   lineageTo   CatalogLineageEdge[] @relation("LineageSource")
@@ -57,6 +63,9 @@ model CatalogGlossaryTerm {
   description String?
   syncedAt    DateTime @map("synced_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
+  // Embedding de `${name} ${displayName} ${description}` — mesmo mecanismo
+  // de CatalogAsset.embedding, ver comentário lá.
+  embedding   Unsupported("vector(1024)")?
 
   @@unique([source, externalId])
   @@map("catalog_glossary_terms")
