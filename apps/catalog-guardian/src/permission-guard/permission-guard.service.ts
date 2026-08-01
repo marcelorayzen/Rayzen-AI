@@ -25,6 +25,7 @@ export interface GuardableAsset {
   sensitivity: string
   containsPII: boolean
   piiFields: string[] | null
+  tags: string[]
 }
 
 export interface GuardedAsset {
@@ -35,6 +36,11 @@ export interface GuardedAsset {
   restricted: boolean
   description: string | null // null quando accessLevel === 'none'
   piiFieldsNote: string | null // "[RESTRITO: nível none]" quando aplicável
+  // QA-CHECKLIST.md § 12 "Qualidade/certificação via tags" — propagado
+  // mesmo quando restricted: true (mesmo precedente de owner já visível
+  // em ativo restrito). Conteúdo bruto do catálogo fonte, não vocabulário
+  // controlado nosso — só existe de verdade no OMD (UC hardcoda tags: []).
+  tags: string[]
 }
 
 // Decisão de produto confirmada após a validação real contra o golden
@@ -155,6 +161,7 @@ export class PermissionGuardService {
         restricted: true,
         description: null,
         piiFieldsNote: `[RESTRITO: nível ${asset.sensitivity}]`,
+        tags: asset.tags,
       }
     }
 
@@ -169,6 +176,7 @@ export class PermissionGuardService {
       piiFieldsNote: piiRestricted
         ? `[RESTRITO: nível ${accessLevel} — campos PII omitidos: ${(asset.piiFields ?? []).join(', ') || 'não especificados'}]`
         : null,
+      tags: asset.tags,
     }
   }
 }

@@ -32,6 +32,7 @@ function asset(overrides: Partial<GuardableAsset> = {}): GuardableAsset {
     sensitivity: 'restricted',
     containsPII: true,
     piiFields: ['salario', 'cpf'],
+    tags: [],
     ...overrides,
   }
 }
@@ -45,6 +46,7 @@ function guardedAsset(overrides: Partial<GuardedAsset> = {}): GuardedAsset {
     restricted: false,
     description: 'Pedidos de venda',
     piiFieldsNote: null,
+    tags: [],
     ...overrides,
   }
 }
@@ -97,6 +99,25 @@ describe('PermissionGuardService', () => {
     const svc = new PermissionGuardService(fakeAdapter('none'), prisma)
     const result = await svc.getOwnerOnly(asset())
     expect(result.owner).toBe('Maria Souza')
+  })
+
+  describe('tags — backlog "qualidade/certificação via tags existentes" (QA-CHECKLIST.md § 12)', () => {
+    it('ativo restrito (PII): tags continuam visíveis, mesmo com descrição redigida', async () => {
+      const { prisma } = fakePrisma()
+      const svc = new PermissionGuardService(fakeAdapter('read'), prisma)
+      const [result] = await svc.buildContext('user-rh-junior', [asset({ tags: ['Certification.Gold', 'Tier.Tier1'] })])
+
+      expect(result.restricted).toBe(true)
+      expect(result.tags).toEqual(['Certification.Gold', 'Tier.Tier1'])
+    })
+
+    it('ativo sem tags: propaga lista vazia, não quebra', async () => {
+      const { prisma } = fakePrisma()
+      const svc = new PermissionGuardService(fakeAdapter('full'), prisma)
+      const [result] = await svc.buildContext('user-steward', [asset({ tags: [] })])
+
+      expect(result.tags).toEqual([])
+    })
   })
 
   describe('buildLineageContext — backlog "linhagem na resposta" (QA-CHECKLIST.md § 12)', () => {
