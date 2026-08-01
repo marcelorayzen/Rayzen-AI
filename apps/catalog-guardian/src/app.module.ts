@@ -15,6 +15,7 @@ import { QueryModule } from './query/query.module'
 import { CatalogModule } from './catalog/catalog.module'
 import { CatalogMaturityModule } from './maturity/catalog-maturity.module'
 import { CatalogProactiveModule } from './proactive/catalog-proactive.module'
+import { GovernancePolicyModule } from './governance-policy/governance-policy.module'
 
 @Module({
   controllers: [PingController],
@@ -32,6 +33,7 @@ import { CatalogProactiveModule } from './proactive/catalog-proactive.module'
     CatalogModule,
     CatalogProactiveModule,
     CatalogMaturityModule,
+    GovernancePolicyModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

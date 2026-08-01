@@ -145,6 +145,31 @@ model ReviewGate {
   @@map("review_gates")
 }
 
+// QA-CHECKLIST.md § 12 "Processo/política" — conteúdo AUTORAL do cliente
+// (como pedir acesso, quem aprova, onde fica a política), não sincronizado
+// de nenhum adapter de catálogo. Deliberadamente NÃO reusa
+// CatalogGlossaryTerm: aquele model tem @@unique([source, externalId])
+// amarrado a proveniência de sync (adapter.listGlossaryTerms()), e misturar
+// os dois corpora no mesmo espaço de busca semântica degradaria as duas
+// buscas — um hit de política concorreria com um hit de termo de negócio no
+// mesmo top-5. topic é único porque cada tópico de processo (ex. "pedido de
+// acesso") deve ter uma única resposta canônica, não múltiplas versões
+// concorrentes.
+model GovernancePolicy {
+  id          String   @id @default(uuid())
+  topic       String   @unique
+  question    String? // frase de exemplo de como a pergunta real costuma vir (ajuda a documentar intenção, não usada na busca)
+  description String
+  documentRef String?  @map("document_ref") // link/caminho pro documento de política completo, se existir
+  version     String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  // Mesmo mecanismo de CatalogAsset.embedding — ver comentário lá.
+  embedding   Unsupported("vector(1024)")?
+
+  @@map("governance_policies")
+}
+
 // ─── Motor proativo (Fase 4) ────────────────────────────────────────────────────
 
 model CatalogRecommendation {

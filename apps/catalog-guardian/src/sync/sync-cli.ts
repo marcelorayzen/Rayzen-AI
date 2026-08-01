@@ -5,10 +5,11 @@ import { NestFactory } from '@nestjs/core'
 import { Module } from '@nestjs/common'
 import { CoreModule } from '../core/core.module'
 import { AdaptersModule } from '../adapters/adapters.module'
+import { EmbeddingModule } from '../embedding/embedding.module'
 import { SyncService } from './sync.service'
 
 @Module({
-  imports: [CoreModule, AdaptersModule],
+  imports: [CoreModule, AdaptersModule, EmbeddingModule],
   providers: [SyncService],
 })
 class SyncCliModule {}

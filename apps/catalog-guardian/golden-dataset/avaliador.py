@@ -141,18 +141,22 @@ _catalogo_cache: list[dict] | None = None
 
 def _catalogo() -> list[dict]:
     """
-    Une /catalog/assets (tabelas, com domínio) e /catalog/glossary-terms
+    Une /catalog/assets (tabelas, com domínio), /catalog/glossary-terms
     (termos de negócio, sem domínio de propósito — CatalogGlossaryTerm não
-    tem campo domain, ver schema.prisma). QueryService.askOwnership()/ask()
-    citam termo de glossário por externalId igual citam ativo, então os dois
-    espaços de identidade precisam estar juntos aqui pra ativos_existentes()
-    não marcar citação de termo como alucinação.
+    tem campo domain, ver schema.prisma) e /governance-policies (backlog
+    "processo/política", QA-CHECKLIST.md § 12 — GovernancePolicy também sem
+    domain de propósito, expõe `topic` como `externalId`, mesmo padrão do
+    glossário). QueryService.askOwnership()/ask()/askProcess() citam por
+    externalId nos três casos, então os três espaços de identidade precisam
+    estar juntos aqui pra ativos_existentes() não marcar citação como
+    alucinação.
     """
     global _catalogo_cache
     if _catalogo_cache is None:
         assets = _get_json("/catalog/assets")
         terms = _get_json("/catalog/glossary-terms")
-        _catalogo_cache = list(assets) + list(terms)  # type: ignore[assignment]
+        policies = _get_json("/governance-policies")
+        _catalogo_cache = list(assets) + list(terms) + list(policies)  # type: ignore[assignment]
     return _catalogo_cache
 
 
