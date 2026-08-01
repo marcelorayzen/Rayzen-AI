@@ -82,55 +82,9 @@ Falha de resolução: `exit 2` + aviso no stderr (throttle 1h).
 
 ## Hook 2 — UserPromptSubmit (`rayzen-context-hook.mjs`)
 
-### Fluxo
+Dispara antes de cada prompt: classifica a intenção (debugging/architecture/review/study/implementation), resolve o projeto e injeta contexto cirúrgico (`additionalContext`) construído pelo `ContextEngineService`.
 
-```
-Usuário envia prompt
-  → UserPromptSubmit dispara rayzen-context-hook.mjs
-  → extractPromptText() → lê stdin (timeout 800ms)
-  → classifyIntent() → debugging | architecture | review | study | implementation
-  → extractQuery() → primeiros 200 chars sem code fences
-  → resolveProjectId() → mesma lógica (git remote + slug cache)
-  → cacheKey = MD5(projectId:mode:query)
-  → cache hit → retorna contexto salvo (TTL 3 min)
-  → cache miss → POST /v2/context/build (timeout 2.2s)
-  → fallback → GET /projects/:id/state (timeout 1.5s)
-  → Paralelo: GET /v2/missions/next-pending (timeout 1s)
-  → Formata contexto com seções por modo
-  → console.log(JSON.stringify({ hookSpecificOutput: { additionalContext: ... } }))
-  → writeTimingFile() para coleta de latência
-```
-
-### Classificação de intenção
-
-| Intenção | Palavras-chave |
-|---|---|
-| `debugging` | erro, quebrou, não funciona, falhou, bug, exception, crash, 500, 401, 404 |
-| `architecture` | arquitetura, design, estrutura, plano, reorganiz, decisão |
-| `review` | review, revisar, checar, analis, auditar, verificar |
-| `study` | como funciona, explica, o que é, entender, estudar, aprender |
-| `implementation` | (default) |
-
-### Budget de tempo
-
-| Etapa | Timeout |
-|---|---|
-| stdin read | 800ms |
-| resolveProjectId | 1.5s |
-| POST /v2/context/build | 2.2s |
-| GET /projects/:id/state (fallback) | 1.5s |
-| GET /v2/missions/next-pending | 1.0s |
-| **Total máximo** | ~2.5s |
-
-### Seções do contexto por modo (`ContextEngineService`)
-
-| Modo | Seções incluídas |
-|---|---|
-| `implementation` | project_state, planning, policy_constraints, memory_relevant, recent_events, approval_gates |
-| `debugging` | project_state, blockers, memory_relevant, recent_events, knowledge_graph, approval_gates |
-| `review` | project_state, active_goal, memory_relevant, planning, knowledge_graph |
-| `architecture` | project_state, active_goal, planning, blockers, policy_constraints, knowledge_graph |
-| `study` | project_state, memory_relevant, recent_events, knowledge_graph |
+> Ver `docs/CONTEXT_PIPELINE.md` para o fluxo completo do Hook 2 (UserPromptSubmit) — classificação de intenção, budget de timeout por etapa, cache e seções de contexto por modo.
 
 ---
 
@@ -146,7 +100,7 @@ export default {
 }
 ```
 
-**Token JWT expira 4 de julho de 2026.** Renovar via `POST /auth/login`.
+**Token JWT expira periodicamente** (sem rotação automática) — renove via `POST /auth/login` e atualize `apiToken` neste arquivo + `AGENT_TOKEN` no `.env`.
 
 ---
 

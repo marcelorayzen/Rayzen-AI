@@ -4,7 +4,19 @@ All notable changes to Rayzen AI are documented here.
 
 ## [Unreleased]
 
+Nada pendente no momento — ver `## [0.2.0]` para as entregas mais recentes (V2, Guardian, catalog-guardian, widget, graphify).
+
+## [0.2.0] — 2026-08-01
+
 ### Added
+- **V2 — Mission Oriented Engineering System** (`apps/api-v2`, porta 3103, prefixo `/v2`, schema Postgres `v2`) — motor de missões end-to-end: router (linguagem natural → steps), StepExecutor, SpecialistRegistry/SpecialistModule (loop LLM com skills jarvis), ApprovalGates, ContextEngineService, Benchmark Engine (fitness de estratégias de prompt), Agent Dialogue (clarificação antes de agir), Evolutionary Prompting, QA Scientist (ciclo autônomo de melhoria de prompt a cada 24h)
+- **Rayzen Guardian** (`apps/api-v2/src/guardian/`) — monitora mudanças de código em tempo real via workspace-watcher (30s), calcula risk score aditivo e determinístico (`RiskScorerService`), detecta arquivos sem spec (`TestGapDetectorService`), injeta contexto no Claude Code antes da sessão e bloqueia `git push` em risco `critical` via hook `pre-push`
+- **`apps/catalog-guardian`** — produto de consultoria isolado (catálogo de dados / governança), Prisma e banco próprios, sem import cross-app com o restante do monorepo
+- **`apps/widget`** — app desktop Electron para acompanhamento de missões e voz, fora do painel web
+- **graphify** — grafo de código em `graphify-out/`; `graphify query "<pergunta>"` para busca escopada barata, `graphify path` para relações, `graphify update .` para sync incremental (AST-only)
+- **MCP — tools do Guardian** — `rayzen_guardian_status`, `rayzen_guardian_analyze` expostas ao Claude Code
+
+### Added (histórico anterior)
 - **Project context isolation** — chat history, Brain search and `extractAndIndex` are all scoped to the active project; system prompt enriched with real-time state (stage, blockers, active goal, recent events)
 - **Goal Graph** — interactive canvas (`@xyflow/react`) for milestones, blockers and next steps; `ProjectGoal` with success criteria progress bar, KPIs with inline editing and LLM auto-track (`jarvis:kpi/auto-track`)
 - **Gap analysis** — LLM compares `ProjectGoal` vs `ProjectState` and surfaces `nextBestAction` and gaps by severity

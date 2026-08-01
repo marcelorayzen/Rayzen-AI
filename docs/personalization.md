@@ -201,7 +201,7 @@ ELEVENLABS_VOICE_ID=...
 ```json
 "tts": { "provider": "elevenlabs", "voice": "seu-voice-id" }
 ```
-5. Edite `apps/api/src/modules/tts/tts.service.ts` para chamar a API do ElevenLabs (ver seção avançada abaixo).
+5. Edite `apps/api/src/modules/voice/voice.service.ts` (o `VoiceService` cobre TTS e STT — ElevenLabs entra como provider alternativo do método `synthesize()`) para chamar a API do ElevenLabs (ver seção avançada abaixo).
 
 ---
 
@@ -242,7 +242,7 @@ Durante conversas, o assistente extrai e indexa automaticamente informações pe
 
 ## 8. Adicionar nova ação ao Agent
 
-Ver [agent.md](agent.md) para o passo a passo completo.
+Ver [RAYZEN_AGENT_PROTOCOL.md](RAYZEN_AGENT_PROTOCOL.md) para o passo a passo completo.
 
 Resumo:
 1. Implemente em `apps/agent/src/actions/nova-acao.ts`
@@ -255,8 +255,10 @@ Resumo:
 
 ## 9. Configurações avançadas de TTS (ElevenLabs)
 
+> TTS (text-to-speech) é uma das duas funções do `VoiceService` (a outra é STT/transcrição) — não existe um módulo `tts` separado.
+
 ```typescript
-// apps/api/src/modules/tts/tts.service.ts
+// apps/api/src/modules/voice/voice.service.ts — método synthesize() do VoiceService
 async synthesize(text: string): Promise<Buffer> {
   const clean = text
     .replace(/\*\*(.+?)\*\*/g, '$1')

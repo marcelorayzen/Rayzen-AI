@@ -48,7 +48,7 @@ V1 API (:3101)
 
 ## Whitelist (`apps/agent/src/security/whitelist.ts`)
 
-44 ações permitidas. **Qualquer ação fora da lista é silenciosamente rejeitada.**
+45 ações permitidas. **Qualquer ação fora da lista é silenciosamente rejeitada.**
 
 Categorias:
 - **filesystem:** file_read, file_write, file_delete, file_search, list_dir
@@ -69,7 +69,7 @@ Categorias:
 
 | Role | Conjunto permitido |
 |---|---|
-| `desktop` | DESKTOP_ACTIONS (41 ações) — filesystem, git, system, apps, data, graphify, org, prisma |
+| `desktop` | DESKTOP_ACTIONS (40 ações) — filesystem, git, system, apps, data, graphify, org, prisma |
 | `server` | SERVER_ACTIONS (8 ações) — docker_ps/start/stop/logs, restart_api, run_command, get_qa_summary, get_data_quality |
 
 Ações na whitelist mas fora do role são rejeitadas. Ex: `jarvis:docker_logs` não está no DESKTOP_ACTIONS.
@@ -118,7 +118,7 @@ if (rel.startsWith('..')) throw new Error('Path traversal não permitido')
 - API Token no header `Authorization: Bearer <AGENT_TOKEN>` em todo request
 - Token em `AGENT_TOKEN` no `.env` do agent
 - `timingSafeEqual` no servidor — proteção contra timing attacks
-- **Token JWT expira 4 de julho de 2026** — renovar via `POST /auth/login`
+- **Token JWT expira periodicamente** (renovação manual, não há rotação automática) — renove via `POST /auth/login` e atualize `AGENT_TOKEN` (`.env`) + `apiToken` em `apps/agent/src/hooks/hook.config.mjs`; `GET /infra/health` reporta a validade atual do JWT
 
 ---
 

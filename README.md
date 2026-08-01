@@ -167,6 +167,23 @@ Veja [docs/architecture.md](docs/architecture.md) para o catálogo completo de m
 
 ---
 
+## Duas gerações + outros apps do monorepo
+
+Este README documenta a **V1** (`apps/api` + `apps/web` + `apps/agent`) — a geração estável, em uso diário, coberta em detalhe abaixo. O monorepo também tem:
+
+| App | O que é | Status |
+|---|---|---|
+| `apps/api-v2` | V2 — Mission Oriented Engineering System, schema Postgres `v2` isolado, prefixo `/v2`. Motor de missões com steps, gates de aprovação, Goal Graph, benchmark de qualidade. | Construída, em adoção |
+| `apps/api-v2/src/guardian/` | **Rayzen Guardian** — monitora mudanças de código em tempo real, calcula score de risco determinístico (specs ausentes, módulo crítico, schema/migration sem teste) e injeta contexto/bloqueia push antes do problema chegar em produção. | Ativo — ver [docs/GUARDIAN.md](docs/GUARDIAN.md) |
+| `apps/catalog-guardian` | Produto de consultoria isolado — governança/segurança/resposta em linguagem natural sobre um catálogo de dados existente (OpenMetadata, Unity Catalog). Prisma/DB próprios, roda standalone, sem import cross-app. | Ativo |
+| `apps/widget` | Overlay desktop (Electron/Tauri) — monitor dedicado, voice nativo, push bidirecional. | Em construção |
+| `apps/vscode-extension` | Extensão VS Code para o Guardian (painel inline). | Em construção |
+| `graphify` | Grafo de código (AST) — consultas de codebase mais baratas que grep amplo. | Ativo |
+
+Veja `CLAUDE.md` (raiz do repo) para o mapa completo e as regras de desenvolvimento que cruzam as duas gerações.
+
+---
+
 ## Diferenciais técnicos
 
 - **Proxy LiteLLM** — camada LLM agnóstica de provider; troque OpenAI ↔ Groq ↔ Anthropic via config, zero alterações de código; controle de budget por `virtual_key`
@@ -261,7 +278,9 @@ apps/api/src/modules/
 ├── document-processing/ # PDF Puppeteer · DOCX docxtemplater · endpoint de download
 ├── content-engine/      # Conteúdo longo · calendário editorial · diagramas Mermaid
 ├── voice/               # Groq PlayAI TTS (POST /voice/synthesize) + Whisper STT (POST /voice/transcribe)
+├── telegram/            # Bot Telegram — orquestra via HTTP, comandos, canal alternativo ao chat web
 ├── session/             # Histórico de conversa · stats de tokens · session groupBy
+├── agent-session/       # Sessão supervisionada do Claude Code — question/answer/log/complete (`/agent/session`)
 ├── validation/          # Detecção de prompt injection · validação de output · guard de classificação
 ├── configuration/       # Personalidade do sistema via rayzen.config.json · config de work mode
 ├── notion/              # Notion API: busca · leitura · criação · acréscimo · atualização de título
@@ -274,6 +293,10 @@ apps/api/src/modules/
 ├── documentation/       # Geração e exportação de documentação
 ├── proactive/           # 7 regras proativas: inatividade, doc_stale, bloqueador, next_step, consistência, drift, goal_stagnant
 ├── event/               # Log de eventos com hierarquia memory_class (inbox → working → consolidated → archive)
+├── evidence/            # Upload/consulta de evidência de QA por projeto (`/evidence`)
+├── data-quality/        # Regras e resultados de qualidade de dado, score, histórico, schema-diff
+├── data-catalog/        # Registro de ativos + linhagem e análise de impacto (V1 — não confundir com apps/catalog-guardian)
+├── qa/                  # Ingestão de resultado de teste (JUnit XML / Allure JSON)
 ├── obsidian/            # Sync com vault Obsidian
 ├── git/                 # Operações git e insights de repositório
 ├── cache/               # CacheModule Redis @Global — TTL por tipo, delPattern, graceful degradation
@@ -336,7 +359,7 @@ O PC Agent roda localmente (Windows, `apps/agent/`) e faz polling no Redis a cad
 - `organize_downloads`, `docker_stop`, `git_commit` executam com `dryRun: true` por padrão
 - Sem `exec()` ou `spawn()` livre — apenas handlers de ação tipados
 
-Veja [docs/agent-runtime.md](docs/agent-runtime.md) para o modelo de segurança completo e como adicionar novas ações.
+Veja [docs/RAYZEN_AGENT_PROTOCOL.md](docs/RAYZEN_AGENT_PROTOCOL.md) para o modelo de segurança completo e como adicionar novas ações.
 
 ---
 
@@ -344,7 +367,7 @@ Veja [docs/agent-runtime.md](docs/agent-runtime.md) para o modelo de segurança 
 
 **Pré-requisitos para desenvolvimento local:** Node.js 20+ no Agent Rayzen, pnpm 10.33.2 e Docker Desktop.
 
-**Operação atual:** stack central em uma VPS Ubuntu na Azure, Agent desktop no PC de trabalho e Agent server na VPS. URLs públicas e segredos ficam fora do README público; veja `docs/remote-agent-setup.md` para o modelo de operação.
+**Operação atual:** stack central num notebook Ubuntu local (Docker Compose), exposta via Cloudflare Tunnel — sem port forwarding. Agent desktop roda no PC de trabalho. URLs públicas e segredos ficam fora do README público; veja `docs/remote-agent-setup.md` para o modelo de operação.
 
 ```bash
 git clone https://github.com/marcelorayzen/Rayzen-AI.git
@@ -391,7 +414,7 @@ pnpm dev:web           # Web  → http://localhost:3100
 pnpm dev:agent         # PC Agent (necessário para o módulo Execution)
 ```
 
-Para usar apenas o Agent desktop conectado à VPS, configure `.env.agent.local` a partir de `.env.agent.example` e execute `agent-start.bat`.
+Para usar apenas o Agent desktop conectado ao notebook, configure `.env.agent.local` a partir de `.env.agent.example` e execute `agent-start.bat`.
 
 Abra **http://localhost:3100** e faça login com a senha que você definiu em `ADMIN_PASSWORD` no arquivo `.env`.
 
@@ -433,7 +456,7 @@ git push origin main # Branch principal do projeto
 | Agent | Node.js TypeScript | 20 LTS |
 | Container | Docker Compose | v2 |
 | CI/CD | GitHub Actions + deploy SSH | — |
-| VPS | Azure Ubuntu VM | Ubuntu |
+| Infra | Notebook Ubuntu local + Cloudflare Tunnel | — |
 
 ---
 
@@ -444,12 +467,14 @@ git push origin main # Branch principal do projeto
 | [docs/architecture.md](docs/architecture.md) | Diagrama completo do sistema, catálogo de módulos, data stores, LiteLLM |
 | [docs/workflows.md](docs/workflows.md) | 5 fluxos end-to-end: indexação de memória, roteamento, PC agent, voz, geração de doc |
 | [docs/validation.md](docs/validation.md) | Filosofia de validação, o que é detectado, metas de cobertura |
-| [docs/agent-runtime.md](docs/agent-runtime.md) | Modelo de segurança, catálogo de 33 ações, protocolo dry-run, como adicionar ações |
+| [docs/RAYZEN_AGENT_PROTOCOL.md](docs/RAYZEN_AGENT_PROTOCOL.md) | Modelo de segurança, catálogo de ações, protocolo dry-run, como adicionar ações |
+| [docs/GUARDIAN.md](docs/GUARDIAN.md) | Rayzen Guardian — score de risco determinístico, pre-push hook, MCP tools |
 | [docs/engineering-standards.md](docs/engineering-standards.md) | Regras de DI, PrismaService, proxy LLM, segurança, quando escrever spec |
 | [docs/getting-started.md](docs/getting-started.md) | Guia de setup detalhado |
 | [docs/personalization.md](docs/personalization.md) | Configuração de persona e comportamento do sistema |
 | [docs/roadmap.md](docs/roadmap.md) | Roadmap de fases e status atual |
-| [docs/qa-strategy.md](docs/qa-strategy.md) | Pirâmide de testes, cobertura por área, riscos e roadmap de QA |
+| [docs/TESTING_STRATEGY.md](docs/TESTING_STRATEGY.md) | Pirâmide de testes, cobertura por área, riscos e estratégia de QA (V1+V2) |
+| [docs/historia/00-indice.md](docs/historia/00-indice.md) | História do projeto desde o nascimento — decisões, incidentes, pivots |
 | [docs/presentations/](docs/presentations/) | Apresentações atualizadas e posts para LinkedIn |
 
 ---
@@ -467,6 +492,6 @@ git push origin main # Branch principal do projeto
 
 <div align="center">
 
-<sub>Desenvolvido por <a href="https://github.com/marcelorayzen">Marcelo Rayzen</a> · 100% TypeScript · monorepo NestJS + Next.js · VPS Ubuntu</sub>
+<sub>Desenvolvido por <a href="https://github.com/marcelorayzen">Marcelo Rayzen</a> · 100% TypeScript · monorepo NestJS + Next.js</sub>
 
 </div>

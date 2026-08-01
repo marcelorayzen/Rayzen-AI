@@ -2,7 +2,7 @@
 
 Para novos usuários que querem colocar o Rayzen funcionando do zero.
 
-> Estado atual do projeto: stack central em VPS + Agent desktop no PC de trabalho.
+> Estado atual do projeto: stack central em notebook local (Docker Compose), exposta via Cloudflare Tunnel + Agent desktop no PC de trabalho.
 
 ---
 
@@ -115,11 +115,11 @@ Acesse **http://localhost:3100** e faça login com sua `ADMIN_PASSWORD`.
 
 Na instalação atual:
 
-- Web: `http://<VPS_PUBLIC_IP>:3100`
-- API: `http://<VPS_PUBLIC_IP>:3101`
-- Banco oficial: VPS
-- Agent desktop: PC de trabalho via `agent-start.bat`
-- Agent server: VPS via `docker compose up -d agent-server`
+- Stack central roda num **notebook Ubuntu local**, subida via `docker compose up -d` (Postgres, Redis, LiteLLM, API e Web no mesmo host).
+- Acesso público é feito via **Cloudflare Tunnel** — sem port forwarding, sem IP público exposto diretamente; a URL pública é gerenciada pelo túnel.
+- Banco oficial: Postgres do notebook local.
+- Agent desktop: PC de trabalho via `agent-start.bat`, apontando para o notebook local em vez de um servidor remoto.
+- Agent server: notebook local via `docker compose up -d agent-server`
 
 Para o fluxo detalhado, consulte `docs/remote-agent-setup.md`.
 

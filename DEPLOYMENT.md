@@ -11,7 +11,8 @@ Guia operacional para subir e manter a stack em produção na VPS Azure.
 | PostgreSQL 16 + pgvector | VPS (Docker) | 55432 |
 | Redis 7 | VPS (Docker) | 56379 |
 | LiteLLM proxy | VPS (Docker) | 4100 |
-| API NestJS | VPS (Docker) | 3101 |
+| API NestJS (V1) | VPS (Docker) | 3101 |
+| API NestJS (V2, `apps/api-v2`, prefixo `/v2`, schema `v2`) | VPS (Docker) | 3103 |
 | Web Next.js | VPS (Docker) | 3100 |
 | Agent server | VPS (Docker) | — (poll interno) |
 | Agent desktop | PC de trabalho | — (poll para VPS) |
@@ -59,6 +60,35 @@ Para rebuild completo (ex: mudança em schema Prisma ou Dockerfile):
 ssh -i ~/.ssh/<SUA_CHAVE>.pem <USUARIO>@<IP_DA_VPS> \
   "cd /home/<USUARIO>/projects/rayzen-ai && git pull && docker compose down --remove-orphans && docker compose up -d"
 ```
+
+---
+
+## API V2 (`apps/api-v2`)
+
+V2 roda como serviço Docker separado, com schema Prisma próprio (`v2`) no mesmo Postgres do V1.
+
+```bash
+# Env vars específicas do api-v2 (docker-compose.yml)
+DATABASE_URL_V2   # postgresql://rayzen:<senha>@postgres:5432/rayzen_ai?schema=v2
+DATABASE_URL      # mesma conexão V1 — V1BridgeService só lê o schema public
+API_V2_PORT       # 3002 dentro do container (mapeado para 3103 no host)
+LITELLM_BASE_URL  # http://litellm:4000/v1
+V1_API_URL        # http://api:3001 — bridge interno para o V1
+V1_API_TOKEN      # reusa AGENT_TOKEN
+```
+
+### Migrations do schema v2
+
+```bash
+# Local (desenvolvimento)
+pnpm --filter api-v2 db:generate   # prisma generate
+
+# Aplicar schema no notebook — migrate dev falha com shadow DB em setup multi-schema;
+# usar db push diretamente:
+docker compose exec api-v2 npx prisma db push --schema prisma/schema.prisma --accept-data-loss --skip-generate
+```
+
+> `V1BridgeService` (dentro do api-v2) só **lê** o schema `public` — nunca escreve. Regra inegociável, ver `CLAUDE.md`.
 
 ---
 

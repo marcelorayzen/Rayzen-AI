@@ -1,5 +1,7 @@
 # Brain Wiki — Roadmap de Implementação
 
+> **Nota (2026-08-01):** este documento é um design histórico. A feature foi implementada de forma diferente do que está descrito abaixo — em vez de estender o model `Document` com `slug`/`contentMd`/`DocumentVersion` (Fase 2.1), a implementação real usa um model separado, `WikiPage` (+ `WikiPageVersion`, `WikiSourceReference`), servido por `WikiService` (`apps/api/prisma/schema.prisma`, ~linha 178). Mantido abaixo como registro de intenção original, não como estado atual.
+
 Inspirado no modelo editorial do [2Cérebro](https://inematds.github.io/2cerebro/index.html).
 Objetivo: transformar o Brain de um índice vetorial opaco em uma **wiki canônica, navegável, curável e citável**.
 

@@ -1,6 +1,6 @@
 # TESTING_STRATEGY — Rayzen AI
 
-> Estratégia de qualidade para V1 + V2. Atualiza e substitui `docs/qa-strategy.md`.
+> Estratégia de qualidade para V1 + V2.
 
 ---
 
@@ -17,15 +17,15 @@ Garantir qualidade contínua e regressões detectadas antes de produção — co
           │  LLM Quality (QA   │  BenchmarkModule + QAScientist
           │  Scientist / bench)│  ciclo 24h automático
           ├────────────────────┤
-          │   E2E (19 specs)   │  Fastify inject — contratos de API, auth, tasks
+          │   E2E (19 testes)  │  Fastify inject — contratos de API, auth, tasks
           ├────────────────────┤
-          │  Unit (179 specs)  │  Services — validação, LLM parsing, segurança
+          │  Unit (225 testes) │  Services — validação, LLM parsing, segurança
           ├────────────────────┤
           │  Agent Safety      │  Whitelist, path traversal, dryRun protocol
           └────────────────────┘
 ```
 
-**Total CI:** 198 testes (179 unit + 19 E2E) rodando em GitHub Actions a cada push para `main`.
+**Total CI:** 244 testes (225 unit + 19 E2E) rodando em GitHub Actions a cada push para `main`.
 
 ---
 

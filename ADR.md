@@ -6,6 +6,16 @@ Registro de todas as decisões de arquitetura do projeto. Não altere uma decis�
 
 ---
 
+> **Nota (2026-08-01):** este arquivo registra a primeira geração do projeto (V1). Desde então, uma segunda geração foi construída em paralelo, sem entradas ADR formais aqui:
+> - **V2** — `apps/api-v2` (Mission Oriented Engineering System), schema Postgres `v2`, rotas com prefixo `/v2`
+> - **Rayzen Guardian** — `apps/api-v2/src/guardian/`, análise proativa de risco de mudanças antes do push
+> - **`apps/catalog-guardian`** — produto de consultoria isolado (Prisma/DB próprios, sem import cross-app)
+> - **`apps/widget`** — app desktop Electron
+>
+> `docs/adr/ADR-00X-*.md` é uma pasta **separada e mais recente**, com ADRs pontuais sobre role-policy do agent (`supervised_session`, `graphify_sync`, `guardian_analyze`) — não confundir com a numeração ADR-001..009 deste arquivo. Design completo da V2 em `blueprints/`.
+
+---
+
 ## Decisões aprovadas
 
 ### ADR-001 — Backend: NestJS + Fastify
@@ -26,12 +36,15 @@ NestJS 10 com adapter Fastify como backend principal.
 ### ADR-002 — LLM: multi-provider via LiteLLM proxy
 **Status:** aprovado
 
-LiteLLM como sidecar Docker exposto na porta 4000. O backend sempre chama `http://localhost:4000/v1` com interface OpenAI-compatível.
+LiteLLM como sidecar Docker, container escuta na porta 4000; o host expõe **4100** (`127.0.0.1:4100:4000` no `docker-compose.yml`). Serviços na rede interna do Docker chamam `http://litellm:4000/v1` com interface OpenAI-compatível.
 
-**Provider atual:** Groq (gratuito) com modelos Llama 4.
-**Mapeamento no `infra/litellm/config.yaml`:**
-- `gpt-4o` → `groq/meta-llama/llama-4-scout-17b-16e-instruct`
-- `gpt-4o-mini` → `groq/meta-llama/llama-4-scout-17b-16e-instruct`
+**Provider atual:** Groq (gratuito), com fallback para Anthropic/Claude.
+**Mapeamento real hoje (`infra/litellm/config.yaml`):**
+- `gpt-4o` → `groq/llama-3.3-70b-versatile` (fallback Claude Sonnet)
+- `gpt-4o-mini` → `groq/llama-3.1-8b-instant`
+- `gpt-4o-premium` → Claude Sonnet direto
+
+> Mapeamento evoluiu desde a decisão original (Llama 4 Scout) — ver `CLAUDE.md` da raiz para o estado atual, que é a fonte viva desta informação.
 
 **Modelos por módulo** (configurável em `rayzen.config.json`):
 

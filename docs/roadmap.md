@@ -40,6 +40,7 @@
 | Fase 0-A — role-policy drift | `6ade5fe`, ADR-002 | ✅ |
 | Specialist `researcher` | `1683e7e`, `d85135b`, `d675f29`, `7a09275` | ✅ |
 | BenchmarkCases (22 casos) | `6ade5fe` | ✅ |
+| Rayzen Guardian — vigilância proativa (`apps/api-v2/src/guardian/`) | risk scoring aditivo, TestGapDetector, cache tmpdir, pre-push block em critical | ✅ |
 
 ---
 

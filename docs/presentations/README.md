@@ -28,7 +28,7 @@ Materiais pessoais/editoriais, como rascunhos de posts para LinkedIn e arquivos 
 
 ## Mudanças centrais incorporadas
 
-- stack consolidada em VPS;
+- stack consolidada em notebook local, exposta via Cloudflare Tunnel;
 - separação entre `Desktop Agent` e `Server Agent`;
 - memória e organização por projeto;
 - evidências visuais associadas ao projeto correto;

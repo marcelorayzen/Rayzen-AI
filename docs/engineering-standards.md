@@ -11,7 +11,7 @@ Mudanças estruturais relevantes devem ser deliberadas, rastreáveis e não deve
 apps/api/src/
   modules/          # módulos de domínio — um por responsabilidade
   prisma/           # PrismaService compartilhado (global)
-apps/web/           # Next.js 15 App Router
+apps/web/           # Next.js 16 App Router
 apps/agent/         # PC Agent local
 packages/types/     # contratos compartilhados API ↔ agent ↔ web
 docs/               # arquitetura, operação, workflows

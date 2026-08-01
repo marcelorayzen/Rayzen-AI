@@ -52,7 +52,7 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│                    Browser  (Next.js 15 App Router)                  │
+│                    Browser  (Next.js 16.2.2 App Router)              │
 │  ReactMarkdown + custom <a> renders PDF links + Mermaid blocks       │
 └────────────────────────────┬─────────────────────────────────────────┘
                              │ HTTP / SSE stream
@@ -72,7 +72,7 @@ Jina      Redis      docxtempl.  Mermaid       Whisper
    │    ┌─────┴──────────────────────────┐
    │    │     PC Agent  (local Node.js)  │
    │    │  poll every 3s via BullMQ      │
-   │    │  27 whitelist-guarded actions  │
+   │    │  33 whitelist-guarded actions  │
    │    └────────────────────────────────┘
    │
    └──── Notion ── Project ── Health ── Proactive ── Event ── Git
@@ -87,6 +87,23 @@ Jina      Redis      docxtempl.  Mermaid       Whisper
 | LiteLLM (Docker sidecar) | Multi-provider LLM proxy — OpenAI, Groq, Anthropic, all via one endpoint |
 
 See [docs/architecture.md](docs/architecture.md) for the full module catalogue and data flows.
+
+---
+
+## Two generations + other apps in the monorepo
+
+This README documents **V1** (`apps/api` + `apps/web` + `apps/agent`) — the stable generation, in daily use, covered in detail below. The monorepo also has:
+
+| App | What it is | Status |
+|---|---|---|
+| `apps/api-v2` | V2 — Mission Oriented Engineering System, isolated Postgres schema `v2`, `/v2` prefix. Mission engine with steps, approval gates, Goal Graph, quality benchmarking. | Built, in adoption |
+| `apps/api-v2/src/guardian/` | **Rayzen Guardian** — monitors code changes in real time, computes a deterministic risk score (missing specs, critical module, untested schema/migration) and injects context/blocks push before the problem reaches production. | Active — see [docs/GUARDIAN.md](docs/GUARDIAN.md) |
+| `apps/catalog-guardian` | Standalone consulting product — natural-language governance/security/answer layer over an existing data catalog (OpenMetadata, Unity Catalog). Own Prisma/DB, runs standalone, no cross-app import. | Active |
+| `apps/widget` | Desktop overlay (Electron/Tauri) — dedicated monitor, native voice, bidirectional push. | In progress |
+| `apps/vscode-extension` | VS Code extension for the Guardian (inline panel). | In progress |
+| `graphify` | Code graph (AST) — cheaper codebase queries than broad grep. | Active |
+
+See `CLAUDE.md` (repo root) for the full map and the development rules shared across both generations.
 
 ---
 
@@ -128,7 +145,7 @@ See [docs/architecture.md](docs/architecture.md) for the full module catalogue a
 
 - **Mermaid diagrams** — content engine auto-infers diagram type from prompt keywords (flowchart, sequenceDiagram, erDiagram, classDiagram, gantt) and returns fenced `mermaid` blocks rendered in the frontend
 
-- **Agent role separation** — `desktop` Agent runs on the work PC (screenshots, clipboard, local tests, open tools); `server` Agent runs on the VPS (logs, Docker, service restarts); both share the same polling model and whitelist enforcement; `jarvis:restart_api` always routes to `server`
+- **Agent role separation** — `desktop` Agent runs on the work PC (screenshots, clipboard, local tests, open tools); `server` Agent runs on the local notebook that hosts the stack (logs, Docker, service restarts); both share the same polling model and whitelist enforcement; `jarvis:restart_api` always routes to `server`
 
 - **Workspace Watcher** — polls configured Git repositories every 30 s via `git status --porcelain`; detects changed files, reads their content, and indexes them in Brain with the project's `projectId` — no tool-specific hooks required, works with any editor
 
@@ -142,23 +159,26 @@ See [docs/architecture.md](docs/architecture.md) for the full module catalogue a
 
 ## Reliability
 
-**198 tests across 18 suites** (179 unit + 19 E2E), enforced in CI:
+**239 tests across 25 suites** (220 unit + 19 E2E), enforced in CI:
 
-**Unit tests (154):**
+**Unit tests (220 across 22 suites):**
 
 | Module | What is tested |
 |---|---|
 | `ValidationService` | Prompt injection patterns, output schema leak, classification guard, severity levels |
 | `SessionService` | Token aggregate stats, session groupBy, title truncation to 50 chars, fallback title |
-| `VoiceService` | Markdown stripping before TTS, 800-char limit, temp file cleanup in finally |
-| `MemoryService` | Checksum deduplication, Jina API call parameters, pgvector search score mapping, URL indexing error cases |
+| `VoiceService` | Markdown stripping before TTS, 800-char limit, mp4/wav ext, temp file cleanup in finally |
+| `MemoryService` | Checksum deduplication, Jina API error, pgvector search (with/without projectId), indexGithub (404/403/success), indexNotion (401/success), indexFile (txt/md), listDocuments with filter, deleteDocument |
+| `BrainService` | Jina 1024-dim embed, chunkText, indexDocument (created/updated), search with numeric score, cache invalidation |
+| `WikiService` | Controller CRUD, LLM compilation, merge/diff, versioning, human_edited/locked protection |
 | `ExecutionService` | BullMQ `queue.add` parameters: jobId, attempts=3, backoff=5000 |
 | `OrchestratorService` | Classification routing to correct module, `assertValidPrompt` called, response structure |
 | `BlueprintService` | import/preview with all options, wiki-exists warnings, Brain failure fallback |
 | `DataQualityService` | Rules and results CRUD, score, history, schema-diff |
-| `QAService` | JUnit XML ingestion, Allure JSON, flakiness metrics |
-| `WikiService` | Controller CRUD, LLM compilation, merge/diff, versioning, human_edited/locked protection |
-| `BrainService` | Jina 1024-dim embed, chunkText, indexDocument (created/updated), search with numeric score, cache invalidation |
+| `QAService` | JUnit XML ingestion, Allure JSON, flakiness metrics, auto-capture of flaky patterns as a learning |
+| `GraphService` | Success-criteria sync with ProjectState, malformed gap-analysis normalization, mermaid resilient to incomplete successCriteria |
+| `SynthesisService` | Checkpoint flags possibly-completed criteria (nextSteps + event, never auto-applies) |
+| `CodeLineageService` | Real file lineage via graphify (sync + direct/transitive/aggregate impact across multiple files) |
 
 **E2E tests with Fastify inject (19):**
 
@@ -184,12 +204,16 @@ See [docs/validation.md](docs/validation.md) for the full validation philosophy 
 ```
 apps/api/src/modules/
 ├── orchestrator/        # Intent classification (gpt-4o-mini, temp=0) + routing + SSE + work modes
-├── memory/              # pgvector semantic search · Jina embeddings · URL + PDF indexing
+├── brain/               # Jina 1024-dim embeddings · indexDocument/indexUrl/indexText · pgvector search
+├── wiki/                # WikiPage with merge/diff · editStatus · versioning · human_edited protection
+├── memory/              # GitHub/Notion/URL/file (PDF/MD/TXT) indexing · searchAndSynthesize
 ├── execution/           # BullMQ task dispatch + jarvis payload builder
 ├── document-processing/ # Puppeteer PDF · docxtemplater DOCX · download endpoint
 ├── content-engine/      # Long-form content · editorial calendar · Mermaid diagrams
 ├── voice/               # Groq PlayAI TTS (POST /voice/synthesize) + Whisper STT (POST /voice/transcribe)
+├── telegram/            # Telegram bot — orchestrates via HTTP, commands, alternate channel to web chat
 ├── session/             # Conversation history · token stats · session groupBy
+├── agent-session/       # Supervised Claude Code session — question/answer/log/complete (`/agent/session`)
 ├── validation/          # Prompt injection detection · output validation · classification guard
 ├── configuration/       # System personality from rayzen.config.json · work mode config
 ├── notion/              # Notion API: search · read page · create page · append · update title
@@ -202,12 +226,12 @@ apps/api/src/modules/
 ├── documentation/       # Documentation generation and export
 ├── proactive/           # 7 proactive rules: inactivity, doc_stale, blocker, next_step, consistency, drift, goal_stagnant
 ├── event/               # Event log with memory_class hierarchy (inbox → working → consolidated → archive)
+├── evidence/            # QA evidence upload/lookup per project (`/evidence`)
+├── data-quality/        # Data quality rules, results, score history, schema diff
+├── data-catalog/        # Asset registry + lineage graph and impact analysis (V1 — not to be confused with apps/catalog-guardian)
+├── qa/                  # Test run ingestion (JUnit XML / Allure JSON)
 ├── obsidian/            # Obsidian vault sync
 ├── git/                 # Git operations and repository insights
-├── wiki/                # Versioned knowledge base with source traceability
-├── data-quality/        # Data quality rules, results, score history, schema diff
-├── data-catalog/        # Data asset catalogue with lineage graph and impact analysis
-├── qa/                  # Test run ingestion (JUnit XML / Allure JSON)
 ├── cache/               # Redis @Global cache — TTL per type, delPattern, graceful degradation
 ├── costs/               # GET /costs/summary — breakdown by module/project, USD estimate
 ├── blueprint/           # External plan import: wiki + brain + state + events in one command
@@ -268,7 +292,7 @@ Security rules (non-negotiable, never bypass):
 - `organize_downloads`, `docker_stop`, `git_commit` run with `dryRun: true` by default
 - No free `exec()` or `spawn()` — only typed action handlers
 
-See [docs/agent-runtime.md](docs/agent-runtime.md) for the full security model and how to add new actions.
+See [docs/RAYZEN_AGENT_PROTOCOL.md](docs/RAYZEN_AGENT_PROTOCOL.md) for the full security model and how to add new actions.
 
 ---
 
@@ -276,7 +300,7 @@ See [docs/agent-runtime.md](docs/agent-runtime.md) for the full security model a
 
 **Local development prerequisites:** Node.js 20+ for the Rayzen Agent, pnpm 10.x, Docker Desktop.
 
-**Current operation:** central stack on an Azure Ubuntu VPS, desktop Agent on the workstation, and server Agent on the VPS. Public URLs and secrets stay out of the public README; see `docs/remote-agent-setup.md` for the operating model.
+**Current operation:** central stack on a local Ubuntu notebook (Docker Compose), exposed via Cloudflare Tunnel — no port forwarding. Desktop Agent runs on the work PC. Public URLs and secrets stay out of the public README; see `docs/remote-agent-setup.md` for the operating model.
 
 ```bash
 git clone https://github.com/marcelorayzen/Rayzen-AI.git
@@ -323,7 +347,7 @@ pnpm dev:web           # Web  → http://localhost:3100
 pnpm dev:agent         # PC Agent (required for Execution module)
 ```
 
-To run only the desktop Agent connected to the VPS, configure `.env.agent.local` from `.env.agent.example` and run `agent-start.bat`.
+To run only the desktop Agent connected to the notebook stack, configure `.env.agent.local` from `.env.agent.example` and run `agent-start.bat`.
 
 Open **http://localhost:3100** and log in with `ADMIN_PASSWORD`.
 
@@ -351,7 +375,7 @@ git push origin main # Main project branch
 
 | Layer | Technology | Version |
 |---|---|---|
-| Frontend | Next.js App Router | 15.x |
+| Frontend | Next.js App Router | 16.2.2 |
 | Backend | NestJS + Fastify | 10.x |
 | LLM proxy | LiteLLM | latest |
 | Embeddings | Jina AI (jina-embeddings-v3) | 1024-dim |
@@ -366,7 +390,7 @@ git push origin main # Main project branch
 | Agent | Node.js TypeScript | 20 LTS |
 | Container | Docker Compose | v2 |
 | CI/CD | GitHub Actions + SSH deploy | — |
-| VPS | Azure Ubuntu VM | Ubuntu |
+| Infra | Local Ubuntu notebook + Cloudflare Tunnel | — |
 
 ---
 
@@ -377,12 +401,14 @@ git push origin main # Main project branch
 | [docs/architecture.md](docs/architecture.md) | Full system diagram, module catalogue, data stores, LiteLLM model assignments |
 | [docs/workflows.md](docs/workflows.md) | 5 end-to-end flows: memory indexing, routing, PC agent, voice, doc gen |
 | [docs/validation.md](docs/validation.md) | Validation philosophy, what is detected, coverage targets |
-| [docs/agent-runtime.md](docs/agent-runtime.md) | Security model, 33-action catalogue, dry-run protocol, adding new actions |
-| [docs/qa-strategy.md](docs/qa-strategy.md) | Test pyramid, area coverage, risks, and QA roadmap |
+| [docs/RAYZEN_AGENT_PROTOCOL.md](docs/RAYZEN_AGENT_PROTOCOL.md) | Security model, action catalogue, dry-run protocol, adding new actions |
+| [docs/GUARDIAN.md](docs/GUARDIAN.md) | Rayzen Guardian — deterministic risk score, pre-push hook, MCP tools |
 | [docs/engineering-standards.md](docs/engineering-standards.md) | DI rules, PrismaService, LLM proxy, security, when to write a spec |
 | [docs/getting-started.md](docs/getting-started.md) | Detailed setup guide |
 | [docs/personalization.md](docs/personalization.md) | System persona and behaviour configuration |
 | [docs/roadmap.md](docs/roadmap.md) | Phase roadmap and current status |
+| [docs/TESTING_STRATEGY.md](docs/TESTING_STRATEGY.md) | Test pyramid, area coverage, risks, and QA strategy (V1+V2) |
+| [docs/historia/00-indice.md](docs/historia/00-indice.md) | Project history since inception — decisions, incidents, pivots |
 | [docs/presentations/](docs/presentations/) | Updated presentations and LinkedIn post drafts |
 
 ---
@@ -400,6 +426,6 @@ git push origin main # Main project branch
 
 <div align="center">
 
-<sub>Built by <a href="https://github.com/marcelorayzen">Marcelo Rayzen</a> · 100% TypeScript · NestJS + Next.js monorepo · Ubuntu VPS</sub>
+<sub>Built by <a href="https://github.com/marcelorayzen">Marcelo Rayzen</a> · 100% TypeScript · NestJS + Next.js monorepo</sub>
 
 </div>

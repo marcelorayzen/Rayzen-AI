@@ -160,8 +160,8 @@ Quando um step cria um gate de aprovação (ex: skill de risco médio/alto):
 
 ```bash
 # Ou via API
-POST /v2/approve/:gateId
-{ "approved": true, "comment": "Aprovado após revisão" }
+POST /v2/approvals/:id/approve
+{ "approvedBy": "marcelo", "comment": "Aprovado após revisão" }
 ```
 
 ### 6.4 Completar manualmente (caso de emergência)

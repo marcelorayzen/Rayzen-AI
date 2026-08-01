@@ -1,5 +1,7 @@
 # Rayzen AI — Expansão QA + Governança de Dados
 
+> **Status (2026-08-01):** todas as 9 fases abaixo estão `✅ Concluído` — isto não é mais um roadmap ativo, é o registro de como a expansão QA + Governança foi entregue. Para o relato histórico (decisões, incidentes, pivots) ver `docs/historia/`. Conteúdo detalhado mantido abaixo como referência.
+
 Extensão do roadmap principal (Fases 1–14 concluídas).
 Foco: integrar o Rayzen AI com o ciclo de QA Automation e Governança de Dados.
 

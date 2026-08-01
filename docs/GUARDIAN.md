@@ -21,15 +21,29 @@ workspace-watcher detecta mudança (a cada 30s)
 
 ## Risk Levels
 
+Score aditivo e determinístico — `apps/api-v2/src/guardian/risk-score-table.const.ts` (`RISK_SCORE_TABLE`) + `risk-scorer.service.ts`. Nenhum LLM envolvido, cada sinal soma um número fixo, sem overlap (mesmo signal nunca conta duas vezes).
+
+| Sinal | Pontos | Dispara quando |
+|---|---:|---|
+| `serviceSemSpec` | 30 | `TestGapDetectorService` acha ≥1 arquivo testável sem spec correspondente |
+| `moduloCritico` | 25 | arquivo alterado casa `CRITICAL_MODULE_PATTERNS` — ancorado em segmento/token do path: `auth/`, `mcp/`, `gateway/`, `policy/`, `agent/src/hooks/`, `security/` (não substring solta — evita falso positivo tipo "author" casando `/auth/`) |
+| `alteracaoSchema` | 20 | `prisma/schema.prisma` alterado |
+| `migrationSemTeste` | 20 | arquivo em `prisma/migrations/` alterado sem um companheiro com `__tests__` e `migration` no path |
+| `semTesteRodado` | 15 | **reservado — ainda não alimentado** (exigiria evidência real de execução de teste) |
+| `erroRecenteNoModulo` | 10 | **reservado — ainda não alimentado** |
+| `jwtProximoDeExpirar` | 10 | JWT expira em ≤7 dias |
+| `docDesatualizada` | 5 | **reservado — ainda não alimentado** |
+
+Classificação (`classifyRisk`, mesmo arquivo):
+
 | Level | Score | Deploy | Comportamento |
 |---|---|---|---|
-| **low** | < 3 | safe | silencioso |
-| **medium** | 3–5.9 | review | contexto injetado |
-| **high** | 6–7.9 | review | contexto injetado + log |
-| **critical** | ≥ 8 | block | contexto + pré-push bloqueado |
+| **low** | < 30 | safe | silencioso |
+| **medium** | 30–59 | review | contexto injetado |
+| **high** | 60–84 | review | contexto injetado + log |
+| **critical** | ≥ 85 | block | contexto + pré-push bloqueado |
 
-**Padrões críticos** (score +8): `whitelist.ts`, `deploy.sh`, `prisma/schema.prisma`  
-**Padrões de alto impacto** (score +1.5 cada): `/auth/`, `/security/`, `/payment/`, `/role/`, `/gateway/`, `main.ts`, migrações Prisma
+`moduloCritico` (25) + `alteracaoSchema`/`migrationSemTeste` (20) já cruza o limiar `high` sozinho — combinações desse tipo são o caso mais comum de bloqueio real.
 
 ---
 

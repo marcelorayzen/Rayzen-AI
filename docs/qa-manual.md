@@ -239,14 +239,14 @@ Para remover o vinculo:
 
 Esse e o primeiro passo da rastreabilidade formal: evidencia -> TestRun. O proximo passo planejado e ligar evidencia a uma falha/caso especifico dentro do run.
 
-### Categorias autom?ticas de evid?ncia
+### Categorias automáticas de evidência
 
-Ao usar uma descri??o depois dos dois-pontos, o Rayzen classifica a captura para organizar melhor a documenta??o:
+Ao usar uma descrição depois dos dois-pontos, o Rayzen classifica a captura para organizar melhor a documentação:
 
-- `teste de API 52` ? **Testes de API**
-- `teste manual do login` ? **Testes manuais**
-- `bug no login com senha inv?lida` ? **Bugs encontrados**
-- `corre??o do fluxo de checkout` ? **Evid?ncias de corre??o**
+- `teste de API 52` → **Testes de API**
+- `teste manual do login` → **Testes manuais**
+- `bug no login com senha inválida` → **Bugs encontrados**
+- `correção do fluxo de checkout` → **Evidências de correção**
 
 ---
 
