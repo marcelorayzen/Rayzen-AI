@@ -1,6 +1,18 @@
 import { Inject, Injectable } from '@nestjs/common'
 import { CATALOG_ADAPTER, CatalogAdapter } from '../adapters/catalog-adapter.interface'
 import { AccessLevel } from '../adapters/catalog-adapter.types'
+import { PrismaService } from '../core/prisma.service'
+
+// QA-CHECKLIST.md § 12 "Linhagem na resposta" — quantos vizinhos por direção
+// entram no prompt. Mesmo valor do LIMIT 5 já usado em findRelevantAssets.
+const LINEAGE_NEIGHBOR_LIMIT = 5
+
+export interface LineageContext {
+  upstreamNames: string[]
+  upstreamHiddenCount: number
+  downstreamNames: string[]
+  downstreamHiddenCount: number
+}
 
 // Subconjunto de CatalogAsset que o guard precisa — evita acoplar este
 // serviço ao client do Prisma inteiro (facilita teste com fixture simples).
@@ -43,7 +55,10 @@ export interface GuardedAsset {
 // mas isso é uma pergunta *sobre* o ativo, não uma busca/descoberta geral).
 @Injectable()
 export class PermissionGuardService {
-  constructor(@Inject(CATALOG_ADAPTER) private readonly adapter: CatalogAdapter) {}
+  constructor(
+    @Inject(CATALOG_ADAPTER) private readonly adapter: CatalogAdapter,
+    private readonly prisma: PrismaService,
+  ) {}
 
   async buildContext(userId: string, assets: GuardableAsset[]): Promise<GuardedAsset[]> {
     const guarded: GuardedAsset[] = []
@@ -53,6 +68,75 @@ export class PermissionGuardService {
       guarded.push(this.applyGuard(asset, accessLevel))
     }
     return guarded
+  }
+
+  // QA-CHECKLIST.md § 12 "Linhagem na resposta" — CatalogLineageEdge já é
+  // sincronizado, mas até agora só alimentava o score de maturidade, nunca
+  // chegava ao contexto do LLM (LIN-001..004 do golden dataset não tinham
+  // como ser respondidos com dado real). lineageFrom = arestas onde ESTE
+  // ativo é o alvo (dados vêm de `edge.source` = upstream); lineageTo =
+  // arestas onde este ativo é a origem (dados vão pra `edge.target` =
+  // downstream) — direções confirmadas contra o schema.prisma, não
+  // deduzidas pelo nome do campo.
+  //
+  // Vizinho fora do domínio do usuário vira CONTAGEM, nunca nome — mesmo
+  // princípio de buildContext() (citar nome fora de domínio já é vazamento).
+  // Dedupe entre ativos + memoização por chamada evita que um hub table
+  // dispare 1 chamada de permissão por vizinho POR ativo (multiplicador,
+  // não soma) — getUserAccessLevel de ativo PII no OMD já custa várias
+  // chamadas HTTP sozinho (resolveTeamHierarchy percorre times recursivo).
+  async buildLineageContext(userId: string, guarded: GuardedAsset[]): Promise<Map<string, LineageContext>> {
+    const result = new Map<string, LineageContext>()
+    if (guarded.length === 0) return result
+
+    const guardedExternalIds = new Set(guarded.map((g) => g.externalId))
+    const rows = await this.prisma.catalogAsset.findMany({
+      where: { externalId: { in: [...guardedExternalIds] } },
+      select: {
+        externalId: true,
+        lineageFrom: { take: LINEAGE_NEIGHBOR_LIMIT, select: { source: { select: { externalId: true, name: true } } } },
+        lineageTo: { take: LINEAGE_NEIGHBOR_LIMIT, select: { target: { select: { externalId: true, name: true } } } },
+      },
+    })
+
+    // Descobre quais vizinhos (fora do próprio guarded, cuja permissão já é
+    // conhecida) precisam de 1 checagem de permissão — nunca 1 por aresta.
+    const toCheck = new Set<string>()
+    for (const row of rows) {
+      for (const edge of row.lineageFrom) {
+        if (!guardedExternalIds.has(edge.source.externalId)) toCheck.add(edge.source.externalId)
+      }
+      for (const edge of row.lineageTo) {
+        if (!guardedExternalIds.has(edge.target.externalId)) toCheck.add(edge.target.externalId)
+      }
+    }
+
+    const visibility = new Map<string, boolean>()
+    for (const externalId of toCheck) {
+      const level = await this.adapter.getUserAccessLevel(userId, externalId)
+      visibility.set(externalId, level !== 'none')
+    }
+    const isVisible = (externalId: string) => guardedExternalIds.has(externalId) || visibility.get(externalId) === true
+
+    for (const row of rows) {
+      const upstreamNames: string[] = []
+      let upstreamHiddenCount = 0
+      for (const edge of row.lineageFrom) {
+        if (isVisible(edge.source.externalId)) upstreamNames.push(edge.source.name)
+        else upstreamHiddenCount++
+      }
+
+      const downstreamNames: string[] = []
+      let downstreamHiddenCount = 0
+      for (const edge of row.lineageTo) {
+        if (isVisible(edge.target.externalId)) downstreamNames.push(edge.target.name)
+        else downstreamHiddenCount++
+      }
+
+      result.set(row.externalId, { upstreamNames, upstreamHiddenCount, downstreamNames, downstreamHiddenCount })
+    }
+
+    return result
   }
 
   // Metadado administrativo (owner/steward) é público mesmo sem acesso ao

@@ -170,8 +170,12 @@ export class SyncService {
   ): Promise<void> {
     let needsEmbedding = isNew || contentChanged
     if (!needsEmbedding) {
-      const rows = await this.prisma.$queryRawUnsafe<Array<{ embedding: unknown }>>(
-        `SELECT embedding FROM ${table} WHERE id = $1`,
+      // ::text explícito — sem cast, o driver do Prisma não sabe desserializar
+      // o tipo `vector` (OID sem parser registrado) e lança em toda chamada,
+      // não só quando a coluna é de fato null. Só apareceu rodando contra
+      // Postgres real (fixture de teste mocka $queryRawUnsafe direto).
+      const rows = await this.prisma.$queryRawUnsafe<Array<{ embedding: string | null }>>(
+        `SELECT embedding::text AS embedding FROM ${table} WHERE id = $1`,
         id,
       )
       needsEmbedding = rows[0]?.embedding == null
