@@ -352,3 +352,11 @@ Ver `README.md § Backlog` para a lista completa e o racional de cada item (auth
 - `LGPD-004/005/007` — enquadramento jurídico de fato e categoria de menor de idade exigiriam schema novo, não cobertos por tags; `LGPD-004/007` não foram validados ao vivo especificamente (ver §13.10).
 - Tags (`Certification.*`/`Tier.*`/`LegalBasis.*`) só funcionam em deploys OpenMetadata — Unity Catalog OSS hardcoda `tags: []` (limitação real do adapter, documentada desde a Fase 6).
 - `GovernancePolicy` precisa ser alimentado manualmente via `POST /governance-policies` — não há adapter que sincronize isso de nenhum catálogo fonte (é conteúdo autoral por definição).
+
+### Alertas do Guardian tratados após o fechamento das 4 lacunas (2026-08-01)
+
+O Guardian sinalizou CRITICAL no commit do item "Processo/política": `governance-policy.controller.ts` e `query.service.ts` sem spec, e a migration `governance_policy` sem teste de reversão.
+
+- **`query.service.ts`** — gap real, fechado: `src/query/__tests__/query.service.spec.ts` (23 casos, roteamento/askOwnership/askProcess/busca semântica com fallback/construção de prompt/parsing de comportamento).
+- **`governance-policy.controller.ts`** — **falso positivo, não tratado como gap real.** Nenhum dos 7 controllers deste app tem spec (nem 0/29 de `apps/api-v2`, nem 1/33 de `apps/api`) — convenção monorepo-wide de controller ser wrapper HTTP fino, testado via service + validação ao vivo. Adicionar spec só neste controller seria inconsistente com os outros 69. Documentado no próprio arquivo pra não reabrir a dúvida numa próxima sessão.
+- **Migration sem teste de reversão** — regra nunca satisfeita em nenhuma das 41 migrations do monorepo (3 apps) antes desta. Padrão novo adotado a partir daqui: `down.sql` + spec de consistência estática em `src/*/__tests__/*-migration.spec.ts` (não aplica contra Postgres real — ver `README.md § Migrations` pro racional completo).

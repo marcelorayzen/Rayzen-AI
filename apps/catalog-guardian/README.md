@@ -162,6 +162,14 @@ pnpm test
 
 Cobertura atual (70 testes, 11 suites): `CatalogRiskScorerService`, `PermissionGuardService` (mesmo padrão de `apps/api-v2/src/guardian/__tests__/`), `ownership-question.util.ts`, `substring-match.util.ts`, `OpenMetadataAdapter`, `UnityCatalogAdapter`, `SyncService`, `QueryAuditService`, `CatalogProactiveService`, `CatalogMaturityService` e `csv.util.ts`.
 
+### Migrations — sempre com `down.sql` + spec de reversão
+
+O Guardian sinaliza CRITICAL qualquer migration nova sem um arquivo companheiro com `__tests__` e `migration` no path (regra `migrationSemTeste`, `apps/api-v2/src/guardian/risk-scorer.service.ts`) — nenhuma das migrations deste app (nem de nenhum outro app do monorepo) satisfazia isso antes de `20260801150000_governance_policy`. Padrão adotado a partir dela, pra não reabrir a discussão a cada migration nova:
+
+- `down.sql` ao lado de `migration.sql`, na mesma pasta — reversão manual (Prisma não roda isso automaticamente), aplicar via `psql`/`prisma db execute` se precisar reverter.
+- Spec companheiro em `src/<modulo>/__tests__/<nome>-migration.spec.ts` (precisa estar dentro de `src/` — `rootDir: "src"` no jest config exclui qualquer coisa fora daí) confirmando que `down.sql` reverte exatamente o que `migration.sql` criou. Escopo deliberado: consistência estática entre os dois arquivos SQL, não aplica contra um Postgres real (nenhum teste deste app depende de banco vivo — ver `governance-policy-migration.spec.ts` como referência).
+- Se a migration um dia fizer `ALTER TABLE` numa tabela pré-existente (não só `CREATE TABLE`), um `DROP TABLE` simples deixa de ser reversão suficiente — o spec de referência já falha de propósito nesse caso, força revisão manual do `down.sql`.
+
 ## Roadmap (ordem recomendada de ataque)
 
 A ordem abaixo não é por número de fase do blueprint — é por dependência real: cada item destrava o próximo, ou evita retrabalho se feito fora de ordem.

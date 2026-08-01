@@ -30,6 +30,13 @@ class CreateGovernancePolicyDto {
 // tratam ausência de `domain` como "não escopado por domínio" (mesma
 // semântica já usada por /catalog/glossary-terms), e a checagem de
 // alucinação depende de `externalId` existir no espaço de identidade.
+//
+// Sem spec de propósito: nenhum dos 7 controllers deste app tem spec
+// dedicado (wrapper HTTP fino, lógica de negócio testada no service —
+// GovernancePolicyService já cobre isto). Mesmo padrão em todo o monorepo
+// (0/29 controllers em apps/api-v2, 1/33 em apps/api) — o Guardian sinaliza
+// isso como CRITICAL genericamente, mas adicionar spec só aqui seria
+// inconsistente com os outros 69 sem ganho real (confirmado 2026-08-01).
 @Controller('governance-policies')
 export class GovernancePolicyController {
   constructor(private readonly governancePolicies: GovernancePolicyService) {}
