@@ -102,3 +102,25 @@ docs/specs/<id>-<slug>.md
 | `apps/api/src/prisma/` | `PrismaService` global — único ponto de conexão com o banco |
 | `apps/api/src/modules/execution/jarvis-payload-builder.ts` | Montagem de payloads do Jarvis |
 | `apps/api/src/modules/orchestrator/work-modes.ts` | Configs dos 5 work modes |
+
+---
+
+## Funcionalidades implementadas (detalhe)
+
+Mecanismos que sustentam os diferenciais técnicos citados no README — aqui documentados em detalhe para não inflar o README com prosa.
+
+- **Streaming SSE** — respostas transmitidas token a token com efeito typewriter; `tokens_used` e `duration_ms` logados em cada chamada LLM e persistidos em `ConversationMessage`
+- **Confirmação de documento em 2 etapas** — pedidos de doc mostram preview com estimativa antes de gerar; prompt original embutido como `[DOC_PENDING:base64]`, confirmação dispara geração e retorna link de download clicável
+- **`PrismaService` global** — único módulo `@Global()` NestJS, um pool de conexão compartilhado entre todos os módulos; elimina o anti-pattern `new PrismaClient()`
+- **CacheModule Redis** — cache de aplicação `@Global()` com graceful degradation (TTL configurável por tipo): estado do projeto 10 min, wiki 15 min, brain search 5 min; invalidação automática por `delPattern` em escrita
+- **Security headers (Helmet)** — `@fastify/helmet` registrado antes de qualquer rota: CSP, HSTS (31536000s), X-Frame-Options, XSS protection, noSniff; desabilitado em dev para não interferir com Swagger
+- **Agent Audit Log** — cada execução do Agent gera entrada rastreável em `agent_audit_logs`: `actor`, `taskId`, `module`, `action`, `command`, `risk`, `dryRun`, `durationMs`, `status`, `hostname`, `workspace`, `targetRole`; `GET /tasks/audit` com filtros
+- **Audit de segurança (SEC-1 a SEC-10)** — throttle em `POST /auth/login`, JWT 8h, CORS whitelist via `CORS_ORIGINS`, `timingSafeEqual` com padding de buffers, path validation via `path.relative()`, portas internas em `127.0.0.1`
+- **Observabilidade Prometheus** — `GET /metrics` (JWT) exporta duração HTTP por rota, tokens LLM por módulo/modelo, tasks do Agent por action/status/role, queue size, heap/GC/event loop (`collectDefaultMetrics`)
+- **Análise de custos LLM** — `GET /costs/summary?period=&project_id=` agrega `ConversationMessage` por módulo e projeto; modal `◈ costs` na UI mostra tokens, mensagens e custo estimado USD
+- **Integração Notion** — busca, leitura, criação e acréscimo de páginas Notion pelo chat; markdown convertido para blocos Notion (heading_1/2/3, parágrafo, bullet, numerado, citação)
+- **Diagramas Mermaid** — content engine infere tipo de diagrama pelo prompt (flowchart, sequenceDiagram, erDiagram, classDiagram, gantt) e retorna blocos `mermaid` renderizados no frontend
+- **Separação de papéis do Agent** — Agent `desktop` roda no PC de trabalho (screenshot, clipboard, testes locais); Agent `server` roda no notebook que hospeda a stack (logs, Docker, restarts); ambos compartilham polling e whitelist; `jarvis:restart_api` sempre roteia para `server`
+- **Workspace Watcher** — faz polling em repositórios Git configurados a cada 30s via `git status --porcelain`; detecta arquivos alterados, lê o conteúdo e indexa no Brain com o `projectId` do projeto — sem hooks específicos de editor
+- **Template com brief** — `create_project_folder template=rayzen brief="..."` chama o LiteLLM para pré-preencher a estrutura completa do projeto a partir de uma descrição em linguagem natural: `CLAUDE.md`, `docs/project.md`, primeiro ADR, `.gitignore`, `.env.example`, `.claude/settings.json`, git init com commit inicial
+- **Isolamento de contexto por projeto** — cada sessão de chat é escopada ao projeto selecionado; histórico, busca no Brain e extração de conhecimento filtram por `projectId`; system prompt é enriquecido com estado em tempo real (estágio, bloqueadores, meta ativa, eventos recentes)

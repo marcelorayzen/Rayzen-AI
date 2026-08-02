@@ -121,6 +121,26 @@ Documentar o estado real da plataforma — componentes, fluxos de dados, contrat
 
 Fallback chain em `infra/litellm/config.yaml` — evita bloqueio por Groq TPD (100k tokens/dia).
 
+### Modelos LLM por módulo (V1)
+
+| Módulo | Modelo (alias) | Temperature | Observações |
+|---|---|---|---|
+| Orchestrator — classify | gpt-4o-mini | 0 | extração JSON robusta — Claude não suporta `response_format` |
+| Orchestrator — chat | gpt-4o | 0.7 | histórico completo de conversa incluído |
+| ProjectState refresh | gpt-4o-premium | 0.2 | Claude Sonnet direto — análise crítica de qualidade |
+| Synthesis / Checkpoint | gpt-4o | 0.3 | extração JSON com 3 estratégias de fallback |
+| Documentation | gpt-4o | 0.3 | usa ProjectState como contexto primário |
+| Blueprint (plan) | gpt-4o | 0.3 | gera plano Markdown estruturado |
+| Graph — gap analysis | gpt-4o-mini | 0.2 | compara ProjectGoal vs ProjectState |
+| Graph — KPI auto-track | gpt-4o-mini | 0.1 | evidência em eventos → valor atual do KPI |
+| Memory — synthesis | gpt-4o-mini | 0.3 | resume resultados de busca |
+| Document Processing | gpt-4o-mini | 0.2 | output estruturado e determinístico |
+| Content Engine | gpt-4o | 0.8 | criatividade em primeiro lugar |
+| Execution (Jarvis) | gpt-4o | 0.3 | respostas de tarefas práticas |
+| Embeddings | jina-embeddings-v3 | — | 1024-dim, via Jina AI API (não passa pelo LiteLLM) |
+| Voice TTS | Groq PlayAI Astra | — | markdown removido, chunks de 800 chars |
+| Voice STT | Groq Whisper | — | arquivo de áudio → texto |
+
 ---
 
 ## Contratos críticos

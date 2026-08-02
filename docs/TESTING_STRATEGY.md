@@ -182,6 +182,39 @@ Alimentar via `POST /v2/benchmark/cases` ou `POST /v2/benchmark/extract` (extra�
 
 ---
 
+## Detalhe por suite (unit + E2E)
+
+**Unit tests (220 em 22 suites):**
+
+| Módulo | O que é testado |
+|---|---|
+| `ValidationService` | Padrões de prompt injection, vazamento de schema, guard de classificação, níveis de severidade |
+| `SessionService` | Stats agregadas de tokens, groupBy de sessão, truncamento de título em 50 chars, título fallback |
+| `VoiceService` | Remoção de markdown antes do TTS, limite de 800 chars, ext mp4/wav, limpeza de arquivo temp no finally |
+| `MemoryService` | Deduplicação por checksum, erro Jina API, search pgvector (com/sem projectId), indexGithub (404/403/sucesso), indexNotion (401/sucesso), indexFile (txt/md), listDocuments com filtro, deleteDocument |
+| `BrainService` | Embed Jina 1024-dim, chunkText, indexDocument (created/updated), search com score numérico, invalidação de cache |
+| `WikiService` | Controller CRUD, compilação LLM, merge/diff, versionamento, proteção human_edited/locked |
+| `ExecutionService` | Parâmetros do `queue.add`: jobId, attempts=3, backoff=5000 |
+| `OrchestratorService` | Roteamento de classificação para módulo correto, `assertValidPrompt` chamado, estrutura de resposta |
+| `BlueprintService` | import/preview com todas as opções, warnings de wiki existente, fallback de Brain falho |
+| `DataQualityService` | CRUD de regras e resultados, score, histórico, schema-diff |
+| `QAService` | Ingestão JUnit XML, Allure JSON, métricas de flakiness, auto-captura de padrões flaky como learning |
+| `GraphService` | Sincronização de critérios de sucesso com ProjectState, normalização de gap-analysis malformado, mermaid resiliente a successCriteria incompleto |
+| `SynthesisService` | Checkpoint avisa sobre critérios possivelmente concluídos (nextSteps + evento, nunca auto-aplica) |
+| `CodeLineageService` | Lineage real de arquivo via graphify (sync + impacto direto/transitivo/agregado de múltiplos arquivos) |
+
+**E2E tests com Fastify inject (19):**
+
+| Suite | O que é testado |
+|---|---|
+| `auth.e2e.spec.ts` | Login com senha correta → 201 + JWT; token válido com `role:admin`; senha errada → 401; payload vazio → 400 |
+| `tasks.e2e.spec.ts` | `/tasks/pending` com/sem auth; filtro por role; `PATCH /tasks/:id` com campos de audit; `GET /tasks/audit` com filtros |
+| `projects.e2e.spec.ts` | `GET /projects` lista e filtra por `repoSlug`; `POST /projects` cria e valida; `GET /projects/:id` retorna por ID |
+
+Todos os specs usam `{ provide: PrismaService, useValue: mockPrisma }` — sem `new PrismaClient()` nos testes.
+
+---
+
 ## Próximos ajustes
 
 - Testes unit para `StepExecutorService.runNext()` (dependsOn + prevOutputs)

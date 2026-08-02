@@ -13,7 +13,7 @@
 
 <h1>Rayzen AI</h1>
 
-<p><strong>Personal AI platform combining semantic memory, PC automation, document generation,<br />Notion sync, and voice — built as a production-grade NestJS monorepo.</strong></p>
+<p><strong>What if your AI assistant actually remembered everything — and could act on it?</strong><br />Rayzen AI is a personal platform combining semantic memory (pgvector), assisted execution via a whitelist-guarded PC Agent, and documentation that keeps itself up to date as the project evolves. Built as a production-grade NestJS + Next.js monorepo, not a prototype.</p>
 
 <p>
   <a href="README.md">🇧🇷 Português</a> &nbsp;|&nbsp;
@@ -50,32 +50,23 @@
 
 ## Architecture
 
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│                    Browser  (Next.js 16.2.2 App Router)              │
-│  ReactMarkdown + custom <a> renders PDF links + Mermaid blocks       │
-└────────────────────────────┬─────────────────────────────────────────┘
-                             │ HTTP / SSE stream
-┌────────────────────────────▼─────────────────────────────────────────┐
-│                      OrchestratorModule                               │
-│  ① ValidationService.assertValidPrompt()  — prompt injection guard   │
-│  ② classify() → { module, action, confidence }  gpt-4o-mini temp=0  │
-│  ③ isPendingDocConfirmation() — two-step doc flow                    │
-│  ④ handleMessage() → route to module → stream reply via SSE          │
-└──┬──────────┬──────────┬────────────┬────────────┬───────────────────┘
-   │          │          │            │            │
-Memory    Execution  Document    Content       Voice
-Module    Module     Processing  Engine        Module
-pgvector  BullMQ     Puppeteer   LiteLLM       Groq TTS/STT
-Jina      Redis      docxtempl.  Mermaid       Whisper
-   │          │
-   │    ┌─────┴──────────────────────────┐
-   │    │     PC Agent  (local Node.js)  │
-   │    │  poll every 3s via BullMQ      │
-   │    │  33 whitelist-guarded actions  │
-   │    └────────────────────────────────┘
-   │
-   └──── Notion ── Project ── Health ── Proactive ── Event ── Git
+```mermaid
+flowchart TD
+    Browser["Browser<br/>Next.js 16 App Router"] -->|"HTTP / SSE"| Orch
+
+    subgraph Orch["OrchestratorModule"]
+        direction LR
+        V["① ValidationService<br/>assertValidPrompt()"] --> C["② classify()<br/>gpt-4o-mini · temp=0"] --> D["③ doc confirmation<br/>two-step flow"] --> H["④ handleMessage()<br/>route + stream SSE"]
+    end
+
+    Orch --> Memory["Memory<br/>pgvector + Jina"]
+    Orch --> Execution["Execution<br/>BullMQ + Redis"]
+    Orch --> DocProc["Document Processing<br/>Puppeteer + docxtemplater"]
+    Orch --> Content["Content Engine<br/>LiteLLM + Mermaid"]
+    Orch --> Voice["Voice<br/>Groq TTS/STT + Whisper"]
+    Orch -.-> Rest["Notion · Project · Health<br/>Proactive · Event · Git"]
+
+    Execution --> Agent["PC Agent (local Node.js)<br/>poll 3s · 33 actions · whitelist"]
 ```
 
 **Data stores:**
@@ -104,158 +95,40 @@ See `CLAUDE.md` (repo root) for the full map and the development rules shared ac
 
 - **LiteLLM proxy** — provider-agnostic LLM layer; swap OpenAI ↔ Groq ↔ Anthropic via config, zero code changes; per-`virtual_key` budget enforcement
 
-- **Whitelist-enforced PC Agent** — 33 actions explicitly allow-listed in `whitelist.ts`; any unknown action silently rejected; path traversal blocked via `path.relative()` (never `startsWith()`); medium/high-risk actions run `dryRun: true` before the real operation
+- **Whitelist-enforced PC Agent** — 33 actions explicitly allow-listed in `whitelist.ts`; any unknown action silently rejected; path traversal blocked via `path.relative()`; medium/high-risk actions run `dryRun: true` before the real operation
 
-- **Validation layer** — `ValidationModule` sits at the entry point of every request: detects prompt injection patterns, enforces prompt length, checks output for system-prompt leakage, and validates that classified modules are in the known set
+- **Validation layer** — `ValidationModule` sits at the entry point of every request: detects prompt injection patterns, enforces prompt length, checks output for system-prompt leakage
 
-- **pgvector semantic memory** — Jina jina-embeddings-v3 (1024-dim) stored in PostgreSQL; full conversation history is also indexed for continuous learning across sessions
+- **Semantic + hierarchical memory** — Jina jina-embeddings-v3 (1024-dim) stored in PostgreSQL/pgvector; events auto-classified (`inbox → working → consolidated → archive`), archived items excluded from LLM context
 
-- **Streaming SSE** — chat responses stream token-by-token with typewriter effect; `tokens_used` and `duration_ms` logged on every LLM call and persisted to `ConversationMessage`
+- **Health score** — 6-dimension weighted score (0–100): activity, documentation freshness, internal consistency, next steps, blockers, focus; 30-day history
 
-- **Two-step document confirmation** — doc requests show a preview with size/page estimate before generating; original prompt embedded as `[DOC_PENDING:base64]` in assistant message, confirmation triggers generation and returns a clickable download link
+- **Work modes** — 5 modes (implementation, debugging, architecture, study, review) inject mode-specific system prompt suffix and steer synthesis focus
 
-- **Global `PrismaService`** — single `@Global()` NestJS module, one database connection pool shared across all 28+ modules; eliminates the `new PrismaClient()` anti-pattern
+- **Goal Graph** — visual canvas (`@xyflow/react`) for milestones, blockers and KPIs with LLM auto-tracking from recent events; gap analysis compares goal vs current state
 
-- **Redis application cache** — global `CacheModule` with graceful degradation; TTL per data type (project state 10 min, wiki 15 min, brain search 5 min); automatic pattern invalidation on write
-
-- **Security headers (Helmet)** — `@fastify/helmet` registered before any route: CSP, HSTS (31536000s), X-Frame-Options, XSS protection, noSniff; disabled in dev to not break Swagger; active in production without manual intervention
-
-- **Agent Audit Log** — every Agent execution produces a traceable entry in `agent_audit_logs`: `actor`, `taskId`, `module`, `action`, `command`, `risk`, `dryRun`, `durationMs`, `status`, `hostname`, `workspace`, `targetRole`; `GET /tasks/audit` endpoint with action/status filters; the Agent sends all fields automatically in every completion PATCH
-
-- **Security audit (SEC-1 to SEC-10)** — rate limiting on `POST /auth/login`, JWT 8h expiry, CORS origin whitelist via `CORS_ORIGINS` env var, `timingSafeEqual` with buffer padding (avoids throw on length mismatch), `path.relative()` path validation, internal ports bound to `127.0.0.1`, pnpm 10.33.2
-
-- **Prometheus observability** — `GET /metrics` (JWT-protected) exports metrics in Prometheus format: HTTP duration by route, LLM tokens by module/model, Agent tasks by action/status/role, queue size by state, total projects/events/audit logs; `collectDefaultMetrics` for Node.js heap, GC, and event loop
-
-- **LLM cost analysis** — `GET /costs/summary?period=&project_id=` aggregates `ConversationMessage` by module and project; `◈ costs` modal in UI shows tokens, messages, estimated USD and module breakdown; every LLM-calling module logs to `conversationMessages`
-
-- **Health score** — 6-dimension weighted score (0–100): activity, documentation freshness, internal consistency, next steps, blockers, focus; 30-day history persisted and charted in UI
-
-- **Work modes** — 5 modes (implementation, debugging, architecture, study, review) inject mode-specific system prompt suffix and steer synthesis focus; mode tagged on every message and artifact
-
-- **Hierarchical memory** — events auto-classified at write time (`inbox → working → consolidated → archive`); archived events excluded from LLM context in synthesis and documentation generation
-
-- **Notion integration** — search, read, create, and append Notion pages from chat; markdown converted to Notion block objects (heading_1/2/3, paragraph, bullet, numbered, quote) via custom converter
-
-- **Mermaid diagrams** — content engine auto-infers diagram type from prompt keywords (flowchart, sequenceDiagram, erDiagram, classDiagram, gantt) and returns fenced `mermaid` blocks rendered in the frontend
-
-- **Agent role separation** — `desktop` Agent runs on the work PC (screenshots, clipboard, local tests, open tools); `server` Agent runs on the local notebook that hosts the stack (logs, Docker, service restarts); both share the same polling model and whitelist enforcement; `jarvis:restart_api` always routes to `server`
-
-- **Workspace Watcher** — polls configured Git repositories every 30 s via `git status --porcelain`; detects changed files, reads their content, and indexes them in Brain with the project's `projectId` — no tool-specific hooks required, works with any editor
-
-- **Template system with brief** — `create_project_folder template=rayzen brief="..."` calls LiteLLM to pre-fill the full project structure from a natural-language description: `CLAUDE.md`, `docs/project.md` (spec, personas, roadmap, diary), first ADR, `.gitignore`, `.env.example`, `.claude/settings.json`, git init with initial commit; the `brief` field is automatically extracted from the chat prompt
-
-- **Goal Graph** — visual canvas (`@xyflow/react`) for tracking project intention: milestones, blockers, next steps CRUD in-canvas; `ProjectGoal` with success criteria (progress bar), KPIs with inline editing and LLM auto-tracking from recent events; gap analysis (LLM) compares goal vs current state and surfaces `nextBestAction`
-
-- **Project context isolation** — each chat session is scoped to the selected project; history, Brain search, and knowledge extraction (`extractAndIndex`) all filter by `projectId`; system prompt is enriched with real-time state (stage, blockers, active goal, recent events) — the assistant answers from facts, not from guesses
+15 more mechanisms (SSE streaming, SEC-1 to SEC-10 security audit, Prometheus observability, LLM cost analysis, Notion integration, Workspace Watcher and others) are detailed in [docs/engineering-standards.md](docs/engineering-standards.md).
 
 ---
 
 ## Reliability
 
-**239 tests across 25 suites** (220 unit + 19 E2E), enforced in CI:
-
-**Unit tests (220 across 22 suites):**
-
-| Module | What is tested |
-|---|---|
-| `ValidationService` | Prompt injection patterns, output schema leak, classification guard, severity levels |
-| `SessionService` | Token aggregate stats, session groupBy, title truncation to 50 chars, fallback title |
-| `VoiceService` | Markdown stripping before TTS, 800-char limit, mp4/wav ext, temp file cleanup in finally |
-| `MemoryService` | Checksum deduplication, Jina API error, pgvector search (with/without projectId), indexGithub (404/403/success), indexNotion (401/success), indexFile (txt/md), listDocuments with filter, deleteDocument |
-| `BrainService` | Jina 1024-dim embed, chunkText, indexDocument (created/updated), search with numeric score, cache invalidation |
-| `WikiService` | Controller CRUD, LLM compilation, merge/diff, versioning, human_edited/locked protection |
-| `ExecutionService` | BullMQ `queue.add` parameters: jobId, attempts=3, backoff=5000 |
-| `OrchestratorService` | Classification routing to correct module, `assertValidPrompt` called, response structure |
-| `BlueprintService` | import/preview with all options, wiki-exists warnings, Brain failure fallback |
-| `DataQualityService` | Rules and results CRUD, score, history, schema-diff |
-| `QAService` | JUnit XML ingestion, Allure JSON, flakiness metrics, auto-capture of flaky patterns as a learning |
-| `GraphService` | Success-criteria sync with ProjectState, malformed gap-analysis normalization, mermaid resilient to incomplete successCriteria |
-| `SynthesisService` | Checkpoint flags possibly-completed criteria (nextSteps + event, never auto-applies) |
-| `CodeLineageService` | Real file lineage via graphify (sync + direct/transitive/aggregate impact across multiple files) |
-
-**E2E tests with Fastify inject (19):**
-
-| Suite | What is tested |
-|---|---|
-| `auth.e2e.spec.ts` | Login with correct password → 201 + JWT; valid token with `role:admin`; wrong password → 401; empty payload → 400 |
-| `tasks.e2e.spec.ts` | `/tasks/pending` with/without auth; role filter; `PATCH /tasks/:id` with audit fields; `GET /tasks/audit` with filters |
-| `projects.e2e.spec.ts` | `GET /projects` list and `repoSlug` filter; `POST /projects` create + validation; `GET /projects/:id` by ID |
-
-All specs use `{ provide: PrismaService, useValue: mockPrisma }` — no `new PrismaClient()` in tests, consistent with the DI model.
+**239 tests across 25 suites** (220 unit + 19 E2E), enforced in CI on every push to `main`. Coverage spans agent security (whitelist, path traversal, dryRun), API contracts (auth, tasks, projects), domain logic (memory, brain, wiki, blueprint, graph), and LLM response parsing.
 
 ```bash
 pnpm test:cov    # jest --coverage  (thresholds: functions ≥ 65%, branches ≥ 45%, lines ≥ 67%)
 pnpm test:e2e    # jest --config jest.e2e.json --runInBand  (19 E2E with Fastify inject)
 ```
 
-See [docs/validation.md](docs/validation.md) for the full validation philosophy and coverage targets.
+All specs use `{ provide: PrismaService, useValue: mockPrisma }` — no `new PrismaClient()` in tests. See [docs/TESTING_STRATEGY.md](docs/TESTING_STRATEGY.md) for the per-service/suite breakdown and [docs/validation.md](docs/validation.md) for the validation philosophy.
 
 ---
 
 ## Module reference
 
-```
-apps/api/src/modules/
-├── orchestrator/        # Intent classification (gpt-4o-mini, temp=0) + routing + SSE + work modes
-├── brain/               # Jina 1024-dim embeddings · indexDocument/indexUrl/indexText · pgvector search
-├── wiki/                # WikiPage with merge/diff · editStatus · versioning · human_edited protection
-├── memory/              # GitHub/Notion/URL/file (PDF/MD/TXT) indexing · searchAndSynthesize
-├── execution/           # BullMQ task dispatch + jarvis payload builder
-├── document-processing/ # Puppeteer PDF · docxtemplater DOCX · download endpoint
-├── content-engine/      # Long-form content · editorial calendar · Mermaid diagrams
-├── voice/               # Groq PlayAI TTS (POST /voice/synthesize) + Whisper STT (POST /voice/transcribe)
-├── telegram/            # Telegram bot — orchestrates via HTTP, commands, alternate channel to web chat
-├── session/             # Conversation history · token stats · session groupBy
-├── agent-session/       # Supervised Claude Code session — question/answer/log/complete (`/agent/session`)
-├── validation/          # Prompt injection detection · output validation · classification guard
-├── configuration/       # System personality from rayzen.config.json · work mode config
-├── notion/              # Notion API: search · read page · create page · append · update title
-├── agent-bridge/        # PC Agent JWT auth · BullMQ queue management · `audit-log.service` records every execution in `agent_audit_logs`
-├── auth/                # JWT authentication + ADMIN_PASSWORD guard
-├── project/             # Project CRUD + metadata
-├── project-state/       # Structured state: milestones, backlog, activeFocus · resume brief
-├── health/              # 6-dimension health score (0–100) + 30-day history
-├── synthesis/           # Cross-project synthesis and summarization
-├── documentation/       # Documentation generation and export
-├── proactive/           # 7 proactive rules: inactivity, doc_stale, blocker, next_step, consistency, drift, goal_stagnant
-├── event/               # Event log with memory_class hierarchy (inbox → working → consolidated → archive)
-├── evidence/            # QA evidence upload/lookup per project (`/evidence`)
-├── data-quality/        # Data quality rules, results, score history, schema diff
-├── data-catalog/        # Asset registry + lineage graph and impact analysis
-├── qa/                  # Test run ingestion (JUnit XML / Allure JSON)
-├── obsidian/            # Obsidian vault sync
-├── git/                 # Git operations and repository insights
-├── cache/               # Redis @Global cache — TTL per type, delPattern, graceful degradation
-├── costs/               # GET /costs/summary — breakdown by module/project, USD estimate
-├── blueprint/           # External plan import: wiki + brain + state + events in one command
-├── graph/               # Goal Graph: milestones, blockers, gap analysis (LLM), KPI auto-track
-└── metrics/             # GET /metrics (JWT) — Prometheus: HTTP, LLM tokens, Agent tasks, queue, heap/GC
-```
+`apps/api/src/modules/` holds 34 domain-scoped NestJS modules: from the core ones (`orchestrator`, `memory`, `brain`, `execution`, `wiki`) to support modules (`session`, `notion`, `data-quality`, `blueprint`, `graph`, `metrics`, `costs`). Each module has a single responsibility and its own system prompt when it calls an LLM.
 
-**LLM model assignments:**
-
-| Module | Model (alias) | Temperature | Notes |
-|---|---|---|---|
-| Orchestrator — classify | gpt-4o-mini | 0 | robust JSON extraction — Claude doesn't support `response_format` |
-| Orchestrator — chat | gpt-4o | 0.7 | full conversation history included |
-| ProjectState refresh | gpt-4o-premium | 0.2 | Claude Sonnet direct — critical quality analysis |
-| Synthesis / Checkpoint | gpt-4o | 0.3 | JSON extraction with 3 fallback strategies |
-| Documentation | gpt-4o | 0.3 | uses ProjectState as primary context |
-| Blueprint (plan) | gpt-4o | 0.3 | generates structured Markdown plan |
-| Graph — gap analysis | gpt-4o-mini | 0.2 | compares ProjectGoal vs ProjectState |
-| Graph — KPI auto-track | gpt-4o-mini | 0.1 | event evidence → current KPI value |
-| Memory — synthesis | gpt-4o-mini | 0.3 | summarizes search results |
-| Document Processing | gpt-4o-mini | 0.2 | structured, deterministic output |
-| Content Engine | gpt-4o | 0.8 | creativity-first |
-| Execution (Jarvis) | gpt-4o | 0.3 | practical task responses |
-| Embeddings | jina-embeddings-v3 | — | 1024-dim, via Jina AI API (bypasses LiteLLM) |
-| Voice TTS | Groq PlayAI Astra | — | markdown-stripped, 800-char chunks |
-| Voice STT | Groq Whisper | — | audio file → text |
-
-**LiteLLM aliases:**
-- `gpt-4o` → Groq llama-3.3-70b (primary) + Claude Sonnet (automatic fallback)
-- `gpt-4o-mini` → Groq llama-3.1-8b (primary) + Claude Haiku (automatic fallback)
-- `gpt-4o-premium` → Claude Sonnet direct (no Groq) — critical operations
+Full catalogue (34 modules with descriptions, per-module LLM model, LiteLLM aliases) in [docs/architecture.md](docs/architecture.md).
 
 ---
 
@@ -395,12 +268,11 @@ git push origin main # Main project branch
 | [docs/workflows.md](docs/workflows.md) | 5 end-to-end flows: memory indexing, routing, PC agent, voice, doc gen |
 | [docs/validation.md](docs/validation.md) | Validation philosophy, what is detected, coverage targets |
 | [docs/RAYZEN_AGENT_PROTOCOL.md](docs/RAYZEN_AGENT_PROTOCOL.md) | Security model, action catalogue, dry-run protocol, adding new actions |
-| [docs/engineering-standards.md](docs/engineering-standards.md) | DI rules, PrismaService, LLM proxy, security, when to write a spec |
+| [docs/engineering-standards.md](docs/engineering-standards.md) | DI rules, PrismaService, LLM proxy, security, when to write a spec, detail on the remaining technical differentials |
 | [docs/getting-started.md](docs/getting-started.md) | Detailed setup guide |
 | [docs/personalization.md](docs/personalization.md) | System persona and behaviour configuration |
 | [docs/roadmap.md](docs/roadmap.md) | Phase roadmap and current status |
 | [docs/TESTING_STRATEGY.md](docs/TESTING_STRATEGY.md) | Test pyramid, area coverage, risks, and QA strategy (V1+V2) |
-| [docs/historia/00-indice.md](docs/historia/00-indice.md) | Project history since inception — decisions, incidents, pivots |
 | [docs/presentations/](docs/presentations/) | Updated presentations and LinkedIn post drafts |
 
 ---

@@ -13,7 +13,7 @@
 
 <h1>Rayzen AI</h1>
 
-<p><strong>Plataforma de orquestração de contexto, documentação viva e assistência operacional para projetos de tecnologia.</strong><br />Mais do que um assistente conversacional — uma camada contínua de suporte ao desenvolvimento que acompanha sessões de trabalho, registra eventos, estrutura conhecimento, mantém artefatos atualizados e apoia execução via Agent local autorizado.</p>
+<p><strong>E se o seu assistente de IA lembrasse de tudo — e pudesse agir?</strong><br />Rayzen AI é uma plataforma pessoal que combina memória semântica (pgvector), execução assistida via PC Agent com whitelist de segurança, e documentação que se atualiza sozinha à medida que o projeto evolui. Construída como monorepo NestJS + Next.js de produção, não como protótipo.</p>
 
 <p>
   <a href="README.en.md">🇺🇸 English</a> &nbsp;|&nbsp;
@@ -127,32 +127,23 @@
 
 ## Arquitetura
 
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│                    Browser  (Next.js 16.2.2 App Router)              │
-│  ReactMarkdown + <a> customizado renderiza links PDF + blocos Mermaid│
-└────────────────────────────┬─────────────────────────────────────────┘
-                             │ HTTP / SSE stream
-┌────────────────────────────▼─────────────────────────────────────────┐
-│                      OrchestratorModule                               │
-│  ① ValidationService.assertValidPrompt()  — proteção contra injeção  │
-│  ② classify() → { module, action, confidence }  gpt-4o-mini temp=0  │
-│  ③ isPendingDocConfirmation() — fluxo de doc em 2 etapas            │
-│  ④ handleMessage() → roteia para módulo → transmite resposta via SSE │
-└──┬──────────┬──────────┬────────────┬────────────┬───────────────────┘
-   │          │          │            │            │
-Memory    Execution  Document    Content       Voice
-Module    Module     Processing  Engine        Module
-pgvector  BullMQ     Puppeteer   LiteLLM       Groq TTS/STT
-Jina      Redis      docxtempl.  Mermaid       Whisper
-   │          │
-   │    ┌─────┴──────────────────────────┐
-   │    │     PC Agent  (Node.js local)  │
-   │    │  poll a cada 3s via BullMQ     │
-   │    │  33 ações protegidas whitelist │
-   │    └────────────────────────────────┘
-   │
-   └──── Notion ── Project ── Health ── Proactive ── Event ── Git
+```mermaid
+flowchart TD
+    Browser["Browser<br/>Next.js 16 App Router"] -->|"HTTP / SSE"| Orch
+
+    subgraph Orch["OrchestratorModule"]
+        direction LR
+        V["① ValidationService<br/>assertValidPrompt()"] --> C["② classify()<br/>gpt-4o-mini · temp=0"] --> D["③ doc confirmation<br/>fluxo 2 etapas"] --> H["④ handleMessage()<br/>roteia + stream SSE"]
+    end
+
+    Orch --> Memory["Memory<br/>pgvector + Jina"]
+    Orch --> Execution["Execution<br/>BullMQ + Redis"]
+    Orch --> DocProc["Document Processing<br/>Puppeteer + docxtemplater"]
+    Orch --> Content["Content Engine<br/>LiteLLM + Mermaid"]
+    Orch --> Voice["Voice<br/>Groq TTS/STT + Whisper"]
+    Orch -.-> Rest["Notion · Project · Health<br/>Proactive · Event · Git"]
+
+    Execution --> Agent["PC Agent (Node.js local)<br/>poll 3s · 33 ações · whitelist"]
 ```
 
 **Data stores:**
@@ -181,148 +172,40 @@ Veja `CLAUDE.md` (raiz do repo) para o mapa completo e as regras de desenvolvime
 
 - **Proxy LiteLLM** — camada LLM agnóstica de provider; troque OpenAI ↔ Groq ↔ Anthropic via config, zero alterações de código; controle de budget por `virtual_key`
 
-- **PC Agent com whitelist** — 33 ações explicitamente permitidas em `whitelist.ts`; qualquer ação desconhecida é rejeitada silenciosamente; path traversal bloqueado via `path.relative()` (nunca `startsWith()`); ações de risco médio/alto executam `dryRun: true` antes da operação real
+- **PC Agent com whitelist** — 33 ações explicitamente permitidas em `whitelist.ts`; qualquer ação desconhecida é rejeitada silenciosamente; path traversal bloqueado via `path.relative()`; ações de risco médio/alto executam `dryRun: true` antes da operação real
 
-- **Camada de validação** — `ValidationModule` na entrada de cada requisição: detecta padrões de prompt injection, aplica limite de tamanho, verifica vazamento de system prompt na saída, valida que módulos classificados existem
+- **Camada de validação** — `ValidationModule` na entrada de cada requisição: detecta padrões de prompt injection, aplica limite de tamanho, verifica vazamento de system prompt na saída
 
-- **Memória semântica pgvector** — Jina jina-embeddings-v3 (1024-dim) armazenado no PostgreSQL; todo o histórico de conversa é indexado para aprendizado contínuo entre sessões
+- **Memória semântica e hierárquica** — Jina jina-embeddings-v3 (1024-dim) no PostgreSQL/pgvector; eventos classificados automaticamente (`inbox → working → consolidated → archive`), arquivados saem do contexto LLM
 
-- **Streaming SSE** — respostas transmitidas token a token com efeito typewriter; `tokens_used` e `duration_ms` logados em cada chamada LLM e persistidos em `ConversationMessage`
+- **Health score** — score ponderado em 6 dimensões (0–100): atividade, atualidade da documentação, consistência interna, próximos passos, bloqueadores, foco; histórico de 30 dias
 
-- **Confirmação de documento em 2 etapas** — pedidos de doc mostram preview com estimativa antes de gerar; prompt original embutido como `[DOC_PENDING:base64]`, confirmação dispara geração e retorna link de download clicável
+- **Work modes** — 5 modos (implementation, debugging, architecture, study, review) injetam sufixo de system prompt específico e direcionam o foco da síntese
 
-- **`PrismaService` global** — único módulo `@Global()` NestJS, um pool de conexão compartilhado entre todos os 28+ módulos; elimina o anti-pattern `new PrismaClient()`
+- **Goal Graph** — canvas visual (`@xyflow/react`) de milestones, bloqueadores e KPIs com auto-tracking via LLM a partir de eventos recentes; gap analysis compara meta vs. estado atual
 
-- **CacheModule Redis** — cache de aplicação `@Global()` com graceful degradation (TTL configurável por tipo): estado do projeto 10 min, wiki 15 min, brain search 5 min; invalidação automática por `delPattern` em escrita
-
-- **Security headers (Helmet)** — `@fastify/helmet` registrado antes de qualquer rota: CSP, HSTS (31536000s), X-Frame-Options, XSS protection, noSniff; desabilitado em dev para não interferir com Swagger; ativo em produção sem intervenção manual
-
-- **Agent Audit Log** — cada execução do Agent gera uma entrada rastreável em `agent_audit_logs`: `actor`, `taskId`, `module`, `action`, `command`, `risk`, `dryRun`, `durationMs`, `status`, `hostname`, `workspace`, `targetRole`; endpoint `GET /tasks/audit` com filtros por action/status; o Agent envia os campos automaticamente em todo PATCH de conclusão
-
-- **Audit de segurança (SEC-1 a SEC-10)** — throttle em `POST /auth/login`, JWT com expiry 8h, CORS whitelist por origin via `CORS_ORIGINS` env var, `timingSafeEqual` com padding de buffers (evita throw em comprimentos diferentes), path validation via `path.relative()`, portas internas ligadas a `127.0.0.1`, pnpm 10.33.2
-
-- **Observabilidade Prometheus** — `GET /metrics` (protegido por JWT) exporta métricas no formato Prometheus: duração HTTP por rota, tokens LLM por módulo/modelo, tasks do Agent por action/status/role, queue size por estado, total de projetos/eventos/audit logs; `collectDefaultMetrics` para heap, GC e event loop do Node.js
-
-- **Análise de custos LLM** — `GET /costs/summary?period=&project_id=` agrega `ConversationMessage` por módulo e projeto; modal `◈ costs` na UI mostra tokens, mensagens, custo estimado USD e breakdown por módulo; todos os módulos que chamam LLM registram em `conversationMessages`
-
-- **Health score** — score ponderado em 6 dimensões (0–100): atividade, atualidade da documentação, consistência interna, próximos passos, bloqueadores, foco; histórico de 30 dias persistido e exibido em gráfico
-
-- **Work modes** — 5 modos (implementation, debugging, architecture, study, review) injetam sufixo de system prompt específico e direcionam o foco da síntese; modo registrado em cada mensagem e artefato
-
-- **Memória hierárquica** — eventos classificados automaticamente na escrita (`inbox → working → consolidated → archive`); eventos arquivados excluídos do contexto LLM na síntese e geração de documentação
-
-- **Integração Notion** — busca, leitura, criação e acréscimo de páginas Notion pelo chat; markdown convertido para blocos Notion (heading_1/2/3, parágrafo, bullet, numerado, citação)
-
-- **Diagramas Mermaid** — content engine infere tipo de diagrama pelo prompt (flowchart, sequenceDiagram, erDiagram, classDiagram, gantt) e retorna blocos `mermaid` renderizados no frontend
+Mais 15 mecanismos (streaming SSE, audit de segurança SEC-1 a SEC-10, observabilidade Prometheus, custos LLM, integração Notion, Workspace Watcher e outros) estão detalhados em [docs/engineering-standards.md](docs/engineering-standards.md).
 
 ---
 
 ## Confiabilidade
 
-**239 testes em 25 suites** (220 unit + 19 E2E), aplicados no CI:
-
-**Testes unitários (220 em 22 suites):**
-
-| Módulo | O que é testado |
-|---|---|
-| `ValidationService` | Padrões de prompt injection, vazamento de schema, guard de classificação, níveis de severidade |
-| `SessionService` | Stats agregadas de tokens, groupBy de sessão, truncamento de título em 50 chars, título fallback |
-| `VoiceService` | Remoção de markdown antes do TTS, limite de 800 chars, ext mp4/wav, limpeza de arquivo temp no finally |
-| `MemoryService` | Deduplicação por checksum, erro Jina API, search pgvector (com/sem projectId), indexGithub (404/403/sucesso), indexNotion (401/sucesso), indexFile (txt/md), listDocuments com filtro, deleteDocument |
-| `BrainService` | Embed Jina 1024-dim, chunkText, indexDocument (created/updated), search com score numérico, invalidação de cache |
-| `WikiService` | Controller CRUD, compilação LLM, merge/diff, versionamento, proteção human_edited/locked |
-| `ExecutionService` | Parâmetros do `queue.add`: jobId, attempts=3, backoff=5000 |
-| `OrchestratorService` | Roteamento de classificação para módulo correto, `assertValidPrompt` chamado, estrutura de resposta |
-| `BlueprintService` | import/preview com todas as opções, warnings de wiki existente, fallback de Brain falho |
-| `DataQualityService` | CRUD de regras e resultados, score, histórico, schema-diff |
-| `QAService` | Ingestão JUnit XML, Allure JSON, métricas de flakiness, auto-captura de padrões flaky como learning |
-| `GraphService` | Sincronização de critérios de sucesso com ProjectState, normalização de gap-analysis malformado, mermaid resiliente a successCriteria incompleto |
-| `SynthesisService` | Checkpoint avisa sobre critérios possivelmente concluídos (nextSteps + evento, nunca auto-aplica) |
-| `CodeLineageService` | Lineage real de arquivo via graphify (sync + impacto direto/transitivo/agregado de múltiplos arquivos) |
-
-**Testes E2E com Fastify inject (19):**
-
-| Suite | O que é testado |
-|---|---|
-| `auth.e2e.spec.ts` | Login com senha correta → 201 + JWT; token válido com `role:admin`; senha errada → 401; payload vazio → 400 |
-| `tasks.e2e.spec.ts` | `/tasks/pending` com/sem auth; filtro por role; `PATCH /tasks/:id` com campos de audit; `GET /tasks/audit` com filtros |
-| `projects.e2e.spec.ts` | `GET /projects` lista e filtra por `repoSlug`; `POST /projects` cria e valida; `GET /projects/:id` retorna por ID |
-
-Todos os specs usam `{ provide: PrismaService, useValue: mockPrisma }` — sem `new PrismaClient()` nos testes.
+**239 testes em 25 suites** (220 unit + 19 E2E), aplicados no CI a cada push para `main`. Cobertura cruza segurança do agent (whitelist, path traversal, dryRun), contratos de API (auth, tasks, projects), lógica de domínio (memory, brain, wiki, blueprint, graph) e parsing de resposta LLM.
 
 ```bash
 pnpm test:cov    # jest --coverage  (thresholds: functions ≥ 65%, branches ≥ 45%, lines ≥ 67%)
 pnpm test:e2e    # jest --config jest.e2e.json --runInBand  (19 E2E specs com Fastify inject)
 ```
 
-Veja [docs/validation.md](docs/validation.md) para a filosofia de validação e metas de cobertura.
+Todos os specs usam `{ provide: PrismaService, useValue: mockPrisma }` — sem `new PrismaClient()` nos testes. Veja [docs/TESTING_STRATEGY.md](docs/TESTING_STRATEGY.md) para o detalhe por serviço/suite e [docs/validation.md](docs/validation.md) para a filosofia de validação.
 
 ---
 
 ## Referência de módulos
 
-```
-apps/api/src/modules/
-├── orchestrator/        # Classificação de intent (gpt-4o-mini, temp=0) + roteamento + SSE + work modes
-├── brain/               # Embeddings Jina 1024-dim · indexDocument/indexUrl/indexText · busca pgvector
-├── wiki/                # WikiPage com merge/diff · editStatus · versionamento · proteção human_edited
-├── memory/              # Indexação de GitHub, Notion, URL, arquivo (PDF/MD/TXT) · searchAndSynthesize
-├── execution/           # Despacho de tasks BullMQ + jarvis payload builder
-├── document-processing/ # PDF Puppeteer · DOCX docxtemplater · endpoint de download
-├── content-engine/      # Conteúdo longo · calendário editorial · diagramas Mermaid
-├── voice/               # Groq PlayAI TTS (POST /voice/synthesize) + Whisper STT (POST /voice/transcribe)
-├── telegram/            # Bot Telegram — orquestra via HTTP, comandos, canal alternativo ao chat web
-├── session/             # Histórico de conversa · stats de tokens · session groupBy
-├── agent-session/       # Sessão supervisionada do Claude Code — question/answer/log/complete (`/agent/session`)
-├── validation/          # Detecção de prompt injection · validação de output · guard de classificação
-├── configuration/       # Personalidade do sistema via rayzen.config.json · config de work mode
-├── notion/              # Notion API: busca · leitura · criação · acréscimo · atualização de título
-├── agent-bridge/        # Autenticação JWT do PC Agent · fila BullMQ · `audit-log.service` rastreia cada execução em `agent_audit_logs`
-├── auth/                # Autenticação JWT + guard ADMIN_PASSWORD
-├── project/             # CRUD de projetos + metadados
-├── project-state/       # Estado estruturado: milestones, backlog, activeFocus · resume brief
-├── health/              # Health score 6 dimensões (0–100) + histórico 30 dias
-├── synthesis/           # Síntese e sumarização cross-projeto
-├── documentation/       # Geração e exportação de documentação
-├── proactive/           # 7 regras proativas: inatividade, doc_stale, bloqueador, next_step, consistência, drift, goal_stagnant
-├── event/               # Log de eventos com hierarquia memory_class (inbox → working → consolidated → archive)
-├── evidence/            # Upload/consulta de evidência de QA por projeto (`/evidence`)
-├── data-quality/        # Regras e resultados de qualidade de dado, score, histórico, schema-diff
-├── data-catalog/        # Registro de ativos + linhagem e análise de impacto
-├── qa/                  # Ingestão de resultado de teste (JUnit XML / Allure JSON)
-├── obsidian/            # Sync com vault Obsidian
-├── git/                 # Operações git e insights de repositório
-├── cache/               # CacheModule Redis @Global — TTL por tipo, delPattern, graceful degradation
-├── costs/               # GET /costs/summary — breakdown por módulo/projeto, estimativa USD
-├── blueprint/           # Importação de planos externos: wiki + brain + state + events em um comando
-├── graph/               # Goal Graph: milestones, blockers, gap analysis (LLM), KPI auto-track
-└── metrics/             # GET /metrics (JWT) — Prometheus: HTTP, LLM tokens, Agent tasks, queue, heap/GC
-```
+`apps/api/src/modules/` reúne 34 módulos NestJS de domínio: desde os núcleos (`orchestrator`, `memory`, `brain`, `execution`, `wiki`) até os de suporte (`session`, `notion`, `data-quality`, `blueprint`, `graph`, `metrics`, `costs`). Cada módulo tem responsabilidade única e system prompt próprio quando chama LLM.
 
-**Modelos LLM por módulo:**
-
-| Módulo | Modelo (alias) | Temperature | Observações |
-|---|---|---|---|
-| Orchestrator — classify | gpt-4o-mini | 0 | extração JSON robusta — Claude não suporta `response_format` |
-| Orchestrator — chat | gpt-4o | 0.7 | histórico completo de conversa incluído |
-| ProjectState refresh | gpt-4o-premium | 0.2 | Claude Sonnet direto — análise crítica de qualidade |
-| Synthesis / Checkpoint | gpt-4o | 0.3 | extração JSON com 3 estratégias de fallback |
-| Documentation | gpt-4o | 0.3 | usa ProjectState como contexto primário |
-| Blueprint (plan) | gpt-4o | 0.3 | gera plano Markdown estruturado |
-| Graph — gap analysis | gpt-4o-mini | 0.2 | compara ProjectGoal vs ProjectState |
-| Graph — KPI auto-track | gpt-4o-mini | 0.1 | evidência em eventos → valor atual do KPI |
-| Memory — synthesis | gpt-4o-mini | 0.3 | resume resultados de busca |
-| Document Processing | gpt-4o-mini | 0.2 | output estruturado e determinístico |
-| Content Engine | gpt-4o | 0.8 | criatividade em primeiro lugar |
-| Execution (Jarvis) | gpt-4o | 0.3 | respostas de tarefas práticas |
-| Embeddings | jina-embeddings-v3 | — | 1024-dim, via Jina AI API (não passa pelo LiteLLM) |
-| Voice TTS | Groq PlayAI Astra | — | markdown removido, chunks de 800 chars |
-| Voice STT | Groq Whisper | — | arquivo de áudio → texto |
-
-**Aliases LiteLLM:**
-- `gpt-4o` → Groq llama-3.3-70b (primário) + Claude Sonnet (fallback automático)
-- `gpt-4o-mini` → Groq llama-3.1-8b (primário) + Claude Haiku (fallback automático)
-- `gpt-4o-premium` → Claude Sonnet direto (sem Groq) — operações críticas
+Catálogo completo (34 módulos com descrição, modelo LLM por módulo e aliases LiteLLM) em [docs/architecture.md](docs/architecture.md).
 
 ---
 
@@ -461,12 +344,11 @@ git push origin main # Branch principal do projeto
 | [docs/workflows.md](docs/workflows.md) | 5 fluxos end-to-end: indexação de memória, roteamento, PC agent, voz, geração de doc |
 | [docs/validation.md](docs/validation.md) | Filosofia de validação, o que é detectado, metas de cobertura |
 | [docs/RAYZEN_AGENT_PROTOCOL.md](docs/RAYZEN_AGENT_PROTOCOL.md) | Modelo de segurança, catálogo de ações, protocolo dry-run, como adicionar ações |
-| [docs/engineering-standards.md](docs/engineering-standards.md) | Regras de DI, PrismaService, proxy LLM, segurança, quando escrever spec |
+| [docs/engineering-standards.md](docs/engineering-standards.md) | Regras de DI, PrismaService, proxy LLM, segurança, quando escrever spec, detalhe dos demais diferenciais técnicos |
 | [docs/getting-started.md](docs/getting-started.md) | Guia de setup detalhado |
 | [docs/personalization.md](docs/personalization.md) | Configuração de persona e comportamento do sistema |
 | [docs/roadmap.md](docs/roadmap.md) | Roadmap de fases e status atual |
 | [docs/TESTING_STRATEGY.md](docs/TESTING_STRATEGY.md) | Pirâmide de testes, cobertura por área, riscos e estratégia de QA (V1+V2) |
-| [docs/historia/00-indice.md](docs/historia/00-indice.md) | História do projeto desde o nascimento — decisões, incidentes, pivots |
 | [docs/presentations/](docs/presentations/) | Apresentações atualizadas e posts para LinkedIn |
 
 ---
