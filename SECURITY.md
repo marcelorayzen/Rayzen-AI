@@ -62,12 +62,6 @@ Envie um e-mail para **marcelo.rayzen@live.com** com:
 - Migrations do schema `v2` são aplicadas isoladamente (`prisma db push --schema prisma/schema.prisma`), sem tocar nas tabelas do V1
 - Autenticação própria via `JwtAuthGuard` (mesmo `JWT_SECRET` do V1, tokens não são intercambiáveis entre módulos que esperam claims diferentes)
 
-### `apps/catalog-guardian` — produto isolado
-
-- Produto de consultoria isolado do restante do monorepo: **Prisma schema e banco de dados próprios**, sem import cross-app com `apps/api`, `apps/api-v2` ou `apps/agent`
-- Superfície de ataque não compartilha sessão, JWT ou whitelist do agent com o resto da plataforma — qualquer vulnerabilidade em `catalog-guardian` não propaga automaticamente para V1/V2 e vice-versa
-- Reportar vulnerabilidades encontradas neste app pelo mesmo canal (seção "Reportando uma vulnerabilidade" acima)
-
 ### Rede
 
 - Postgres, Redis e LiteLLM ligados a `127.0.0.1` no Docker Compose (não expostos externamente)

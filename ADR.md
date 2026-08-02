@@ -8,11 +8,10 @@ Registro de todas as decisões de arquitetura do projeto. Não altere uma decis�
 
 > **Nota (2026-08-01):** este arquivo registra a primeira geração do projeto (V1). Desde então, uma segunda geração foi construída em paralelo, sem entradas ADR formais aqui:
 > - **V2** — `apps/api-v2` (Mission Oriented Engineering System), schema Postgres `v2`, rotas com prefixo `/v2`
-> - **Rayzen Guardian** — `apps/api-v2/src/guardian/`, análise proativa de risco de mudanças antes do push
-> - **`apps/catalog-guardian`** — produto de consultoria isolado (Prisma/DB próprios, sem import cross-app)
-> - **`apps/widget`** — app desktop Electron
 >
-> `docs/adr/ADR-00X-*.md` é uma pasta **separada e mais recente**, com ADRs pontuais sobre role-policy do agent (`supervised_session`, `graphify_sync`, `guardian_analyze`) — não confundir com a numeração ADR-001..009 deste arquivo. Design completo da V2 em `blueprints/`.
+> Este é um release público curado — módulos experimentais/comerciais adicionais do monorepo privado não fazem parte deste repositório.
+>
+> `docs/adr/ADR-00X-*.md` é uma pasta **separada e mais recente**, com ADRs pontuais sobre role-policy do agent (`supervised_session`, `graphify_sync`) — não confundir com a numeração ADR-001..009 deste arquivo. Design completo da V2 em `blueprints/`.
 
 ---
 

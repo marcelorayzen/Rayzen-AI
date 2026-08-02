@@ -3,9 +3,8 @@ import { PrismaV2Service } from '../core/prisma-v2.service'
 import { EventsService } from '../gateway/events.service'
 import { MissionService } from '../mission/mission.service'
 
-export type ApprovalGateType = 'code_deploy' | 'data_write' | 'external_api' | 'irreversible' | 'high_cost' | 'specialist_spawn' | 'clarification' | 'strategy_promotion' | 'guardian_review'
+export type ApprovalGateType = 'code_deploy' | 'data_write' | 'external_api' | 'irreversible' | 'high_cost' | 'specialist_spawn' | 'clarification' | 'strategy_promotion'
 export type ApprovalStatus   = 'pending' | 'approved' | 'rejected' | 'expired'
-export type GuardianRiskLevel = 'low' | 'medium' | 'high' | 'critical'
 
 // Skills de risco médio expiram em 30min; alto risco não expiram automaticamente
 const TTL: Record<string, number> = {
@@ -170,59 +169,6 @@ export class ApprovalGatesService {
       })
     }
     return { required: true, gate }
-  }
-
-  // Review Gate do Guardian — score determinístico do RiskScorerService vira gate aqui.
-  // low (0-29) não bloqueia nada · medium (30-59) e high (60-84) abrem gate pendente
-  // de revisão · critical (85+) é bloqueado na hora (gate criado e já rejeitado),
-  // exigindo override explícito em vez de espera de aprovação.
-  async createFromGuardianReport(opts: {
-    projectId: string
-    reportId:  string
-    riskLevel: GuardianRiskLevel
-    score:     number
-    summary:   string
-  }): Promise<{ required: boolean; gate?: Awaited<ReturnType<ApprovalGatesService['create']>> }> {
-    if (opts.riskLevel === 'low') return { required: false }
-
-    await this.supersedeGuardianGates(opts.projectId, opts.reportId)
-
-    const gate = await this.create({
-      projectId:   opts.projectId,
-      type:        opts.riskLevel === 'critical' ? 'irreversible' : 'guardian_review',
-      description: `Guardian ${opts.riskLevel.toUpperCase()} (${opts.score}) — ${opts.summary}`,
-      context:     { guardianReportId: opts.reportId, riskLevel: opts.riskLevel, score: opts.score },
-      riskLevel:   opts.riskLevel === 'medium' ? 'medium' : 'high',
-      autoOnExpiry: opts.riskLevel === 'medium' ? 'reject' : 'pause',
-    })
-
-    if (opts.riskLevel === 'critical') {
-      const rejected = await this.reject(gate.id, 'guardian-system', `Auto-bloqueado: risk score ${opts.score} >= 85`)
-      return { required: true, gate: rejected }
-    }
-
-    return { required: true, gate }
-  }
-
-  // O watcher dispara analyze a cada mudança no working tree — sem dedupe,
-  // cada save relevante criaria mais um gate pendente para o mesmo projeto.
-  private async supersedeGuardianGates(projectId: string, newReportId: string) {
-    const pending = await this.prisma.approvalGate.findMany({
-      where: { projectId, status: 'pending', type: { in: ['guardian_review', 'irreversible'] } },
-    })
-    const stale = pending.filter(g => (g.context as Record<string, unknown> | null)?.guardianReportId)
-    if (stale.length === 0) return
-
-    await this.prisma.approvalGate.updateMany({
-      where: { id: { in: stale.map(g => g.id) }, status: 'pending' },
-      data: {
-        status:     'expired',
-        approvedBy: 'guardian-system',
-        approvedAt: new Date(),
-        comment:    `Substituído por guardian report ${newReportId}`,
-      },
-    })
-    this.logger.log(`${stale.length} gate(s) Guardian pendente(s) substituído(s) pelo report ${newReportId}`)
   }
 
   private async expireStale() {

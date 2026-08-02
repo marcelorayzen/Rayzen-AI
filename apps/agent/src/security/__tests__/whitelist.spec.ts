@@ -3,8 +3,8 @@ import { ALLOWED_ACTIONS } from '../whitelist'
 describe('whitelist — ALLOWED_ACTIONS', () => {
   // O tamanho exato é intencional: adicionar uma ação exige atualizar este teste,
   // forçando revisão consciente da whitelist (o arquivo mais crítico do agent).
-  it('contém exatamente 45 ações', () => {
-    expect(ALLOWED_ACTIONS.size).toBe(45)
+  it('contém exatamente 44 ações', () => {
+    expect(ALLOWED_ACTIONS.size).toBe(44)
   })
 
   it('aceita todas as ações jarvis: documentadas', () => {
@@ -22,7 +22,6 @@ describe('whitelist — ALLOWED_ACTIONS', () => {
       'jarvis:restart_api',
       'jarvis:read_emails', 'jarvis:send_email', 'jarvis:get_calendar',
       'jarvis:run_graphify', 'jarvis:graphify_sync',
-      'jarvis:guardian_analyze',
       'jarvis:supervised_session',
     ]
     expect(expected).toHaveLength(ALLOWED_ACTIONS.size) // lista documenta 100% da whitelist

@@ -1,6 +1,6 @@
 ---
 name: auth-mcp-guardian
-description: Revisão de segurança somente-leitura para mudanças que tocam autenticação, JWT, a whitelist do agent desktop (apps/agent/src/security/whitelist.ts), definições de tools MCP, ou código sensível a path traversal (list-dir e similares). Use antes de aprovar qualquer PR/commit que mexa nessas áreas, ou quando o Guardian apontar `moduloCritico`/`alteracaoSchema` num diff relacionado a auth. Nunca executa ações, apenas relata risco.
+description: Revisão de segurança somente-leitura para mudanças que tocam autenticação, JWT, a whitelist do agent desktop (apps/agent/src/security/whitelist.ts), definições de tools MCP, ou código sensível a path traversal (list-dir e similares). Use antes de aprovar qualquer PR/commit que mexa nessas áreas. Nunca executa ações, apenas relata risco.
 tools: Read, Grep, Glob, Bash
 model: sonnet
 ---

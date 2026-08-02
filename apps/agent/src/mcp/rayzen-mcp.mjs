@@ -344,35 +344,6 @@ const TOOLS = [
     },
   },
   {
-    name: 'rayzen_guardian_status',
-    description:
-      'Retorna o último GuardianReport do projeto: riskLevel, riskScore, arquivos sem spec e recomendação de deploy. ' +
-      'Use para checar o estado atual de saúde do código antes de um push ou ao início de uma sessão de implementação. ' +
-      'Retorna null se não houver reports ainda.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        projectId: { type: 'string', description: 'ID do projeto (opcional, usa o padrão do hook.config)' },
-      },
-    },
-  },
-  {
-    name: 'rayzen_guardian_analyze',
-    description:
-      'Dispara uma análise Guardian para arquivos alterados e retorna o GuardianReport imediatamente. ' +
-      'Use após modificar arquivos para obter o risk assessment sem esperar o workspace-watcher (30s). ' +
-      'Especialmente útil antes de um push ou quando o workspace-watcher não está rodando.',
-    inputSchema: {
-      type: 'object',
-      required: ['changedFiles'],
-      properties: {
-        projectId:    { type: 'string',   description: 'ID do projeto (opcional, usa o padrão do hook.config)' },
-        changedFiles: { type: 'array',    items: { type: 'string' }, description: 'Lista de arquivos alterados (caminhos relativos)' },
-        repoPath:     { type: 'string',   description: 'Caminho absoluto do repositório (opcional)' },
-      },
-    },
-  },
-  {
     name: 'rayzen_blueprint_create_feature_plan',
     description:
       'Gera um Blueprint Markdown estruturado para uma feature usando o contexto do ProjectState do projeto. Use ANTES de implementar uma feature nova para planejar e depois importar com rayzen_blueprint_import_markdown.',
@@ -583,41 +554,6 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         } else {
           result = plan
         }
-        break
-      }
-
-      case 'rayzen_guardian_status': {
-        const report = await apiV2('GET', `/v2/guardian/latest/${await pid()}`).catch(() => null)
-        if (!report) {
-          result = { status: 'no_reports', message: 'Nenhum GuardianReport encontrado para este projeto.' }
-          break
-        }
-        // Retorna só o essencial para não poluir o contexto do Claude
-        result = {
-          id:                report.id,
-          riskLevel:         report.riskLevel,
-          riskScore:         report.riskScore,
-          deployRecommend:   report.deployRecommend,
-          summary:           report.summary,
-          filesWithoutTests: report.filesWithoutTests ?? [],
-          suggestedTests:    (report.suggestedTests ?? []).slice(0, 5),
-          changedFiles:      (report.changedFiles ?? []).slice(0, 8),
-          overridden:        report.overridden,
-          createdAt:         report.createdAt,
-        }
-        break
-      }
-
-      case 'rayzen_guardian_analyze': {
-        const cfg = await loadConfig()
-        const resolvedPid = args.projectId ?? cfg.projectId
-        if (!resolvedPid) throw new Error('projectId não definido — informe projectId ou configure hook.config.mjs')
-        result = await apiV2('POST', '/v2/guardian/analyze', {
-          projectId:    resolvedPid,
-          repoPath:     args.repoPath ?? cfg.repoPath ?? '',
-          changedFiles: args.changedFiles ?? [],
-          allFiles:     [],
-        })
         break
       }
 

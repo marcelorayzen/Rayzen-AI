@@ -2,7 +2,7 @@ export type SkillCategory =
   | 'filesystem' | 'git' | 'docker' | 'terminal'
   | 'browser' | 'editor' | 'email' | 'calendar'
   | 'ai' | 'document' | 'content' | 'qa'
-  | 'data' | 'system' | 'network' | 'guardian'
+  | 'data' | 'system' | 'network'
 
 export type SkillRisk = 'none' | 'low' | 'medium' | 'high'
 export type SkillRuntime = 'in-process' | 'agent-desktop' | 'agent-server'
@@ -59,7 +59,6 @@ export const SKILL_DEFINITIONS_EXPORT: SkillDefinition[] = [
   { id: 'jarvis:get_data_quality',     name: 'Data Quality',          description: 'Returns DQ summary/score/rules for a project',         category: 'data',       risk: 'none',   runtime: 'agent-desktop', version: '1.0', inputSchema: { projectId: 'string' }, outputSchema: {} },
   { id: 'jarvis:run_graphify',         name: 'Run Graphify',          description: 'Updates the knowledge graph and sends report to API',  category: 'system',     risk: 'low',    runtime: 'agent-server',  version: '1.0', inputSchema: {}, outputSchema: {} },
   { id: 'jarvis:graphify_sync',        name: 'Graphify Sync',         description: 'Updates graph + generates architecture summary',       category: 'system',     risk: 'low',    runtime: 'agent-server',  version: '1.0', inputSchema: {}, outputSchema: {} },
-  { id: 'jarvis:guardian_analyze',     name: 'Guardian Analyze',      description: 'Analyzes changed files for test gaps and risk score',  category: 'system',     risk: 'none',   runtime: 'agent-desktop', version: '1.0', inputSchema: { projectId: 'string', changedFiles: 'string[]' }, outputSchema: { riskLevel: 'string', riskScore: 'number' } },
 
   // ── File Operations ────────────────────────────────────────────────────────
   { id: 'jarvis:file_read',   name: 'File Read',   description: 'Reads a text file within safe workspace roots (max 500KB, text extensions only)', category: 'filesystem', risk: 'none',   runtime: 'agent-desktop', version: '1.0', inputSchema: { path: 'string', lines: { type: 'object', properties: { start: { type: 'number' }, end: { type: 'number' } }, required: ['start'], optional: true } }, outputSchema: { content: 'string', lines: 'number' } },
@@ -78,14 +77,6 @@ export const SKILL_DEFINITIONS_EXPORT: SkillDefinition[] = [
 
   // ── Supervisor ─────────────────────────────────────────────────────────────
   { id: 'jarvis:supervised_session', name: 'Supervised Session', description: 'Launches an autonomous Claude Code session with step-by-step approval gates', category: 'system', risk: 'high', runtime: 'agent-server', version: '1.0', inputSchema: { sessionId: 'string', prompt: 'string', projectPath: 'string' }, outputSchema: { sessionId: 'string', status: 'string' } },
-
-  // ── Guardian (Blueprint v1.1, item 7 — executadas in-process dentro da api-v2) ──
-  { id: 'guardian:status',         name: 'Guardian Status',         description: 'Returns the latest GuardianReport for a project (cached 10min)',           category: 'guardian', risk: 'none', runtime: 'in-process', version: '1.0', inputSchema: { projectId: 'string' }, outputSchema: { riskLevel: 'string', riskScore: 'number', summary: 'string' } },
-  { id: 'guardian:history',        name: 'Guardian History',        description: 'Lists the last 20 GuardianReports for a project',                          category: 'guardian', risk: 'none', runtime: 'in-process', version: '1.0', inputSchema: { projectId: 'string' }, outputSchema: { reports: 'array' } },
-  { id: 'guardian:override',       name: 'Guardian Override',       description: 'Marks a critical GuardianReport as overridden (manually unblocks deploy)', category: 'guardian', risk: 'high', runtime: 'in-process', version: '1.0', inputSchema: { reportId: 'string', reason: 'string' }, outputSchema: { overridden: 'boolean' } },
-  { id: 'guardian:review_gates',   name: 'Guardian Review Gates',   description: 'Lists pending guardian_review approval gates for a project',               category: 'guardian', risk: 'none', runtime: 'in-process', version: '1.0', inputSchema: { projectId: 'string' }, outputSchema: { gates: 'array' } },
-  { id: 'guardian:approve_review', name: 'Guardian Approve Review', description: 'Approves a pending guardian_review gate',                                  category: 'guardian', risk: 'medium', runtime: 'in-process', version: '1.0', inputSchema: { gateId: 'string', approvedBy: 'string', comment: 'string' }, outputSchema: { status: 'string' } },
-  { id: 'guardian:reject_review',  name: 'Guardian Reject Review',  description: 'Rejects a pending guardian_review gate',                                   category: 'guardian', risk: 'medium', runtime: 'in-process', version: '1.0', inputSchema: { gateId: 'string', approvedBy: 'string', comment: 'string' }, outputSchema: { status: 'string' } },
 ]
 
 export class SkillRegistry {

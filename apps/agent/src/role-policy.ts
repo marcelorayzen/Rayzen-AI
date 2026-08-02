@@ -30,7 +30,6 @@ const DESKTOP_ACTIONS = new Set([
   'jarvis:capture_test_failure',
   'jarvis:run_graphify',
   'jarvis:graphify_sync',
-  'jarvis:guardian_analyze',
   'jarvis:supervised_session',
   'jarvis:file_read',
   'jarvis:file_write',

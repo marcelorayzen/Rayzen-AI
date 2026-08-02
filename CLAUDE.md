@@ -28,23 +28,24 @@ Next.js 16 · NestJS 10 + Fastify · LiteLLM (proxy LLM) · PostgreSQL 16 + pgve
 ```
 rayzen-ai/
 ├── apps/
-│   ├── api/                    # NestJS V1 (28 módulos) · prisma/schema.prisma
-│   ├── api-v2/                 # NestJS V2 (26 módulos, schema v2)
+│   ├── api/                    # NestJS V1 (34 módulos) · prisma/schema.prisma
+│   ├── api-v2/                 # NestJS V2 (29 módulos, schema v2)
 │   ├── web/                    # Next.js App Router
-│   ├── agent/
-│   │   ├── src/
-│   │   │   ├── poller.ts · executor.ts
-│   │   │   ├── security/whitelist.ts   # CRÍTICO — 44 ações, nunca bypassar
-│   │   │   ├── actions/                # implementações jarvis:*
-│   │   │   ├── mcp/                    # MCP stdio + HTTP
-│   │   │   └── hooks/
-│   │   │       ├── rayzen-hook.mjs         # PostToolUse/Stop → POST /events/cli
-│   │   │       └── rayzen-context-hook.mjs # UserPromptSubmit → injeta contexto
-│   └── catalog-guardian/       # produto de consultoria — isolado, Prisma/DB próprios, sem import cross-app (ver BLUEPRINT.md)
+│   └── agent/
+│       ├── src/
+│       │   ├── poller.ts · executor.ts
+│       │   ├── security/whitelist.ts   # CRÍTICO — 44 ações, nunca bypassar
+│       │   ├── actions/                # implementações jarvis:*
+│       │   ├── mcp/                    # MCP stdio + HTTP
+│       │   └── hooks/
+│       │       ├── rayzen-hook.mjs         # PostToolUse/Stop → POST /events/cli
+│       │       └── rayzen-context-hook.mjs # UserPromptSubmit → injeta contexto
 ├── blueprints/                 # design da V2 (24 docs)
-├── docs/                       # manual-de-uso.md · agent-actions.md · security/
+├── docs/                       # manual-de-uso.md · agent-actions.md
 └── infra/                      # caddy · litellm · postgres
 ```
+
+> Este é um release público curado — alguns módulos experimentais/comerciais do monorepo privado (sistema de monitoramento de risco de código, produto de consultoria sobre catálogo de dados) não fazem parte deste repositório.
 
 ---
 
@@ -71,8 +72,6 @@ pnpm scan:secrets     # varre segredos em arquivos versionados
 | Ações do agent + matriz de risco | `docs/agent-actions.md` (gerado por `pnpm gen:catalog`) |
 | Modelos de dados | `apps/api/prisma/schema.prisma` · `apps/api-v2/prisma/schema.prisma` |
 | Arquitetura V2 (engines) | `blueprints/` (24 documentos) |
-| Dados sensíveis | `docs/security/data-inventory.md` (gerado por `pnpm scan:secrets`) |
-| História do projeto desde o nascimento (decisões, incidentes, pivots) | `docs/historia/00-indice.md` |
 
 ---
 
@@ -96,39 +95,10 @@ Grafo de código em `graphify-out/`. Para perguntas de codebase: `graphify query
 
 ---
 
-## Guardian
-
-O Rayzen Guardian monitora mudanças de código em tempo real e avisa o que vai quebrar **antes** do push.
-
-```
-workspace-watcher detecta mudanças (30s)
-  → POST /v2/guardian/analyze
-  → Analisa impacto via lineage + detecta arquivos sem teste
-  → Escreve cache local em tmpdir()
-  → rayzen-context-hook lê cache antes de você pensar
-  → Claude Code já começa sabendo o que está em risco
-```
-
-**Risk levels:** low (silencioso) · medium (widget + contexto) · high (notify + contexto) · critical (notify + webhook + bloqueia pre-push)
-
-**Variáveis de ambiente (agent):**
-```env
-AGENT_GUARDIAN_ENABLED=true
-AGENT_GUARDIAN_RISK_THRESHOLD=medium
-GUARDIAN_WEBHOOK_URL=               # N8N webhook (opcional)
-GUARDIAN_WEBHOOK_TOKEN=             # token do webhook (opcional)
-```
-
-**Instalar git hooks:** `pnpm guardian:install-hooks`
-
-**Mapa de convenções de teste:**
+## Convenção de testes
 
 | Arquivo modificado | Spec esperado |
 |---|---|
 | `apps/api-v2/src/X/X.service.ts` | `apps/api-v2/src/X/__tests__/X.service.spec.ts` |
 | `apps/api/src/modules/X/X.service.ts` | `apps/api/src/modules/X/__tests__/X.service.spec.ts` |
 | `apps/agent/src/actions/X.ts` | `apps/agent/src/actions/__tests__/X.spec.ts` |
-
-**Estrutura:** `apps/api-v2/src/guardian/` · `apps/agent/src/guardian-client.ts` · `apps/widget/src/renderer/components/GuardianPanel.tsx` · `apps/vscode-extension/`
-
-**Blueprint completo:** Wiki do Rayzen — "Rayzen Guardian — Sistema de Acompanhamento Proativo"

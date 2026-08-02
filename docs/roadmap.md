@@ -40,7 +40,6 @@
 | Fase 0-A — role-policy drift | `6ade5fe`, ADR-002 | ✅ |
 | Specialist `researcher` | `1683e7e`, `d85135b`, `d675f29`, `7a09275` | ✅ |
 | BenchmarkCases (22 casos) | `6ade5fe` | ✅ |
-| Rayzen Guardian — vigilância proativa (`apps/api-v2/src/guardian/`) | risk scoring aditivo, TestGapDetector, cache tmpdir, pre-push block em critical | ✅ |
 
 ---
 
@@ -72,7 +71,6 @@
 | **Fase 6 — Mastra + AG-UI** | StepExecutor mostrar limitação real não coberta (streaming, replanning dinâmico, AG-UI) |
 | Fase 0-A — drift `supervised_session` | Verificar se implementação real ainda necessita de ajuste (ADR-001 existente) |
 | Cross-project knowledge | Múltiplos projetos com knowledge graph estável |
-| Widget Electron/Tauri | Ciclo 3-B — pós-estabilização V2 |
 | Multi-agent (além de specialist types) | Consolidar work modes V1 + V2 antes |
 
 ---

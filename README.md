@@ -167,18 +167,11 @@ Veja [docs/architecture.md](docs/architecture.md) para o catálogo completo de m
 
 ---
 
-## Duas gerações + outros apps do monorepo
+## Duas gerações
 
-Este README documenta a **V1** (`apps/api` + `apps/web` + `apps/agent`) — a geração estável, em uso diário, coberta em detalhe abaixo. O monorepo também tem:
+Este README documenta principalmente a **V1** (`apps/api` + `apps/web` + `apps/agent`) — a geração estável, em uso diário, coberta em detalhe abaixo. O repositório também traz a **V2** (`apps/api-v2`) — Mission Oriented Engineering System, schema Postgres `v2` isolado, prefixo de rotas `/v2`, motor de missões com steps/gates de aprovação/Goal Graph/benchmark de qualidade — ainda em adoção, ver `blueprints/` pro design completo.
 
-| App | O que é | Status |
-|---|---|---|
-| `apps/api-v2` | V2 — Mission Oriented Engineering System, schema Postgres `v2` isolado, prefixo `/v2`. Motor de missões com steps, gates de aprovação, Goal Graph, benchmark de qualidade. | Construída, em adoção |
-| `apps/api-v2/src/guardian/` | **Rayzen Guardian** — monitora mudanças de código em tempo real, calcula score de risco determinístico (specs ausentes, módulo crítico, schema/migration sem teste) e injeta contexto/bloqueia push antes do problema chegar em produção. | Ativo — ver [docs/GUARDIAN.md](docs/GUARDIAN.md) |
-| `apps/catalog-guardian` | Produto de consultoria isolado — governança/segurança/resposta em linguagem natural sobre um catálogo de dados existente (OpenMetadata, Unity Catalog). Prisma/DB próprios, roda standalone, sem import cross-app. | Ativo |
-| `apps/widget` | Overlay desktop (Electron/Tauri) — monitor dedicado, voice nativo, push bidirecional. | Em construção |
-| `apps/vscode-extension` | Extensão VS Code para o Guardian (painel inline). | Em construção |
-| `graphify` | Grafo de código (AST) — consultas de codebase mais baratas que grep amplo. | Ativo |
+Este é um release público curado: alguns módulos experimentais/comerciais do monorepo privado (incluindo um sistema de monitoramento de risco de código e um produto de consultoria sobre catálogo de dados) não fazem parte deste corte.
 
 Veja `CLAUDE.md` (raiz do repo) para o mapa completo e as regras de desenvolvimento que cruzam as duas gerações.
 
@@ -295,7 +288,7 @@ apps/api/src/modules/
 ├── event/               # Log de eventos com hierarquia memory_class (inbox → working → consolidated → archive)
 ├── evidence/            # Upload/consulta de evidência de QA por projeto (`/evidence`)
 ├── data-quality/        # Regras e resultados de qualidade de dado, score, histórico, schema-diff
-├── data-catalog/        # Registro de ativos + linhagem e análise de impacto (V1 — não confundir com apps/catalog-guardian)
+├── data-catalog/        # Registro de ativos + linhagem e análise de impacto
 ├── qa/                  # Ingestão de resultado de teste (JUnit XML / Allure JSON)
 ├── obsidian/            # Sync com vault Obsidian
 ├── git/                 # Operações git e insights de repositório
@@ -468,7 +461,6 @@ git push origin main # Branch principal do projeto
 | [docs/workflows.md](docs/workflows.md) | 5 fluxos end-to-end: indexação de memória, roteamento, PC agent, voz, geração de doc |
 | [docs/validation.md](docs/validation.md) | Filosofia de validação, o que é detectado, metas de cobertura |
 | [docs/RAYZEN_AGENT_PROTOCOL.md](docs/RAYZEN_AGENT_PROTOCOL.md) | Modelo de segurança, catálogo de ações, protocolo dry-run, como adicionar ações |
-| [docs/GUARDIAN.md](docs/GUARDIAN.md) | Rayzen Guardian — score de risco determinístico, pre-push hook, MCP tools |
 | [docs/engineering-standards.md](docs/engineering-standards.md) | Regras de DI, PrismaService, proxy LLM, segurança, quando escrever spec |
 | [docs/getting-started.md](docs/getting-started.md) | Guia de setup detalhado |
 | [docs/personalization.md](docs/personalization.md) | Configuração de persona e comportamento do sistema |

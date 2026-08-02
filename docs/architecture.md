@@ -21,7 +21,7 @@ Documentar o estado real da plataforma — componentes, fluxos de dados, contrat
 ┌──────────▼──────────────┐   ┌─────────────────▼─────────────────────────┐
 │  V1 API — NestJS/Fastify│   │  V2 API — NestJS/Fastify                  │
 │  :3101  schema: public  │   │  :3103  schema: v2  prefixo: /v2          │
-│  34 módulos, uso diário │   │  30 módulos, Mission Oriented Engineering  │
+│  34 módulos, uso diário │   │  29 módulos, Mission Oriented Engineering  │
 └──────────┬──────────────┘   └─────────────────┬─────────────────────────┘
            │                                     │
 ┌──────────▼─────────────────────────────────────▼──────────────────────────┐
@@ -82,7 +82,6 @@ Documentar o estado real da plataforma — componentes, fluxos de dados, contrat
 | `QAScientistModule` | `/v2/qa-scientist` | Ciclo 24h: collectFailures → hypotheses → experiments |
 | `EvolutionaryPromptingModule` | `/v2/evolutionary` | Geração e mutação de estratégias de prompt |
 | `PolicyEngineModule` | `/v2/policy` | Regras GATE/BLOCK/WARN por projeto |
-| `GuardianModule` | `/v2/guardian` | Monitoramento de risco de código em tempo real via lineage + detecção de arquivos sem teste — ver `docs/GUARDIAN.md` |
 
 ---
 

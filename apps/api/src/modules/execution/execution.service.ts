@@ -54,7 +54,6 @@ const ACTION_ROLE: Partial<Record<string, AgentRole>> = {
   supervised_session:     'desktop',
   run_graphify:           'desktop',
   graphify_sync:          'desktop',
-  guardian_analyze:       'desktop',
   browse_and_screenshot:  'desktop',
 }
 

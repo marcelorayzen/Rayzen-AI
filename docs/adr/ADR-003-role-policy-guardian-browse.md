@@ -3,6 +3,8 @@
 **Status:** aceita  
 **Data:** 2026-06-27
 
+> **Nota (release público):** a parte desta decisão sobre `guardian_analyze` não se aplica neste repositório — o Guardian Module não faz parte deste release público, e a ação foi removida da whitelist/role-policy aqui. A decisão sobre `browse_and_screenshot` continua válida e vigente (não depende do Guardian).
+
 ## Contexto
 
 Auditoria da Fase 0-A revelou dois gaps adicionais entre `execution.service.ts` (dispatch V1) e `role-policy.ts` (guard do agent):

@@ -90,15 +90,6 @@ const mod = await import(`${fileUrl}?t=${mtimeMs}`)  // invalida cache de import
 | `rayzen_blueprint_import_markdown` | Importa markdown direto | Planos sem estrutura formal |
 | `rayzen_blueprint_create_feature_plan` | Cria feature plan estruturado | Nova feature com planejamento |
 
-### Guardian
-
-| Tool | Descrição | Quando usar |
-|---|---|---|
-| `rayzen_guardian_status` | Consulta o último `GuardianReport` (risk score/level, arquivos sem spec) | Checar risco antes de commitar/dar push |
-| `rayzen_guardian_analyze` | Dispara análise imediata sem esperar o workspace-watcher (30s) | Validar um conjunto específico de arquivos alterados |
-
-Ver `docs/GUARDIAN.md` para o detalhe completo (risk scoring, instalação, endpoints REST).
-
 ---
 
 ## Resolução de projectId

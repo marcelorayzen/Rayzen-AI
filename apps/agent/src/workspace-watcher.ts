@@ -4,7 +4,6 @@ import { basename, extname, join, resolve } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { homedir } from 'node:os'
 import { runGraphify_action } from './actions/run-graphify'
-import { triggerGuardianAnalysis } from './guardian-client'
 
 const INDEXABLE_EXTENSIONS = new Set([
   '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',
@@ -216,25 +215,6 @@ async function emitWorkspaceEvent(repoPath: string, files: string[]): Promise<vo
 
   // Indexa conteúdo dos arquivos modificados no Brain (igual ao Claude Code hook)
   await indexChangedFiles(repoPath, files, projectId)
-
-  // Guardian: analisa mudanças em background se projectId estiver disponível
-  if (projectId) {
-    const v2Url = process.env.AGENT_API_V2_URL ?? (() => {
-      try {
-        const u = new URL(process.env.AGENT_API_URL ?? '')
-        return `${u.protocol}//${u.hostname}:3103`
-      } catch { return null }
-    })()
-    if (v2Url) {
-      triggerGuardianAnalysis({
-        projectId,
-        repoPath,
-        changedFiles: files,
-        apiV2Url:  v2Url,
-        apiToken:  process.env.AGENT_TOKEN ?? '',
-      }).catch(() => null)
-    }
-  }
 }
 
 async function scanOnce(): Promise<void> {
