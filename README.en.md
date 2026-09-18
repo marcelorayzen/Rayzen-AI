@@ -66,7 +66,7 @@ flowchart TD
     Orch --> Voice["Voice<br/>Groq TTS/STT + Whisper"]
     Orch -.-> Rest["Notion · Project · Health<br/>Proactive · Event · Git"]
 
-    Execution --> Agent["PC Agent (local Node.js)<br/>poll 3s · 33 actions · whitelist"]
+    Execution --> Agent["PC Agent (local Node.js)<br/>poll 3s · 44 actions · whitelist"]
 ```
 
 **Data stores:**
@@ -81,11 +81,18 @@ See [docs/architecture.md](docs/architecture.md) for the full module catalogue a
 
 ---
 
-## Two generations
+## Two generations + other apps in the monorepo
 
-This README mostly documents **V1** (`apps/api` + `apps/web` + `apps/agent`) — the stable generation, in daily use, covered in detail below. The repo also ships **V2** (`apps/api-v2`) — Mission Oriented Engineering System, isolated Postgres schema `v2`, `/v2` route prefix, mission engine with steps/approval gates/Goal Graph/quality benchmarking — still in adoption, see `blueprints/` for the full design.
+This README documents **V1** (`apps/api` + `apps/web` + `apps/agent`) — the stable generation, in daily use, covered in detail below. The monorepo also has:
 
-This is a curated public release: a few experimental/commercial modules from the private monorepo (including a code-risk monitoring system and a data-catalog consulting product) are not part of this cut.
+| App | What it is | Status |
+|---|---|---|
+| `apps/api-v2` | V2 — Mission Oriented Engineering System, isolated Postgres schema `v2`, `/v2` prefix. Mission engine with steps, approval gates, Goal Graph, quality benchmarking. | Built, in adoption |
+| `apps/api-v2/src/guardian/` | **Rayzen Guardian** — monitors code changes in real time, computes a deterministic risk score (missing specs, critical module, untested schema/migration) and injects context/blocks push before the problem reaches production. | Active — see [docs/GUARDIAN.md](docs/GUARDIAN.md) |
+| `apps/catalog-guardian` | Standalone consulting product — natural-language governance/security/answer layer over an existing data catalog (OpenMetadata, Unity Catalog). Own Prisma/DB, runs standalone, no cross-app import. | Active |
+| `apps/widget` | Desktop overlay (Electron/Tauri) — dedicated monitor, native voice, bidirectional push. | In progress |
+| `apps/vscode-extension` | VS Code extension for the Guardian (inline panel). | In progress |
+| `graphify` | Code graph (AST) — cheaper codebase queries than broad grep. | Active |
 
 See `CLAUDE.md` (repo root) for the full map and the development rules shared across both generations.
 
@@ -95,7 +102,11 @@ See `CLAUDE.md` (repo root) for the full map and the development rules shared ac
 
 - **LiteLLM proxy** — provider-agnostic LLM layer; swap OpenAI ↔ Groq ↔ Anthropic via config, zero code changes; per-`virtual_key` budget enforcement
 
-- **Whitelist-enforced PC Agent** — 33 actions explicitly allow-listed in `whitelist.ts`; any unknown action silently rejected; path traversal blocked via `path.relative()`; medium/high-risk actions run `dryRun: true` before the real operation
+- **Whitelist-enforced PC Agent** — 44 actions explicitly allow-listed in `whitelist.ts`; any unknown action silently rejected; path traversal blocked via `path.relative()`; medium/high-risk actions run `dryRun: true` before the real operation
+
+- **Personal / work / client separation, in the data** — each project declares its domain, and every indexed excerpt reaches the prompt **stated**: `[1] [cliente] (path) content`. An unclassified project arrives unmarked, and the instruction is explicit: *"do not infer the domain from the path"* — because inferring is exactly what this separation exists to avoid
+
+- **Third-party content boundary** — anything retrieved from the corpus enters a closed block, carrying provenance per excerpt and an order to **report** an instruction found inside rather than obey it. Declared mitigation, not a guarantee: what it buys is that an injection attempt becomes an **observable signal**, not merely something that did not happen
 
 - **Validation layer** — `ValidationModule` sits at the entry point of every request: detects prompt injection patterns, enforces prompt length, checks output for system-prompt leakage
 
@@ -113,7 +124,24 @@ See `CLAUDE.md` (repo root) for the full map and the development rules shared ac
 
 ## Reliability
 
-**239 tests across 25 suites** (220 unit + 19 E2E), enforced in CI on every push to `main`. Coverage spans agent security (whitelist, path traversal, dryRun), API contracts (auth, tasks, projects), domain logic (memory, brain, wiki, blueprint, graph), and LLM response parsing.
+**2131 unit tests + 19 E2E**, enforced in CI on every push to `main`:
+
+| Package | Unit | Covers |
+|---|---|---|
+| `apps/api` (V1) | 878 | API contracts, domain (memory, brain, wiki, graph), LLM parsing, module-graph boot |
+| `apps/api-v2` (V2) | 592 | benchmark, the 19 invariants, catalogue, guardian, specialists, cost, panorama |
+| `apps/agent` | 661 | whitelist, typed execution, path traversal, per-resource exclusion, hooks |
+
+A good share of these read **a file as text** rather than exercising a function. That is the
+technique this codebase uses to block drift between deliberate copies (`memory-ranking`,
+`event-derived-text`, `trecho-de-terceiro`) and to catch defects that only exist at boot — a NestJS
+module cycle is not a type error, and it took production down on 14/09 with `tsc --noEmit` clean
+and the suite green.
+
+> **The bar for a new invariant is narrow: it already broke silently and cost time to find.**
+> Nothing errored, everything reported success, and the data was wrong. That is also why sensors
+> have three states — `ok`, `empty`, `failed` — and why *inconclusive never approves*: a check that
+> cannot measure must not return success.
 
 ```bash
 pnpm test:cov    # jest --coverage  (thresholds: functions ≥ 65%, branches ≥ 45%, lines ≥ 67%)
@@ -126,9 +154,9 @@ All specs use `{ provide: PrismaService, useValue: mockPrisma }` — no `new Pri
 
 ## Module reference
 
-`apps/api/src/modules/` holds 34 domain-scoped NestJS modules: from the core ones (`orchestrator`, `memory`, `brain`, `execution`, `wiki`) to support modules (`session`, `notion`, `data-quality`, `blueprint`, `graph`, `metrics`, `costs`). Each module has a single responsibility and its own system prompt when it calls an LLM.
+`apps/api/src/modules/` holds 32 domain-scoped NestJS modules: from the core ones (`orchestrator`, `memory`, `brain`, `execution`, `wiki`) to support modules (`session`, `notion`, `data-quality`, `blueprint`, `graph`, `metrics`, `costs`). Each module has a single responsibility and its own system prompt when it calls an LLM.
 
-Full catalogue (34 modules with descriptions, per-module LLM model, LiteLLM aliases) in [docs/architecture.md](docs/architecture.md).
+Full catalogue (modules with descriptions, per-module LLM model, LiteLLM aliases) in [docs/architecture.md](docs/architecture.md).
 
 ---
 
@@ -166,7 +194,7 @@ See [docs/RAYZEN_AGENT_PROTOCOL.md](docs/RAYZEN_AGENT_PROTOCOL.md) for the full 
 
 **Local development prerequisites:** Node.js 20+ for the Rayzen Agent, pnpm 10.x, Docker Desktop.
 
-**Current operation:** central stack on a local Ubuntu notebook (Docker Compose), exposed via Cloudflare Tunnel — no port forwarding. Desktop Agent runs on the work PC. Public URLs and secrets stay out of the public README; see `docs/remote-agent-setup.md` for the operating model.
+**Current operation:** central stack on a local Ubuntu server (H81) (Docker Compose), exposed via Cloudflare Tunnel — no port forwarding. Desktop Agent runs on the work PC. Public URLs and secrets stay out of the public README; see `docs/remote-agent-setup.md` for the operating model.
 
 ```bash
 git clone https://github.com/marcelorayzen/Rayzen-AI.git
@@ -213,7 +241,7 @@ pnpm dev:web           # Web  → http://localhost:3100
 pnpm dev:agent         # PC Agent (required for Execution module)
 ```
 
-To run only the desktop Agent connected to the notebook stack, configure `.env.agent.local` from `.env.agent.example` and run `agent-start.bat`.
+To run only the desktop Agent connected to the server stack, configure `.env.agent.local` from `.env.agent.example` and run `agent-start.bat`.
 
 Open **http://localhost:3100** and log in with `ADMIN_PASSWORD`.
 
@@ -256,7 +284,7 @@ git push origin main # Main project branch
 | Agent | Node.js TypeScript | 20 LTS |
 | Container | Docker Compose | v2 |
 | CI/CD | GitHub Actions + SSH deploy | — |
-| Infra | Local Ubuntu notebook + Cloudflare Tunnel | — |
+| Infra | Local Ubuntu server (H81) + Cloudflare Tunnel | — |
 
 ---
 
@@ -268,11 +296,13 @@ git push origin main # Main project branch
 | [docs/workflows.md](docs/workflows.md) | 5 end-to-end flows: memory indexing, routing, PC agent, voice, doc gen |
 | [docs/validation.md](docs/validation.md) | Validation philosophy, what is detected, coverage targets |
 | [docs/RAYZEN_AGENT_PROTOCOL.md](docs/RAYZEN_AGENT_PROTOCOL.md) | Security model, action catalogue, dry-run protocol, adding new actions |
+| [docs/GUARDIAN.md](docs/GUARDIAN.md) | Rayzen Guardian — deterministic risk score, pre-push hook, MCP tools |
 | [docs/engineering-standards.md](docs/engineering-standards.md) | DI rules, PrismaService, LLM proxy, security, when to write a spec, detail on the remaining technical differentials |
 | [docs/getting-started.md](docs/getting-started.md) | Detailed setup guide |
 | [docs/personalization.md](docs/personalization.md) | System persona and behaviour configuration |
 | [docs/roadmap.md](docs/roadmap.md) | Phase roadmap and current status |
 | [docs/TESTING_STRATEGY.md](docs/TESTING_STRATEGY.md) | Test pyramid, area coverage, risks, and QA strategy (V1+V2) |
+| [docs/historia/00-indice.md](docs/historia/00-indice.md) | Project history since inception — decisions, incidents, pivots |
 | [docs/presentations/](docs/presentations/) | Updated presentations and LinkedIn post drafts |
 
 ---

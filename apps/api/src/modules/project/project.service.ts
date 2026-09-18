@@ -1,6 +1,7 @@
-import { Injectable, Inject, forwardRef } from '@nestjs/common'
+import { BadRequestException, Injectable, Inject, forwardRef } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { NotionService } from '../notion/notion.service'
+import { DOMINIOS, ehDominioValido } from '../../common/dominio-do-projeto.const'
 
 // Normaliza slug/nome para comparação tolerante:
 // lowercase, _ → -, remove sufixos de visibilidade, remove não-alfanuméricos
@@ -65,7 +66,22 @@ export class ProjectService {
     return project
   }
 
-  async update(id: string, data: { name?: string; description?: string; goals?: string; status?: string; notionPageId?: string; repoSlug?: string }) {
+  /**
+   * `domain` é validado contra a lista, e recusado em vez de ignorado.
+   *
+   * `rotuloDeDominio` trata valor desconhecido como **não classificado** — o que é a degradação
+   * certa na LEITURA, e seria um defeito silencioso na ESCRITA: quem classificasse um projeto como
+   * `"clientes"` (plural) teria a marca aceita pelo banco e nunca exibida, sem nada acusar. Mesma
+   * família do `hipotese_com_tasktype_valido`, que nasceu de um valor cru gravado sem checagem.
+   *
+   * `null` explícito é permitido: desclassificar é uma operação legítima.
+   */
+  async update(id: string, data: { name?: string; description?: string; goals?: string; status?: string; notionPageId?: string; repoSlug?: string; domain?: string | null }) {
+    if (data.domain !== undefined && data.domain !== null && !ehDominioValido(data.domain)) {
+      throw new BadRequestException(
+        `domain inválido: "${data.domain}". Use um de: ${DOMINIOS.join(', ')} — ou null para desclassificar.`,
+      )
+    }
     return this.prisma.project.update({ where: { id }, data })
   }
 

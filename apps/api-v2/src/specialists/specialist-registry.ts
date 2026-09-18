@@ -141,6 +141,30 @@ export function fromToolName(name: string):   string { return name.replace(/__/g
 // Converte allowedSkills (lista de IDs) em tool definitions no formato esperado pelo
 // AiRouterService — só inclui skills que de fato existem no SkillRegistry (defesa contra
 // allowedSkills desatualizado referenciando um skillId que não existe mais).
+const JSON_SCHEMA_TYPES = new Set(['string', 'number', 'integer', 'boolean', 'object', 'array', 'null'])
+
+/**
+ * Converte o atalho de tipo do SkillRegistry em JSON Schema de verdade.
+ *
+ * O atalho aceita `'string[]'` (usado por `jarvis:guardian_analyze.changedFiles`) e o
+ * conversor emitia `{ type: 'string[]' }` — que não é um tipo JSON Schema. A skill não
+ * está em nenhum `allowedSkills` hoje, então nunca chegou a quebrar uma chamada real;
+ * quebraria em silêncio no dia em que entrasse, porque o provider rejeita a definição
+ * da tool inteira, não o campo.
+ *
+ * `array` sem `items` também não serve: os providers exigem o tipo dos elementos.
+ */
+function jsonSchemaForShorthand(shorthand: string): Record<string, unknown> {
+  const arrayMatch = shorthand.match(/^(\w+)\[\]$/)
+  if (arrayMatch) {
+    const inner = arrayMatch[1]
+    return { type: 'array', items: { type: JSON_SCHEMA_TYPES.has(inner) ? inner : 'string' } }
+  }
+  if (shorthand === 'array') return { type: 'array', items: { type: 'string' } }
+  if (!JSON_SCHEMA_TYPES.has(shorthand)) return { type: 'string' }
+  return { type: shorthand }
+}
+
 export function buildToolsForSkills(skillIds: string[]): AIToolDefinition[] {
   const bySkillId = new Map(SKILL_DEFINITIONS_EXPORT.map((s) => [s.id, s]))
   return skillIds
@@ -152,7 +176,7 @@ export function buildToolsForSkills(skillIds: string[]): AIToolDefinition[] {
       for (const [field, def] of Object.entries(skill.inputSchema)) {
         if (typeof def === 'string') {
           // Atalho: tipo primitivo simples — sempre obrigatório.
-          properties[field] = { type: def }
+          properties[field] = jsonSchemaForShorthand(def)
           required.push(field)
         } else if (def && typeof def === 'object') {
           // Schema completo (ex: campo aninhado tipo objeto) — usa como está,
@@ -191,7 +215,9 @@ export class SpecialistRegistry {
     if (/implement|build|develop|code|write.*function/.test(lower))          return 'coder'
     if (/review|check|audit|validate/.test(lower))                           return 'reviewer'
     // word boundaries em test/spec: "specialist" e "inspection" não são tester
-    if (/\btests?\b|\bspecs?\b|coverage|assert/.test(lower))                 return 'tester'
+    // \bteste?s?\b cobre test/tests/teste/testes — era o único branch só-inglês do infer(),
+    // então "escrever testes unitários" caía no coder (com file_write e sem parse_test_report)
+    if (/\bteste?s?\b|\bspecs?\b|coverage|cobertura|assert/.test(lower))     return 'tester'
     if (/architect|design|structure|diagram|\badr\b/.test(lower))           return 'architect'
     // researcher: tarefas de leitura pura (read+report) — antes caia no coder por default
     // "spec" em "specialist" e "inspect" matchavam tester antes do word boundary fix

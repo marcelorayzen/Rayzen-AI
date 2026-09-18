@@ -57,7 +57,9 @@ export function SynthesisModal({ synthesisArtifacts, synthesisLoading, synthesiz
                     }`}>{a.content.confidence}</span>
                   )}
                 </div>
-                <span className="text-[10px] text-zinc-600 font-mono truncate ml-2">{a.sessionId.slice(0, 8)}…</span>
+                {/* Optional chaining como no resto do bloco: era o único acesso cru aqui,
+                    e um artefato sem `sessionId` derrubava a árvore inteira no render. */}
+                <span className="text-[10px] text-zinc-600 font-mono truncate ml-2">{a.sessionId ? `${a.sessionId.slice(0, 8)}…` : '—'}</span>
               </div>
               <p className="text-xs text-zinc-300">{a.content?.summary}</p>
               {(a.content?.decisions?.length ?? 0) > 0 && (

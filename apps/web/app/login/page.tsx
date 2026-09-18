@@ -45,9 +45,6 @@ export default function LoginPage() {
         <img src="/rayzen.animado.png" alt="Rayzen AI" />
       </div>
 
-      {/* Scanline — loop infinito */}
-      <div className="login-scanline" aria-hidden="true" />
-
       {/* Bottom vignette */}
       <div className="login-vignette" aria-hidden="true" />
 

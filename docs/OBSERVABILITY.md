@@ -25,7 +25,7 @@ Toda chamada LLM que passa pelo LiteLLM proxy é automaticamente trackeada no La
 ### Acesso
 
 ```
-http://192.168.0.174:3200
+http://servidor-local:3200
 ```
 
 Banco dedicado `langfuse` (isolado do `rayzen_ai` e `v2`).
@@ -59,7 +59,10 @@ Filtrar em Langfuse: `metadata.kind = hook_timing` para medir p50/p95/p99 do con
 
 ```
 GET /metrics (JWT-protected)
-http://192.168.0.174:3101/metrics
+https://api.rayzen.com.br/metrics
+
+# A porta 3101 existe, mas publica em 127.0.0.1 — so de dentro do servidor:
+#   ssh rayzen@servidor-local "curl -s http://127.0.0.1:3101/metrics -H 'Authorization: Bearer <JWT>'"
 ```
 
 ### Métricas coletadas

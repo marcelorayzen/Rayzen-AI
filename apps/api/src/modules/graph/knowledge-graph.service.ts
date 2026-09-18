@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
+import { garantirProjeto } from '../../common/garantir-projeto'
 
 export interface KnowledgeNode {
   id: string
@@ -184,6 +185,10 @@ export class KnowledgeGraphService {
         }
       }
     }
+
+    // Grafo vazio é resposta legítima (projeto novo, sem evento nem documento) e id inexistente
+    // não é — os dois devolviam `{nodes:[],edges:[]}`. Ver `garantirProjeto`.
+    if (nodes.length === 0) await garantirProjeto(this.prisma, projectId)
 
     return { nodes, edges }
   }

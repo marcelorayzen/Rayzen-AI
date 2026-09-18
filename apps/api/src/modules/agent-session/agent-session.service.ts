@@ -1,6 +1,8 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { TelegramService } from '../telegram/telegram.service'
+import { ExecutionService } from '../execution/execution.service'
+import { PendingReplyService } from './pending-reply.service'
 
 @Injectable()
 export class AgentSessionService {
@@ -9,31 +11,58 @@ export class AgentSessionService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly telegram: TelegramService,
+    private readonly execution: ExecutionService,
+    private readonly pendingReply: PendingReplyService,
   ) {}
 
+  /**
+   * ── A03 da auditoria de 13/09 ────────────────────────────────────────────────
+   *
+   * Até aqui, este método criava a `AgentSession` e gravava uma linha em `task_logs` com
+   * `module: 'agent'`, `action: 'jarvis:supervised_session'`. **Nunca enfileirava.** O executor
+   * despacha por `${module}:${action}` — `jarvis:supervised_session` — enquanto aquela linha
+   * produzia `agent:jarvis:supervised_session`. O pedido parecia aceito e não alcançava ninguém:
+   * 5 linhas `pending` desde junho, e 4 sessões `active` paradas no mesmo período.
+   *
+   * `task_logs` saiu inteiro em vez de ser consertado: a tabela tinha **um escritor e nenhum
+   * leitor** no monorepo. Não era uma fila divergente a conciliar, era um beco sem saída.
+   *
+   * `enqueue()` e não `dispatch()`: o segundo espera o resultado por até 30s, e uma sessão
+   * supervisionada dura minutos a horas. A referência persistente do trabalho é a própria
+   * `AgentSession`, consultável por `GET /agent/session/:id` — não a espera da requisição.
+   */
   async create(projectId: string, claudePrompt: string) {
     const session = await this.prisma.agentSession.create({
       data: { projectId, claudePrompt },
     })
 
-    await this.prisma.taskLog.create({
-      data: {
-        module: 'agent',
-        action: 'jarvis:supervised_session',
-        payload: {
-          sessionId: session.id,
-          prompt: claudePrompt,
-          projectId,
-        },
-        status: 'pending',
-      },
-    })
+    // "Recebido" não pode significar "iniciado". Se o enfileiramento falha — o desktop está
+    // offline, tipicamente — a sessão não pode ficar `active` esperando alguém que nunca virá,
+    // que é exatamente o estado encontrado em produção.
+    try {
+      await this.execution.enqueue('supervised_session', {
+        sessionId: session.id,
+        prompt: claudePrompt,
+        projectId,
+      })
+    } catch (err) {
+      const motivo = (err as Error).message
+      this.logger.error(`Sessão ${session.id} não pôde ser enfileirada: ${motivo}`)
+      await this.prisma.agentSession.update({
+        where: { id: session.id },
+        data: { status: 'error', summary: `Não foi possível enfileirar a sessão: ${motivo}` },
+      })
+      throw err
+    }
 
+    // Só depois de a tarefa estar de fato na fila: anunciar antes seria prometer trabalho que
+    // ninguém pegou.
+    //
+    // A06: não registra mais callback de resposta. O roteamento passou a sair do estado
+    // persistido (`status: 'waiting'`), resolvido por `PendingReplyService` — um callback em
+    // memória se perdia no restart, era sobrescrito pela sessão seguinte, e desviava toda
+    // mensagem de todo chat enquanto estivesse armado.
     await this.telegram.send(`▶️ *Sessão supervisionada iniciada*\nID: \`${session.id}\`\n\n_Claude está trabalhando... você será notificado quando houver perguntas ou conclusões._`)
-
-    this.telegram.setReplyHandler((text) => {
-      this.submitReply(session.id, text).catch(() => null)
-    })
 
     return session
   }
@@ -69,20 +98,13 @@ export class AgentSessionService {
     return session
   }
 
+  /**
+   * Resposta vinda da web (`POST /agent/session/:id/answer`). O Telegram usa o mesmo
+   * `PendingReplyService` por outro caminho — fonte única para os dois, senão as duas entradas
+   * divergiriam em silêncio sobre o que conta como pendência válida.
+   */
   async submitReply(id: string, reply: string) {
-    const session = await this.prisma.agentSession.findUnique({ where: { id } })
-    if (!session || session.status !== 'waiting') return
-
-    await this.prisma.agentSession.update({
-      where: { id },
-      data: {
-        pendingReply: reply,
-        pendingQuestion: null,
-        status: 'active',
-        pendingRequiresApproval: false,
-        pendingApprovalOptions: undefined,
-      },
-    })
+    await this.pendingReply.responder(id, reply)
   }
 
   async pollReply(id: string): Promise<{ reply: string | null }> {
@@ -103,7 +125,6 @@ export class AgentSessionService {
       data: { status: 'completed', summary, previewUrl: previewUrl ?? null },
     })
 
-    this.telegram.clearReplyHandler()
 
     let msg = `✅ *Sessão concluída!*\n\n${summary}`
     if (previewUrl) msg += `\n\n🔗 Preview: ${previewUrl}`
@@ -125,7 +146,6 @@ export class AgentSessionService {
       data: { status: 'error', summary: message },
     })
 
-    this.telegram.clearReplyHandler()
     await this.telegram.send(`❌ *Erro na sessão*\n\n${message.slice(0, 400)}`)
 
     return { ok: true }

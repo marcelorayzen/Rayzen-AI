@@ -83,7 +83,7 @@ V1_API_TOKEN      # reusa AGENT_TOKEN
 # Local (desenvolvimento)
 pnpm --filter api-v2 db:generate   # prisma generate
 
-# Aplicar schema no notebook — migrate dev falha com shadow DB em setup multi-schema;
+# Aplicar schema no servidor — migrate dev falha com shadow DB em setup multi-schema;
 # usar db push diretamente:
 docker compose exec api-v2 npx prisma db push --schema prisma/schema.prisma --accept-data-loss --skip-generate
 ```

@@ -1,0 +1,158 @@
+# Compose SEPARADO do principal, de propósito.
+#
+# É um spike: precisa poder subir e sumir sem tocar nos 12 serviços que sustentam o
+# Rayzen. Num arquivo à parte, um `docker compose up -d` na raiz não o traz junto por
+# engano, e `docker compose -f ... down -v` não corre risco de derrubar produção.
+#
+# Entra na rede existente como `external` para alcançar `litellm:4000` e `mcp-http:3102`
+# pelo nome — os dois publicam só em 127.0.0.1 no host, então de fora da rede não há como.
+#
+# Uso:
+#   docker compose -f infra/hermes/docker-compose.hermes.yml --env-file .env up -d --build
+#   docker compose -f infra/hermes/docker-compose.hermes.yml down
+services:
+  hermes:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rayzen-hermes-spike
+    # ── Deixou de ser spike em 18/09: isto agora serve o HUB ──────────────────
+    #
+    # Era `restart: "no"`, com o motivo escrito ao lado: "spike não reinicia sozinho: se caiu, é
+    # resultado, não incidente". Essa razão valia enquanto ninguém dependia dele. A partir do
+    # momento em que o HUB é a porta de entrada, cair e ficar caído deixa de ser dado e passa a
+    # ser indisponibilidade — e quem observa a queda agora é o ciclo do `panorama`, não a ausência
+    # de restart.
+    restart: unless-stopped
+    environment:
+      # O Hermes fala com o LiteLLM como se fosse a OpenAI. Assim o spike roda com os
+      # modelos gratuitos que já existem (Gemini/Groq) e não exige conta na Nous.
+      # `LM_*` e o par que o provedor `lmstudio` le — verificado em 2026-09-06. O
+      # `OPENAI_API_KEY` sozinho nao bastava: a chamada saia com 401.
+      LM_BASE_URL:    http://litellm:4000/v1
+      LM_API_KEY:     ${LITELLM_MASTER_KEY}
+      OPENAI_API_KEY: ${LITELLM_MASTER_KEY}
+      # Token de LEITURA do MCP — as 9 ferramentas de consulta, nenhuma das 11 de escrita.
+      # Próprio do Hermes (Fase 8 do plano de execução tipada): revogável sozinho, sem
+      # depender do valor genérico que outro consumidor também poderia apresentar, e
+      # nomeado no log de acesso do mcp-http. Declarar em .env como MCP_TOKEN_HERMES=...
+      MCP_TOKEN_HERMES: ${MCP_TOKEN_HERMES}
+      # ── Senha do HUB: por AMBIENTE, nunca no config.yaml ────────────────────
+      #
+      # O plugin `dashboard_auth/basic` aceita as duas formas e o ambiente ganha do arquivo
+      # (`resolve_env_or_cfg`). O `config.yaml` é montado do REPOSITÓRIO — pôr hash de senha lá
+      # seria versionar material de autenticação, a família exata do vazamento do `AGENT_TOKEN`
+      # em projeto gerado (ver CLAUDE.md). Aqui só entra o que já mora no `.env` do servidor.
+      #
+      # `_HASH` e não `_PASSWORD`: o plugin aceita senha em texto e a hasheia em memória, mas aí
+      # ela fica legível no `.env` e em `docker inspect`. O hash é scrypt (stdlib, sem dependência
+      # de terceiro) e é irreversível.
+      #
+      # `_SECRET` assina as sessões, que são HMAC sem estado. Sem ele o plugin gera uma chave por
+      # processo e **toda sessão morre a cada restart** — ou seja, login novo depois de todo
+      # deploy, exatamente na coisa que existe para ser conveniente.
+      HERMES_DASHBOARD_BASIC_AUTH_USERNAME:      ${HERMES_DASHBOARD_BASIC_AUTH_USERNAME}
+      # ── BASE64, e isso não é preciosismo: ver `entrypoint.sh` ──────────────
+      #
+      # O hash scrypt é `scrypt$16384$8$1$<sal>$<dk>` e o Compose interpola `$` nos valores do
+      # `.env`. Medido em 18/09: 86 caracteres viraram 23, e o HUB subiu recusando TODA senha
+      # — inclusive a certa — sem nada no log. O entrypoint decodifica e RECUSA SUBIR se o
+      # resultado não for um hash bem formado.
+      HERMES_DASHBOARD_BASIC_AUTH_PASSWORD_HASH_B64: ${HERMES_DASHBOARD_BASIC_AUTH_PASSWORD_HASH_B64}
+      HERMES_DASHBOARD_BASIC_AUTH_SECRET:        ${HERMES_DASHBOARD_BASIC_AUTH_SECRET}
+      # ── O hook que devolve a conversa do HUB ao Rayzen ──────────────────────
+      #
+      # `HERMES_ACCEPT_HOOKS=1` NAO e conveniencia: sem TTY, um hook sem consentimento registrado e
+      # **pulado, nao falha** (`shell_hooks.py`: "not allowlisted — skipped"). Sem isto a conversa
+      # simplesmente nao seria gravada, com tudo parecendo normal.
+      HERMES_ACCEPT_HOOKS: '1'
+      # Token ESCOPADO a `POST /sessions/ingest`. Nao e o `AGENT_TOKEN`: dar aquele aqui daria a
+      # API inteira a um servico exposto na internet. Mesmo padrao dos consumidores do MCP.
+      HUB_INGEST_TOKEN: ${HUB_INGEST_TOKEN}
+      RAYZEN_API_URL:   http://api:3001
+    volumes:
+      # ── Identidade e config: DIRETÓRIO montado, arquivo alcançado por link ──
+      #
+      # `$HERMES_HOME/SOUL.md` é a origem da identidade, e isso foi VERIFICADO, não lido na
+      # documentação: um SOUL de teste com uma regra observável ("termine com <marcador>") fez o
+      # modelo obedecer, e um arquivo de 4,8 KB chegou inteiro — o marcador estava na última linha.
+      # O caminho `core/identity/` é CANÔNICO, compartilhado com o orquestrador V1: um arquivo,
+      # dois leitores. Até 14/09 o SOUL vivia aqui em `infra/hermes/` e o Telegram usava outra
+      # identidade (`rayzen.config.json`), então o mesmo produto se apresentava de dois jeitos.
+      #
+      # Até 15/09 os dois entravam como bind de ARQUIVO, um a um. Bind de arquivo aponta para o
+      # **inode**, e `git pull` não reescreve no lugar: escreve outro e renomeia por cima. Medido
+      # no próprio servidor, com repositório temporário — inode 97273 → 97299 depois do pull.
+      #
+      # Ou seja: a identidade única funcionaria exatamente até a primeira vez que alguém a
+      # editasse. Do deploy seguinte em diante o container leria o conteúdo antigo, sem erro e sem
+      # aviso — pior que não ter unificado, porque passa a existir a crença de uma fonte só.
+      #
+      # Diretório não tem esse problema (o inode do diretório é estável), e `entrypoint.sh` refaz
+      # `SOUL.md` e `config.yaml` como links a cada subida: link resolve pelo CAMINHO na hora da
+      # leitura, então troca de inode deixa de importar.
+      #
+      # `:ro` continua sendo o que garante que o modelo não reescreva a própria identidade.
+      - ../../core/identity:/opt/rayzen/identity:ro
+      - .:/opt/rayzen/conf:ro
+      # ── Estado INTEIRO, não só `memories/` (H1, 13/09) ─────────────────────
+      #
+      # Até aqui o volume montava apenas `~/.hermes/memories`, e o comentário dizia "memória e
+      # estado" — só a primeira metade era verdade. Medido no container em execução: `state.db`
+      # (as sessões), `sessions/`, `auth.json`, `.env`, `SOUL.md`, `skills/`, `cron/`, `hooks/`
+      # e `pairing/` ficavam TODOS fora do volume. Cada `--force-recreate` zerava a memória
+      # operacional do Hermes, e `memories/` — o único persistido — estava vazio.
+      #
+      # Montar `~/.hermes` inteiro só passou a ser possível depois de o Dockerfile tirar dali o
+      # código (`--dir`) e o Node (pré-instalado em `/opt/node`): com eles dentro, o volume
+      # guardaria 1,9 GB e congelaria a versão, anulando o pin de commit.
+      #
+      # Volume NOVO em vez de reaproveitar `hermes-data`: o antigo fica intocado como ponto de
+      # retorno, e não custa nada porque está vazio.
+      - hermes-home:/home/hermes/.hermes
+    # ── O container deixa de dormir e passa a servir ─────────────────────────
+    #
+    # A imagem tem `CMD ["sleep","infinity"]` porque o spike existia para ser alcançado por
+    # `docker exec`. Como HUB ele precisa servir: o `entrypoint.sh` termina em `exec "$@"`, então
+    # trocar o comando aqui mantém os links de identidade e a semente do `USER.md` intactos.
+    #
+    # `--host 0.0.0.0` dentro do container, para o Caddy alcançar pela rede do Docker. Isso é o
+    # que ENGATA o portão de autenticação: medido em 17/09, o Hermes **recusa** subir num bind
+    # não-loopback sem provedor registrado, e a mensagem de recusa é explícita. É por isso que as
+    # variáveis acima não são opcionais — sem elas este serviço não sobe, em vez de subir aberto.
+    # `dashboard`, NAO `serve` — e a diferenca custou uma verificacao incompleta em 17/09.
+    #
+    # O help do `serve` diz "Headless: it never opens a browser UI", que eu li como "nao abre
+    # janela" quando significa **nao serve UI**. Com ele no ar o login funcionava (a pagina de
+    # login vem do middleware de auth, nao do app) e abrir a raiz devolvia
+    # `{"error":"Headless backend (hermes serve): web UI disabled — use `hermes dashboard` ..."}`.
+    #
+    # `--no-open` porque nao ha navegador aqui. `--skip-build` porque o `dist` ja vem assado na
+    # imagem: sem isso ele faria `npm install` + build a cada subida, num destino que fica fora do
+    # volume `~/.hermes` e seria refeito a cada recriacao.
+    command: ["hermes", "dashboard", "--host", "0.0.0.0", "--port", "9119", "--no-open", "--skip-build"]
+    ports:
+      # Só em 127.0.0.1, como todo o resto da casa: quem fala com a LAN é o Caddy. Publicar aqui
+      # é o que permite sondar do shell do servidor sem entrar no container.
+      - "127.0.0.1:9119:9119"
+    # Teto explícito: o H81 tem 4 núcleos e 11 GiB, e o HUB não pode competir com o
+    # Postgres nem com o LiteLLM se algo sair do controle.
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 2g
+    networks:
+      - rayzen
+
+volumes:
+  # Estado do Hermes: sessões (`state.db`), memórias, credenciais e configuração operacional.
+  hermes-home:
+  # Volume da montagem anterior (só `memories/`), preservado como ponto de retorno. Pode ser
+  # removido quando `hermes-home` tiver histórico suficiente para não fazer falta.
+  hermes-data:
+
+networks:
+  rayzen:
+    external: true
+    name: rayzen-ai_default

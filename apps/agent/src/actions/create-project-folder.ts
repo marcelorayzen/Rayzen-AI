@@ -1,22 +1,60 @@
-import { execSync } from 'child_process'
 import { resolve, join } from 'path'
 import { existsSync, readFileSync } from 'fs'
-import { mkdir, writeFile, cp } from 'fs/promises'
+import { mkdir, writeFile, cp, rm } from 'fs/promises'
 import { request } from 'node:http'
 import { request as httpsRequest } from 'node:https'
+import { executarPrograma, ambientePadrao } from '../exec/executar-programa'
+import { isUnderSafeRoot } from '../utils/path-guard'
+
+/**
+ * Migrado na Fase 1: `git init/add/commit` e `code "<path>"` montavam string de comando
+ * com `name`/`repoSlug` interpolados dentro — a Fase 0 marcou isso como "a verificar" e
+ * nunca fechou. `name` vem de payload (nome de projeto digitado por alguém) e pode conter
+ * praticamente qualquer coisa.
+ *
+ * Extraído em duas funções porque os templates `rayzen` e `extract_from_client` tinham o
+ * MESMO bloco quase duplicado — é a mesma classe de defeito do token commitado
+ * (`escreverIntegracaoRayzen`, já unificado antes): dois blocos quase iguais divergem
+ * cedo ou tarde porque só um deles é lembrado quando algo muda.
+ */
+export async function gitInitCommit(cwd: string, mensagemDeCommit: string): Promise<boolean> {
+  // Nunca `{ ...process.env, ... }`: o commit não precisa de mais nada do ambiente do
+  // agent além do que o git exige para rodar.
+  const env = {
+    ...ambientePadrao(),
+    GIT_AUTHOR_NAME: 'Rayzen AI', GIT_COMMITTER_NAME: 'Rayzen AI',
+    GIT_AUTHOR_EMAIL: 'rayzen@local', GIT_COMMITTER_EMAIL: 'rayzen@local',
+  }
+  const opts = { cwd, env, timeoutMs: 15_000 }
+  try {
+    if ((await executarPrograma('executavel', 'git', ['init'], opts)).code !== 0) return false
+    if ((await executarPrograma('executavel', 'git', ['add', '.'], opts)).code !== 0) return false
+    // `mensagemDeCommit` como UM elemento do argv — nunca dentro de string de comando.
+    const commit = await executarPrograma('executavel', 'git', ['commit', '-m', mensagemDeCommit], opts)
+    return commit.code === 0
+  } catch {
+    return false
+  }
+}
+
+/** `code.cmd` no Windows lança `Code.exe` (Electron) com `ELECTRON_RUN_AS_NODE=1` — não é
+ * `node.exe` como `pnpm`/`npx`. `executarPrograma` resolve isso pela estratégia `entrypointJs`. */
+export async function abrirVscode(caminho: string): Promise<boolean> {
+  try {
+    const r = await executarPrograma('entrypointJs', 'code', [caminho], {
+      cwd: process.cwd(), env: ambientePadrao(), timeoutMs: 15_000,
+    })
+    return r.code === 0
+  } catch {
+    return false
+  }
+}
 
 const HOME = process.env.USERPROFILE ?? process.env.HOME ?? ''
 
 // Raiz do monorepo rayzen-ai, ancorada na localização deste arquivo (robusto a cwd).
 // Em src/actions (dev) e dist/actions (build) são 4 níveis acima: actions → (dist|src) → agent → apps → rayzen-ai.
 const RAYZEN_ROOT = resolve(join(__dirname, '..', '..', '..', '..'))
-
-const SAFE_ROOTS = [
-  join(HOME, 'Desktop', 'Projects'),
-  join(HOME, 'Projects'),
-  'C:\\Projects',
-  'D:\\Projects',
-]
 
 export type ProjectTemplate = 'blank' | 'node' | 'nextjs' | 'python' | 'rayzen' | 'extract_from_client'
 
@@ -444,6 +482,61 @@ function buildClaudeMd(name: string, repoSlug: string, projectId: string | undef
     .replace("projectId: '<id-deste-projeto>',", `projectId: '${projectId ?? ''}',  // ${projectId ? 'preenchido automaticamente' : 'preencher após criar no Rayzen'}`)
 }
 
+/**
+ * Escreve a integração com o Rayzen no projeto novo: `.mcp.json` na raiz e os
+ * hooks em `.claude/settings.json`.
+ *
+ * Três defeitos consertados aqui em 2026-08-17, todos observados em projeto real:
+ *
+ * 1. **`mcpServers` morava em `.claude/settings.json`**, que o Claude Code não lê
+ *    para isso — servidor de MCP de projeto se declara em `.mcp.json`. Prova: dos
+ *    5 projetos na máquina, só o `rayzen-ai` tinha `.mcp.json`, e era o único com
+ *    `mcpServers` registrado no `~/.claude.json`. Nos outros as tools `rayzen_*`
+ *    simplesmente não existiam, sem erro nenhum.
+ *
+ * 2. **O `AGENT_TOKEN` era gravado dentro do arquivo** — e o gerador faz
+ *    `git init && git add . && git commit` logo abaixo. O token entrava no
+ *    primeiro commit do repositório. Foi assim que o token do Rayzen foi parar no
+ *    histórico do Rayzen Commerce Platform (commit de bootstrap). Não é preciso:
+ *    `loadConfig()` do `rayzen-mcp.mjs` cai em `hook.config.mjs` quando a env não
+ *    existe, que é exatamente como o próprio `rayzen-ai` funciona.
+ *
+ * 3. **`PROJECT_ID` vinha fixado**, contra a regra do projeto e contra o próprio
+ *    `RAYZEN-SETUP.md` gerado, que dizia "não é necessário configurar projectId"
+ *    duas linhas antes de anunciar o `PROJECT_ID` preenchido. Fixar reativa o
+ *    fallback legado do MCP e é a origem do incidente da Urna (blueprint gravado
+ *    no projeto errado). A resolução correta é pelo repositório do cwd.
+ *
+ * Aponta para o `.mjs` em `src/`, não para `dist/`: o MCP e os hooks rodam sem
+ * build, então um `dist` desatualizado não tem como quebrar projeto novo.
+ */
+export async function escreverIntegracaoRayzen(projectPath: string): Promise<string[]> {
+  const mcp   = join(RAYZEN_ROOT, 'apps', 'agent', 'src', 'mcp', 'rayzen-mcp.mjs')
+  const hook  = join(RAYZEN_ROOT, 'apps', 'agent', 'src', 'hooks', 'rayzen-hook.mjs')
+  const ctx   = join(RAYZEN_ROOT, 'apps', 'agent', 'src', 'hooks', 'rayzen-context-hook.mjs')
+  const rodar = (script: string) => ({ type: 'command', command: `node "${script}"` })
+
+  await mkdir(join(projectPath, '.claude'), { recursive: true })
+
+  await writeFile(
+    join(projectPath, '.mcp.json'),
+    `${JSON.stringify({ mcpServers: { rayzen: { command: 'node', args: [mcp] } } }, null, 2)}\n`,
+  )
+
+  await writeFile(
+    join(projectPath, '.claude', 'settings.json'),
+    `${JSON.stringify({
+      hooks: {
+        UserPromptSubmit: [{ matcher: '', hooks: [rodar(ctx)] }],
+        PostToolUse:      [{ matcher: '', hooks: [rodar(hook)] }],
+        Stop:             [{ matcher: '', hooks: [rodar(hook)] }],
+      },
+    }, null, 2)}\n`,
+  )
+
+  return ['.mcp.json', '.claude/settings.json']
+}
+
 function buildGitignore(): string {
   return `# Dependências
 node_modules/
@@ -635,8 +728,7 @@ export async function createProjectFolder(payload: {
   const root = payload.root ?? join(HOME, 'Desktop', 'Projects')
   const resolved = resolve(root)
 
-  const allowed = SAFE_ROOTS.some((r) => resolved.startsWith(resolve(r)))
-  if (!allowed) {
+  if (!isUnderSafeRoot(resolved)) {
     throw new Error(`Pasta raiz não permitida: ${resolved}`)
   }
 
@@ -728,25 +820,8 @@ export async function createProjectFolder(payload: {
     // 10. README melhorado
     await writeFile(join(projectPath, 'README.md'), buildReadme(name, spec, repoSlug))
 
-    // 11. .claude/settings.json com MCP config
-    const apiUrl = process.env.AGENT_API_URL ?? 'http://localhost:3101'
-    await writeFile(
-      join(projectPath, '.claude', 'settings.json'),
-      JSON.stringify({
-        mcpServers: {
-          rayzen: {
-            command: 'node',
-            args: [join(RAYZEN_ROOT, 'apps', 'agent', 'dist', 'mcp-server.js')],
-            env: {
-              AGENT_API_URL: apiUrl,
-              AGENT_TOKEN: process.env.AGENT_TOKEN ?? '<JWT_TOKEN>',
-              PROJECT_ID: projectId ?? '<PROJECT_ID>',
-            },
-          },
-        },
-      }, null, 2),
-    )
-    filesGenerated.push('.claude/settings.json')
+    // 11. Integração com o Rayzen: .mcp.json + hooks (sem segredo, sem projectId fixado)
+    filesGenerated.push(...await escreverIntegracaoRayzen(projectPath))
 
     // 12. docs/templates/blueprint-intake.md — prompt estruturado para importação de planos externos
     const blueprintIntake = readTemplateFile('blueprint-intake.md')
@@ -776,8 +851,18 @@ O hook do Claude Code detecta este projeto automaticamente pelo \`repoSlug: ${re
 
 ## MCP — acesso ao contexto do projeto
 
-O arquivo \`.claude/settings.json\` já foi gerado.
-${projectId ? `O \`PROJECT_ID\` já está preenchido: \`${projectId}\`` : 'Preencha o `PROJECT_ID` após criar o projeto no Rayzen.'}
+O \`.mcp.json\` na raiz já foi gerado e é lá que o Claude Code procura servidores MCP
+de projeto — **não** em \`.claude/settings.json\`, que carrega só os hooks.
+
+Ele **não** guarda token nem \`PROJECT_ID\`, de propósito:
+
+- o token vem do \`hook.config.mjs\` do Rayzen, então nunca entra no histórico deste
+  repositório (este arquivo é commitado no \`git init\` logo após ser gerado);
+- o projeto é resolvido pelo repositório do diretório atual, igual ao hook. Fixar o
+  id faria toda escrita cair sempre no mesmo projeto, independente de onde você está.
+
+Se as tools \`rayzen_*\` não aparecerem, feche e reabra a pasta no VS Code — o
+\`.mcp.json\` é lido na abertura da sessão.
 
 ## Próximos passos
 
@@ -793,24 +878,14 @@ ${projectId ? `O \`PROJECT_ID\` já está preenchido: \`${projectId}\`` : 'Preen
     filesGenerated.push('RAYZEN-SETUP.md')
 
     // 13. Git init + commit inicial
-    try {
-      execSync('git init', { cwd: projectPath, stdio: 'ignore' })
-      execSync('git add .', { cwd: projectPath, stdio: 'ignore' })
-      execSync(`git commit -m "chore: inicializar projeto ${name} via Rayzen AI"`, {
-        cwd: projectPath,
-        stdio: 'ignore',
-        env: { ...process.env, GIT_AUTHOR_NAME: 'Rayzen AI', GIT_COMMITTER_NAME: 'Rayzen AI', GIT_AUTHOR_EMAIL: 'rayzen@local', GIT_COMMITTER_EMAIL: 'rayzen@local' },
-      })
+    if (await gitInitCommit(projectPath, `chore: inicializar projeto ${name} via Rayzen AI`)) {
       filesGenerated.push('.git (init + commit inicial)')
-    } catch { /* git não disponível ou erro no commit — não crítico */ }
+    }
 
     // 14. Abrir no VS Code
     let openedVscode = false
     if (payload.openVscode !== false) {
-      try {
-        execSync(`code "${projectPath}"`, { stdio: 'ignore' })
-        openedVscode = true
-      } catch { /* VS Code não no PATH */ }
+      openedVscode = await abrirVscode(projectPath)
     }
 
     return { path: projectPath, created: true, dryRun: false, openedVscode, projectId, repoSlug, filesGenerated }
@@ -832,9 +907,11 @@ ${projectId ? `O \`PROJECT_ID\` já está preenchido: \`${projectId}\`` : 'Preen
     })
     filesGenerated.push(`(código fonte copiado de ${sourceResolved})`)
 
-    // Remove .git do destino se veio junto
-    try { execSync(`rd /s /q "${join(projectPath, '.git')}"`, { stdio: 'ignore' }) } catch {}
-    try { execSync(`rm -rf "${join(projectPath, '.git')}"`, { stdio: 'ignore' }) } catch {}
+    // Remove .git do destino se veio junto. `rd`/`rm` são comandos internos do shell — não
+    // executáveis de verdade, então nem entravam no escopo de `executarPrograma()` (que
+    // precisa de um programa real no PATH). O `fs.rm` do próprio Node já faz isso sem
+    // nenhum processo-filho, em vez de tentar as duas formas de shell por SO na sorte.
+    await rm(join(projectPath, '.git'), { recursive: true, force: true })
 
     // Garante subpastas de documentação
     for (const sub of TEMPLATE_DIRS.extract_from_client) {
@@ -858,42 +935,19 @@ ${projectId ? `O \`PROJECT_ID\` já está preenchido: \`${projectId}\`` : 'Preen
     )
     filesGenerated.push('RAYZEN-SETUP.md')
 
-    // .claude/settings.json
-    const apiUrl = process.env.AGENT_API_URL ?? 'http://localhost:3101'
-    await mkdir(join(projectPath, '.claude'), { recursive: true })
-    await writeFile(
-      join(projectPath, '.claude', 'settings.json'),
-      JSON.stringify({
-        mcpServers: {
-          rayzen: {
-            command: 'node',
-            args: [join(RAYZEN_ROOT, 'apps', 'agent', 'dist', 'mcp-server.js')],
-            env: {
-              AGENT_API_URL: apiUrl,
-              AGENT_TOKEN: process.env.AGENT_TOKEN ?? '<JWT_TOKEN>',
-              PROJECT_ID: projectId ?? '<PROJECT_ID>',
-            },
-          },
-        },
-      }, null, 2),
-    )
-    filesGenerated.push('.claude/settings.json')
+    // Integração com o Rayzen: mesma função do template rayzen, para os dois não
+    // divergirem de novo — o defeito do token commitado existia nos dois blocos.
+    filesGenerated.push(...await escreverIntegracaoRayzen(projectPath))
 
     // Git init + commit inicial (bootstrap from source)
-    try {
-      execSync('git init', { cwd: projectPath, stdio: 'ignore' })
-      execSync('git add .', { cwd: projectPath, stdio: 'ignore' })
-      execSync(`git commit -m "chore: bootstrap from ${repoSlug.replace('rayzen-', '')} architecture"`, {
-        cwd: projectPath,
-        stdio: 'ignore',
-        env: { ...process.env, GIT_AUTHOR_NAME: 'Rayzen AI', GIT_COMMITTER_NAME: 'Rayzen AI', GIT_AUTHOR_EMAIL: 'rayzen@local', GIT_COMMITTER_EMAIL: 'rayzen@local' },
-      })
+    const mensagemBootstrap = `chore: bootstrap from ${repoSlug.replace('rayzen-', '')} architecture`
+    if (await gitInitCommit(projectPath, mensagemBootstrap)) {
       filesGenerated.push('.git (init + commit bootstrap)')
-    } catch { /* git não crítico */ }
+    }
 
     let openedVscode = false
     if (payload.openVscode !== false) {
-      try { execSync(`code "${projectPath}"`, { stdio: 'ignore' }); openedVscode = true } catch {}
+      openedVscode = await abrirVscode(projectPath)
     }
 
     return { path: projectPath, created: true, dryRun: false, openedVscode, projectId, repoSlug, filesGenerated, needsExtractionSession: true }
@@ -902,10 +956,7 @@ ${projectId ? `O \`PROJECT_ID\` já está preenchido: \`${projectId}\`` : 'Preen
   // Templates não-rayzen: estrutura simples
   let openedVscode = false
   if (payload.openVscode !== false) {
-    try {
-      execSync(`code "${projectPath}"`, { stdio: 'ignore' })
-      openedVscode = true
-    } catch { /* VS Code não no PATH */ }
+    openedVscode = await abrirVscode(projectPath)
   }
 
   return { path: projectPath, created: true, dryRun: false, openedVscode, repoSlug, filesGenerated }

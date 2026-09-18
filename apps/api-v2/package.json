@@ -9,21 +9,23 @@
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "test": "jest",
+    "test:cov": "jest --coverage",
     "db:migrate": "prisma migrate dev --schema prisma/schema.prisma --skip-generate",
     "db:studio": "prisma studio --schema prisma/schema.prisma",
     "db:generate": "prisma generate --schema prisma/schema.prisma"
   },
   "dependencies": {
-    "@fastify/helmet": "^11.1.1",
-    "@nestjs/common": "^10.0.0",
-    "@nestjs/config": "^3.0.0",
-    "@nestjs/core": "^10.0.0",
-    "@nestjs/jwt": "^10.0.0",
-    "@nestjs/platform-fastify": "^10.0.0",
-    "@nestjs/platform-ws": "^10.0.0",
-    "@nestjs/swagger": "^7.0.0",
+    "@fastify/helmet": "^13.0.0",
+    "@fastify/static": "^9.0.0",
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/config": "^4.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/jwt": "^11.0.0",
+    "@nestjs/platform-fastify": "^11.0.0",
+    "@nestjs/platform-ws": "^11.0.0",
+    "@nestjs/swagger": "^11.0.0",
     "@nestjs/throttler": "^6.5.0",
-    "@nestjs/websockets": "^10.0.0",
+    "@nestjs/websockets": "^11.0.0",
     "@prisma/client": "^5.0.0",
     "@rayzen/types": "workspace:*",
     "class-transformer": "^0.5.1",
@@ -32,8 +34,8 @@
     "ws": "^8.21.0"
   },
   "devDependencies": {
-    "@nestjs/cli": "^10.0.0",
-    "@nestjs/testing": "^10.0.0",
+    "@nestjs/cli": "^11.0.0",
+    "@nestjs/testing": "^11.0.0",
     "@types/jest": "^29.5.14",
     "@types/ws": "^8.18.1",
     "@typescript-eslint/eslint-plugin": "^8.59.1",
@@ -57,7 +59,11 @@
     },
     "testEnvironment": "node",
     "moduleNameMapper": {
-      "^@rayzen/types$": "<rootDir>/../../packages/types/src/index.ts"
-    }
+      "^@rayzen/types$": "<rootDir>/../../../packages/types/src/index.ts"
+    },
+    "transformIgnorePatterns": [
+      "/node_modules/",
+      "<rootDir>/../generated/"
+    ]
   }
 }

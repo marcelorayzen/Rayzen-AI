@@ -1,25 +1,25 @@
-# Rayzen em 2 camadas (notebook local + PC de trabalho)
+# Rayzen em 2 camadas (servidor local + PC de trabalho)
 
-## 1) Notebook local (servidor Rayzen)
+## 1) Servidor local (servidor Rayzen)
 
-1. Mantenha a stack central no notebook local, subida via Docker Compose:
+1. Mantenha a stack central no servidor local, subida via Docker Compose:
    - `Postgres`
    - `Redis`
    - `LiteLLM`
    - `API`
    - `Web`
 2. Endpoints atuais:
-   - Rede interna: Web `http://<NOTEBOOK_LOCAL_IP>:3100` · API `http://<NOTEBOOK_LOCAL_IP>:3101`
+   - Rede interna: Web `http://<SERVIDOR_LOCAL_IP>:3100` · API `http://<SERVIDOR_LOCAL_IP>:3101`
    - Acesso externo: via Cloudflare Tunnel — URL pública gerenciada pelo túnel, sem port forwarding e sem IP público exposto diretamente
-3. O banco oficial fica no notebook local. O PC de trabalho não precisa manter Postgres local para operar o Rayzen.
+3. O banco oficial fica no servidor local. O PC de trabalho não precisa manter Postgres local para operar o Rayzen.
 
 ## 2) PC de trabalho (Agent desktop)
 
 1. Clone o repo.
 2. Configure o `.env` usado por `agent-start.bat`:
    - `AGENT_ROLE=desktop`
-   - `AGENT_API_URL=http://<NOTEBOOK_LOCAL_IP>:3101`
-   - `AGENT_TOKEN=<mesmo token configurado no notebook local>`
+   - `AGENT_API_URL=http://<SERVIDOR_LOCAL_IP>:3101`
+   - `AGENT_TOKEN=<mesmo token configurado no servidor local>`
 3. Inicie:
    - `agent-start.bat`
 4. O script:
@@ -44,7 +44,7 @@ O Rayzen usa duas formas de captura:
 
 ```js
 export default {
-  apiUrl: 'http://<NOTEBOOK_LOCAL_IP>:3101',
+  apiUrl: 'http://<SERVIDOR_LOCAL_IP>:3101',
   apiToken: '<jwt-token>',
   projectId: '',
 }
@@ -84,7 +84,7 @@ Exemplo:
       "command": "node",
       "args": ["<CAMINHO_RAYZEN_AI>/apps/agent/dist/mcp-server.js"],
       "env": {
-        "AGENT_API_URL": "http://<NOTEBOOK_LOCAL_IP>:3101",
+        "AGENT_API_URL": "http://<SERVIDOR_LOCAL_IP>:3101",
         "AGENT_TOKEN": "<agent-token>",
         "PROJECT_ID": "<id-do-projeto>"
       }
@@ -100,9 +100,9 @@ Exemplo:
 - Rotacione `AGENT_TOKEN` se houver suspeita de vazamento.
 - Próximo passo recomendado: domínio + HTTPS com proxy reverso.
 
-## 6) Agent do notebook local
+## 6) Agent do servidor local
 
-O Agent do notebook local executa apenas ações próprias do servidor, como:
+O Agent do servidor local executa apenas ações próprias do servidor, como:
 
 - `docker_ps`
 - `docker_logs`
@@ -110,7 +110,7 @@ O Agent do notebook local executa apenas ações próprias do servidor, como:
 - `docker_stop`
 - `restart_api`
 
-Configuração preferida no notebook local: serviço `agent-server` do `docker-compose.yml`.
+Configuração preferida no servidor local: serviço `agent-server` do `docker-compose.yml`.
 
 ```bash
 docker compose build agent-server
@@ -131,9 +131,9 @@ Separação operacional:
 | Papel | Onde roda | Exemplos |
 |---|---|---|
 | `desktop` | PC de trabalho | screenshot, VS Code, clipboard, testes locais, provas visuais |
-| `server` | Notebook local | logs de containers, Docker da stack, restart da API |
+| `server` | Servidor local | logs de containers, Docker da stack, restart da API |
 
-`screenshot` fica no desktop; provas visuais saem da tela real do usuário. No notebook local, a evidência normalmente é log, status de container ou resposta HTTP.
+`screenshot` fica no desktop; provas visuais saem da tela real do usuário. No servidor local, a evidência normalmente é log, status de container ou resposta HTTP.
 
 ## 7) Evidências visuais por projeto
 
@@ -142,7 +142,7 @@ Separação operacional:
 2. O fluxo esperado é:
    - o desktop Agent captura a tela real do PC;
    - salva localmente em `Pictures\Rayzen\<repoSlug>\...`;
-   - faz upload para a API do notebook local;
+   - faz upload para a API do servidor local;
    - cria uma evidência vinculada ao projeto;
    - mostra o item na aba **Evidências**;
    - alimenta o documento **Evidências de teste**.

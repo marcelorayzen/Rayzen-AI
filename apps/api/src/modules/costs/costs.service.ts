@@ -1,12 +1,13 @@
 import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
+import { RayzenConfigService, type RayzenConfig } from '../configuration/configuration.service'
 
 // Custo estimado por 1M tokens (input+output combinado, estimativa conservadora)
 // Fonte: preços Groq/Anthropic 2025
 const MODEL_COST_PER_M: Record<string, number> = {
-  'gpt-4o-premium': 9.00,   // Claude Sonnet 4 direto
-  'gpt-4o':         0.70,   // Groq llama-3.3-70b (primário)
-  'gpt-4o-mini':    0.10,   // Groq llama-3.1-8b (primário)
+  'gpt-4o-premium': 9.00,   // Claude Sonnet direto
+  'gpt-4o':         0.70,   // Groq openai/gpt-oss-120b (primário)
+  'gpt-4o-mini':    0.10,   // Groq openai/gpt-oss-20b (primário)
   'gpt-4o-mini-premium': 1.00, // Claude Haiku direto
 }
 
@@ -24,8 +25,14 @@ const MODULE_MODEL: Record<string, string> = {
   'proactive':          'gpt-4o-mini',
 }
 
-function inferModel(module: string): string {
-  return MODULE_MODEL[module] ?? 'gpt-4o'
+// Módulos cujo modelo NÃO é fixo: quem decide é a configuração, em runtime.
+// Manter a decisão aqui duplicada de `project-state.service.ts` foi exatamente o defeito —
+// o painel cobrava premium ($9,00/1M) enquanto `premiumStateRefresh` era `false` e o módulo
+// rodava em `gpt-4o` ($0,70/1M). Erro de 12,86× num módulo que sozinho respondia por 84% do
+// total exibido: $10,5208 no mês contra ~$2,37 reais.
+const MODULE_MODEL_RUNTIME: Record<string, (cfg: RayzenConfig) => string> = {
+  // espelha project-state.service.ts: `premiumStateRefresh ? 'gpt-4o-premium' : 'gpt-4o'`
+  'project-state': (cfg) => (cfg.premiumStateRefresh ?? false) ? 'gpt-4o-premium' : 'gpt-4o',
 }
 
 function tokensToUSD(tokens: number, model: string): number {
@@ -64,7 +71,21 @@ export interface CostSummary {
 
 @Injectable()
 export class CostsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly rayzenConfig: RayzenConfigService,
+  ) {}
+
+  // Resolve o modelo real do módulo. Estático quando é estático; pela configuração
+  // quando quem decide é o runtime.
+  private inferModel(module: string): string {
+    const emRuntime = MODULE_MODEL_RUNTIME[module]
+    if (emRuntime) {
+      // Config indisponível: cai no estático, que é o comportamento anterior.
+      try { return emRuntime(this.rayzenConfig.getConfig()) } catch { /* abaixo */ }
+    }
+    return MODULE_MODEL[module] ?? 'gpt-4o'
+  }
 
   private periodStart(period: string): Date {
     const now = new Date()
@@ -105,7 +126,7 @@ export class CostsService {
     ])
 
     const moduleRows: ModuleBreakdown[] = byModule.map((r) => {
-      const model = inferModel(r.module)
+      const model = this.inferModel(r.module)
       const tokens = r._sum.tokensUsed ?? 0
       return {
         module: r.module,

@@ -1,4 +1,4 @@
-import { execSync } from 'child_process'
+import { rodarHelper, type ExecutorDeHelper } from '../exec/executar-helper'
 
 export interface CalendarEvent {
   subject: string
@@ -8,38 +8,23 @@ export interface CalendarEvent {
   organizer: string
 }
 
-export async function getCalendar(payload: { days?: number }): Promise<{ events: CalendarEvent[]; date: string }> {
+/**
+ * Migrado na Fase 1. O código anterior formatava `today`/`until` em TypeScript e os
+ * interpolava no corpo de um `.ps1` gerado por template — nunca explorável na prática
+ * (`toLocaleDateString` só produz dígitos e barras), mas exigia confiar nisso para sempre.
+ *
+ * `scripts/outlook-calendar.ps1` recebe só `days` (inteiro, já clampado) por stdin e calcula
+ * as datas do filtro ele mesmo, com `Get-Date` — não há valor externo para desconfiar,
+ * porque não há valor externo nenhum além do inteiro.
+ */
+export async function getCalendar(
+  payload: { days?: number },
+  executor?: ExecutorDeHelper,
+): Promise<{ events: CalendarEvent[]; date: string }> {
   const days = Math.min(payload.days ?? 1, 7)
   const today = new Date().toLocaleDateString('en-US')
-  const until = new Date(Date.now() + days * 86400000).toLocaleDateString('en-US')
 
-  const script = `
-$outlook = New-Object -ComObject Outlook.Application
-$ns = $outlook.GetNamespace("MAPI")
-$calendar = $ns.GetDefaultFolder(9)
-$items = $calendar.Items
-$items.IncludeRecurrences = $true
-$items.Sort("[Start]")
-$filter = "[Start] >= '${today}' AND [Start] <= '${until}'"
-$filtered = $items.Restrict($filter)
-$results = @()
-foreach ($item in $filtered) {
-  $results += [PSCustomObject]@{
-    Subject = $item.Subject
-    Start = $item.Start.ToString("yyyy-MM-dd HH:mm")
-    End = $item.End.ToString("yyyy-MM-dd HH:mm")
-    Location = $item.Location
-    Organizer = $item.Organizer
-  }
-}
-$results | ConvertTo-Json -Compress
-`.trim()
-
-  const output = execSync(`powershell -NoProfile -Command "${script.replace(/\n/g, ' ')}"`, {
-    encoding: 'utf-8',
-    timeout: 15000,
-  }).trim()
-
+  const output = rodarHelper('outlook-calendar', JSON.stringify({ days }), executor).trim()
   if (!output || output === 'null') return { events: [], date: today }
 
   const raw = JSON.parse(output)

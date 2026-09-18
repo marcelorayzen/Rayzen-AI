@@ -1,10 +1,12 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../../prisma/prisma.service'
+import { garantirProjeto } from '../../common/garantir-projeto'
 import { ProjectStateService, ProjectStateData } from '../project-state/project-state.service'
 import { HealthScoreService } from '../health/health.service'
 import { EventService } from '../event/event.service'
 import OpenAI from 'openai'
+import { createLlmClient } from '../../common/llm-client'
 import { randomUUID } from 'crypto'
 import { MetricsService } from '../metrics/metrics.service'
 
@@ -12,6 +14,18 @@ export interface SuccessCriteria {
   id: string
   text: string
   done: boolean
+}
+
+/**
+ * Id do next-step "Confirmar critério concluído: ...".
+ *
+ * Precisa do goalId: o id do critério ('a1', 'b3'...) só é único dentro de uma meta, e
+ * metas diferentes reusam os mesmos. Sem isso, um resíduo de meta antiga fazia o dedup
+ * de warnPendingGoalProposals silenciar o critério homônimo da meta ativa — o projeto
+ * chegou a ter dois "confirmar b3" de metas distintas ao mesmo tempo.
+ */
+export function confirmNextStepId(goalId: string, criteriaId: string): string {
+  return `confirmar-${goalId}-${criteriaId}`
 }
 
 export interface Kpi {
@@ -42,7 +56,18 @@ export interface GoalGraphResponse {
   gapAnalysis: GapAnalysis | null
   healthScore: number
   updatedAt: string
+  /** Quando a gap analysis foi calculada. `null` quando acabou de ser calculada nesta chamada. */
+  gapAnalysisAt?: string | null
 }
+
+/** O que fica gravado em `project_goals.last_gap_analysis`: a análise mais a data dela. */
+type GapAnalysisPersistida = GapAnalysis & { analyzedAt?: string }
+
+/**
+ * Idade a partir da qual a gap analysis é recalculada — em background, nunca bloqueando.
+ * Não é cache de performance: é o intervalo em que vale gastar uma chamada de LLM de ~60s.
+ */
+const GAP_ANALYSIS_TTL_MS = 10 * 60 * 1000
 
 export interface EventNode {
   id: string
@@ -89,8 +114,8 @@ export class GraphService {
     private readonly metrics: MetricsService,
     private readonly events: EventService,
   ) {
-    this.llm = new OpenAI({
-      apiKey: this.config.get('LITELLM_MASTER_KEY') ?? 'sk-rayzen',
+    this.llm = createLlmClient('graph', {
+      apiKey:  this.config.get('LITELLM_MASTER_KEY') ?? 'sk-rayzen',
       baseURL: this.config.get('LITELLM_BASE_URL') ?? 'http://localhost:4100/v1',
     })
   }
@@ -166,37 +191,91 @@ export class GraphService {
       return { goal: null, state, mermaid, gapAnalysis: null, healthScore, updatedAt: new Date().toISOString() }
     }
 
+    // `analyzeGap` é uma chamada de LLM de ~60s, e era feita em TODA requisição: o painel
+    // ficava em "Carregando…" por mais de um minuto. Os 10ms da segunda chamada vinham do
+    // cache do LiteLLM (ttl 300s), cuja chave embute o ProjectState — ou seja, ele errava
+    // justamente quando alguém estava trabalhando. A análise já era gravada em
+    // `lastGapAnalysis` e nunca lida: agora serve-se o valor gravado e recalcula-se fora do
+    // caminho da resposta.
+    const gravada = goal.lastGapAnalysis as GapAnalysisPersistida | null
+
+    if (gravada) {
+      void this.recalcularGapSeVelha(goal.id, projectId, gravada.analyzedAt)
+      return {
+        goal: goal as unknown as Record<string, unknown>,
+        state,
+        mermaid: this.buildGoalMermaid(goal, gravada),
+        gapAnalysis: gravada,
+        healthScore,
+        updatedAt: new Date().toISOString(),
+        gapAnalysisAt: gravada.analyzedAt ?? null,
+      }
+    }
+
+    // Primeira vez para esta meta: não há o que servir, então paga-se o custo uma vez.
+    const gapAnalysis = state ? await this.calcularEGravarGap(goal, projectId) : null
+
+    return {
+      goal: goal as unknown as Record<string, unknown>,
+      state,
+      mermaid: this.buildGoalMermaid(goal, gapAnalysis),
+      gapAnalysis,
+      healthScore,
+      updatedAt: new Date().toISOString(),
+      gapAnalysisAt: gapAnalysis ? new Date().toISOString() : null,
+    }
+  }
+
+  /** Metas com recálculo em voo — evita N chamadas de LLM para N requisições simultâneas. */
+  private readonly gapEmVoo = new Set<string>()
+
+  private async recalcularGapSeVelha(goalId: string, projectId: string, analyzedAt?: string): Promise<void> {
+    // Sem data é análise gravada antes deste campo existir: vale recalcular uma vez.
+    const idadeMs = analyzedAt ? Date.now() - new Date(analyzedAt).getTime() : Infinity
+    if (idadeMs < GAP_ANALYSIS_TTL_MS) return
+    if (this.gapEmVoo.has(goalId)) return
+
+    this.gapEmVoo.add(goalId)
+    try {
+      const [goal, state] = await Promise.all([
+        this.prisma.projectGoal.findUnique({ where: { id: goalId } }),
+        this.stateService.get(projectId),
+      ])
+      if (goal && state) await this.calcularEGravarGap(goal, projectId)
+    } catch (err) {
+      // Falhar aqui não pode derrubar nada: a resposta já foi enviada com o valor gravado.
+      this.logger.warn(`Recálculo da gap analysis falhou (goal ${goalId}): ${String(err)}`)
+    } finally {
+      this.gapEmVoo.delete(goalId)
+    }
+  }
+
+  private async calcularEGravarGap(
+    goal: { id: string; title: string; successCriteria: unknown; kpis: unknown; targetDate: Date | null },
+    projectId: string,
+  ): Promise<GapAnalysis | null> {
+    const state = await this.stateService.get(projectId)
+    if (!state) return null
+
     const recentEvents = await this.prisma.event.findMany({
-      where: {
-        projectId,
-        intent: { in: ['decision', 'problem', 'idea'] },
-      },
+      where: { projectId, intent: { in: ['decision', 'problem', 'idea'] } },
       orderBy: { ts: 'desc' },
       take: 10,
       select: { content: true, intent: true, ts: true },
     })
 
-    const gapAnalysis = state
-      ? await this.analyzeGap(goal, state, recentEvents)
-      : null
+    const gapAnalysis = await this.analyzeGap(goal, state, recentEvents)
+    if (!gapAnalysis) return null
 
-    if (gapAnalysis) {
-      this.prisma.projectGoal.update({
-        where: { id: goal.id },
-        data: { lastGapAnalysis: gapAnalysis as object },
-      }).catch(() => null)
-    }
+    // A data vive DENTRO do JSON de propósito: `updatedAt` da meta é `@updatedAt` e já
+    // responde por toda escrita, então usá-lo como idade da análise repetiria o erro que
+    // motivou o `contentChangedAt` do ProjectState — um campo com dois trabalhos.
+    const persistida: GapAnalysisPersistida = { ...gapAnalysis, analyzedAt: new Date().toISOString() }
+    await this.prisma.projectGoal
+      .update({ where: { id: goal.id }, data: { lastGapAnalysis: persistida as object } })
+      .catch(() => null)
 
-    const mermaid = this.buildGoalMermaid(goal, gapAnalysis)
-
-    return {
-      goal: goal as unknown as Record<string, unknown>,
-      state,
-      mermaid,
-      gapAnalysis,
-      healthScore,
-      updatedAt: new Date().toISOString(),
-    }
+    return gapAnalysis
   }
 
   async upsertGoal(projectId: string, dto: CreateGoalDto) {
@@ -330,7 +409,7 @@ export class GraphService {
     // warnPendingGoalProposals (SynthesisService) colocou em nextSteps — e
     // refresh() não dá garantia de remover (não-determinístico). Remove direto.
     if (done) {
-      void this.removeConfirmNextStep(goal.projectId, criteriaId).catch((e) =>
+      void this.removeConfirmNextStep(goal.projectId, goalId, criteriaId, target?.text).catch((e) =>
         this.logger.warn(`Falha ao limpar next-step de confirmação após toggleCriteria: ${e}`),
       )
     }
@@ -338,21 +417,43 @@ export class GraphService {
     return updated
   }
 
-  private async removeConfirmNextStep(projectId: string, criteriaId: string): Promise<void> {
+  /**
+   * Casa também pelo TÍTULO, não só pelo id.
+   *
+   * O id `confirmar-<criteriaId>` já foi perdido em produção: a síntese devolvia o
+   * passo sem id e o ProjectState recunhava como `next-<i>-<slug>`, deixando um órfão
+   * que nenhuma confirmação conseguia apagar (dois "Confirmar critério concluído:
+   * traces no Langfuse" no estado ao mesmo tempo). A origem está corrigida em
+   * ProjectStateService.titleKey(), mas casar por título também limpa o que já
+   * escapou e sobrevive a qualquer recunhagem futura.
+   */
+  private async removeConfirmNextStep(projectId: string, goalId: string, criteriaId: string, criteriaText?: string): Promise<void> {
     const state = await this.stateService.get(projectId)
     if (!state) return
-    const stepId = `confirmar-${criteriaId}`
-    if (!state.nextSteps.some(s => s.id === stepId)) return
-    await this.stateService.updatePlanning(projectId, {
-      nextSteps: state.nextSteps.filter(s => s.id !== stepId),
-    })
+
+    // `confirmar-<criteriaId>` sem goalId é o formato antigo — ainda em estados gravados
+    // antes da correção, então continua sendo casado.
+    const stepId    = confirmNextStepId(goalId, criteriaId)
+    const legacyId  = `confirmar-${criteriaId}`
+    const textKey   = criteriaText?.trim().toLowerCase()
+    const matches = (s: { id: string; title: string }): boolean =>
+      s.id === stepId || s.id === legacyId ||
+      (Boolean(textKey) && s.title.toLowerCase().startsWith('confirmar critério concluído:') && s.title.toLowerCase().includes(textKey!))
+
+    const remaining = state.nextSteps.filter(s => !matches(s))
+    if (remaining.length === state.nextSteps.length) return
+    await this.stateService.updatePlanning(projectId, { nextSteps: remaining })
   }
 
   async listGoals(projectId: string) {
-    return this.prisma.projectGoal.findMany({
+    const metas = await this.prisma.projectGoal.findMany({
       where: { projectId },
       orderBy: { createdAt: 'desc' },
     })
+    // Lista vazia é resposta legítima (projeto sem meta nenhuma) e id inexistente não é.
+    // Só paga a query quando não há o que devolver — ver `garantirProjeto`.
+    if (metas.length === 0) await garantirProjeto(this.prisma, projectId)
+    return metas
   }
 
   async getEventGraph(projectId: string): Promise<EventGraphData> {
@@ -724,7 +825,20 @@ Priorize gaps de alta severidade primeiro. nextBestAction deve ser em 1 frase cu
 
     const since = new Date(Date.now() - 6 * 60 * 60 * 1000)
     const events = await this.prisma.event.findMany({
-      where: { projectId, ts: { gte: since }, memoryClass: { not: 'archive' } },
+      where: {
+        projectId,
+        ts: { gte: since },
+        memoryClass: { not: 'archive' },
+        // O aviso que warnPendingGoalProposals escreve contém o TEXTO DO CRITÉRIO
+        // literalmente. Sem excluí-lo, o ciclo seguinte lê o próprio aviso, encontra
+        // overlap de vocabulário perfeito e "confirma" a proposta com a evidência que
+        // ele mesmo produziu. Aconteceu em 2026-08-07 às 17:10: o critério c1 foi
+        // proposto com confidence high citando "[idea] Possíveis critérios concluídos
+        // no goal ..." — a saída anterior da própria função. Nenhum limiar de
+        // similaridade pega isso, porque a similaridade é real; o que é falso é a
+        // premissa de que aquele texto é evidência de trabalho feito.
+        NOT: { metadata: { path: ['kind'], equals: 'goal_proposal_pending' } },
+      },
       orderBy: { ts: 'desc' },
       take: 30,
       select: { content: true, intent: true, ts: true },
@@ -732,25 +846,36 @@ Priorize gaps de alta severidade primeiro. nextBestAction deve ser em 1 frase cu
     if (!events.length) return { goalId: goal.id, goalTitle: goal.title, proposals: [] }
 
     const eventsSummary = events
-      .map(e => `[${e.intent ?? 'note'}] ${e.content.slice(0, 150)}`)
+      .map((e, i) => `[${i}] [${e.intent ?? 'note'}] ${e.content.slice(0, 150)}`)
       .join('\n')
 
     const criteriaSummary = pending
       .map(c => `ID: ${c.id} | ${c.text}`)
       .join('\n')
 
-    const prompt = `Você é um assistente de gestão de projetos. Com base na atividade da sessão, determine quais critérios de sucesso foram possivelmente concluídos.
+    // O modelo precisa APONTAR o evento que sustenta a proposta, não descrevê-lo com
+    // as próprias palavras: uma reason em prosa é inverificável e foi exatamente o que
+    // produziu o falso positivo (um aprendizado sobre inferência de specialist virou
+    // "evidência" de que traces do Langfuse tinham sido verificados). Com índice, o
+    // servidor confere a evidência contra o evento real antes de aceitar.
+    const prompt = `Você é um assistente de gestão de projetos. Com base na atividade da sessão, determine quais critérios de sucesso foram CONCLUÍDOS.
 
 GOAL: ${goal.title}
 
 CRITÉRIOS PENDENTES:
 ${criteriaSummary}
 
-ATIVIDADE DA SESSÃO (últimas 6h, ${events.length} eventos):
+ATIVIDADE DA SESSÃO (últimas 6h, ${events.length} eventos, indexados de 0 a ${events.length - 1}):
 ${eventsSummary}
 
-Retorne EXATAMENTE este JSON (sem markdown), apenas para critérios com evidência real de conclusão:
-{"proposals":[{"criteriaId":"id exato","text":"texto do critério","confidence":"high|medium|low","reason":"evidência específica (1 frase)"}]}
+Regras:
+- Só proponha um critério se algum evento da lista comprovar a conclusão DELE especificamente.
+- criteriaId deve ser copiado EXATAMENTE de um dos IDs acima — nunca invente.
+- evidenceEventIndexes deve conter os índices dos eventos que comprovam a conclusão.
+- Trabalhar em algo relacionado NÃO é concluir. Na dúvida, não proponha.
+
+Retorne EXATAMENTE este JSON (sem markdown):
+{"proposals":[{"criteriaId":"id exato","confidence":"high|medium|low","evidenceEventIndexes":[0]}]}
 
 Se não houver evidência suficiente, retorne {"proposals":[]}.`
 
@@ -765,16 +890,126 @@ Se não houver evidência suficiente, retorne {"proposals":[]}.`
       const tokens = res.usage?.total_tokens ?? 0
       this.metrics.llmTokensTotal.inc({ module: 'graph', model: 'gpt-local' }, tokens)
       this.metrics.llmRequestDuration.observe({ module: 'graph', model: 'gpt-local' }, (Date.now() - start) / 1000)
-      const parsed = this.extractJson(raw) as { proposals: Array<{ criteriaId: string; text: string; confidence: string; reason: string }> }
-      const proposals = (parsed.proposals ?? []).map(p => ({
-        ...p,
-        confidence: (['high', 'medium', 'low'].includes(p.confidence) ? p.confidence : 'medium') as 'high' | 'medium' | 'low',
-      }))
+      const parsed = this.extractJson(raw) as { proposals?: unknown }
+      const proposals = this.validateGoalProposals(parsed.proposals, pending, events)
       return { goalId: goal.id, goalTitle: goal.title, proposals }
     } catch (err) {
       this.logger.warn(`proposeGoalProgress LLM falhou: ${err}`)
       return { goalId: goal.id, goalTitle: goal.title, proposals: [] }
     }
+  }
+
+  // Palavras que aparecem em qualquer par de textos em pt-BR/en — se contassem como
+  // evidência compartilhada, o gate de grounding viraria carimbo.
+  private static readonly GROUNDING_STOPWORDS = new Set([
+    'para', 'como', 'mais', 'pelo', 'pela', 'esse', 'essa', 'isso', 'este', 'esta',
+    'quando', 'onde', 'porque', 'sobre', 'entre', 'ainda', 'depois', 'antes', 'todo',
+    'toda', 'todos', 'todas', 'sendo', 'foram', 'estao', 'apenas', 'tambem', 'nao',
+    'from', 'that', 'this', 'with', 'have', 'been', 'were', 'what', 'when', 'then',
+    // Vocabulário estrutural do próprio domínio: aparece no texto de quase todo
+    // critério E em quase todo evento, então só produz coincidência. "project"
+    // sozinho já aprovou um falso positivo ("6 módulos congelados", que contém
+    // project-memory, casando com "Bash: Invalidate project state cache").
+    'criterio', 'criterios', 'projeto', 'project', 'sessao', 'evento', 'eventos',
+    'bloco', 'blocos', 'item', 'itens', 'task', 'tasks',
+  ])
+
+  /** Tokens em comum exigidos entre critério e evento citado para aceitar a proposta. */
+  private static readonly MIN_SHARED_TOKENS = 2
+
+  /**
+   * Reduz um texto ao conjunto de tokens que podem sustentar evidência: sem acento,
+   * sem pontuação, sem palavra curta, sem palavra vazia.
+   */
+  private groundingTokens(text: string): Set<string> {
+    return new Set(
+      text
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .split(/[^a-z0-9]+/)
+        .filter(t => t.length >= 4 && !GraphService.GROUNDING_STOPWORDS.has(t)),
+    )
+  }
+
+  /**
+   * Aceita uma proposta do LLM só quando ela é verificável contra dados reais.
+   *
+   * Motivo: um checkpoint propôs "traces dos specialists visíveis no Langfuse" como
+   * concluído citando, como evidência, um aprendizado sobre o `infer()` do
+   * SpecialistRegistry — assunto sem nenhuma relação. Como a saída do LLM era aceita
+   * crua, a proposta entrou com confidence "high", virou next-step e passou a ser
+   * injetada no contexto de toda sessão. Num sistema em que o humano confirma o
+   * critério, um falso positivo é pior que um falso negativo: ele pede a confirmação
+   * de algo que não aconteceu.
+   *
+   * Quatro barreiras, todas determinísticas:
+   *  1. criteriaId tem que existir entre os pendentes (mata id alucinado)
+   *  2. os índices de evidência têm que apontar para eventos que existem
+   *  3. o evento citado tem que compartilhar vocabulário com o critério (grounding)
+   *  4. `text` vem SEMPRE do banco, nunca do LLM
+   */
+  private validateGoalProposals(
+    raw: unknown,
+    pending: SuccessCriteria[],
+    events: Array<{ content: string; intent: string | null }>,
+  ): Array<{ criteriaId: string; text: string; confidence: 'high' | 'medium' | 'low'; reason: string }> {
+    if (!Array.isArray(raw)) return []
+
+    const pendingById = new Map(pending.map(c => [c.id, c]))
+    const accepted: Array<{ criteriaId: string; text: string; confidence: 'high' | 'medium' | 'low'; reason: string }> = []
+    const seen = new Set<string>()
+
+    for (const item of raw) {
+      if (!item || typeof item !== 'object') continue
+      const p = item as Record<string, unknown>
+
+      const criteria = pendingById.get(typeof p.criteriaId === 'string' ? p.criteriaId.trim() : '')
+      if (!criteria) {
+        this.logger.warn(`Proposta descartada: criteriaId "${String(p.criteriaId)}" não está entre os critérios pendentes`)
+        continue
+      }
+      if (seen.has(criteria.id)) continue
+
+      const indexes = (Array.isArray(p.evidenceEventIndexes) ? p.evidenceEventIndexes : [])
+        .filter((n): n is number => Number.isInteger(n) && (n as number) >= 0 && (n as number) < events.length)
+      if (indexes.length === 0) {
+        this.logger.warn(`Proposta descartada para "${criteria.id}": nenhum índice de evidência válido`)
+        continue
+      }
+
+      const cited = indexes.map(i => events[i])
+      const criteriaTokens = this.groundingTokens(criteria.text)
+      const evidenceTokens = this.groundingTokens(cited.map(e => e.content).join(' '))
+      const shared = [...criteriaTokens].filter(t => evidenceTokens.has(t))
+      // Um token em comum é coincidência, não evidência — foi assim que "Bash:
+      // Invalidate project state cache" virou prova de "6 módulos congelados"
+      // (o único elo era "project", de "project-memory"). Dois tokens já exigem
+      // que o evento fale mesmo do assunto.
+      if (shared.length < GraphService.MIN_SHARED_TOKENS) {
+        this.logger.warn(
+          `Proposta descartada para "${criteria.id}": evidência fraca demais ` +
+          `(${shared.length} token(s) em comum: ${shared.join(', ') || 'nenhum'})`,
+        )
+        continue
+      }
+
+      const confidence = typeof p.confidence === 'string' && ['high', 'medium', 'low'].includes(p.confidence)
+        ? p.confidence as 'high' | 'medium' | 'low'
+        : 'medium'
+
+      seen.add(criteria.id)
+      accepted.push({
+        criteriaId: criteria.id,
+        text:       criteria.text,   // do banco — o LLM não escreve o texto do critério
+        confidence,
+        // A reason é o evento real citado, não a prosa do LLM: é o que o humano precisa
+        // ler pra julgar, e é auditável.
+        reason: cited.map(e => `[${e.intent ?? 'note'}] ${e.content.slice(0, 120)}`).join(' | '),
+      })
+    }
+
+    return accepted
   }
 
   private extractJson(raw: string): unknown {

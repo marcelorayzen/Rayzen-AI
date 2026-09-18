@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { V2_URL } from '../../lib/api-url'
 import { authHeaders } from '../../lib/api-client'
 import { HelpTip } from '../components/HelpTip'
+import { DocsPanel } from '../components/DocsPanel'
 
 interface CatalogEntry {
   catalogId:     string | null
@@ -181,6 +182,7 @@ export default function CatalogPage() {
           Nenhum projeto ativo encontrado.
         </div>
       )}
+      <DocsPanel topicId="catalog" />
     </div>
   )
 }

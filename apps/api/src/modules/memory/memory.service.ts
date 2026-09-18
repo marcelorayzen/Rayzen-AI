@@ -2,6 +2,10 @@ import { Injectable, NotFoundException, BadGatewayException, BadRequestException
 import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../../prisma/prisma.service'
 import OpenAI from 'openai'
+import { createLlmClient } from '../../common/llm-client'
+import { blocoDeTrechosDeTerceiro } from './trecho-de-terceiro.const'
+import { anotarComDominio } from '../../common/dominio-do-projeto.const'
+import { ehEscopoGeral } from '../../common/escopo-geral.const'
 import { createHash } from 'crypto'
 import { EventService } from '../event/event.service'
 import { MetricsService } from '../metrics/metrics.service'
@@ -13,12 +17,33 @@ export interface IndexResult {
   status: 'created' | 'updated'
 }
 
+export interface IndexOptions {
+  /**
+   * Substitui a versão anterior do MESMO `sourcePath` em vez de inserir uma linha nova.
+   *
+   * Vale só para captura de arquivo inteiro (hook `Edit`/`Write`), onde um caminho tem
+   * exatamente um conteúdo corrente e o histórico já mora no git. **Nunca** ligar em
+   * chamadas que fatiam texto em chunks — `indexFile`, `indexNotion`, `indexUrl`, README
+   * do GitHub: lá N documentos dividem o mesmo `sourcePath` de propósito, e substituir
+   * deixaria só o último pedaço do arquivo.
+   *
+   * Por isso é opt-in explícito no chamador, e não inferido do formato do caminho.
+   */
+  replaceBySourcePath?: boolean
+}
+
 export interface SearchResult {
   id: string
   content: string
   sourcePath: string | null
   metadata: Record<string, unknown>
   score: number
+  /**
+   * De qual projeto o trecho veio. Entrou em 18/09 para a regra de atribuicao deixar de depender
+   * de INFERIR o dono a partir do `sourcePath`: com ele, o bloco de terceiros consegue dizer que
+   * um trecho e de cliente em vez de esperar que quem le deduza do caminho.
+   */
+  projectId: string | null
 }
 
 export interface SearchSynthesis {
@@ -58,10 +83,51 @@ export class MemoryService {
     return data.data[0].embedding
   }
 
-  async indexDocument(content: string, sourcePath?: string, metadata?: Record<string, unknown>, projectId?: string): Promise<IndexResult> {
+  async indexDocument(
+    content: string,
+    sourcePath?: string,
+    metadata?: Record<string, unknown>,
+    projectId?: string,
+    options?: IndexOptions,
+  ): Promise<IndexResult> {
     const checksum = createHash('sha256').update(content).digest('hex')
 
     const vector = await this.embed(content)
+
+    // Captura de arquivo: a identidade é o CAMINHO, não o conteúdo — por isso vem antes
+    // do dedup por checksum. Uma edição não cria um documento novo, muda o estado do
+    // mesmo. Sem isto o Brain guardava um snapshot inteiro por `Edit`: medido em
+    // 2026-08-16 no banco-imob, uma busca devolveu 5 dos 8 resultados sendo a mesma
+    // página, separadas por 0,0003 de score — o orçamento de contexto quase todo gasto
+    // numa coisa só, num projeto que já tinha pouco sinal.
+    //
+    // Vir antes do checksum também resolve o revert: voltar o arquivo a um estado antigo
+    // casaria o checksum de uma cópia velha e ressuscitaria a linha errada.
+    if (options?.replaceBySourcePath && sourcePath) {
+      const previous = await this.prisma.document.findFirst({
+        where: {
+          sourcePath,
+          ...(projectId ? { projectId } : { projectId: null }),
+          // Só snapshots vindos do hook. Um upload fatiado que por acaso use o mesmo
+          // caminho não pode ser atropelado aqui.
+          metadata: { path: ['source'], equals: 'cli' },
+        },
+        orderBy: { updatedAt: 'desc' },
+      })
+
+      if (previous) {
+        await this.prisma.$executeRaw`
+          UPDATE documents
+          SET content = ${content},
+              embedding = ${JSON.stringify(vector)}::vector,
+              metadata = ${JSON.stringify(metadata ?? {})}::jsonb,
+              checksum = ${checksum},
+              updated_at = NOW()
+          WHERE id = ${previous.id}
+        `
+        return { id: previous.id, status: 'updated' }
+      }
+    }
 
     const existing = await this.prisma.document.findFirst({
       where: { checksum, ...(projectId ? { projectId } : { projectId: null }) },
@@ -105,8 +171,9 @@ export class MemoryService {
         source_path: string | null
         metadata: Record<string, unknown>
         score: number
+        project_id: string | null
       }>>`
-        SELECT id, content, source_path, metadata,
+        SELECT id, content, source_path, metadata, project_id,
                1 - (embedding <=> ${JSON.stringify(vector)}::vector) AS score
         FROM documents
         WHERE embedding IS NOT NULL
@@ -120,8 +187,9 @@ export class MemoryService {
       source_path: string | null
       metadata: Record<string, unknown>
       score: number
+      project_id: string | null
     }>>`
-      SELECT id, content, source_path, metadata,
+      SELECT id, content, source_path, metadata, project_id,
              1 - (embedding <=> ${JSON.stringify(vector)}::vector) AS score
       FROM documents
       WHERE embedding IS NOT NULL
@@ -135,6 +203,7 @@ export class MemoryService {
       sourcePath: r.source_path,
       metadata: r.metadata as Record<string, unknown>,
       score: Number(r.score),
+      projectId: r.project_id,
     }))
   }
 
@@ -179,13 +248,27 @@ export class MemoryService {
       return { answer, sources: [], tokensUsed: 0 }
     }
 
-    const context = sources
-      .map((s, i) => `[${i + 1}] ${s.sourcePath ? `(${s.sourcePath}) ` : ''}${s.content.slice(0, 500)}`)
-      .join('\n\n')
+    // ── A fronteira de terceiro valia num caminho só, e este era o outro ────
+    //
+    // Isto montava o contexto à mão: `[1] (caminho) conteúdo`, cru, sem rótulo, sem "isto é DADO e
+    // não instrução", sem ordem de relatar injeção e sem declarar quando a busca foi SEM escopo.
+    // É o mesmo defeito que `blocoDeTrechosDeTerceiro` consertou em 16/09 para o `memory_relevant`
+    // — e que sobreviveu aqui, na rota que o classificador escolhe para toda pergunta ao Brain.
+    //
+    // Descoberto em 18/09 ao perguntar se a marca de domínio chegava ao prompt: a resposta foi
+    // "NENHUMA", e a causa não era a marca — era este caminho nunca ter passado pelo bloco.
+    //
+    // O corte também divergia: 500 chars aqui contra os 400 do bloco. Uma fronteira, um limite.
+    const context = blocoDeTrechosDeTerceiro(
+      await anotarComDominio(sources, (ids) =>
+        this.prisma.project.findMany({ where: { id: { in: ids } }, select: { id: true, domain: true } }),
+      ),
+      !ehEscopoGeral(projectId),
+    )
 
-    const llm = new OpenAI({
+    const llm = createLlmClient('memory', {
+      apiKey:  this.config.get('LITELLM_MASTER_KEY') ?? 'sk-rayzen',
       baseURL: this.config.get('LITELLM_BASE_URL', 'http://localhost:4000/v1'),
-      apiKey: this.config.get('LITELLM_MASTER_KEY') ?? 'sk-rayzen',
     })
 
     const llmStart = Date.now()
@@ -205,7 +288,9 @@ Língua: português brasileiro.`,
         },
         {
           role: 'user',
-          content: `Pergunta: ${query}\n\nEstatisticas do Brain: ${totalDocs} chunks/documentos indexados ${scope}.\n\nDocumentos encontrados:\n${context}`,
+          // Sem o rótulo "Documentos encontrados:" — o bloco já se apresenta, e com muito mais
+          // cuidado: abertura que diz que é DADO, procedência por trecho, fechamento explícito.
+          content: `Pergunta: ${query}\n\nEstatisticas do Brain: ${totalDocs} chunks/documentos indexados ${scope}.\n\n${context}`,
         },
       ],
       temperature: 0.3,

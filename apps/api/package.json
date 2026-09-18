@@ -17,19 +17,16 @@
     "db:generate": "prisma generate"
   },
   "dependencies": {
-    "@bull-board/api": "^6.20.6",
-    "@bull-board/fastify": "^6.20.6",
-    "@bull-board/nestjs": "^6.20.6",
-    "@fastify/helmet": "^11.1.1",
-    "@fastify/multipart": "^8.3.1",
-    "@fastify/static": "^7.0.4",
-    "@nestjs/bull": "^10.0.0",
-    "@nestjs/common": "^10.0.0",
-    "@nestjs/config": "^3.0.0",
-    "@nestjs/core": "^10.0.0",
-    "@nestjs/jwt": "^10.0.0",
-    "@nestjs/platform-fastify": "^10.0.0",
-    "@nestjs/swagger": "^7.0.0",
+    "@fastify/helmet": "^13.0.0",
+    "@fastify/multipart": "^10.0.0",
+    "@fastify/static": "^9.0.0",
+    "@nestjs/bull": "^11.0.0",
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/config": "^4.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/jwt": "^11.0.0",
+    "@nestjs/platform-fastify": "^11.0.0",
+    "@nestjs/swagger": "^11.0.0",
     "@nestjs/throttler": "^6.5.0",
     "@notionhq/client": "^5.16.0",
     "@prisma/client": "^5.0.0",
@@ -51,8 +48,8 @@
     "redis": "^5.12.1"
   },
   "devDependencies": {
-    "@nestjs/cli": "^10.0.0",
-    "@nestjs/testing": "^10.0.0",
+    "@nestjs/cli": "^11.0.0",
+    "@nestjs/testing": "^11.0.0",
     "@types/jest": "^29.5.14",
     "@types/pdf-parse": "^1.1.5",
     "@typescript-eslint/eslint-plugin": "^8.59.1",
@@ -104,7 +101,7 @@
     ],
     "testEnvironment": "node",
     "moduleNameMapper": {
-      "^@rayzen/types$": "<rootDir>/../../packages/types/src/index.ts"
+      "^@rayzen/types$": "<rootDir>/../../../packages/types/src/index.ts"
     }
   }
 }

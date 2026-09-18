@@ -53,9 +53,30 @@ export function useChatStream(activeProjectId: string | null) {
   const bottomRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
 
+  // ── Perguntar ao servidor em qual conversa escrever, em vez de cunhar uma ──
+  //
+  // Isto era `setSessionId(createSessionId())`: id novo a CADA carregamento de página. Medido em
+  // produção (18/09): 254 de 270 conversas com um único turno, e 57 delas começadas a menos de 5
+  // minutos do fim da anterior — o turno 2 virava sessão nova.
+  //
+  // A política vive no servidor de propósito. Se cada canal decidisse sozinho, "unificar" seria
+  // combinar clientes a se comportarem igual, que é acordo e não mecanismo; perguntando, a web e o
+  // Telegram caem no mesmo fio e a conversa atravessa.
+  //
+  // O `createSessionId()` local continua como reserva: falha de rede não pode deixar o chat sem
+  // sessão. Aí a conversa fica só local, que é exatamente o comportamento de antes.
   useEffect(() => {
-    setSessionId(createSessionId())
-  }, [])
+    let vivo = true
+    const escopo = activeProjectId ? `?projectId=${encodeURIComponent(activeProjectId)}` : ''
+    fetch(`${API_URL}/sessions/atual${escopo}`, { headers: authHeaders() })
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((d: { sessionId?: string }) => {
+        if (vivo && d?.sessionId) setSessionId(d.sessionId)
+        else if (vivo) setSessionId(createSessionId())
+      })
+      .catch(() => { if (vivo) setSessionId(createSessionId()) })
+    return () => { vivo = false }
+  }, [activeProjectId])
 
   useEffect(() => {
     fetch(`${API_URL}/sessions/tokens`, { headers: authHeaders() })

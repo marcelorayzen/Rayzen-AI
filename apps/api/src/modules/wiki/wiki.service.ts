@@ -265,15 +265,26 @@ export class WikiService {
 
   // ─── Create (direct, sem LLM) ───────────────────────────────────────────────
 
-  async create(slug: string, title: string, contentMd: string): Promise<WikiPage> {
+  // projectId opcional: quando o chamador conhece o projeto, a página nasce vinculada.
+  // Sem ele a wiki fica órfã e não aparece em nenhum filtro por projeto — era assim que
+  // 94 de 110 páginas ficaram sem dono (ver incidente da Urna, 2026-08-03).
+  async create(slug: string, title: string, contentMd: string, projectId?: string): Promise<WikiPage> {
     const existing = await this.prisma.wikiPage.findFirst({ where: { slug } })
     if (existing) {
       return this.prisma.wikiPage.update({
         where: { id: existing.id },
-        data: { title, contentMd, editStatus: 'human_edited' },
+        data: {
+          title,
+          contentMd,
+          editStatus: 'human_edited',
+          // só preenche se veio agora — nunca apaga um vínculo já existente
+          ...(projectId && !existing.projectId ? { projectId } : {}),
+        },
       })
     }
-    return this.prisma.wikiPage.create({ data: { slug, title, contentMd, editStatus: 'human_edited' } })
+    return this.prisma.wikiPage.create({
+      data: { slug, title, contentMd, editStatus: 'human_edited', ...(projectId ? { projectId } : {}) },
+    })
   }
 
   // ─── Capture learning (write-back loop) ──────────────────────────────────────

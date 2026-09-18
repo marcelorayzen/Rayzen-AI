@@ -16,6 +16,9 @@ export interface CreateAuditEntryDto {
   workspace?: string
   hostname?: string
   targetRole?: string
+  /** Item C.3 do plano de execução tipada — quem aprovou a execução, quando uma aprovação foi
+   * de fato consumida. Vem de `RunCommandResult.aprovadoPor` (`apps/agent`), via `poller.ts`. */
+  approvedBy?: string
 }
 
 @Injectable()
@@ -39,6 +42,7 @@ export class AuditLogService {
         workspace: dto.workspace ?? null,
         hostname: dto.hostname ?? null,
         targetRole: dto.targetRole ?? null,
+        approvedBy: dto.approvedBy ?? null,
       },
     })
   }

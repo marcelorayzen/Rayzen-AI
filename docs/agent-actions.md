@@ -2,7 +2,7 @@
 
 > 🤖 **GERADO AUTOMATICAMENTE** por `scripts/gen-agent-catalog.mjs` — não edite à mão.
 > Fonte de verdade: `whitelist.ts` · Metadata: `skill-registry.ts` (V2)
-> Gerado em: 2026-08-02T00:33:27.195Z
+> Gerado em: 2026-09-13T19:10:36.487Z
 
 **Total: 44 ações** · 🔴 5 high · 🟡 8 medium · 🟢 10 low · 🟢 21 none · ⚠️ 0 sem metadata
 
@@ -36,8 +36,7 @@
 | `jarvis:run_tests` | Run Tests | 🟢 low | agent-desktop | qa | ✓ |
 | `jarvis:inspect_schema` | Inspect Schema | 🟢 none | agent-desktop | data | ✓ |
 | `jarvis:parse_test_report` | Parse Test Report | 🟢 none | agent-desktop | qa | ✓ |
-| `jarvis:get_qa_summary` | QA Summary | 🟢 none | agent-desktop | qa | ✓ |
-| `jarvis:get_data_quality` | Data Quality | 🟢 none | agent-desktop | data | ✓ |
+| `jarvis:get_qa_summary` | QA Summary | 🟢 none | agent-server | qa | ✓ |
 | `jarvis:capture_test_failure` | Capture Test Failure | 🟢 none | agent-desktop | qa | ✓ |
 | `jarvis:prisma_generate` | Prisma Generate | 🟢 low | agent-desktop | data | ✓ |
 | `jarvis:prisma_migrate` | Prisma Migrate | 🔴 high | agent-desktop | data | ✓ |
@@ -51,6 +50,16 @@
 | `jarvis:get_calendar` | Get Calendar | 🟢 none | agent-desktop | calendar | ✓ |
 | `jarvis:run_graphify` | Run Graphify | 🟢 low | agent-server | system | ✓ |
 | `jarvis:graphify_sync` | Graphify Sync | 🟢 low | agent-server | system | ✓ |
+| `jarvis:guardian_analyze` | Guardian Analyze | 🟢 none | agent-desktop | system | ✓ |
 | `jarvis:supervised_session` | Supervised Session | 🔴 high | agent-server | system | ✓ |
 
-✅ Sem drift: whitelist e registry estão sincronizados.
+## ⚠️ Metadata órfã (registry sem whitelist)
+
+Skills definidas no registry mas ausentes na whitelist — ação não executável:
+
+- `guardian:status`
+- `guardian:history`
+- `guardian:override`
+- `guardian:review_gates`
+- `guardian:approve_review`
+- `guardian:reject_review`

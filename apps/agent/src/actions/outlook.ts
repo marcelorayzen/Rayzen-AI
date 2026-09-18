@@ -1,20 +1,21 @@
-import { execSync } from 'child_process'
-import { writeFileSync, unlinkSync } from 'fs'
-import { join } from 'path'
-import { tmpdir } from 'os'
+import { rodarHelper, type ExecutorDeHelper } from '../exec/executar-helper'
 
-function runPs(script: string): string {
-  const file = join(tmpdir(), `rayzen-${Date.now()}.ps1`)
-  writeFileSync(file, script, 'utf-8')
-  try {
-    return execSync(`powershell -NoProfile -ExecutionPolicy Bypass -File "${file}"`, {
-      encoding: 'utf-8',
-      timeout: 15000,
-    })
-  } finally {
-    try { unlinkSync(file) } catch { /* ignora */ }
-  }
-}
+/**
+ * Migrado na Fase 1 — e é o achado mais sério dela.
+ *
+ * O código anterior gerava um `.ps1` por template string, com `$mail.To = "${to}"` dentro
+ * de aspas DUPLAS do PowerShell. `to` vem de payload (endereço de e-mail), validado só com
+ * `.includes('@')`. `$( )` dentro de aspas duplas do PowerShell é subexpressão: um payload
+ * `to: 'x$(calc.exe)'` produzia um script contendo literalmente `.To = "x$(calc.exe)"`, e o
+ * PowerShell EXECUTARIA `calc.exe` ao simplesmente atribuir a propriedade — antes de
+ * qualquer `.Send()`. `subject`/`body` usavam here-string (`@'...'@`), mais resistente, mas
+ * quebrável por uma linha igual a `'@` no início.
+ *
+ * Nunca tinha sido testado adversarialmente como `clipboard_write`/`notify` foram na
+ * Fase 1-A — a Fase 0 nem chegou a olhar este arquivo. A cura é a mesma: `helperFixo`,
+ * payload por stdin como JSON, lido com `ConvertFrom-Json` e atribuído direto à propriedade
+ * do objeto COM. Ver `scripts/outlook-send.ps1`.
+ */
 
 export interface EmailSummary {
   subject: string
@@ -24,43 +25,13 @@ export interface EmailSummary {
   unread: boolean
 }
 
-export async function readEmails(payload: { limit?: number; folder?: string }): Promise<{ emails: EmailSummary[] }> {
+export async function readEmails(
+  payload: { limit?: number; folder?: string },
+  executor?: ExecutorDeHelper,
+): Promise<{ emails: EmailSummary[] }> {
   const limit = Math.min(payload.limit ?? 5, 20)
 
-  const script = `
-try {
-  $outlook = New-Object -ComObject Outlook.Application
-} catch {
-  Write-Error "OUTLOOK_NOT_RUNNING: $_"
-  exit 1
-}
-$ns = $outlook.GetNamespace("MAPI")
-$folder = $ns.GetDefaultFolder(6)
-$items = $folder.Items
-$items.Sort("[ReceivedTime]", $true)
-$count = 0
-$results = @()
-foreach ($item in $items) {
-  if ($count -ge ${limit}) { break }
-  $preview = ""
-  try { $preview = $item.Body.Substring(0, [Math]::Min(150, $item.Body.Length)).Trim() } catch {}
-  $results += [PSCustomObject]@{
-    Subject    = $item.Subject
-    From       = $item.SenderName
-    ReceivedAt = $item.ReceivedTime.ToString("yyyy-MM-dd HH:mm")
-    Preview    = $preview
-    Unread     = $item.UnRead
-  }
-  $count++
-}
-if ($results.Count -eq 0) {
-  Write-Output "[]"
-} else {
-  $results | ConvertTo-Json -Compress
-}
-`
-
-  const output = runPs(script).trim()
+  const output = rodarHelper('outlook-read', JSON.stringify({ limit }), executor).trim()
   if (!output) throw new Error('Outlook não está aberto ou não respondeu. Abra o Outlook e tente novamente.')
   const raw = JSON.parse(output)
   const emails = (Array.isArray(raw) ? raw : [raw]).map((e: Record<string, unknown>) => ({
@@ -74,12 +45,10 @@ if ($results.Count -eq 0) {
   return { emails }
 }
 
-export async function sendEmail(payload: {
-  to: string
-  subject: string
-  body: string
-  dryRun?: boolean
-}): Promise<{ sent: boolean; to: string; subject: string; dryRun: boolean }> {
+export async function sendEmail(
+  payload: { to: string; subject: string; body: string; dryRun?: boolean },
+  executor?: ExecutorDeHelper,
+): Promise<{ sent: boolean; to: string; subject: string; dryRun: boolean }> {
   const { to, subject, body, dryRun = true } = payload
 
   if (!to.includes('@')) throw new Error(`Endereço inválido: ${to}`)
@@ -90,20 +59,6 @@ export async function sendEmail(payload: {
     return { sent: false, to, subject, dryRun: true }
   }
 
-  const script = `
-$outlook = New-Object -ComObject Outlook.Application
-$mail = $outlook.CreateItem(0)
-$mail.To = "${to}"
-$mail.Subject = @'
-${subject}
-'@
-$mail.Body = @'
-${body}
-'@
-$mail.Send()
-Write-Output "sent"
-`
-
-  runPs(script)
+  rodarHelper('outlook-send', JSON.stringify({ to, subject, body }), executor)
   return { sent: true, to, subject, dryRun: false }
 }

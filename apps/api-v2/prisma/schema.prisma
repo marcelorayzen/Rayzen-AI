@@ -264,6 +264,59 @@ model GuardianReport {
   @@map("guardian_reports")
 }
 
+// ─── Invariantes do sistema ───────────────────────────────────────────────────
+//
+// O Guardian responde "o que você acabou de mudar tem teste?". Isto responde uma
+// pergunta diferente e mais ampla: "o estado do sistema bate com o que ele deveria
+// ser?". Existe porque toda falha séria de 2026-08 passou despercebida do mesmo
+// jeito — nada dava erro, tudo reportava sucesso, e o dado estava errado: relógio
+// 115 dias atrasado, projeto principal fora do project_catalog, gate aprovado que
+// não promovia, estratégias com resultado e fitnessScore null.
+
+model InvariantReport {
+  id         String   @id @default(uuid())
+  projectId  String   @map("project_id")
+  totalOk    Int      @map("total_ok")
+  totalFalha Int      @map("total_falha")
+  gravidadeMax String @map("gravidade_max")  // ok|baixa|media|alta
+  resumo     String
+  resultados Json                             // InvariantResult[] — um por check
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([projectId, createdAt])
+  @@schema("v2")
+  @@map("invariant_reports")
+}
+
+// ─── System Status — quais ciclos estão batendo ──────────────────────────────
+
+/// Batimento dos ciclos automáticos. Uma linha por componente, sobrescrita.
+///
+/// Separado da SAÍDA de propósito. Derivar "está rodando?" das tabelas de
+/// resultado reconstruiria a ambiguidade que custou tempo em 2026-08-15: o
+/// `agent_audit_logs` ficou 50 dias sem linha nova e a conclusão natural — "o
+/// gravador morreu" — estava errada; não havia o que gravar. Silêncio de saída
+/// não distingue "morreu" de "vivo e quieto".
+model SystemHeartbeat {
+  /// Id do componente em system-components.const.ts — a expectativa declarada.
+  component     String    @id
+  /// Toda execução, gravado em `finally`. Sem isto, um ciclo que lança antes de
+  /// reportar fica idêntico a um ciclo que nunca subiu.
+  lastAttemptAt DateTime  @map("last_attempt_at")
+  /// Só quando a rodada completa. `attempt` recente com `success` velho é o
+  /// estado "roda e falha toda vez" — que hoje não é visível em tabela nenhuma.
+  lastSuccessAt DateTime? @map("last_success_at")
+  lastError     String?   @map("last_error")
+  /// Contexto livre da última rodada (quantos projetos varridos, falhas...).
+  lastDetail    Json?     @map("last_detail")
+  /// Quem reportou. `agent` bate por HTTP; os demais são chamada local.
+  host          String?
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@schema("v2")
+  @@map("system_heartbeats")
+}
+
 // ─── Discovery Engine ─────────────────────────────────────────────────────────
 
 model DiscoverySession {

@@ -4,7 +4,7 @@ import {
 } from '@nestjs/common'
 import { ApiTags, ApiBearerAuth, ApiQuery } from '@nestjs/swagger'
 import { MemoryService } from './memory.service'
-import { StoreMemoryDto, SearchMemoryDto, UpdateClassDto, MemoryClass } from './dto/memory.dto'
+import { StoreMemoryDto, SearchMemoryDto, UpdateClassDto, MemoryClass, MemoryType } from './dto/memory.dto'
 import { JwtAuthGuard } from '../core/auth.guard'
 
 @ApiTags('memory')
@@ -28,11 +28,13 @@ export class MemoryController {
   @Get('documents')
   @ApiQuery({ name: 'projectId', required: true })
   @ApiQuery({ name: 'class', required: false, enum: ['inbox', 'working', 'consolidated', 'archive'] })
+  @ApiQuery({ name: 'type',  required: false, enum: ['decision', 'lesson', 'pattern', 'constraint', 'assumption'] })
   list(
     @Query('projectId') projectId: string,
     @Query('class') memoryClass?: MemoryClass,
+    @Query('type')  memoryType?: MemoryType,
   ) {
-    return this.memory.list(projectId, memoryClass)
+    return this.memory.list(projectId, memoryClass, memoryType)
   }
 
   @Get('stats')

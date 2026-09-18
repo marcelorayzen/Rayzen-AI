@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic'
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { getApiUrl, getApiUrlInputDefault, setApiUrl } from '../../lib/api-url'
+import { DocsPanel } from '../components/DocsPanel'
 
 function authHeaders(extra?: Record<string, string>): Record<string, string> {
   const token = typeof window !== 'undefined' ? localStorage.getItem('rayzen_token') : null
@@ -292,7 +293,7 @@ export default function SettingsPage() {
           )}
 
           {activeTab === 'identity' && (
-            <Field label="URL da API" hint="Use a URL publica da API quando o Web estiver hospedado fora do notebook">
+            <Field label="URL da API" hint="Use a URL publica da API quando o Web estiver hospedado fora do servidor">
               <input
                 value={apiUrlInput}
                 onChange={(e) => setApiUrlInput(e.target.value)}
@@ -538,6 +539,7 @@ function Toggle({ label, value, onChange, small }: {
       <div className={`w-9 h-5 rounded-full transition-colors flex items-center px-0.5 ${value ? 'bg-zinc-300' : 'bg-zinc-700'}`}>
         <div className={`w-4 h-4 rounded-full bg-zinc-900 transition-transform ${value ? 'translate-x-4' : 'translate-x-0'}`} />
       </div>
+      <DocsPanel topicId="settings" />
     </div>
   )
 }

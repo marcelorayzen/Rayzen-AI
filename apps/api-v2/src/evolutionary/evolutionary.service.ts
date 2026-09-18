@@ -36,7 +36,10 @@ export class EvolutionaryService implements OnModuleInit {
   // Wires EvolutionaryService into AiRouterService (lazy to avoid circular dep)
   onModuleInit() {
     this.aiRouter.setEvolutionary(this)
-    this.logger.log('EvolutionaryService wired into AiRouterService')
+    // Idem para o ApprovalGatesService: ele precisa chamar promote() quando um gate
+    // strategy_promotion é aprovado, mas já é dependência deste serviço.
+    this.gates.setEvolutionary(this)
+    this.logger.log('EvolutionaryService wired into AiRouterService e ApprovalGatesService')
   }
 
   // ── Strategy lookup (used by AiRouterService) ─────────────────────────────
@@ -94,7 +97,7 @@ export class EvolutionaryService implements OnModuleInit {
 
   // ── Mutation via LLM ──────────────────────────────────────────────────────
 
-  async mutate(parentId: string): Promise<StrategyRecord> {
+  async mutate(parentId: string, projectId?: string): Promise<StrategyRecord> {
     const parent = await this.prisma.strategy.findUniqueOrThrow({ where: { id: parentId } })
 
     const res = await this.llm.chat(
@@ -112,7 +115,7 @@ Rules:
           content: `TASK TYPE: ${parent.taskType}\n\nORIGINAL SYSTEM PROMPT:\n${parent.systemPrompt}\n\nGenerate an improved variation:`,
         },
       ],
-      { model: 'gpt-4o-mini', temperature: 0.7, maxTokens: 1024 },
+      { model: 'gpt-4o-mini', temperature: 0.7, maxTokens: 1024, caller: 'evolutionary:mutate', projectId },
     )
 
     const mutated = await this.prisma.strategy.create({
@@ -155,13 +158,8 @@ Rules:
         model:        this.tierToModel(s.tier),
       }).catch(() => null)
 
-      if (result && result.total > 0) {
-        await this.prisma.strategy.update({
-          where: { id: s.id },
-          data:  { fitnessScore: result.avgFitness },
-        })
-        evaluated++
-      }
+      // runForStrategy já grava o fitnessScore na origem da medição.
+      if (result && result.total > 0) evaluated++
     }
 
     // Pick best unevaluated candidate (now evaluated) or existing candidate
@@ -186,7 +184,9 @@ Rules:
         type:        'strategy_promotion' as never,
         description: `Promover estratégia ${best.id.slice(0, 8)} para ${taskType} — fitness ${(best.fitnessScore ?? 0).toFixed(3)} vs ${currentFitness.toFixed(3)} atual (Δ${improvement > 0 ? '+' : ''}${improvement.toFixed(3)})`,
         context:     { strategyId: best.id, taskType, fitnessScore: best.fitnessScore, currentFitness, improvement },
-        riskLevel:   'medium',
+        // 'high' = 7 dias. Ver o mesmo comentário em QaScientistService: com 'medium'
+        // o gate auto-rejeita em 30 min e nunca chega a ser visto.
+        riskLevel:   'high',
       })
       gateId = gate.id
       this.logger.log(`Proposta de promoção criada: gate ${gate.id} para estratégia ${best.id}`)
@@ -195,7 +195,7 @@ Rules:
     }
 
     // Mutate best to keep population evolving
-    void this.mutate(best.id).catch((e) => this.logger.warn(`mutate failed: ${e}`))
+    void this.mutate(best.id, projectId).catch((e) => this.logger.warn(`mutate failed: ${e}`))
 
     return {
       evaluated,

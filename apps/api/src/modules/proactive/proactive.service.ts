@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../../prisma/prisma.service'
 import OpenAI from 'openai'
+import { createLlmClient } from '../../common/llm-client'
 
 export interface Recommendation {
   id: string
@@ -20,9 +21,9 @@ export class ProactiveService {
   private llm: OpenAI
 
   constructor(private readonly prisma: PrismaService, private config: ConfigService) {
-    this.llm = new OpenAI({
+    this.llm = createLlmClient('proactive', {
+      apiKey:  this.config.get('LITELLM_MASTER_KEY') ?? 'sk-rayzen',
       baseURL: this.config.get('LITELLM_BASE_URL', 'http://localhost:4000/v1'),
-      apiKey: this.config.get('LITELLM_MASTER_KEY') ?? 'sk-rayzen',
     })
   }
 

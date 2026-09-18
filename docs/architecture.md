@@ -21,7 +21,7 @@ Documentar o estado real da plataforma — componentes, fluxos de dados, contrat
 ┌──────────▼──────────────┐   ┌─────────────────▼─────────────────────────┐
 │  V1 API — NestJS/Fastify│   │  V2 API — NestJS/Fastify                  │
 │  :3101  schema: public  │   │  :3103  schema: v2  prefixo: /v2          │
-│  34 módulos, uso diário │   │  29 módulos, Mission Oriented Engineering  │
+│  34 módulos, uso diário │   │  30 módulos, Mission Oriented Engineering  │
 └──────────┬──────────────┘   └─────────────────┬─────────────────────────┘
            │                                     │
 ┌──────────▼─────────────────────────────────────▼──────────────────────────┐
@@ -82,6 +82,7 @@ Documentar o estado real da plataforma — componentes, fluxos de dados, contrat
 | `QAScientistModule` | `/v2/qa-scientist` | Ciclo 24h: collectFailures → hypotheses → experiments |
 | `EvolutionaryPromptingModule` | `/v2/evolutionary` | Geração e mutação de estratégias de prompt |
 | `PolicyEngineModule` | `/v2/policy` | Regras GATE/BLOCK/WARN por projeto |
+| `GuardianModule` | `/v2/guardian` | Monitoramento de risco de código em tempo real via lineage + detecção de arquivos sem teste — ver `docs/GUARDIAN.md` |
 
 ---
 
@@ -112,14 +113,45 @@ Documentar o estado real da plataforma — componentes, fluxos de dados, contrat
 
 **Invariante:** toda chamada LLM passa pelo proxy. Nunca apontar direto para OpenAI/Groq/Anthropic.
 
-| Alias | Primary | Fallback |
+| Alias | Primary | Cadeia de fallback |
 |---|---|---|
-| `gpt-4o` | Groq llama-3.3-70b-versatile | Claude Sonnet 4.6 |
-| `gpt-4o-mini` | Groq llama-3.1-8b-instant | Claude Haiku 4.5 |
-| `gpt-4o-premium` | Claude Sonnet 4.6 (direto) | — |
-| `gpt-local` | Groq llama-3.1-8b | `gpt-4o-mini` |
+| `gpt-4o` | Groq `openai/gpt-oss-120b` | `gpt-4o-gemini` → `gpt-4o-mini-gemini` → `gpt-4o-premium` |
+| `gpt-4o-mini` | Groq `openai/gpt-oss-20b` | `gpt-4o-mini-gemini` → `gpt-4o-gemini` → `gpt-4o-mini-premium` |
+| `gpt-4o-gemini` | `gemini-3-flash-preview` | — |
+| `gpt-4o-mini-gemini` | `gemini-3.1-flash-lite` | — |
+| `gpt-4o-premium` | Claude Sonnet (direto) | — |
+| `gpt-local` | Ollama `llama3.2:3b` **local** | `gpt-4o-mini` |
 
-Fallback chain em `infra/litellm/config.yaml` — evita bloqueio por Groq TPD (100k tokens/dia).
+> ⚠️ **A tabela anterior deste documento estava errada desde 2026-08-17**: listava
+> `llama-3.3-70b-versatile` e `llama-3.1-8b-instant`, os **dois** descontinuados pela Groq naquele
+> dia. Todo `gpt-4o` virou 404 e a plataforma inteira devolveu 500 — corrigido no `config.yaml` na
+> época, e só agora aqui.
+
+**Até 22/08 não existia fallback.** `gpt-4o` caía em `gpt-4o-premium` e `gpt-4o-mini` em
+`gpt-4o-mini-premium`, os dois na Anthropic **sem crédito** — é por isso que a descontinuação da
+Groq virou queda total em vez de degradação. Os grupos Gemini entraram para que a queda de um
+provedor deixe de ser queda da plataforma.
+
+**Escolha medida na conta, não pelo catálogo:** `gemini-2.5-flash` e `gemini-2.5-pro` **aparecem**
+em `GET /v1beta/models` e devolvem `NOT_FOUND — no longer available to new users` quando chamados.
+Os grupos Pro exigem billing.
+
+> **O que a cadeia custa, e ainda não está resolvido:** o fallback é por *alias*, não por
+> política — a cadeia não sabe **por que** aquele grupo foi pedido.
+>
+> Medido em 06/09 sobre 2.780 chamadas de 7 dias (`docs/baseline-roteamento-llm.md`): o
+> `gpt-4o-gemini` erra **52,4%** e é o **primeiro** fallback do `gpt-4o` — o elo mais frágil está
+> na frente da fila. E **6,1%** dos pedidos a `gpt-local`, feito justamente por ser local e sem
+> cota, foram servidos pela Groq: pedir "local" e receber "nuvem" é vazamento de intenção.
+>
+> ⚠️ Uma versão anterior deste parágrafo afirmava que uma chamada a `gpt-local` terminou num **429
+> do Gemini**. **Os dados não sustentam** — em 7 dias, `gpt-local` nunca foi servido por Gemini.
+> Aquilo era o Hermes ignorando a flag `-m` e usando o `model:` do próprio config: defeito do
+> cliente, atribuído ao roteador. Ver "Próximos ajustes".
+
+Os cinco grupos gratuitos são sondados pelo invariante `modelos_llm_respondem` — inclusive os dois
+Gemini, porque o fallback mascara a queda do primário e sondar só o `gpt-4o` não diz se a rede
+existe.
 
 ### Modelos LLM por módulo (V1)
 
@@ -213,6 +245,17 @@ PATCH /tasks/:id         → { status, result?, actor, module, action, risk, dry
 
 ## Próximos ajustes
 
+- **Roteamento de LLM por política, não por alias.** Hoje a cadeia de fallback é uma lista fixa
+  por alias em `config.yaml`, e ela não sabe **por que** o modelo foi escolhido. Consequência
+  medida em 06/09: uma chamada a `gpt-local` — escolhido justamente por ser local e sem cota —
+  caiu na cadeia e terminou num 429 do Gemini. Um roteamento que respeitasse a *intenção*
+  ("local", "barato", "capaz", "determinístico") em vez do nome do alias não faria isso.
+  Perguntas abertas: onde a política mora (LiteLLM `router_settings` tem `routing_strategy`, hoje
+  `least-busy`), se cada módulo declara sua intenção em vez do alias, e como medir se a escolha
+  melhorou. **Baseline já medido em `docs/baseline-roteamento-llm.md`** (06/09, 7 dias): o
+  `gpt-4o-gemini` erra **52,4%** sendo o 1º fallback do `gpt-4o`, o `gpt-local` erra **0%** em 411
+  chamadas, e **442 dos ~615 erros são 429 de cota** — o gargalo é recurso escasso mal
+  distribuído, não modelo ruim.
 - Definir plano de convergência V1→V2 ou separação intencional de responsabilidades
 - Testes de inferência de tipo de specialist automatizados (evitar regressão do `spec` em `specialist`)
 - Documentar limites do `file_read` no context do researcher (500KB, paginação por `lines`)

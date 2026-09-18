@@ -32,23 +32,26 @@ export interface UniverseEdge {
   style?: Record<string, unknown>
 }
 
-/* ── colors por tipo ────────────────────────────────────────── */
-const TYPE_COLORS: Record<string, { bg: string; border: string; text: string }> = {
-  decision:  { bg: '#1e1b4b', border: '#6366f1', text: '#a5b4fc' },
-  problem:   { bg: '#1f0e0e', border: '#ef4444', text: '#fca5a5' },
-  idea:      { bg: '#1c1308', border: '#f59e0b', text: '#fcd34d' },
-  artifact:  { bg: '#081a1f', border: '#06b6d4', text: '#67e8f9' },
-  document:  { bg: '#071a12', border: '#10b981', text: '#6ee7b7' },
-  wiki:      { bg: '#1f0a14', border: '#ec4899', text: '#f9a8d4' },
-  goal:      { bg: '#1a1400', border: '#eab308', text: '#fde047' },
-  file:      { bg: '#111111', border: '#6b7280', text: '#d1d5db' },
-  note:      { bg: '#0f0f0f', border: '#a78bfa', text: '#ddd6fe' },
-  custom:    { bg: '#0a0a0a', border: '#ffffff40', text: '#e5e7eb' },
-  checkpoint:{ bg: '#081a1f', border: '#06b6d4', text: '#67e8f9' },
+/* ── acento por tipo (sistema: superfície neutra + barra de acento) ── */
+const TYPE_ACCENTS: Record<string, string> = {
+  decision:   '#6366f1',
+  problem:    '#ef4444',
+  idea:       '#f59e0b',
+  artifact:   '#06b6d4',
+  document:   '#10b981',
+  wiki:       '#ec4899',
+  goal:       '#eab308',
+  file:       '#9ca3af',
+  note:       '#a78bfa',
+  custom:     '#9ca3af',
+  checkpoint: '#06b6d4',
 }
 
-function getColors(nodeType: string) {
-  return TYPE_COLORS[nodeType] ?? TYPE_COLORS.custom
+const NODE_BG   = 'var(--hud-card, #1a1a1a)'
+const NODE_TEXT = 'var(--hud-text, #f2f2f2)'
+
+function getAccent(nodeType: string) {
+  return TYPE_ACCENTS[nodeType] ?? TYPE_ACCENTS.custom
 }
 
 /* ── node component ─────────────────────────────────────────── */
@@ -66,7 +69,7 @@ function UniverseNodeComponent({ id, data, selected }: NodeProps<Node<UniverseNo
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
-  const colors = getColors(data.nodeType)
+  const accent = getAccent(data.nodeType)
 
   useEffect(() => { if (editing) inputRef.current?.focus() }, [editing])
 
@@ -85,22 +88,23 @@ function UniverseNodeComponent({ id, data, selected }: NodeProps<Node<UniverseNo
   return (
     <div
       style={{
-        background: colors.bg,
-        border: `1.5px solid ${selected ? '#ffffff80' : colors.border}`,
-        borderRadius: 8,
-        padding: '8px 12px',
+        background: NODE_BG,
+        border: `1px solid ${selected ? 'rgba(255,255,255,0.5)' : 'var(--hud-border-hi, rgba(255,255,255,0.14))'}`,
+        borderLeft: `2.5px solid ${accent}`,
+        borderRadius: 6,
+        padding: '8px 12px 8px 10px',
         minWidth: 140,
         maxWidth: 240,
-        boxShadow: selected ? `0 0 0 2px ${colors.border}40` : `0 2px 8px #00000060`,
+        boxShadow: selected ? `0 0 0 2px ${accent}30` : '0 2px 8px rgba(0,0,0,0.4)',
         position: 'relative',
         cursor: 'default',
       }}
       onDoubleClick={startEdit}
     >
-      <Handle type="target" position={Position.Left} style={{ background: colors.border, width: 8, height: 8 }} />
+      <Handle type="target" position={Position.Left} style={{ background: accent, width: 8, height: 8 }} />
 
       {/* tipo badge */}
-      <div style={{ fontSize: 9, color: colors.border, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4, fontWeight: 700 }}>
+      <div style={{ fontSize: 9, color: accent, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4, fontWeight: 700 }}>
         {data.nodeType}
       </div>
 
@@ -114,11 +118,11 @@ function UniverseNodeComponent({ id, data, selected }: NodeProps<Node<UniverseNo
           onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') { setEditing(false); setDraft(data.label) } }}
           style={{
             background: 'transparent', border: 'none', outline: 'none',
-            color: colors.text, fontSize: 12, width: '100%', fontFamily: 'inherit',
+            color: NODE_TEXT, fontSize: 12, width: '100%', fontFamily: 'inherit',
           }}
         />
       ) : (
-        <div style={{ fontSize: 12, color: colors.text, lineHeight: 1.4, wordBreak: 'break-word' }}>
+        <div style={{ fontSize: 12, color: NODE_TEXT, lineHeight: 1.4, wordBreak: 'break-word' }}>
           {data.label}
         </div>
       )}
@@ -136,7 +140,7 @@ function UniverseNodeComponent({ id, data, selected }: NodeProps<Node<UniverseNo
         >×</button>
       )}
 
-      <Handle type="source" position={Position.Right} style={{ background: colors.border, width: 8, height: 8 }} />
+      <Handle type="source" position={Position.Right} style={{ background: accent, width: 8, height: 8 }} />
     </div>
   )
 }
@@ -232,7 +236,6 @@ export function UniverseCanvas({ initialNodes, initialEdges, onSave, onImport, s
 
   const addNode = () => {
     if (!addLabel.trim()) return
-    const colors = getColors(addType)
     const newNode: Node<UniverseNodeData> = {
       id: `u-${uid()}`,
       type: 'universe',
@@ -240,7 +243,7 @@ export function UniverseCanvas({ initialNodes, initialEdges, onSave, onImport, s
       data: {
         label: addLabel.trim(),
         nodeType: addType,
-        color: colors.border,
+        color: getAccent(addType),
         onDelete: handleDelete,
         onEdit: handleEdit,
       },
@@ -292,7 +295,7 @@ export function UniverseCanvas({ initialNodes, initialEdges, onSave, onImport, s
         <Controls style={{ background: '#0a0f14', border: '1px solid #1e293b', borderRadius: 6 }} />
         <MiniMap
           style={{ background: '#050a0f', border: '1px solid #1e293b' }}
-          nodeColor={n => getColors((n.data as UniverseNodeData).nodeType).border}
+          nodeColor={n => getAccent((n.data as UniverseNodeData).nodeType)}
           maskColor="#00000080"
         />
       </ReactFlow>

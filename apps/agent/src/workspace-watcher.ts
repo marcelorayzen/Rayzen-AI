@@ -4,6 +4,10 @@ import { basename, extname, join, resolve } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { homedir } from 'node:os'
 import { runGraphify_action } from './actions/run-graphify'
+import { triggerGuardianAnalysis } from './guardian-client'
+import { beatGuardian } from './system-heartbeat-client'
+import { marcarVivo } from './agent-liveness'
+import { triggerInvariantsCheck } from './invariants-client'
 
 const INDEXABLE_EXTENSIONS = new Set([
   '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',
@@ -84,7 +88,14 @@ function runGit(repoPath: string, args: string[]): string {
       encoding: 'utf8',
       timeout: 3000,
       stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim()
+    })
+      // Só o final. `.trim()` aqui corrompia `git status --porcelain`: a coluna 1 do
+      // formato é o status no índice, e um arquivo modificado mas não staged tem
+      // ESPAÇO ali (" M LICENSE"). Trimando a saída inteira, a primeira linha perdia
+      // esse espaço e o slice(3) de changedFiles() comia a primeira letra do nome —
+      // "LICENSE" virava "ICENSE". Isso ia direto pro Guardian: score calculado sobre
+      // um caminho inexistente e busca de spec para um arquivo que não existe.
+      .replace(/\s+$/, '')
   } catch {
     return ''
   }
@@ -137,16 +148,32 @@ function gitContext(repoPath: string, changedFiles: string[]): GitContext {
   }
 }
 
-function changedFiles(repoPath: string): string[] {
-  const raw = runGit(repoPath, ['status', '--porcelain=v1'])
+/**
+ * Extrai os caminhos de `git status --porcelain=v1`.
+ *
+ * Formato: dois caracteres de status (índice, árvore) + espaço + caminho. Os dois
+ * primeiros podem ser espaço — " M arquivo" é modificado mas não staged —, então a
+ * fatia é sempre de 3 e a entrada NÃO pode ter passado por trim à esquerda.
+ *
+ * Separado do I/O de propósito: é onde mora a sutileza, e assim dá pra testar sem git.
+ */
+export function parsePorcelainPaths(raw: string, max = MAX_CHANGED_FILES): string[] {
   if (!raw) return []
 
   return raw
     .split('\n')
+    .filter((line) => line.length > 3)
     .map((line) => line.slice(3).trim())
+    // Rename/copy vêm como "antigo -> novo"; o que interessa é o destino.
     .map((line) => line.includes(' -> ') ? line.split(' -> ').at(-1)?.trim() ?? line : line)
+    // Caminho com espaço ou caractere especial vem entre aspas.
+    .map((line) => line.startsWith('"') && line.endsWith('"') ? line.slice(1, -1) : line)
     .filter(Boolean)
-    .slice(0, MAX_CHANGED_FILES)
+    .slice(0, max)
+}
+
+function changedFiles(repoPath: string): string[] {
+  return parsePorcelainPaths(runGit(repoPath, ['status', '--porcelain=v1']))
 }
 
 function signature(files: string[]): string {
@@ -215,6 +242,34 @@ async function emitWorkspaceEvent(repoPath: string, files: string[]): Promise<vo
 
   // Indexa conteúdo dos arquivos modificados no Brain (igual ao Claude Code hook)
   await indexChangedFiles(repoPath, files, projectId)
+
+  // Guardian: analisa mudanças em background se projectId estiver disponível
+  if (projectId) {
+    const v2Url = process.env.AGENT_API_V2_URL ?? (() => {
+      try {
+        const u = new URL(process.env.AGENT_API_URL ?? '')
+        return `${u.protocol}//${u.hostname}:3103`
+      } catch { return null }
+    })()
+    if (v2Url) {
+      triggerGuardianAnalysis({
+        projectId,
+        repoPath,
+        changedFiles: files,
+        apiV2Url:  v2Url,
+        apiToken:  process.env.AGENT_TOKEN ?? '',
+      }).catch(() => null)
+
+      // Invariantes pegam carona no watcher, mas com throttle próprio (15min):
+      // estado de sistema não muda porque um arquivo foi salvo, e o check de
+      // relógio faz chamada HTTP externa. Ver invariants-client.
+      triggerInvariantsCheck({
+        projectId,
+        apiV2Url: v2Url,
+        apiToken: process.env.AGENT_TOKEN ?? '',
+      }).catch(() => null)
+    }
+  }
 }
 
 async function scanOnce(): Promise<void> {
@@ -271,8 +326,22 @@ export function startWorkspaceWatcher(): void {
   console.log(`[watcher] monitorando workspaces: ${workspaceRoots().join('; ')}`)
   console.log(`[watcher] intervalo: ${interval}ms`)
 
-  scanOnce().catch(() => null)
-  setInterval(() => {
-    scanOnce().catch(() => null)
-  }, interval)
+  // O batimento acompanha o TICK, não a análise: `triggerGuardianAnalysis` só
+  // dispara quando a assinatura de arquivos muda, então derivar vitalidade dela
+  // confundiria "Guardian parado" com "ninguém mexeu em código". O throttle de
+  // 5 min mora no próprio cliente.
+  // `marcarVivo` ANTES do scan, e fora do then/catch: a pergunta que ele responde é
+  // "o processo está rodando", não "o scan deu certo". Um scan que falha todo tick
+  // continua sendo um agent de pé — e é o próprio `beatGuardian({ ok:false })` que
+  // conta essa outra história. Amarrar os dois faria um watcher com defeito parecer
+  // um watcher desligado, que é a ambiguidade que os dois sinais existem para separar.
+  const tick = () => {
+    marcarVivo()
+    return scanOnce()
+      .then(() => beatGuardian({ ok: true }))
+      .catch((e) => beatGuardian({ ok: false, erro: e instanceof Error ? e.message : String(e) }))
+  }
+
+  void tick()
+  setInterval(() => { void tick() }, interval)
 }

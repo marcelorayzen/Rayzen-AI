@@ -16,6 +16,18 @@ http://rayzen.com.br {
 	}
 }
 
+# ── HUB (Hermes) ──────────────────────────────────────────────────────────────
+#
+# O backend exige autenticacao por construcao: `hermes serve --host 0.0.0.0` RECUSA subir sem
+# provedor registrado (medido em 17/09), e a senha vem por ambiente a partir do `.env`. Entao este
+# vhost nao e a unica coisa entre a internet e o HUB -- e nao deve ser.
+#
+# O `hermes` resolve pelo nome na rede `rayzen-ai_default`: o compose dele e separado e entra
+# nessa rede como `external`.
+http://hub.rayzen.com.br {
+	reverse_proxy hermes:9119
+}
+
 http://api.rayzen.com.br {
 	handle /ws {
 		reverse_proxy api-v2:3104

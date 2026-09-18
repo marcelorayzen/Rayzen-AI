@@ -1,11 +1,8 @@
 import { resolve, join } from 'path'
 import { readdir, stat } from 'fs/promises'
+import { isUnderSafeRoot } from '../utils/path-guard'
 
 const HOME = process.env.USERPROFILE ?? process.env.HOME ?? ''
-const SAFE_ROOTS = [
-  HOME + '\\Projects', HOME + '\\Desktop', HOME + '\\Documents', HOME + '\\Downloads',
-  'C:\\Projects', 'D:\\Projects',
-]
 
 interface FileResult {
   name: string
@@ -45,7 +42,7 @@ async function searchRecursive(
 
 export async function fileSearch(payload: { query: string; path?: string }): Promise<{ results: FileResult[]; total: number }> {
   const root = payload.path ? resolve(payload.path) : (HOME + '\\Projects')
-  if (!SAFE_ROOTS.some((r) => root.startsWith(r))) {
+  if (!isUnderSafeRoot(root)) {
     throw new Error(`Caminho não permitido: ${root}`)
   }
   const results: FileResult[] = []

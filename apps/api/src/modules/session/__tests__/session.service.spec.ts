@@ -84,11 +84,59 @@ describe('SessionService', () => {
       expect(result[0].messages).toBe(5)
     })
 
-    it('usa "Conversa" como título quando não há mensagem do usuário', async () => {
+    // `conversation_messages` guarda conversa E telemetria de módulo interno. Em 19/08 eram
+    // 4.459 sessões de telemetria contra 210 reais, e a primeira conversa real caía na
+    // posição 661 de um corte em 20: o histórico nunca mostrava conversa nenhuma.
+    it('não lista sessão sem mensagem de usuário — telemetria não é conversa', async () => {
+      // nenhuma sessão tem role=user
+      mockPrisma.conversationMessage.findMany.mockResolvedValueOnce([])
+
+      const result = await service.getRecentSessions()
+
+      expect(result).toEqual([])
+      // e nem chega a agrupar: sem interlocutor humano não há o que listar
+      expect(mockPrisma.conversationMessage.groupBy).not.toHaveBeenCalled()
+    })
+
+    it('agrupa apenas as sessões que têm mensagem de usuário', async () => {
+      mockPrisma.conversationMessage.findMany
+        .mockResolvedValueOnce([{ sessionId: 'conversa-1' }])                       // filtro role=user
+        .mockResolvedValueOnce([{ sessionId: 'conversa-1', content: 'oi' }])        // títulos
       mockPrisma.conversationMessage.groupBy.mockResolvedValue([
-        { sessionId: 'sess-orphan', _count: { id: 1 }, _max: { createdAt: new Date() } },
+        { sessionId: 'conversa-1', _count: { id: 4 }, _max: { createdAt: new Date() } },
       ])
-      mockPrisma.conversationMessage.findMany.mockResolvedValue([])
+
+      const result = await service.getRecentSessions()
+
+      expect(result).toHaveLength(1)
+      // a regressão que este teste barra: agrupar a tabela inteira, sem escopo
+      const where = mockPrisma.conversationMessage.groupBy.mock.calls[0][0].where
+      expect(where).toEqual({ sessionId: { in: ['conversa-1'] } })
+    })
+
+    it('o corte respeita o limite DEPOIS do filtro, não antes', async () => {
+      // 4 sessões humanas entre milhares de telemetria: todas as 4 devem sobreviver
+      const humanas = ['c1', 'c2', 'c3', 'c4']
+      mockPrisma.conversationMessage.findMany
+        .mockResolvedValueOnce(humanas.map((sessionId) => ({ sessionId })))
+        .mockResolvedValueOnce(humanas.map((sessionId) => ({ sessionId, content: `pergunta ${sessionId}` })))
+      mockPrisma.conversationMessage.groupBy.mockResolvedValue(
+        humanas.map((sessionId) => ({ sessionId, _count: { id: 2 }, _max: { createdAt: new Date() } })),
+      )
+
+      const result = await service.getRecentSessions()
+
+      expect(result.map((r) => r.sessionId)).toEqual(humanas)
+      expect(result.every((r) => r.title !== 'Conversa')).toBe(true)
+    })
+
+    it('mantém "Conversa" como fallback de título de sessão humana sem primeira mensagem', async () => {
+      mockPrisma.conversationMessage.findMany
+        .mockResolvedValueOnce([{ sessionId: 'sess-1' }])
+        .mockResolvedValueOnce([])   // título não encontrado
+      mockPrisma.conversationMessage.groupBy.mockResolvedValue([
+        { sessionId: 'sess-1', _count: { id: 1 }, _max: { createdAt: new Date() } },
+      ])
 
       const result = await service.getRecentSessions()
 

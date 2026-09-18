@@ -102,5 +102,13 @@ if "%AUTO_MODE%"=="0" pause
 exit /b 0
 
 :fail
-if "%AUTO_MODE%"=="0" pause
+rem Falha SEMPRE pausa, mesmo em AUTO_MODE. Antes o pause dependia de
+rem --interactive, entao um duplo-clique que falhasse abria e fechava a janela
+rem sem deixar rastro: a mensagem de erro era impressa e engolida junto com o
+rem console. "Nao abre o agente" era, na verdade, "nao da para ler por que".
+rem AUTO_MODE continua valendo para o caminho de SUCESSO, que e o caso de uso
+rem de inicializacao desatendida.
+echo.
+echo  Falhou. Janela mantida aberta para voce ler o erro acima.
+pause
 exit /b 1

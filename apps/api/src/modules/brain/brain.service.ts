@@ -80,12 +80,24 @@ export class BrainService {
     content: string,
     sourcePath?: string,
     metadata?: Record<string, unknown>,
+    projectId?: string,
   ): Promise<BrainIndexResult> {
     const checksum = createHash('sha256').update(content).digest('hex')
     const vector = await this.embed(content)
     const path = sourcePath ?? 'manual'
 
-    const existing = await this.prisma.document.findFirst({ where: { checksum } })
+    // Dedup ESCOPADO por projeto. Sem o `projectId` aqui, conteúdo idêntico em
+    // dois projetos fazia o segundo herdar o documento do primeiro: o `findFirst`
+    // achava a linha do projeto A, atualizava o embedding dela e devolvia o id de
+    // A. O projeto B nunca ganhava documento, e o que o cita (wiki, por exemplo)
+    // passava a apontar para dado de outro projeto — silenciosamente.
+    //
+    // Mesma família do incidente descrito 13 linhas abaixo, e o `MemoryService`
+    // já escopava. As duas escrevem na MESMA tabela, então divergir aqui é o
+    // suficiente para reintroduzir o problema por um dos dois caminhos.
+    const existing = await this.prisma.document.findFirst({
+      where: { checksum, ...(projectId ? { projectId } : { projectId: null }) },
+    })
 
     if (existing) {
       await this.prisma.$executeRaw`
@@ -98,11 +110,15 @@ export class BrainService {
       return { id: existing.id, status: 'updated', sourcePath: path }
     }
 
+    // project_id preenchido quando o chamador conhece o projeto. Sem isto o documento
+    // nasce órfão e some de rayzen_get_context/search_memory, que filtram por projeto —
+    // era a causa dos documentos e wikis sem dono (ver incidente da Urna, 2026-08-03).
     const id = crypto.randomUUID()
     await this.prisma.$executeRaw`
-      INSERT INTO documents (id, source_path, content, embedding, metadata, checksum, created_at, updated_at)
+      INSERT INTO documents (id, project_id, source_path, content, embedding, metadata, checksum, created_at, updated_at)
       VALUES (
         ${id},
+        ${projectId ?? null},
         ${path},
         ${content},
         ${JSON.stringify(vector)}::vector,
@@ -155,12 +171,13 @@ export class BrainService {
   async indexText(
     text: string,
     sourcePath?: string,
+    projectId?: string,
   ): Promise<{ indexed: number; documentIds: string[] }> {
     const chunks = this.chunkText(text)
     const documentIds: string[] = []
 
     for (const chunk of chunks) {
-      const result = await this.indexDocument(chunk, sourcePath, { type: 'text' })
+      const result = await this.indexDocument(chunk, sourcePath, { type: 'text' }, projectId)
       documentIds.push(result.id)
     }
 

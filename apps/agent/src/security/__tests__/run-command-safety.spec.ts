@@ -93,9 +93,22 @@ describe('runCommand — aceita comandos whitelistados', () => {
     expect(result.risk).toBe('none')
   })
 
-  it('docker compose up é high e exige dryRun/force', async () => {
+  it('docker compose up sem dryRun exige aprovação — Fase 5, risco red', async () => {
     const result = await runCommand({ command: 'docker compose up -d' })
     expect(result.skipped).toBe(true)
-    expect(result.risk).toBe('high')
+    expect(result.risk).toBe('red')
+  })
+
+  /**
+   * Fase 5 — o ponto do plano é que a FORMA (texto livre) é a classe perigosa, não o
+   * comando específico. Até 11/09, `git status` (risco `none`) executava direto sem
+   * aprovação nenhuma; agora TODO comando via `{command}` passa pelo mesmo gate,
+   * independente do que `ALLOW_RULES` classificou.
+   */
+  it('git status (risco none) sem dryRun TAMBÉM exige aprovação agora — Fase 5', async () => {
+    const result = await runCommand({ command: 'git status' })
+    expect(result.skipped).toBe(true)
+    expect(result.risk).toBe('red')
+    expect(result.reason).toBe('high-risk requires human approval')
   })
 })

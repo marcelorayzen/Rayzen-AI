@@ -4,6 +4,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger'
 import { ValidationPipe } from '@nestjs/common'
 import { AppModule } from './app.module'
 import { MetricsService } from './modules/metrics/metrics.service'
+import { PrismaExceptionFilter } from './common/prisma-exception.filter'
  
 const multipart = require('@fastify/multipart')
  
@@ -38,6 +39,9 @@ async function bootstrap() {
     crossOriginEmbedderPolicy: false, // swagger-ui incompatível com COEP
   })
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }))
+  // Sem isto, violação de constraint do Prisma vira 500 e o cliente não distingue
+  // "não existe" de "o servidor quebrou". Ver o filtro para os casos medidos.
+  app.useGlobalFilters(new PrismaExceptionFilter())
   const corsEnv = process.env.CORS_ORIGINS ?? 'http://localhost:3100'
   const allowedOrigins = corsEnv.split(',').map((o) => o.trim()).filter(Boolean)
   app.enableCors({

@@ -3,9 +3,7 @@ import { resolve, join, basename, extname } from 'node:path'
 import { request } from 'node:http'
 import { request as httpsRequest } from 'node:https'
 import { takeScreenshot } from './screenshot'
-
-const HOME = process.env.USERPROFILE ?? process.env.HOME ?? ''
-const SAFE_ROOTS = [HOME + '\\Projects', HOME + '\\Desktop', 'C:\\Projects', 'D:\\Projects']
+import { isUnderSafeRoot } from '../utils/path-guard'
 
 interface FailedCase {
   suite: string
@@ -142,7 +140,7 @@ export async function captureTestFailure(payload: {
   takeScreenshotOnFailure?: boolean  // tira screenshot do sistema se houver falhas (default: true)
 }): Promise<CaptureResult> {
   const projectPath = resolve(payload.projectPath ?? 'C:\\Projects')
-  if (!SAFE_ROOTS.some(r => projectPath.startsWith(r))) {
+  if (!isUnderSafeRoot(projectPath)) {
     throw new Error(`Caminho não permitido: ${projectPath}`)
   }
 

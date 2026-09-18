@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { PrismaV2Service } from '../core/prisma-v2.service'
+import { costUsdFor } from '../llm/model-pricing.const'
 
 export interface RecordCostDto {
   projectId:  string
@@ -114,25 +115,29 @@ export class CostControllerService {
 
     const byModel:   Record<string, number> = {}
     const byMission: Record<string, number> = {}
+    // Quem gastou. `byMission` só cobre o executor de missões — congelado desde
+    // junho — então sem este eixo o painel não sabe dizer que o gasto de hoje foi
+    // do benchmark. `module` recebe o mesmo rótulo do `caller` no Langfuse, o que
+    // deixa as duas visões comparáveis sem tradução.
+    const byModule:  Record<string, number> = {}
     let   total = 0
 
     for (const r of records) {
       byModel[r.model]          = (byModel[r.model] ?? 0)                   + r.costUsd
       if (r.missionId) byMission[r.missionId] = (byMission[r.missionId] ?? 0) + r.costUsd
+      const mod = r.module ?? 'desconhecido'
+      byModule[mod] = (byModule[mod] ?? 0) + r.costUsd
       total += r.costUsd
     }
 
-    return { projectId, totalUsd: total, byModel, byMission, recordCount: records.length }
+    return { projectId, totalUsd: total, byModel, byMission, byModule, recordCount: records.length }
   }
 
   async estimate(model: string, estimatedTokens: number): Promise<number> {
-    const COST_PER_1M: Record<string, number> = {
-      'gpt-4o-mini':     0.10,
-      'gpt-4o':          0.70,
-      'gpt-4o-premium':  9.00,
-    }
-    const cpm = COST_PER_1M[model] ?? 0.70
-    return (estimatedTokens / 1_000_000) * cpm
+    // Terceira cópia da mesma tabela de preços (AiRouter TIERS, aqui, e agora o
+    // LlmService) — estimativa e cobrança divergindo é diferença que ninguém
+    // percebe. Fonte única em model-pricing.const.
+    return costUsdFor(model, estimatedTokens)
   }
 
   private async getConsumed(projectId: string, period: 'daily' | 'monthly'): Promise<number> {

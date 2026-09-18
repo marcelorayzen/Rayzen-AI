@@ -62,6 +62,22 @@ Envie um e-mail para **marcelo.rayzen@live.com** com:
 - Migrations do schema `v2` são aplicadas isoladamente (`prisma db push --schema prisma/schema.prisma`), sem tocar nas tabelas do V1
 - Autenticação própria via `JwtAuthGuard` (mesmo `JWT_SECRET` do V1, tokens não são intercambiáveis entre módulos que esperam claims diferentes)
 
+### Lacunas conhecidas
+
+Declaradas aqui de propósito: lacuna documentada é decisão, lacuna silenciosa é surpresa.
+
+- **Rate limiting ausente** nos dois apps. `helmet`, `ValidationPipe` com `whitelist: true` e CORS
+  estão registrados; limite de taxa não
+- **Revogação de token não existe.** `JwtAuthGuard` valida só assinatura, e `AuthService.login()`
+  assina com o mesmo `JWT_SECRET` — emitir token novo não invalida o anterior. Para invalidar de
+  fato, só trocando o secret, o que derruba todos os clientes de uma vez
+- **`AgentTokenGuard` é um segredo compartilhado sem escopo por ação** — quem tem o token tem todas
+  as rotas do agent-bridge
+- **`pnpm audit` não roda no CI.** Em 2026-08-15: 0 critical, 28 high, 37 moderate, 11 low — contra
+  15 high em 02/08, ou seja, regrediu sem ninguém perceber
+
+Plano de estudo e triagem dessas lacunas em [`docs/security/plano-estudo.md`](security/plano-estudo.md).
+
 ### Rede
 
 - Postgres, Redis e LiteLLM ligados a `127.0.0.1` no Docker Compose (não expostos externamente)

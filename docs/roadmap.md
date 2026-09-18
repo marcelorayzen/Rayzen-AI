@@ -39,7 +39,11 @@
 | StepExecutor robustez | `f212e1b`, `f7dc47d` | ✅ |
 | Fase 0-A — role-policy drift | `6ade5fe`, ADR-002 | ✅ |
 | Specialist `researcher` | `1683e7e`, `d85135b`, `d675f29`, `7a09275` | ✅ |
-| BenchmarkCases (22 casos) | `6ade5fe` | ✅ |
+| BenchmarkCases (46 casos, medidos no banco em 2026-08-07) | `6ade5fe` | ✅ |
+| Rayzen Guardian — vigilância proativa (`apps/api-v2/src/guardian/`) | risk scoring aditivo, TestGapDetector, cache tmpdir, pre-push block em critical | ✅ |
+| `SpecialistRegistry.infer()` sob teste | 55 casos; expôs e corrigiu o branch `tester` só-inglês (steps pt-BR sobre teste caíam no coder) | ✅ |
+| Ciclo do QA Scientist rodando ponta a ponta | Confirmado ao vivo em 2026-08-07 18:15: sinal → hipótese → experimento → `BenchmarkResult` → gate de promoção. Rodou sobre dado ruim (ver abaixo), mas a mecânica fecha | ✅ |
+| Benchmark roda em free tier | Retry em 429 honrando o tempo que o servidor informa. 46/46 casos concluídos, `skipped: 0`, onde antes eram 46/46 falhas | ✅ |
 
 ---
 
@@ -49,10 +53,13 @@
 
 | Item | Contexto |
 |---|---|
-| Testes unit para `StepExecutorService` | Motor de missões sem cobertura automatizada — validado só manualmente |
-| Testes unit para `SpecialistRegistry.infer()` | Regressões de inferência detectadas em produção (spec/specialist, inspect/tester) |
-| Alimentar BenchmarkCases via `/extract` | 22 casos manuais; fitness do QA Scientist não é representativo — extrair de Traces |
-| Confirmar traces de specialists no Langfuse | Objetivo original da missão de stress test ainda não verificado explicitamente |
+| **Crédito na Anthropic** | Bloqueia `gpt-4o-premium`: o specialist `architect` não roda. Suspeita de ser também o teto de `summarize` (0.628) e `context_synthesis` — o juiz 8b pune paráfrase correta que não copia a forma esperada |
+| **Bateria CR2032 do servidor** | Relógio derrapou 8h43m em horas no dia 14/08, corrigido pelo NTP sozinho. Até trocar, todo boot grava com data errada até a primeira sincronia. O invariante `relogio_sincronizado` agora avisa por conta própria (ciclo de 30min no servidor) |
+| **Purga dos health checks do Langfuse** | 149.006 de 159.415 traces (93,5%) são a sonda do LiteLLM, todas com o mesmo input sintético e sem projeto. A fonte foi corrigida em 13/08. Filtro seguro: `name LIKE '%health%'` — **nunca** "traces sem nome": 10.316 anônimos são trabalho real de antes da instrumentação de 14/08 |
+
+> Saíram daqui em 2026-08-15, todos verificados no banco: semear estratégias do evolutionary ·
+> refazer os BenchmarkCases · fitness de junho como linha de base · confirmar traces de
+> specialists no Langfuse.
 
 ### Média prioridade
 
@@ -61,8 +68,8 @@
 | `researcher` com paginação automática de arquivo | Instrução no system prompt existe; validar com arquivo > 300 linhas |
 | Workspace watcher agnóstico | Capturar edits fora do Claude Code (VS Code, Codex) |
 | Grafana sobre Prometheus | Dashboard de latência/custo hoje consultado manualmente via `/metrics` |
-| Purge de `agent_audit_logs` | Sem TTL — crescimento ilimitado |
-| UI para ApprovalGates | Gate de clarificação hoje aprovado via API; falta fluxo na UI |
+| ~~Purge de `agent_audit_logs`~~ | **Removido do escopo em 15/08**: 449 linhas e **zero escritas em 30 dias**. A tabela está dormente desde junho — política de retenção onde ninguém escreve não resolve nada |
+| UI para gate de clarificação | Gates sem missão já se resolvem em `/guardian` (06/ago); falta o de clarificação dentro de missão, ainda só por API |
 
 ### Baixa prioridade / decisão futura
 
@@ -71,6 +78,7 @@
 | **Fase 6 — Mastra + AG-UI** | StepExecutor mostrar limitação real não coberta (streaming, replanning dinâmico, AG-UI) |
 | Fase 0-A — drift `supervised_session` | Verificar se implementação real ainda necessita de ajuste (ADR-001 existente) |
 | Cross-project knowledge | Múltiplos projetos com knowledge graph estável |
+| Widget Electron/Tauri | Ciclo 3-B — pós-estabilização V2 |
 | Multi-agent (além de specialist types) | Consolidar work modes V1 + V2 antes |
 
 ---
@@ -94,7 +102,18 @@
 > 3. Traces dos specialists visíveis no Langfuse para cada missão executada
 > 4. `StepExecutorService` e `SpecialistRegistry.infer()` com cobertura de testes automatizados
 
-**Status atual:** critério 1 ✅, critérios 2/3/4 pendentes.
+**Status medido em 2026-08-15** (contra o banco, não contra anotação): **4 de 4.**
+1. ✅ Missão de 3 steps end-to-end
+2. ✅ Fitness > 0.6 em 2 taskTypes — `classify` 0.918, `classify_event` 0.645, `summarize` 0.628.
+   O que destravou não foi refazer o conjunto: o prompt de `summarize` não declarava a convenção
+   de formato que os casos esperavam, e `classify` misturava duas tarefas diferentes — separadas
+   em `classify` e `classify_event`. `classify` foi de 0.474 para 0.918 sem tocar num único caso
+3. ✅ Traces dos specialists no Langfuse — verificado em 2026-08-15 rodando um `reviewer` isolado
+   por `POST /v2/specialists/spawn`: 5 traces `rayzen:specialist:reviewer`, um por iteração
+4. ✅ `StepExecutorService` e `SpecialistRegistry.infer()` com spec
+
+> O critério 3 não exigia descongelar o executor de missões: `spawn` roda um specialist sozinho.
+> Escolher o `reviewer` foi deliberado — skills só de leitura e modelo Groq, sem tocar a Anthropic.
 
 ---
 

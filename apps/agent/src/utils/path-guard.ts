@@ -7,6 +7,12 @@ export const SAFE_ROOTS = [
   resolve(HOME, 'Documents'),
   resolve(HOME, 'Desktop'),
   resolve(HOME, 'Projects'),
+  // `C:\Projects`/`D:\Projects` existiam em QUATRO cópias ad-hoc de "safe root" espalhadas por
+  // `actions/*.ts` (file-search, parse-test-report, capture-test-failure,
+  // create-project-folder) — cada uma com `.startsWith()`, sem checar fronteira de path (um
+  // `C:\ProjectsEvil\x` passava). Consolidadas aqui, na canônica, com a checagem correta.
+  'C:\\Projects',
+  'D:\\Projects',
   ...(process.env.AGENT_PROJECT_ROOT ? [resolve(process.env.AGENT_PROJECT_ROOT)] : []),
 ]
 

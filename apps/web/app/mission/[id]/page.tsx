@@ -7,6 +7,7 @@ import { V2_URL } from '../../../lib/api-url'
 import { authHeaders } from '../../../lib/api-client'
 import { useRayzenEvents } from '../../hooks/useRayzenEvents'
 import { ClarificationCard } from '../../components/ClarificationCard'
+import { DocsPanel } from '../../components/DocsPanel'
 
 type MissionStatus = 'pending' | 'active' | 'paused' | 'done' | 'failed' | 'cancelled'
 type StepStatus    = 'pending' | 'running' | 'done' | 'failed' | 'skipped'
@@ -507,6 +508,7 @@ export default function MissionDetailPage() {
           Steps serão gerados ao executar o workflow.
         </div>
       )}
+      <DocsPanel topicId="missions" />
     </div>
   )
 }

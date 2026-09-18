@@ -2,9 +2,19 @@ import { IsString, IsNotEmpty, IsOptional, IsIn, IsArray, IsNumber, Min, Max } f
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
 
 export type MemoryClass = 'inbox' | 'working' | 'consolidated' | 'archive'
+
+/**
+ * Natureza do que está sendo lembrado. Herdado do módulo `project-memory`,
+ * removido em 2026-08-15 por ser um segundo escritor da mesma tabela — ver
+ * docs/FROZEN.md. O tipo veio junto porque a coluna já existe no schema e
+ * preenchê-la é o que torna possível perguntar "quais decisões foram tomadas"
+ * em vez de só buscar por similaridade.
+ */
+export type MemoryType = 'decision' | 'lesson' | 'pattern' | 'constraint' | 'assumption'
 export type WorkMode   = 'implementation' | 'debugging' | 'review' | 'architecture' | 'study'
 
 const MEMORY_CLASSES: MemoryClass[] = ['inbox', 'working', 'consolidated', 'archive']
+const MEMORY_TYPES: MemoryType[] = ['decision', 'lesson', 'pattern', 'constraint', 'assumption']
 const WORK_MODES: WorkMode[] = ['implementation', 'debugging', 'review', 'architecture', 'study']
 
 export class StoreMemoryDto {
@@ -32,6 +42,23 @@ export class StoreMemoryDto {
   @IsOptional()
   @IsIn(MEMORY_CLASSES)
   memoryClass?: MemoryClass
+
+  @ApiPropertyOptional({ enum: MEMORY_TYPES })
+  @IsOptional()
+  @IsIn(MEMORY_TYPES)
+  memoryType?: MemoryType
+
+  @ApiPropertyOptional({ minimum: 0, maximum: 1, default: 0.8 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  confidence?: number
+
+  @ApiPropertyOptional({ description: 'Missão que originou este aprendizado' })
+  @IsOptional()
+  @IsString()
+  missionId?: string
 }
 
 export class SearchMemoryDto {

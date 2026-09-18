@@ -1,4 +1,19 @@
-import { extractFileLineage, detectRoute, GraphifyGraph } from '../graphify-sync'
+import { execFileSync } from 'child_process'
+import { mkdtempSync, mkdirSync, rmSync, readFileSync } from 'fs'
+import { join } from 'path'
+import { extractFileLineage, detectRoute, GraphifyGraph, graphifySync } from '../graphify-sync'
+
+/**
+ * Achado colateral da varredura de 2026-09-12: o arquivo tinha um BYTE NULO literal (`\x00`)
+ * substituindo o espaço em `` `${from} ${to}` `` (a chave de dedup de `extractFileLineage`) —
+ * já estava assim no commit anterior, não era algo que quebrasse o TypeScript (o `key` some no
+ * `Set`, funcionava por acidente), mas `git diff`/`file` passaram a tratar o arquivo inteiro
+ * como binário por causa de UM byte. Corrigido para espaço normal; este teste impede a volta.
+ */
+it('não tem byte nulo em lugar nenhum do arquivo-fonte', () => {
+  const fonte = readFileSync(join(__dirname, '..', 'graphify-sync.ts'))
+  expect(fonte.includes(0)).toBe(false)
+})
 
 /**
  * Achado real: graph.edges.length era usado pra contar arestas, mas o graph.json
@@ -76,4 +91,48 @@ describe('detectRoute', () => {
     const result = detectRoute('C:/repo-inexistente', 'apps/api/src/modules/qa/qa.controller.ts')
     expect(result.isRoute).toBe(true)
   })
+})
+
+/**
+ * Achado da varredura de 2026-09-12 — `graphifySync()` era o único ponto de exec que sobrava
+ * fora da Fase 1 (`execSync` cru, `shell:true` por omissão) e nunca checava `cwd` contra
+ * safe-root. Migrado para `executarPrograma` (`shell:false`, argv como vetor) com a mesma
+ * checagem que `list-dir.ts` usa. Os dois comandos aqui são literais fixos (nunca havia
+ * interpolação de valor externo na string) — o achado real era o `cwd` livre, não injeção de
+ * comando.
+ */
+describe('graphifySync — migrado para executarPrograma, com safe-root', () => {
+  it('recusa cwd fora de safe root, antes de tentar rodar git', async () => {
+    const r = await graphifySync({ cwd: 'C:\\Windows\\System32' })
+    expect(r).toMatch(/caminho não permitido/i)
+  })
+
+  it('diretório dentro de safe root mas fora de um repositório git', async () => {
+    const base = join(process.env.USERPROFILE ?? process.env.HOME ?? '', 'Projects')
+    // No runner do CI (Linux, $HOME=/home/runner) esta pasta não existe por padrão.
+    mkdirSync(base, { recursive: true })
+    const dir = mkdtempSync(join(base, 'rayzen-graphify-sync-teste-'))
+    try {
+      const r = await graphifySync({ cwd: dir })
+      expect(r).toBe('Erro: não está em um repositório git')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('acha a raiz de um repositório git real via executarPrograma (git rev-parse funciona)', async () => {
+    const base = join(process.env.USERPROFILE ?? process.env.HOME ?? '', 'Projects')
+    mkdirSync(base, { recursive: true })
+    const dir = mkdtempSync(join(base, 'rayzen-graphify-sync-repo-'))
+    try {
+      execFileSync('git', ['init', '-q'], { cwd: dir })
+      // Sem graphify instalado nesta máquina (confirmado na varredura) e sem graph.json —
+      // a chamada real a `git rev-parse --show-toplevel` já aconteceu antes desse ponto, e é
+      // isso que este teste prova: a migração não quebrou a detecção de repositório.
+      const r = await graphifySync({ cwd: dir })
+      expect(r).toMatch(/graph\.json não encontrado/)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  }, 15_000)
 })

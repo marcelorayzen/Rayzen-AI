@@ -101,6 +101,30 @@ describe('ExecutionService', () => {
       await expect(service.dispatch('open_app', { app: 'nonexistent' })).rejects.toThrow('App não encontrado')
     })
 
+    // get_data_quality saiu da whitelist em 2026-08-05 junto com o domínio de
+    // governança de dados (extraído para o catalog-guardian). get_qa_summary
+    // continua e mantém a garantia do ADR-004 viva.
+    it.each(['get_qa_summary'])(
+      'roteia %s para targetRole="server" (ADR-004)',
+      async (action) => {
+        mockQueue.add.mockResolvedValue({})
+        mockQueue.getJobs.mockImplementation(async () => {
+          const calls = mockQueue.add.mock.calls
+          const lastCall = calls[calls.length - 1]
+          const jobId = lastCall[2].jobId
+          return [{ id: jobId, data: { status: 'done', result: {} } }]
+        })
+
+        await service.dispatch(action, { projectId: 'p1' })
+
+        expect(mockQueue.add).toHaveBeenCalledWith(
+          'execute',
+          expect.objectContaining({ action, targetRole: 'server' }),
+          expect.anything(),
+        )
+      },
+    )
+
     it('falha rápido sem enfileirar quando o agent do role alvo está offline', async () => {
       const heartbeat = service['heartbeat'] as unknown as { isOnline: jest.Mock; getLastSeenAt: jest.Mock }
       heartbeat.isOnline.mockReturnValue(false)

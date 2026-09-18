@@ -27,7 +27,7 @@ export class ProjectController {
 
   @Patch(':id')
   @ApiOperation({ summary: 'Atualizar projeto' })
-  update(@Param('id') id: string, @Body() body: { name?: string; description?: string; goals?: string; status?: string; repoSlug?: string }) {
+  update(@Param('id') id: string, @Body() body: { name?: string; description?: string; goals?: string; status?: string; repoSlug?: string; domain?: string | null }) {
     return this.projects.update(id, body)
   }
 

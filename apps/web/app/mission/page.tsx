@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { V2_URL, API_URL } from '../../lib/api-url'
 import { authHeaders } from '../../lib/api-client'
 import { HelpTip } from '../components/HelpTip'
+import { DocsPanel } from '../components/DocsPanel'
 
 type MissionStatus = 'pending' | 'active' | 'paused' | 'done' | 'failed' | 'cancelled'
 
@@ -228,6 +229,7 @@ export default function MissionPage() {
           <Link href="/work-panel" className="hud-btn hud-btn-primary" style={{ fontSize: 12 }}>Criar primeira missão</Link>
         </div>
       )}
+      <DocsPanel topicId="missions" />
     </div>
   )
 }

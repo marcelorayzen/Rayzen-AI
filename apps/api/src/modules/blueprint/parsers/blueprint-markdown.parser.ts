@@ -11,6 +11,10 @@ export interface ParsedTask {
   priority: 'medium'
 }
 
+// `pareceDecisao` mora em `common/` desde 18/09: a conversa do HUB faz a mesma pergunta, e duas
+// cópias da mesma regra é a família de drift que esta casa já pagou com `SAFE_ROOTS`.
+import { pareceDecisao } from '../../../common/decisao-declarada.const'
+
 export interface ParsedBlueprint {
   title: string
   sections: ParsedSection[]
@@ -19,16 +23,6 @@ export interface ParsedBlueprint {
   decisions: string[]
   problems: string[]
 }
-
-const DECISION_PATTERNS = [
-  /\bdecidi(do|mos|u)\b/i,
-  /\bescolh(emos|ido|a)\b/i,
-  /\boptamos\b/i,
-  /\bwill use\b/i,
-  /\badotamos\b/i,
-  /\baprovado\b/i,
-  /\bADR\b/,
-]
 
 const PROBLEM_PATTERNS = [
   /\bblocker\b/i,
@@ -62,9 +56,15 @@ function isActionItem(line: string): boolean {
   return ACTION_VERB_PATTERNS.some((p) => p.test(clean))
 }
 
-function isDecision(line: string): boolean {
-  return DECISION_PATTERNS.some((p) => p.test(line))
-}
+/**
+ * Negação que precede o verbo de decisão, dentro de uma janela curta.
+ *
+ * A janela existe para não condenar a linha inteira: em
+ * "Decidimos manter onDelete: SetNull porque apagar projeto não deve apagar o registro"
+ * há um "não" — mas depois do verbo, e a decisão é real. Só nega o que vem ANTES.
+ *
+ * `\p{L}` em vez de `\w` porque a janela pode conter acento ("ainda não foi aprovado").
+ */
 
 function isProblem(line: string): boolean {
   return PROBLEM_PATTERNS.some((p) => p.test(line))
@@ -120,7 +120,7 @@ export function parseMarkdown(content: string, blueprintTitle: string): ParsedBl
     if (listItem) {
       const item = listItem[1].trim()
 
-      if (isDecision(item)) {
+      if (pareceDecisao(item)) {
         decisions.push(item)
       } else if (isProblem(item)) {
         problems.push(item)

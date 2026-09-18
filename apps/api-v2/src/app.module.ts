@@ -9,12 +9,12 @@ import { RouterModule } from './router/router.module'
 import { ConversationModule } from './conversation/conversation.module'
 import { DiscoveryModule } from './discovery/discovery.module'
 import { MemoryModule } from './memory/memory.module'
+import { SystemStatusModule } from './system-status/system-status.module'
 import { AiRouterModule } from './ai-router/ai-router.module'
 import { ContextEngineModule } from './context-engine/context-engine.module'
 import { SkillEngineModule } from './skill-engine/skill-engine.module'
 import { VaultModule } from './vault/vault.module'
 import { KnowledgeModule } from './knowledge/knowledge.module'
-import { ProjectMemoryModule } from './project-memory/project-memory.module'
 import { ApprovalGatesModule } from './approval-gates/approval-gates.module'
 import { WorkflowModule } from './workflow/workflow.module'
 import { QaEngineModule } from './qa-engine/qa-engine.module'
@@ -31,6 +31,9 @@ import { BenchmarkModule } from './benchmark/benchmark.module'
 import { AgentDialogueModule } from './agent-dialogue/agent-dialogue.module'
 import { EvolutionaryModule } from './evolutionary/evolutionary.module'
 import { QaScientistModule } from './qa-scientist/qa-scientist.module'
+import { GuardianModule } from './guardian/guardian.module'
+import { InvariantsModule } from './invariants/invariants.module'
+import { PanoramaModule } from './panorama/panorama.module'
 
 @Module({
   controllers: [PingController],
@@ -42,6 +45,7 @@ import { QaScientistModule } from './qa-scientist/qa-scientist.module'
     CostControllerModule,
     ObservabilityModule,
     AiRouterModule,
+    SystemStatusModule,
     MemoryModule,
     ContextEngineModule,
     MissionModule,
@@ -51,7 +55,6 @@ import { QaScientistModule } from './qa-scientist/qa-scientist.module'
     SkillEngineModule,
     VaultModule,
     KnowledgeModule,
-    ProjectMemoryModule,
     ApprovalGatesModule,
     WorkflowModule,
     QaEngineModule,
@@ -66,6 +69,9 @@ import { QaScientistModule } from './qa-scientist/qa-scientist.module'
     AgentDialogueModule,
     EvolutionaryModule,
     QaScientistModule,
+    GuardianModule,
+    InvariantsModule,
+    PanoramaModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

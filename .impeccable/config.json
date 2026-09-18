@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "gray-on-color",
+        "value": "*",
+        "files": [
+          "apps/web/app/components/EvidenceModal.tsx"
+        ],
+        "createdAt": "2026-08-20T17:43:21.023Z",
+        "reason": "falso positivo: o analisador nao resolve os ramos do ternario e cruza text-zinc-300 (ramo 'enviando', sobre bg-zinc-800) com bg-cyan-900/60 do ramo oposto; o par real e cinza claro sobre cinza escuro"
+      },
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "apps/web/app/components/EvidenceModal.tsx"
+        ],
+        "createdAt": "2026-08-20T17:43:57.069Z",
+        "reason": "falso positivo: o src e template literal montado em runtime (API_URL + remotePath), nao vazio nem placeholder; o analisador nao resolve a expressao"
+      }
+    ]
+  }
+}

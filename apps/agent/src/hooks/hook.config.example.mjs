@@ -8,7 +8,7 @@
  */
 
 export default {
-  // URL pública da API Rayzen (ex: ngrok no notebook)
+  // URL pública da API Rayzen (ex: ngrok no servidor)
   apiUrl: 'https://SEU-ENDPOINT-API.ngrok-free.dev',
 
   // JWT de autenticação — obter em POST /auth/login

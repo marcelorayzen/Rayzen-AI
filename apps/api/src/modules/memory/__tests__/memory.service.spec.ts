@@ -83,6 +83,53 @@ describe('MemoryService', () => {
       expect(mockPrisma.document.update).not.toHaveBeenCalled()
     })
 
+    it('com replaceBySourcePath, substitui a versão anterior do mesmo caminho', async () => {
+      // Cada Edit indexava o arquivo inteiro de novo, e conteúdo diferente = checksum
+      // diferente = linha nova. Medido em 2026-08-16: 5 dos 8 resultados de uma busca no
+      // banco-imob eram a mesma página, separadas por 0,0003 de score.
+      mockPrisma.document.findFirst.mockResolvedValue({ id: 'versao-anterior', sourcePath: 'c:/proj/page.tsx' })
+      mockPrisma.$executeRaw.mockResolvedValue(1)
+
+      const result = await service.indexDocument(
+        'conteúdo NOVO do arquivo',
+        'c:/proj/page.tsx',
+        { source: 'cli' },
+        'proj-123',
+        { replaceBySourcePath: true },
+      )
+
+      expect(result).toEqual({ id: 'versao-anterior', status: 'updated' })
+    })
+
+    it('busca a versão anterior por caminho ANTES de tentar checksum', async () => {
+      // Ordem importa: reverter um arquivo a um estado antigo casa o checksum de uma
+      // cópia velha. Se o checksum viesse primeiro, o revert ressuscitaria a linha errada
+      // em vez de atualizar a corrente.
+      mockPrisma.document.findFirst.mockResolvedValue(null)
+      mockPrisma.$executeRaw.mockResolvedValue(1)
+
+      await service.indexDocument('conteúdo', 'c:/proj/page.tsx', { source: 'cli' }, 'proj-123', {
+        replaceBySourcePath: true,
+      })
+
+      expect(mockPrisma.document.findFirst.mock.calls[0]?.[0]).toMatchObject({
+        where: expect.objectContaining({ sourcePath: 'c:/proj/page.tsx', projectId: 'proj-123' }),
+      })
+    })
+
+    it('sem replaceBySourcePath, NÃO busca por caminho — chunks dividem sourcePath de propósito', async () => {
+      // indexFile/indexNotion/indexUrl gravam N documentos sob o mesmo caminho. Se a
+      // substituição por caminho valesse para eles, um PDF de 40 chunks viraria 1.
+      mockPrisma.document.findFirst.mockResolvedValue(null)
+      mockPrisma.$executeRaw.mockResolvedValue(1)
+
+      await service.indexDocument('chunk 3 de 40', 'file/manual.pdf', { type: 'file' }, 'proj-123')
+
+      for (const [args] of mockPrisma.document.findFirst.mock.calls) {
+        expect(args.where).not.toHaveProperty('sourcePath')
+      }
+    })
+
     it('chama a API Jina para gerar embedding', async () => {
       mockPrisma.document.findFirst.mockResolvedValue(null)
       mockPrisma.$executeRaw.mockResolvedValue(1)

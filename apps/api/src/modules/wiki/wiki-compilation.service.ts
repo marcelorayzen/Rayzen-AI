@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import OpenAI from 'openai'
+import { createLlmClient } from '../../common/llm-client'
 import { BrainSearchResult } from '../brain/brain.service'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -20,9 +21,9 @@ export class WikiCompilationService {
   private llm: OpenAI
 
   constructor(private readonly config: ConfigService) {
-    this.llm = new OpenAI({
+    this.llm = createLlmClient('wiki-compilation', {
+      apiKey:  this.config.get('LITELLM_MASTER_KEY') ?? 'sk-rayzen',
       baseURL: this.config.get('LITELLM_BASE_URL', 'http://localhost:4000/v1'),
-      apiKey: this.config.get('LITELLM_MASTER_KEY') ?? 'sk-rayzen',
     })
   }
 

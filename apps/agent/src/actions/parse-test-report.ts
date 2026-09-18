@@ -2,9 +2,7 @@ import { readFileSync, existsSync } from 'node:fs'
 import { extname, resolve } from 'node:path'
 import { request } from 'node:http'
 import { request as httpsRequest } from 'node:https'
-
-const HOME = process.env.USERPROFILE ?? process.env.HOME ?? ''
-const SAFE_ROOTS = [HOME + '\\Projects', 'C:\\Projects', 'D:\\Projects', HOME + '\\Desktop']
+import { isUnderSafeRoot } from '../utils/path-guard'
 
 export interface ParsedTestRun {
   tool: string
@@ -132,7 +130,7 @@ export async function parseTestReport(payload: {
 }): Promise<ParsedTestRun & { saved: boolean }> {
   const reportPath = resolve(payload.reportPath)
 
-  if (!SAFE_ROOTS.some(r => reportPath.startsWith(r))) {
+  if (!isUnderSafeRoot(reportPath)) {
     throw new Error(`Caminho não permitido: ${reportPath}`)
   }
 

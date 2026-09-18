@@ -33,27 +33,31 @@ interface NodeData extends Record<string, unknown> {
 
 type ProjectNode = Node<NodeData, 'project'>
 
-const COLORS: Record<NodeType, { border: string; glow: string; bg: string; text: string; tag: string }> = {
-  milestone: { border: '#3b82f6', glow: '#3b82f6', bg: '#03060f',  text: '#93c5fd', tag: 'milestone' },
-  blocker:   { border: '#ef4444', glow: '#ef4444', bg: '#0f0202',  text: '#fca5a5', tag: 'blocker'   },
-  next:      { border: '#8b5cf6', glow: '#8b5cf6', bg: '#07020f',  text: '#c4b5fd', tag: 'próximo'   },
-  goal:      { border: '#f59e0b', glow: '#f59e0b', bg: '#0f0800',  text: '#fcd34d', tag: 'meta'      },
-  gap:       { border: '#f97316', glow: '#f97316', bg: '#0f0400',  text: '#fdba74', tag: 'gap'       },
-  action:    { border: '#06b6d4', glow: '#06b6d4', bg: '#00090f',  text: '#67e8f9', tag: 'ação'      },
-  decision:  { border: '#10b981', glow: '#10b981', bg: '#01100a',  text: '#6ee7b7', tag: 'decisão'   },
-  problem:   { border: '#f43f5e', glow: '#f43f5e', bg: '#100108',  text: '#fda4af', tag: 'problema'  },
-  idea:      { border: '#a78bfa', glow: '#a78bfa', bg: '#06020f',  text: '#ddd6fe', tag: 'ideia'     },
-  event:     { border: '#71717a', glow: '#71717a', bg: '#0a0a0a',  text: '#a1a1aa', tag: 'evento'    },
-  git:       { border: '#eab308', glow: '#eab308', bg: '#0a0800',  text: '#fde047', tag: 'git'       },
-  voice:     { border: '#22d3ee', glow: '#22d3ee', bg: '#000d0f',  text: '#a5f3fc', tag: 'voz'       },
-  notion:    { border: '#818cf8', glow: '#818cf8', bg: '#02020f',  text: '#c7d2fe', tag: 'notion'    },
-  cli:       { border: '#4ade80', glow: '#4ade80', bg: '#010f03',  text: '#86efac', tag: 'hook'      },
-  execution: { border: '#fb923c', glow: '#fb923c', bg: '#0f0400',  text: '#fdba74', tag: 'execução'  },
-  brain:     { border: '#c084fc', glow: '#c084fc', bg: '#08020f',  text: '#e9d5ff', tag: 'brain'     },
-  artifact:  { border: '#0ea5e9', glow: '#0ea5e9', bg: '#00060f',  text: '#7dd3fc', tag: 'checkpoint'},
-  document:  { border: '#14b8a6', glow: '#14b8a6', bg: '#000f0d',  text: '#5eead4', tag: 'documento' },
-  wiki:      { border: '#f472b6', glow: '#f472b6', bg: '#0f0008',  text: '#f9a8d4', tag: 'wiki'      },
-  file:      { border: '#a3a3a3', glow: '#a3a3a3', bg: '#0a0a0a',  text: '#d4d4d4', tag: 'arquivo'   },
+/* Sistema: superfície neutra compartilhada + barra de acento por tipo (sem glow) */
+const NODE_BG   = '#14171a'
+const NODE_TEXT = '#d6dae0'
+
+const COLORS: Record<NodeType, { border: string; bg: string; text: string; tag: string }> = {
+  milestone: { border: '#3b82f6', bg: NODE_BG, text: NODE_TEXT, tag: 'milestone' },
+  blocker:   { border: '#ef4444', bg: NODE_BG, text: NODE_TEXT, tag: 'blocker'   },
+  next:      { border: '#8b5cf6', bg: NODE_BG, text: NODE_TEXT, tag: 'próximo'   },
+  goal:      { border: '#f59e0b', bg: NODE_BG, text: NODE_TEXT, tag: 'meta'      },
+  gap:       { border: '#f97316', bg: NODE_BG, text: NODE_TEXT, tag: 'gap'       },
+  action:    { border: '#06b6d4', bg: NODE_BG, text: NODE_TEXT, tag: 'ação'      },
+  decision:  { border: '#10b981', bg: NODE_BG, text: NODE_TEXT, tag: 'decisão'   },
+  problem:   { border: '#f43f5e', bg: NODE_BG, text: NODE_TEXT, tag: 'problema'  },
+  idea:      { border: '#a78bfa', bg: NODE_BG, text: NODE_TEXT, tag: 'ideia'     },
+  event:     { border: '#71717a', bg: NODE_BG, text: NODE_TEXT, tag: 'evento'    },
+  git:       { border: '#eab308', bg: NODE_BG, text: NODE_TEXT, tag: 'git'       },
+  voice:     { border: '#22d3ee', bg: NODE_BG, text: NODE_TEXT, tag: 'voz'       },
+  notion:    { border: '#818cf8', bg: NODE_BG, text: NODE_TEXT, tag: 'notion'    },
+  cli:       { border: '#4ade80', bg: NODE_BG, text: NODE_TEXT, tag: 'hook'      },
+  execution: { border: '#fb923c', bg: NODE_BG, text: NODE_TEXT, tag: 'execução'  },
+  brain:     { border: '#c084fc', bg: NODE_BG, text: NODE_TEXT, tag: 'brain'     },
+  artifact:  { border: '#0ea5e9', bg: NODE_BG, text: NODE_TEXT, tag: 'checkpoint'},
+  document:  { border: '#14b8a6', bg: NODE_BG, text: NODE_TEXT, tag: 'documento' },
+  wiki:      { border: '#f472b6', bg: NODE_BG, text: NODE_TEXT, tag: 'wiki'      },
+  file:      { border: '#a3a3a3', bg: NODE_BG, text: NODE_TEXT, tag: 'arquivo'   },
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -82,16 +86,15 @@ function ProjectNode({ data, id, selected }: NodeProps<ProjectNode>) {
     <div
       style={{
         background: c.bg,
-        border: `1.5px solid ${selected ? '#fff' : borderColor}`,
-        boxShadow: hovered || selected
-          ? `0 0 14px ${borderColor}80, 0 0 32px ${borderColor}30, inset 0 0 12px ${c.bg}`
-          : `0 0 6px ${borderColor}50`,
-        borderRadius: 10,
-        padding: '8px 12px',
+        border: `1px solid ${selected ? 'rgba(255,255,255,0.5)' : hovered ? 'rgba(255,255,255,0.20)' : 'rgba(255,255,255,0.10)'}`,
+        borderLeft: `2.5px solid ${borderColor}`,
+        boxShadow: selected ? `0 0 0 2px ${borderColor}30` : '0 2px 8px rgba(0,0,0,0.4)',
+        borderRadius: 6,
+        padding: '8px 12px 8px 10px',
         minWidth: 140,
         maxWidth: 200,
         position: 'relative',
-        transition: 'box-shadow 0.2s, border-color 0.2s',
+        transition: 'border-color 0.15s, box-shadow 0.15s',
         cursor: d.onStatusCycle ? 'pointer' : 'default',
         fontFamily: MONO_FONT,
       }}
@@ -101,7 +104,7 @@ function ProjectNode({ data, id, selected }: NodeProps<ProjectNode>) {
       onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); setDraft(String(d.label)) }}
     >
       <Handle type="target" position={Position.Left}
-        style={{ background: borderColor, width: 7, height: 7, border: 'none', boxShadow: `0 0 6px ${borderColor}` }} />
+        style={{ background: borderColor, width: 7, height: 7, border: 'none' }} />
 
       {/* type tag */}
       <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: 1.5, color: c.border, marginBottom: 4, textTransform: 'uppercase', opacity: 0.85 }}>
@@ -158,7 +161,7 @@ function ProjectNode({ data, id, selected }: NodeProps<ProjectNode>) {
       )}
 
       <Handle type="source" position={Position.Right}
-        style={{ background: borderColor, width: 7, height: 7, border: 'none', boxShadow: `0 0 6px ${borderColor}` }} />
+        style={{ background: borderColor, width: 7, height: 7, border: 'none' }} />
     </div>
   )
 }
@@ -355,7 +358,7 @@ export function StateCanvas({ milestones: initMilestones, blockers: initBlockers
         colorMode="dark" proOptions={{ hideAttribution: true }}
         style={{ background: '#050508', fontFamily: MONO_FONT }}
       >
-        <Background color="#1c1c24" gap={24} size={1} />
+        <Background color="rgba(255,255,255,0.035)" gap={24} size={1} />
         <Controls showInteractive={false} style={{ background: '#0f0f14', border: '1px solid #27272a', borderRadius: 8 }} />
         <MiniMap nodeColor={n => COLORS[(n.data as NodeData).type]?.border ?? '#52525b'} style={{ background: '#0f0f14', border: '1px solid #27272a' }} maskColor="#050508cc" />
       </ReactFlow>
@@ -489,7 +492,7 @@ export function GoalCanvas({ goalTitle, targetDate, criteria: initCriteria, gaps
         colorMode="dark" proOptions={{ hideAttribution: true }}
         style={{ background: '#050508', fontFamily: MONO_FONT }}
       >
-        <Background color="#1c1c24" gap={24} size={1} />
+        <Background color="rgba(255,255,255,0.035)" gap={24} size={1} />
         <Controls showInteractive={false} style={{ background: '#0f0f14', border: '1px solid #27272a', borderRadius: 8 }} />
         <MiniMap nodeColor={n => COLORS[(n.data as NodeData).type]?.border ?? '#52525b'} style={{ background: '#0f0f14', border: '1px solid #27272a' }} maskColor="#050508cc" />
       </ReactFlow>
@@ -671,7 +674,7 @@ export function EventCanvas({ milestones, events }: EventCanvasProps) {
         colorMode="dark" proOptions={{ hideAttribution: true }}
         style={{ background: '#050508', fontFamily: MONO_FONT }}
       >
-        <Background color="#1c1c24" gap={24} size={1} />
+        <Background color="rgba(255,255,255,0.035)" gap={24} size={1} />
         <Controls showInteractive={false} style={{ background: '#0f0f14', border: '1px solid #27272a', borderRadius: 8 }} />
         <MiniMap nodeColor={n => COLORS[(n.data as NodeData).type]?.border ?? '#52525b'} style={{ background: '#0f0f14', border: '1px solid #27272a' }} maskColor="#050508cc" />
       </ReactFlow>
@@ -769,7 +772,7 @@ export function KnowledgeCanvas({ nodes: kNodes, edges: kEdges }: KnowledgeCanva
         colorMode="dark" proOptions={{ hideAttribution: true }}
         style={{ background: '#050508', fontFamily: MONO_FONT }}
       >
-        <Background color="#1c1c24" gap={24} size={1} />
+        <Background color="rgba(255,255,255,0.035)" gap={24} size={1} />
         <Controls showInteractive={false} style={{ background: '#0f0f14', border: '1px solid #27272a', borderRadius: 8 }} />
         <MiniMap nodeColor={n => COLORS[(n.data as NodeData).type]?.border ?? '#52525b'} style={{ background: '#0f0f14', border: '1px solid #27272a' }} maskColor="#050508cc" />
       </ReactFlow>

@@ -29,8 +29,6 @@ import { NotionModule } from './modules/notion/notion.module'
 import { BrainModule } from './modules/brain/brain.module'
 import { WikiModule } from './modules/wiki/wiki.module'
 import { QaModule } from './modules/qa/qa.module'
-import { DataQualityModule } from './modules/data-quality/data-quality.module'
-import { DataCatalogModule } from './modules/data-catalog/data-catalog.module'
 import { GraphModule } from './modules/graph/graph.module'
 import { EvidenceModule } from './modules/evidence/evidence.module'
 import { BlueprintModule } from './modules/blueprint/blueprint.module'
@@ -70,8 +68,6 @@ import { AgentSessionModule } from './modules/agent-session/agent-session.module
     BrainModule,
     WikiModule,
     QaModule,
-    DataQualityModule,
-    DataCatalogModule,
     GraphModule,
     EvidenceModule,
     BlueprintModule,

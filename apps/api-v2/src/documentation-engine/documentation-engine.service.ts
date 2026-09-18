@@ -101,6 +101,8 @@ export class DocumentationEngineService {
       taskType:  'generate_code',
       projectId,
       maxTokens: 1500,
+      caller:        'documentation-engine',
+      callerContext: { docType: type },
     })
 
     return result.content

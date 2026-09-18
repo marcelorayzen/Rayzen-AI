@@ -1,0 +1,74 @@
+name: Smoke de produção
+
+# NÃO é gate de push, e não pode ser.
+#
+# O deploy é um webhook para o servidor (`git pull && docker compose up -d --build`), que
+# o GitHub Actions não observa. No instante em que o CI de um push roda, o código daquele
+# push AINDA NÃO está no ar — o smoke estaria exercitando a versão anterior e dando um
+# verde que não fala sobre a mudança.
+#
+# Então a pergunta que este workflow responde é outra: **produção está sã agora?**
+#
+#   - depois de publicar:  gh workflow run smoke-producao.yml
+#   - sozinho:             uma vez por dia, para achar quebra que ninguém provocou
+#
+# A suíte usa o puppeteer que já é dependência do `apps/api` e clica a interface de
+# verdade — é a única cobertura de renderização que existe, porque `apps/web` não tem
+# runner de teste (achado F-004 da auditoria de 19/08).
+on:
+  workflow_dispatch:
+  schedule:
+    # 09:00 UTC — cedo o suficiente para o dia começar sabendo, raro o suficiente para
+    # um vermelho aqui ainda significar alguma coisa.
+    - cron: '0 9 * * *'
+
+jobs:
+  smoke:
+    name: Clica a UI em produção
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # O navegador tem de ser instalado à parte, e não basta omitir PUPPETEER_SKIP_DOWNLOAD.
+      # Medido na primeira execução deste workflow (falhou com "Could not find Chrome
+      # ver. 127.0.6533.88"): o Chrome vive em `~/.cache/puppeteer`, **fora do store do
+      # pnpm**. O `cache: pnpm` do setup-node restaura o store, o pnpm considera o pacote
+      # já instalado e pula o postinstall — e o download nunca acontece.
+      #
+      # Instalar explicitamente também é mais honesto que depender de qual Chrome a imagem
+      # do runner traz hoje: a versão é a que o puppeteer do repo espera.
+      # O cache vem ANTES da instalação, senão ele só salva e nunca restaura.
+      - name: Cache do navegador
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/puppeteer
+          key: puppeteer-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      # Idempotente: com o cache quente, sai em segundos sem baixar nada.
+      - name: Chrome para o puppeteer
+        run: pnpm --filter api exec puppeteer browsers install chrome
+
+      - name: Smoke da interface
+        env:
+          RAYZEN_WEB_URL:    https://rayzen.com.br
+          RAYZEN_API_TOKEN:  ${{ secrets.RAYZEN_AGENT_TOKEN }}
+          RAYZEN_PROJECT_ID: 7690370b-aa1e-4b13-8335-a8a14ad0d859
+        run: pnpm smoke:web
+
+      - name: Screenshots das asserções que falharam
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-screenshots
+          path: /tmp/rayzen-smoke/
+          if-no-files-found: ignore

@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Permite re-rodar sob demanda pela aba Actions ou via `gh workflow run CI` —
+  # útil quando o ingest de QA falha por indisponibilidade momentânea da API e
+  # basta tentar de novo, sem precisar de um commit vazio só pra isso.
+  workflow_dispatch:
 
 jobs:
   typecheck:
@@ -33,6 +37,9 @@ jobs:
 
       - name: Type check
         run: pnpm typecheck
+
+      - name: Check role-policy drift (ADR-004)
+        run: pnpm check:role-drift
 
   lint:
     name: Lint
@@ -87,31 +94,20 @@ jobs:
       - name: Generate Prisma client v2
         run: pnpm --filter api-v2 db:generate
 
-      - name: Run unit tests with coverage
-        run: pnpm --filter api test:cov
-
-      - name: Ingest JUnit report no Rayzen
-        if: always()
-        continue-on-error: true
+      # Roda os testes de TODOS os apps do workspace e envia um único run consolidado.
+      # Antes: só o apps/api virava número no Rayzen (225), enquanto api-v2 e agent
+      # rodavam em passos separados e nunca eram contados — o painel mostrava menos da
+      # metade das suítes como se fosse o repositório inteiro.
+      #
+      # Sem continue-on-error de propósito: se o envio falhar, o job fica vermelho. Foi
+      # exatamente o silêncio (curl -sf + continue-on-error) que deixou o número
+      # congelado em 24/jul por 12 dias sem ninguém perceber.
+      - name: Testes do monorepo + ingest no Rayzen
         env:
-          RAYZEN_AGENT_TOKEN: ${{ secrets.RAYZEN_AGENT_TOKEN }}
-        run: |
-          if [ -z "$RAYZEN_AGENT_TOKEN" ] || [ ! -f apps/api/junit/junit.xml ]; then
-            echo "Sem token ou junit.xml — pulando ingest"
-            exit 0
-          fi
-          jq -n \
-            --arg content "$(cat apps/api/junit/junit.xml)" \
-            --arg branch "${{ github.ref_name }}" \
-            --arg commit "${{ github.sha }}" \
-            '{format: "junit", tool: "github-actions", projectId: "7690370b-aa1e-4b13-8335-a8a14ad0d859", branch: $branch, commitHash: $commit, reportContent: $content}' \
-          | curl -sf -X POST "https://api.rayzen.com.br/qa/reports/ingest" \
-              -H "Authorization: Bearer $RAYZEN_AGENT_TOKEN" \
-              -H "Content-Type: application/json" \
-              -d @-
-
-      - name: Run api-v2 tests
-        run: pnpm --filter api-v2 test
+          RAYZEN_API_URL:    https://api.rayzen.com.br
+          RAYZEN_API_TOKEN:  ${{ secrets.RAYZEN_AGENT_TOKEN }}
+          RAYZEN_PROJECT_ID: 7690370b-aa1e-4b13-8335-a8a14ad0d859
+        run: pnpm qa:ingest --coverage
 
       - name: Run E2E tests
         run: pnpm --filter api test:e2e

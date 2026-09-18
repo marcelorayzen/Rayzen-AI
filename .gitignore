@@ -52,6 +52,8 @@ secrets/
 
 # Coverage
 apps/api/coverage/
+apps/api-v2/src/coverage/
+apps/catalog-guardian/src/coverage/
 
 # Relatorio JUnit (gerado pelo jest-junit, consumido pelo CI pra ingest no Rayzen)
 apps/api/junit/
@@ -85,3 +87,9 @@ apps/catalog-guardian/generated/
 # `python avaliador.py`, não é fonte de verdade versionável)
 apps/catalog-guardian/golden-dataset/resultado-*.json
 __pycache__/
+
+# Backups de .env — NUNCA versionados (incidente 2026-09-08: um .env.bak
+# entrou no stage por `git add -A` e so nao foi publicado porque o Guardian
+# bloqueou o push). O padrao pega qualquer .bak, em qualquer profundidade.
+*.bak
+*.bak-*

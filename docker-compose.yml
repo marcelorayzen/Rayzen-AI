@@ -20,13 +20,33 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: redis-server --appendonly yes
+    # ── Senha, porque a rede interna NAO e uma fronteira ────────────────────────
+    #
+    # Medido em 16/09, de dentro do container do Hermes e SEM credencial nenhuma:
+    #
+    #   PING            -> +PONG
+    #   SCAN bull:*     -> bull:agent-tasks:<uuid> ... (31 chaves)
+    #
+    # `bull:agent-tasks` e a fila que o agent DESKTOP reivindica e executa na maquina do Marcelo.
+    # Quem alcanca o Redis sem senha pode enfileirar um job -- e isso contorna inteiramente o
+    # escopo somente-leitura do `MCP_TOKEN_HERMES`. O Hermes roda um agente de LLM com `terminal`
+    # e `code_execution` habilitados; bastava ele obedecer a um texto que leu.
+    #
+    # `${REDIS_PASSWORD:+...}` e deliberado: sem a variavel no `.env`, o comando fica IDENTICO ao
+    # anterior e nada quebra. Isso torna esta mudanca segura de publicar em qualquer ordem, em vez
+    # de exigir que compose e `.env` mudem no mesmo instante -- que e o tipo de acoplamento que
+    # derruba producao quando um dos dois chega antes.
+    command: sh -c 'exec redis-server --appendonly yes ${REDIS_PASSWORD:+--requirepass "$$REDIS_PASSWORD"}'
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
     volumes:
       - redis_data:/data
     ports:
       - '127.0.0.1:56379:6379'
     healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
+      # `CMD-SHELL` para a expansao condicional funcionar: com senha configurada, um `ping` sem
+      # `-a` responde NOAUTH e o healthcheck marcaria o container como unhealthy para sempre.
+      test: ['CMD-SHELL', 'redis-cli ${REDIS_PASSWORD:+-a "$$REDIS_PASSWORD"} --no-auth-warning ping | grep -q PONG']
       interval: 10s
       retries: 5
 
@@ -36,7 +56,7 @@ services:
     environment:
       DATABASE_URL: postgresql://rayzen:${POSTGRES_PASSWORD:-senha}@postgres:5432/langfuse
       NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:-changeme-langfuse-secret-32chars-x}
-      NEXTAUTH_URL: ${LANGFUSE_NEXTAUTH_URL:-http://192.168.0.174:3200}
+      NEXTAUTH_URL: ${LANGFUSE_NEXTAUTH_URL:-http://servidor-local:3200}
       LANGFUSE_CSP_ENFORCE_HTTPS: "false"
       SALT: ${LANGFUSE_SALT:-changeme-langfuse-salt-16chars}
     ports:
@@ -52,6 +72,10 @@ services:
       GROQ_API_KEY: ${GROQ_API_KEY}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      # Sem esta linha, pôr a chave no .env NÃO basta: este serviço declara as variáveis
+      # uma a uma, não usa `env_file`. O config.yaml resolveria `os.environ/GEMINI_API_KEY`
+      # para nada e o grupo falharia como se a chave fosse inválida.
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
       LANGFUSE_HOST: http://langfuse:3000
       LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
@@ -76,8 +100,27 @@ services:
     environment:
       API_V2_URL: http://api-v2:3002
       MCP_HTTP_URL: http://mcp-http:3102
+      # Token ESCOPADO a `POST /sessions/ingest`, por onde o HUB devolve a conversa. Separado do
+      # `AGENT_TOKEN` de propósito: o Hermes está exposto na internet, e o guard da rota **falha
+      # fechado** se esta variável não existir — ausente nunca vira "qualquer um entra".
+      HUB_INGEST_TOKEN: ${HUB_INGEST_TOKEN}
     volumes:
       - ./storage/evidence:/app/storage/evidence
+      # ── Identidade viva, com a cópia da imagem como reserva ──────────────────
+      #
+      # `apps/api/Dockerfile` faz `COPY core ./core`, então a api recebia o SOUL **assado na
+      # imagem** enquanto o Hermes o recebe por montagem. Os dois atualizam em momentos
+      # diferentes: o Hermes no `git pull` (início do deploy), a api só ao fim do build.
+      #
+      # Janela normal: os ~6 minutos do ciclo. Janela ruim: se o build da api falhar, o
+      # repositório já tem a identidade nova e a api fica com a antiga **indefinidamente**, sem
+      # nada acusar — os dois runtimes se apresentando de jeitos diferentes, que é exatamente o
+      # defeito que a unificação de 14/09 existe para fechar.
+      #
+      # `candidatos()` em `orchestrator/soul.ts` resolve a partir do `cwd` (`/app`), então esta
+      # montagem VENCE a cópia da imagem. O `COPY` fica como reserva: rodar a imagem sem o
+      # compose continua funcionando, só que com a versão do build.
+      - ./core:/app/core:ro
     ports:
       - '127.0.0.1:3101:3001'
     depends_on:
@@ -103,6 +146,13 @@ services:
       NODE_ENV: production
       AGENT_ROLE: server
       AGENT_API_URL: http://api:3001
+      # Explícito porque o fallback de `v2BaseUrl()` NÃO funciona aqui dentro: ele deriva do
+      # AGENT_API_URL trocando a porta para 3103, que é a porta publicada NO HOST. Na rede
+      # interna o api-v2 atende em `api-v2:3002` — host e porta ambos diferentes. Medido em
+      # 11/09: `http://api:3103` devolve HTTP 000 de dentro deste container, e o heartbeat do
+      # deploy-drift caía no catch vazio, deixando o painel em "nunca-subiu" com o sensor
+      # rodando e logando "ativo".
+      AGENT_API_V2_URL: http://api-v2:3002
       AGENT_TOKEN: ${AGENT_TOKEN}
       AGENT_POLL_INTERVAL_MS: 3000
       SERVER_API_CONTAINER: rayzen-ai-api-1
@@ -127,12 +177,32 @@ services:
       AGENT_TOKEN: ${AGENT_TOKEN}
       MCP_PORT: 3102
       MCP_PROJECT_ID: ${MCP_PROJECT_ID:-}
+      # Token estático de LEITURA: quem o apresenta só enxerga e só pode chamar as 9
+      # ferramentas de consulta. Vazio = nenhum token de leitura existe, e o servidor
+      # segue como era. Este serviço declara as variáveis uma a uma e não usa `env_file`,
+      # então pôr no .env sem esta linha não faz efeito — foi o que aconteceu com a
+      # GEMINI_API_KEY em 22/08.
+      MCP_READONLY_TOKEN: ${MCP_READONLY_TOKEN:-}
+      # Fase 8 do plano de execução tipada — token por consumidor, mesmo escopo do
+      # MCP_READONLY_TOKEN acima, mas revogável sozinho e nomeado no log de acesso. Um
+      # consumidor novo ganha uma linha `MCP_TOKEN_<NOME>: ${MCP_TOKEN_<NOME>:-}` aqui, sem
+      # mexer em código. Mesmo aviso da GEMINI_API_KEY: precisa estar declarado NESTA lista.
+      MCP_TOKEN_HERMES: ${MCP_TOKEN_HERMES:-}
+      # Consumidor de leitura para estudo/pesquisa sobre o projeto (ex.: conector MCP de um
+      # GPT) — mesmo escopo de leitura, nome próprio no log de acesso.
+      MCP_TOKEN_RAYZEN_AI: ${MCP_TOKEN_RAYZEN_AI:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       OAUTH_CLIENT_ID: ${OAUTH_CLIENT_ID:-claude-ai}
       OAUTH_CLIENT_SECRET: ${OAUTH_CLIENT_SECRET}
       MCP_BASE_URL: ${MCP_BASE_URL:-https://rayzen.com.br}
       GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET}
-      WEBHOOK_DEPLOY_HOST: ${WEBHOOK_DEPLOY_HOST:-rayzen@192.168.0.175}
+      # Gateway da rede docker = o próprio host, visto de dentro do container.
+      # Não usar IP da LAN aqui: ele é lease DHCP e muda. Já quebrou duas vezes — o
+      # default apontava .175 enquanto o .env dizia .174, e depois da migração para a
+      # H81 o host virou .123 e o webhook passou a falhar com "No route to host",
+      # respondendo 202 ao GitHub e não construindo nada. Só o log do container
+      # denunciava. O gateway é estável e independe de DHCP.
+      WEBHOOK_DEPLOY_HOST: ${WEBHOOK_DEPLOY_HOST:-rayzen@172.18.0.1}
       WEBHOOK_DEPLOY_KEY: /run/secrets/webhook_deploy_key
     volumes:
       - ./storage/mcp:/app/storage/mcp
@@ -183,6 +253,10 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3100}
       V1_API_URL: http://api:3001
       V1_API_TOKEN: ${AGENT_TOKEN}
+      # Só para o invariante `hub_registra_conversa` sondar a rota de ingestão e distinguir
+      # credencial certa (204) de divergente (401) — a falha que deixaria o hook descartando
+      # todo turno em silêncio.
+      HUB_INGEST_TOKEN: ${HUB_INGEST_TOKEN}
     ports:
       - '127.0.0.1:3103:3002'
       - '0.0.0.0:3104:3104'
@@ -216,7 +290,25 @@ services:
       - '443:443'
       - '443:443/udp'
     volumes:
-      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # ── DIRETÓRIO, não arquivo — e isto foi medido, não deduzido (18/09) ──
+      #
+      # Era `./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro`. Bind de ARQUIVO aponta para o
+      # **inode**, e `git pull` não reescreve no lugar: escreve outro e renomeia por cima. Medido
+      # no servidor com o Caddy em execução, ao acrescentar o vhost do HUB:
+      #
+      #     host:      inode=4198302  bytes=1198   (a versão nova)
+      #     container: inode=4195183  bytes=539    (um arquivo que já não existe nesse caminho)
+      #
+      # Ou seja: **nenhuma mudança no Caddyfile jamais teve efeito sem recriar o container**, e um
+      # `caddy reload` recarregaria alegremente o conteúdo velho. Rota nova que não responde e rota
+      # removida que continua no ar têm a mesma causa, e nada acusa.
+      #
+      # O inode do DIRETÓRIO é estável, e o arquivo lá dentro é resolvido pelo caminho a cada
+      # leitura. Mesma correção que `infra/hermes/entrypoint.sh` aplicou à identidade em 15/09,
+      # pelo mesmo motivo — lá a consequência era servir um SOUL antigo.
+      #
+      # `/etc/caddy` só contém o Caddyfile, na imagem e no repositório (conferido antes de trocar).
+      - ./infra/caddy:/etc/caddy:ro
       - caddy_data:/data
       - caddy_config:/config
       - ./storage/previews:/srv/previews:ro

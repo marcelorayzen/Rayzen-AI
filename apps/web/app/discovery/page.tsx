@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { API_URL, V2_URL } from '../../lib/api-url'
 import { authHeaders } from '../../lib/api-client'
 import { HelpTip } from '../components/HelpTip'
+import { DocsPanel } from '../components/DocsPanel'
 
 interface DiscoveryMsg { role: 'user' | 'assistant'; content: string }
 
@@ -442,6 +443,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
     <div>
       <div style={{ color: 'var(--hud-text-2)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>{title}</div>
       <div style={{ fontSize: 13, display: 'flex', flexDirection: 'column', gap: 3 }}>{children}</div>
+      <DocsPanel topicId="discovery" />
     </div>
   )
 }

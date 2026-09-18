@@ -5,6 +5,7 @@ import { SynthesisService } from '../synthesis/synthesis.service'
 import { PrismaService } from '../../prisma/prisma.service'
 import { MemoryService } from '../memory/memory.service'
 import { normalizeSlug } from '../project/project.service'
+import { podeIndexarAutomaticamente } from '../memory/indexable-path.const'
 
 function inferIntent(tool: string, filePath?: string): CreateEventDto['intent'] | undefined {
   if (filePath && /CLAUDE\.md|AGENTS\.md|ADR|decisions/i.test(filePath)) return 'decision'
@@ -153,14 +154,19 @@ export class EventController {
       content = `${tool}: ${filePath}${gitSuffix}`
       type = 'note'
 
-      // Auto-index file content into pgvector when hook sends fileContent
+      // Auto-index file content into pgvector when hook sends fileContent.
+      // `podeIndexarAutomaticamente` barra lockfile, build, scratchpad e binário:
+      // ocupam slot na maior seção do contexto injetado sem ensinar nada. Ver
+      // `indexable-path.const.ts` — só vale aqui, na indexação automática.
       const fileContent = payload.fileContent
-      if (fileContent) {
+      if (fileContent && podeIndexarAutomaticamente(filePath)) {
         this.memory.indexDocument(
           fileContent,
           filePath,
           { tool, source: 'cli', sessionId: payload.session_id },
           projectId,
+          // Um arquivo tem uma versão corrente. O histórico é do git, não do Brain.
+          { replaceBySourcePath: true },
         ).catch(() => null)
       }
     } else if (tool === 'Bash' || tool === 'PowerShell') {

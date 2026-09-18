@@ -26,10 +26,10 @@ Uma plataforma pessoal de IA que **preserva contexto** (memória semântica, dec
 ### 2.1 Os três lugares onde o Rayzen vive
 
 ```
-┌─ Sua máquina (Windows) ──────────────┐     ┌─ Notebook local (Ubuntu · Docker) ────────┐
+┌─ Sua máquina (Windows) ──────────────┐     ┌─ Servidor local (Ubuntu · Docker) ────────┐
 │ • VS Code + Claude Code               │     │ • PostgreSQL 16 + pgvector                 │
 │ • Hook (rayzen-hook.mjs)  ───eventos──┼────▶│   schemas: public (V1) · v2 (V2) · langfuse│
-│ • Agent desktop (agent-start.bat)     │◀────┼─ tarefas ─ • Redis 7 + BullMQ             │
+│ • Agent desktop (rayzen-start.bat)    │◀────┼─ tarefas ─ • Redis 7 + BullMQ             │
 │ • MCP stdio (.mcp.json)               │     │ • LiteLLM proxy (:4000)                    │
 └───────────────────────────────────────┘     │ • API V1 (:3101) — uso diário              │
                                                │ • API V2 (:3103, prefixo /v2)              │
@@ -40,9 +40,11 @@ Uma plataforma pessoal de IA que **preserva contexto** (memória semântica, dec
 ```
 
 - **Hook** = sensor passivo. Cada ação no Claude Code (Edit/Write/Bash) vira um evento no Rayzen.
-- **Agent** = braço executor. Recebe tarefas (`jarvis:*`) e executa no SO local (whitelist obrigatória). **Requer agent-start.bat rodando** — sem ele, skills `jarvis:*` retornam 500.
+- **Agent** = braço executor. Recebe tarefas (`jarvis:*`) e executa no SO local (whitelist obrigatória). **Requer `rayzen-start.bat` rodando** — sem ele, skills `jarvis:*` retornam 500.
 - **MCP** = ponte para o Claude Code e claude.ai consultarem e gravarem no Rayzen.
-- **Infra** = notebook local `192.168.0.174`, Cloudflare Tunnel para domínio `rayzen.com.br`.
+- **Infra** = servidor local dedicado (`servidor-local`), Cloudflare Tunnel para
+  domínio `rayzen.com.br`. Não é mais o notebook — ele foi aposentado em 2026-08-09, e o `.174`
+  era a reserva DHCP dele. Ver `docs/migracao-servidor.md`.
 
 ### 2.2 Estado dos módulos V2
 
@@ -65,19 +67,19 @@ Uma plataforma pessoal de IA que **preserva contexto** (memória semântica, dec
 
 ## 3. Setup diário
 
-1. **Notebook ligado.** A stack (Postgres, Redis, LiteLLM, APIs, Web, MCP, Langfuse, Cloudflared) sobe sozinha com `restart: unless-stopped`.
-2. **Agent desktop.** Na sua máquina, rode `agent-start.bat` — polling de tarefas `jarvis:*`. Sem ele, steps de missões que usam skills jarvis falham.
+1. **Servidor ligado.** A stack (Postgres, Redis, LiteLLM, APIs, Web, MCP, Langfuse, Cloudflared) sobe sozinha com `restart: unless-stopped`.
+2. **Agent desktop.** Na sua máquina, rode `rayzen-start.bat` — sobe agent + widget e faz o polling de tarefas `jarvis:*`. Sem ele, steps de missões que usam skills jarvis falham.
 3. **VS Code + Claude Code.** Abra a pasta do projeto. O hook detecta o projeto pelo `git remote` e começa a capturar eventos.
-4. **Web.** Abra `http://192.168.0.174:3100` (ou `https://rayzen.com.br`), selecione o projeto no topo.
+4. **Web.** Abra `https://rayzen.com.br` e selecione o projeto no topo. (A porta `3100` publica em `127.0.0.1` e nao responde fora do servidor.)
 
 ### Diagnóstico rápido
 
 ```bash
 # Status de todos os serviços (postgres, redis, litellm, api-v2, mcp, JWT)
-GET http://192.168.0.174:3101/infra/health
+GET https://api.rayzen.com.br/infra/health
 
 # Langfuse (traces LLM)
-http://192.168.0.174:3200
+http://servidor-local:3200
 ```
 
 ---
@@ -110,8 +112,23 @@ Você edita um arquivo no VS Code
 | **Universe** | Canvas: docs, decisões e relações | **Manual** | Botão "atualizar" / "importar projeto" |
 | **Brain / Memória** | Busca semântica na memória indexada | Ao indexar fontes | Painel Brain → indexar |
 | **Missões** | Missões V2 ativas, steps, gates de aprovação | **Ao vivo via WebSocket** | Botão "missões" no Header |
+| **Dados** (`/insights`) | Custo por módulo/modelo e o grafo de conhecimento | **A cada carga da tela** | Botão "dados" no Header / "atualizar" |
 
 **Regra:** se um painel parece desatualizado, quase sempre é porque não atualiza sozinho — depende de checkpoint (Doc viva) ou edição manual (Goal Graph). Só a Atividade e Missões são ao vivo.
+
+### Painel "Dados" — o que ler nele
+
+Duas abas, com uma ressalva em cada:
+
+- **custo** — quanto cada módulo gastou (`benchmark:geracao`, `qa-scientist:analyze`, `router:chat`…).
+  Os rótulos são os mesmos do `caller` no Langfuse, então as duas visões comparam sem tradução.
+  **Só há registro para chamadas feitas depois de 14/08/2026**: antes disso nada gravava custo
+  (detalhes em `docs/FROZEN.md`). Um `$0` em período anterior é ausência de medição, não economia —
+  a tela avisa isso explicitamente.
+- **conhecimento** — 537 dos 570 nós são varredura de arquivos, a mesma informação que
+  `graphify query` dá no terminal. O que existe só ali é a **camada semântica** (33 nós: módulos,
+  entidades, conceitos, regras, ADRs), que a tela lista em separado. A lista "mais dependidos"
+  responde o raio de impacto de mexer num arquivo.
 
 ### Limitação conhecida — ruído na Doc viva
 
@@ -278,7 +295,7 @@ Chame **depois de resolver um problema** para que o aprendizado persista e reapa
 
 ```typescript
 rayzen_capture_learning({
-  title: "Deploy Rayzen AI no notebook local",
+  title: "Deploy Rayzen AI no servidor local",
   problem: "O que quebrou / o sintoma observado",
   solution: "Como foi resolvido — passos concretos",
   type: "runbook",   // runbook | troubleshooting | decision | pattern | gotcha
@@ -316,7 +333,117 @@ O MCP HTTP (`https://rayzen.com.br/mcp`) expõe o Rayzen como conector OAuth. Au
 
 ---
 
-## 12. Comandos úteis
+## 12. Telegram — conversar e aprovar pelo celular
+
+Funcional desde 14/09. Antes disso **todo texto livre devolvia "erro ao processar mensagem"** (o
+orquestrador era chamado sem credencial), e só os comandos funcionavam.
+
+### Primeiro uso, na ordem
+
+| # | onde | o quê |
+|---|---|---|
+| 1 | @BotFather | `/setprivacy` → escolher o bot → **Disable** |
+| 2 | chat privado com o bot | `/projeto` → responder o número |
+| 3 | qualquer mensagem | conversa livre, já com o contexto do projeto |
+
+O passo 1 **não é opcional para grupos**: com o *Group Privacy* ligado, o bot só recebe
+`/comandos`, respostas diretas a ele e menções — texto livre num grupo ou tópico simplesmente não
+chega, e o sintoma é indistinguível de bot quebrado.
+
+### Organizando por projeto
+
+A chave do vínculo é `(chat, tópico)`, o que permite três arranjos:
+
+| arranjo | resultado |
+|---|---|
+| conversa privada | um chat = um projeto |
+| grupo simples | um grupo = um projeto |
+| **supergrupo com Tópicos** | **um tópico por projeto** |
+
+Para liberar um grupo novo:
+
+1. criar o grupo (ativando **Tópicos** nas configurações, se quiser um por projeto) e adicionar o bot
+2. mandar qualquer mensagem lá — o bot registra o grupo como pendente **e avisa você no chat raiz**
+3. no **chat privado**, `/autorizar` → escolher pelo número
+4. em **cada tópico**, `/projeto` → escolher o projeto
+
+> `/autorizar` só funciona a partir do chat raiz (`TELEGRAM_CHAT_ID`). É a barreira que impede um
+> estranho que descubra o bot de alcançar o orquestrador — um grupo autorizado não pode autorizar
+> outro.
+>
+> Enquanto não autorizado, o bot **não responde nada** naquele chat, nem a comandos. Isso é
+> proposital; o aviso no chat raiz existe para você saber que há algo a decidir.
+
+### Comandos
+
+```
+/projeto     — selecionar o projeto ativo daquele chat/tópico
+/status      — estado atual do projeto
+/goal        — meta ativa e progresso
+/eventos [n] — últimos N eventos (padrão 10)
+/checkpoint  — disparar checkpoint de sessão
+/autorizar   — liberar um grupo novo (só no chat raiz)
+/ajuda       — a lista acima
+```
+
+Qualquer outro texto vai para o orquestrador, com o contexto do projeto vinculado.
+
+### Aprovar uma sessão supervisionada pelo celular
+
+Quando uma sessão pausa para aprovação, o bot pergunta e **espera**. Responder ali decide a etapa.
+
+- **Silêncio não aprova.** A sessão para e avisa; o trabalho fica no branch.
+- Com **mais de uma** sessão aguardando, ele **não adivinha**: pede desambiguação, e você
+  responde com o id curto na frente — `a1b2c3d4: pode continuar`.
+- Comando tem precedência: `/projeto` continua sendo comando mesmo com sessão aguardando.
+
+> Isso depende do **agent desktop rodando** (`rayzen-start.bat`) — é ele quem executa a sessão.
+> Com o PC desligado, a criação da sessão falha na hora, com mensagem explícita, em vez de ficar
+> pendurada.
+
+---
+
+## 13. Hermes — a camada de conversa
+
+Spike validado em 13-14/09. Roda em container separado no servidor
+(`infra/hermes/docker-compose.hermes.yml`), fala com o Rayzen por **MCP somente-leitura** (9
+ferramentas) e usa o LiteLLM como provedor.
+
+```bash
+# subir / recriar (compose separado — NÃO entra no deploy automático)
+docker compose -f infra/hermes/docker-compose.hermes.yml --env-file .env up -d --force-recreate --build
+
+# conversar (não-interativo)
+docker exec rayzen-hermes-spike hermes -z "sua pergunta"
+
+# sessões e retomada
+docker exec rayzen-hermes-spike hermes sessions list
+docker exec rayzen-hermes-spike hermes --resume <id> -z "continuando…"
+```
+
+**Antes de qualquer `up` manual no servidor**, confira `ps aux | grep rayzen-deploy.sh` — o
+`flock` do deploy protege o script dele mesmo, não de um comando manual concorrente.
+
+O que ele **não** faz: executar ações no seu PC. Isso é do caminho Telegram/web → `jarvis` →
+agent desktop. O Hermes conversa e consulta.
+
+---
+
+## 14. A identidade do Rayzen
+
+Uma só, em **`core/identity/rayzen.soul.md`**, lida pelos dois runtimes: a imagem da api a copia
+(orquestrador do Telegram e da web) e o Hermes a monta por bind `:ro`.
+
+Para mudar como o Rayzen se comporta ou fala, **é esse o arquivo**. Ele vai inteiro no system
+prompt de toda conversa, então cada parágrafo custa em todo turno.
+
+> `core/identity/SOUL.md` (sem o `rayzen.`) **não** é a identidade — descreve a arquitetura, é de
+> 15/06 e nenhum runtime o lê. Tem aviso no topo.
+>
+> `rayzen.config.json` → `identity.personality` virou **fallback**: só é usado se o SOUL não for
+> encontrado, e o orquestrador avisa alto no log quando isso acontece.
+
+## 15. Comandos úteis
 
 ```bash
 # Desenvolvimento local
@@ -332,9 +459,9 @@ pnpm typecheck
 pnpm gen:catalog      # docs/agent-actions.md (ações + risco)
 pnpm scan:secrets     # docs/security/data-inventory.md
 
-# Deploy no notebook (via SSH)
-ssh -i C:/Users/marce/.ssh/id_ed25519 rayzen@192.168.0.174
-# dentro do notebook:
+# Deploy no servidor (via SSH)
+ssh -i C:/Users/marce/.ssh/id_ed25519 rayzen@servidor-local
+# dentro do servidor:
 cd ~/projects/rayzen-ai && git pull && docker compose up -d --build <serviço>
 # serviços: api | api-v2 | web | mcp-http | agent-server
 
@@ -352,7 +479,7 @@ sudo usermod -aG docker rayzen   # logout+login para ter efeito
 
 ---
 
-## 13. Troubleshooting
+## 16. Troubleshooting
 
 | Sintoma | Causa provável | O que fazer |
 |---|---|---|
@@ -363,20 +490,20 @@ sudo usermod -aG docker rayzen   # logout+login para ter efeito
 | Evento vinculado ao projeto errado | Cache de slug | Limpe `%TEMP%\rayzen-slug-cache.json` |
 | `rayzen_capture_learning` não retorna em `rayzen_get_context` | `projectId` não foi passado | Passe o `projectId` correto na chamada |
 | Deploy falha com "sudo required" | Usuário não está no grupo docker | `sudo usermod -aG docker rayzen` + logout+login |
-| Step de missão com specialist falha — `abortReason: skill_repeated_failure:jarvis:*` | Agent desktop não está rodando | Rode `agent-start.bat`; após 3 falhas o specialist para automaticamente |
+| Step de missão com specialist falha — `abortReason: skill_repeated_failure:jarvis:*` | Agent desktop não está rodando | Rode `rayzen-start.bat`; após 3 falhas o specialist para automaticamente |
 | Step de missão falha com `V1 dispatch failed: HTTP 500` | Agent desktop offline ou ação não na whitelist | Ver o corpo do erro no `output.result` do step para causa exata |
 | Missão travada em `paused` após gate | Gate aprovado mas execute não chamado | `POST /v2/missions/:id/execute` para retomar |
 | `POST /v2/benchmark/extract` retorna 0 | `v2.trace_spans` vazia | Inserir casos manuais via SQL (ver Seção 7) |
 | QA Scientist cria hipóteses duplicadas de infra | Sinais jarvis não filtrados (versão antiga) | Atualizar para commit ≥ `4739372`; sinais `skill_repeated_failure:jarvis:*` são ignorados |
-| Build Docker falha com "crc32 mismatch" | Layer corrompida no cache | `docker builder prune` no notebook + rebuild |
+| Build Docker falha com "crc32 mismatch" | Layer corrompida no cache | `docker builder prune` no servidor + rebuild |
 
 ---
 
-## 14. Referências no repo
+## 17. Referências no repo
 
 - `CLAUDE.md` / `CLAUDE.local.md` — guia de desenvolvimento e protocolo de sessão
 - `blueprints/` — design da V2 (24 documentos, referência arquitetural)
 - `docs/agent-actions.md` — catálogo de ações do agent (gerado por `pnpm gen:catalog`)
 - `docs/security/data-inventory.md` — inventário de dados sensíveis (gerado)
-- `memory/reference_vps_ssh.md` — acesso SSH ao notebook
+- `memory/reference_vps_ssh.md` — acesso SSH ao servidor
 - `C:\Users\marce\.claude\plans\agile-munching-catmull.md` — plano completo Fases 0–6

@@ -56,6 +56,10 @@ function muxHlsUrl(playbackId: string) {
 
 function HlsVideo({ playbackId, active }: { playbackId: string; active: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  // Guarda QUAL playbackId falhou, não um booleano: trocar de slide já torna o valor
+  // obsoleto sozinho, sem precisar de um `setState` de reset dentro do efeito.
+  const [falhouEm, setFalhouEm] = useState<string | null>(null)
+  const indisponivel = falhouEm === playbackId
 
   useEffect(() => {
     const video = videoRef.current
@@ -70,10 +74,16 @@ function HlsVideo({ playbackId, active }: { playbackId: string; active: boolean 
         startPosition: 0,
         capLevelToPlayerSize: true,
       })
+      // Os 4 playbackId do deck respondem 404 no Mux desde pelo menos 2026-08-19 —
+      // conta expirada ou vídeos removidos. Sem isto o `<video>` fica preto e só o
+      // console conta o que houve. Dependência de terceiro some sem avisar, e some
+      // calada: mesma família da Groq descontinuando os modelos em 17/08.
+      hls.on(Hls.Events.ERROR, (_evt, data) => { if (data.fatal) setFalhouEm(playbackId) })
       hls.loadSource(src)
       hls.attachMedia(video)
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = src
+      video.addEventListener('error', () => setFalhouEm(playbackId), { once: true })
     }
 
     video.load()
@@ -95,6 +105,12 @@ function HlsVideo({ playbackId, active }: { playbackId: string; active: boolean 
       video.pause()
     }
   }, [active])
+
+  // Gradiente no lugar do quadro preto: o deck continua legível sem o vídeo, que é
+  // pano de fundo e não conteúdo.
+  if (indisponivel) {
+    return <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-br from-zinc-900 via-zinc-950 to-black opacity-70" />
+  }
 
   return (
     <video

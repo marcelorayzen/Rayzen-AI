@@ -19,7 +19,9 @@ export class EventsService {
     this.emit({ type: 'mission_update', projectId, payload: mission })
   }
 
-  approvalGate(projectId: string, gate: { id: string; missionId: string; description: string; type: string }) {
+  // `missionId` é nulo quando a aprovação nasceu de um pedido direto (`POST /v2/skills/run`,
+  // roteador conversacional) em vez de um passo de missão — ver A08 em `skill-engine.service.ts`.
+  approvalGate(projectId: string, gate: { id: string; missionId: string | null; description: string; type: string }) {
     this.emit({ type: 'approval_gate', projectId, payload: gate })
   }
 

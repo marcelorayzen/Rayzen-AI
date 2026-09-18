@@ -54,7 +54,9 @@ const ACTION_ROLE: Partial<Record<string, AgentRole>> = {
   supervised_session:     'desktop',
   run_graphify:           'desktop',
   graphify_sync:          'desktop',
+  guardian_analyze:       'desktop',
   browse_and_screenshot:  'desktop',
+  get_qa_summary:         'server',
 }
 
 @Injectable()
@@ -65,7 +67,30 @@ export class ExecutionService {
     private heartbeat: AgentHeartbeatService,
   ) {}
 
-  async dispatch(action: string, payload: Record<string, unknown>): Promise<unknown> {
+  /**
+   * Coloca a tarefa na fila e devolve o `jobId` — **sem esperar o resultado**.
+   *
+   * Separado de `dispatch()` para A03 da auditoria de 13/09. `dispatch()` termina em
+   * `waitForResult()`, com teto de 30s: serve para ação pontual, e é exatamente o que impede
+   * usá-lo para trabalho longo. Uma sessão supervisionada dura minutos a horas, então chamar
+   * `dispatch()` lá trocaria "nunca chega ao executor" por "estoura o timeout com a sessão
+   * rodando órfã do outro lado" — um defeito diferente, não um conserto.
+   *
+   * Aceitação rápida e trabalho demorado são coisas distintas: quem enfileira recebe uma
+   * referência, e o estado do trabalho vive na entidade de domínio (a `AgentSession`, no caso
+   * supervisionado), não na espera de uma requisição HTTP.
+   */
+  /**
+   * `atrasoMs` agenda em vez de executar agora. O Bull guarda o job em `delayed`, e
+   * `agent-bridge`'s `jaEstaNaHora()` é quem impede o claim antes da hora — sem aquele filtro
+   * o atraso seria ignorado, porque o claim lê `['waiting', 'delayed']`.
+   *
+   * Não há worker nesta fila, então o Bull tampouco promove `delayed` para `waiting` sozinho
+   * (medido em 17/09). Quem "acorda" o job é o próprio poller do agent, a cada 3s, assim que a
+   * hora passa — o que também significa que a granularidade real do agendamento é o intervalo
+   * de polling, não o milissegundo.
+   */
+  async enqueue(action: string, payload: Record<string, unknown>, atrasoMs?: number): Promise<string> {
     const targetRole = ACTION_ROLE[action]
 
     // Falha rápido se o agent daquele role não dá sinal de vida há mais de 90s,
@@ -88,9 +113,25 @@ export class ExecutionService {
       backoff: 5000,
       removeOnComplete: false,
       removeOnFail: false,
+      ...(atrasoMs && atrasoMs > 0 ? { delay: atrasoMs } : {}),
     })
 
-    this.eventService.create({ source: 'execution', type: 'execution', content: `${action}`, metadata: { action, payload, jobId: id } }).catch(() => null)
+    const policySource = targetRole ? 'ACTION_ROLE_MAP' : 'UNRESOLVED_NO_ROLE'
+    // `projectId` do payload: sem ele TODA tarefa do agent nascia orfa — 162 dos 245 registros
+    // sem dono no banco (medido em 17/09), 66% do total. E a consequencia e maior que o invariante
+    // vermelho: o historico de execucao ficava **invisivel a qualquer consulta com escopo de
+    // projeto**, entao "o que o agent fez neste projeto?" nao tinha resposta a partir de eventos.
+    //
+    // `enrichJarvisPayload` ja coloca `projectId` no payload na maioria dos caminhos; quando nao
+    // houver, o evento segue sem dono — e ai e orfao legitimo, nao defeito silencioso.
+    const projectId = typeof payload.projectId === 'string' ? payload.projectId : undefined
+    this.eventService.create({ projectId, source: 'execution', type: 'execution', content: `${action}`, metadata: { action, payload, jobId: id, policySource } }).catch(() => null)
+    return id
+  }
+
+  /** Enfileira e espera o resultado (teto de 30s). Para trabalho longo, use `enqueue()`. */
+  async dispatch(action: string, payload: Record<string, unknown>): Promise<unknown> {
+    const id = await this.enqueue(action, payload)
     return this.waitForResult(id)
   }
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { getApiUrl } from '../../lib/api-url'
+import { TOKEN_KEY } from '../../lib/api-client'
 
 export interface RayzenEvent {
   type:      'mission_update' | 'approval_gate' | 'mission_created' | 'clarification_needed' | 'ping'
@@ -56,7 +57,11 @@ export function useRayzenEvents(projectId: string | null, onEvent: (e: RayzenEve
 
       ws.onopen = () => {
         attempts = 0
-        ws?.send(JSON.stringify({ type: 'subscribe', projectIds: [projectId] }))
+        // O token vai no `subscribe`, não no handshake: a API de WebSocket do
+        // navegador não permite header. O gateway derruba a conexão em 10s se ela
+        // não se identificar, e só entrega evento a cliente autenticado E inscrito.
+        const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null
+        ws?.send(JSON.stringify({ type: 'subscribe', projectIds: [projectId], token }))
       }
       ws.onmessage = (ev) => {
         try { onEventRef.current(JSON.parse(ev.data as string) as RayzenEvent) } catch { /* ignora malformado */ }

@@ -1,11 +1,18 @@
-import { execSync } from 'child_process'
 import { resolve } from 'path'
 import { existsSync } from 'fs'
 import { isUnderSafeRoot } from '../utils/path-guard'
+import { executarPrograma, ambientePadrao } from '../exec/executar-programa'
+
+/**
+ * Migrado na Fase 1: `execSync(\`code "${resolved}"\`)` → `executarPrograma('entrypointJs', ...)`.
+ * `resolved` já passa pelo `path-guard` antes de chegar aqui, mas nome de arquivo dentro de um
+ * safe root ainda pode ter espaço e aspas — o vetor evita a necessidade de escapar isso à mão.
+ */
+const OPCOES = { cwd: process.cwd(), env: ambientePadrao(), timeoutMs: 15_000 } as const
 
 export async function openVscode(payload: { path?: string }): Promise<{ opened: string }> {
   if (!payload.path) {
-    execSync('code', { stdio: 'ignore' })
+    await executarPrograma('entrypointJs', 'code', [], OPCOES)
     return { opened: '(novo)' }
   }
 
@@ -19,6 +26,6 @@ export async function openVscode(payload: { path?: string }): Promise<{ opened: 
     throw new Error(`Pasta não encontrada: ${resolved}`)
   }
 
-  execSync(`code "${resolved}"`, { stdio: 'ignore' })
+  await executarPrograma('entrypointJs', 'code', [resolved], OPCOES)
   return { opened: resolved }
 }

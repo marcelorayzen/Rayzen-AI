@@ -126,6 +126,10 @@ export class SpecialistService {
     const skillFailCounts = new Map<string, number>()
 
     let totalCost = 0
+    // Motivo do break do loop sem 'done' explícito — sem isso, o step ficava com
+    // output vazio ({result:'', iterations:0, costUsd:0}) e a exceção real só
+    // aparecia no log do servidor (this.logger.warn), inacessível via API/mission.
+    let stopReason: string | undefined
 
     for (let i = 0; i < def.maxIterations; i++) {
       if (this.interrupted.has(id)) {
@@ -139,12 +143,14 @@ export class SpecialistService {
       // Check cost budget
       if (totalCost >= def.maxCostUsd) {
         this.logger.warn(`Specialist ${id} hit cost limit $${def.maxCostUsd}`)
+        stopReason = `Cost limit reached: $${totalCost.toFixed(4)}/$${def.maxCostUsd}`
         break
       }
 
       const canSpend = await this.costs.canSpend(req.projectId, 0.10)
       if (!canSpend.allowed) {
         this.logger.warn(`Specialist ${id} blocked by cost controller: ${canSpend.reason}`)
+        stopReason = `Blocked by cost controller: ${canSpend.reason}`
         break
       }
 
@@ -155,6 +161,10 @@ export class SpecialistService {
           taskType:     def.type === 'architect' ? 'strategic' : 'implement',
           projectId:    req.projectId,
           maxTokens:    2000,
+          // Identifica o trace no Langfuse por tipo de specialist e pela missão —
+          // é o que permite responder "os specialists aparecem no Langfuse?".
+          caller:        `specialist:${def.type}`,
+          callerContext: { missionId: req.missionId, stepId: req.stepId },
         })
 
         totalCost += result.costUsd
@@ -297,7 +307,9 @@ export class SpecialistService {
         messages.push({ role: 'user', content: 'Continue. What is the next step?' })
 
       } catch (e) {
-        this.logger.warn(`Specialist ${id} iteration ${i} error: ${e}`)
+        const errMsg = e instanceof Error ? e.message : String(e)
+        this.logger.warn(`Specialist ${id} iteration ${i} error: ${errMsg}`)
+        stopReason = `AI router call failed at iteration ${i}: ${errMsg}`
         break
       }
     }
@@ -309,6 +321,7 @@ export class SpecialistService {
       iterations: inst.iterations,
       costUsd:    totalCost,
       ...(actionsExecuted.length ? { actionsExecuted } : {}),
+      ...(stopReason ? { stopReason } : {}),
     }
     inst.endedAt = new Date()
   }

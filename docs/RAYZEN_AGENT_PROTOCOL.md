@@ -27,7 +27,7 @@ V1 API (:3101)
 ```
 
 **Agent desktop:** roda no PC Windows do usuário, processa tarefas de filesystem, git, browser, notificações.
-**Agent server:** roda no notebook Ubuntu (192.168.0.174), processa tarefas de docker, serviços, restart_api.
+**Agent server:** roda no servidor Ubuntu (H81) (servidor-local), processa tarefas de docker, serviços, restart_api.
 
 ---
 
@@ -76,6 +76,50 @@ Ações na whitelist mas fora do role são rejeitadas. Ex: `jarvis:docker_logs` 
 
 **ADR-001:** `supervised_session` em DESKTOP_ACTIONS — não no SERVER.
 **ADR-002:** `graphify_sync` adicionado ao DESKTOP_ACTIONS (estava na whitelist mas ausente do role).
+
+---
+
+## `supervised_session` — permissões e isolamento *(2026-09-06)*
+
+Até esta data a sessão rodava com `--dangerously-skip-permissions` e **no mesmo diretório em que o
+dono estava trabalhando**.
+
+### O que a medição contra o CLI instalado (2.1.158) mostrou
+
+Três resultados contrariaram o que se esperava, e **inverteram o conserto**:
+
+1. `--permission-prompts` **não existe** nesta versão (a doc diz v2.1.259+).
+2. Em modo `-p` a aprovação é **permissiva por padrão**: com apenas `--allowedTools Read`, um
+   `Write` criou o arquivo em 11 s. Não trava esperando prompt — e não restringe.
+3. `--disallowedTools` **bloqueia de verdade**, e bloqueia mesmo com o bypass ligado.
+
+> **A lista de NEGAÇÃO é a proteção.** Tirar o `--dangerously-skip-permissions` é higiene — ele
+> desliga verificações que não dá para enumerar —, não o conserto.
+
+A negação mais importante é específica deste repositório: **`Bash(git push:*)`**. Push em `main`
+dispara build e deploy em produção via webhook; um push entre dois checkpoints publica antes de
+qualquer um revisar.
+
+`WebFetch` e `WebSearch` ficam **fora** da negação de propósito: são somente-leitura, registradas,
+e pesquisar documentação é trabalho legítimo. Negar por reflexo pioraria a sessão sem deixar nada
+mais seguro.
+
+### Isolamento por worktree
+
+Cada execução ganha `git worktree` e branch próprios (`rayzen/sessao-<id>`). O branch **não é
+mesclado automaticamente** — o valor do isolamento é nada entrar no diretório do dono sem ele
+olhar. O resumo de conclusão traz os comandos de diff, merge e descarte do branch.
+
+Fora de repositório git, a sessão roda no diretório original: **isolamento é proteção, não
+pré-requisito** — recusar trocaria um risco por uma indisponibilidade.
+
+> **Resolvido em 2026-09-12 (Item A.1 da varredura pós-plano-de-execução-tipada):** o CHECKOUT
+> do worktree agora é liberado automaticamente (`removerWorktree()`, chamado em `finally` ao
+> fim de toda sessão) — `git worktree remove` nunca perde commit nenhum, só a árvore de
+> trabalho em disco. O branch em si só é apagado junto (`git branch -d`, nunca `-D`) quando o
+> próprio git confirma que não há commit não-alcançável — a mesma trava do git, não uma
+> checagem própria reimplementando "foi mesclado?". Trabalho não revisado nunca é perdido; o
+> que se resolveu foi o disco ocupado pelo checkout, que é a metade cara do problema.
 
 ---
 

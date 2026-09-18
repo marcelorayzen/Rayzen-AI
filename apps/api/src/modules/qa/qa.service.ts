@@ -129,14 +129,27 @@ export function parseAllureJSON(raw: string): ParsedTestRun {
 
   let passed = 0, failed = 0, skipped = 0, totalMs = 0
   const failedCases: FailedCase[] = []
+  // Agrega por label `suite` — o formato Allure não tem um nó de suíte como o JUnit,
+  // mas cada caso carrega a sua. Sem isto o run era salvo com suites: [] e perdia a
+  // quebra por arquivo/app que o caminho JUnit entregava.
+  const suiteMap = new Map<string, TestSuite>()
 
   for (const r of results) {
     totalMs += r.duration ?? 0
+    const suite = r.labels?.find(l => l.name === 'suite')?.value ?? ''
+
+    if (suite) {
+      const agg = suiteMap.get(suite) ?? { name: suite, tests: 0, failures: 0, durationMs: 0 }
+      agg.tests += 1
+      agg.durationMs += Math.round(r.duration ?? 0)
+      if (r.status !== 'passed' && r.status !== 'skipped' && r.status !== 'pending') agg.failures += 1
+      suiteMap.set(suite, agg)
+    }
+
     if (r.status === 'passed') passed++
     else if (r.status === 'skipped' || r.status === 'pending') skipped++
     else {
       failed++
-      const suite = r.labels?.find(l => l.name === 'suite')?.value ?? ''
       failedCases.push({
         suite,
         name: r.name,
@@ -153,7 +166,7 @@ export function parseAllureJSON(raw: string): ParsedTestRun {
     failed,
     skipped,
     durationMs: Math.round(totalMs),
-    suites: [],
+    suites: [...suiteMap.values()].sort((a, b) => a.name.localeCompare(b.name)),
     failedCases,
   }
 }

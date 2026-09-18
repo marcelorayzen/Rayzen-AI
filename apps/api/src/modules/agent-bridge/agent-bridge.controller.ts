@@ -27,6 +27,10 @@ class UpdateTaskDto {
   @IsOptional() @IsString() hostname?: string
   @IsOptional() @IsString() targetRole?: string
   @IsOptional() @IsString() actor?: string
+  // Item C.3 do plano de execução tipada — quem aprovou, quando a execução consumiu uma
+  // aprovação de verdade. Vem do RESULTADO da execução (`RunCommandResult.aprovadoPor`), não
+  // do payload de entrada — a identidade só existe depois que o servidor de aprovações a deu.
+  @IsOptional() @IsString() approvedBy?: string
 }
 
 @Public()
@@ -56,7 +60,24 @@ export class AgentBridgeController {
   @Post('claim')
   async claim(@Body() dto: { role?: AgentRole; hostname?: string }) {
     if (dto.role) this.heartbeat.touch(dto.role)
-    return this.svc.claimTask(dto.role)
+    // A05: o `hostname` já vinha no corpo e era ignorado. É ele que identifica o dono da posse —
+    // sem isso, qualquer agent renovaria a posse de qualquer outro.
+    return this.svc.claimTask(dto.role, dto.hostname)
+  }
+
+  /**
+   * A05: "ainda estou executando". O executor renova a posse periodicamente; parar de renovar é
+   * o que permite reconhecer que ele morreu, sem depender de um teto de duração que não existe
+   * (uma sessão supervisionada dura horas, um `screenshot` dura segundos).
+   *
+   * `{ ok: false }` quando a posse já foi perdida — quem executa pode usar isso para saber que
+   * o trabalho deixou de ser seu. Não é erro HTTP: é resposta legítima.
+   */
+  @Post(':id/heartbeat')
+  async heartbeatDaTarefa(@Param('id') id: string, @Body() dto: { hostname?: string; role?: AgentRole }) {
+    if (dto.role) this.heartbeat.touch(dto.role)
+    const ok = await this.svc.renovarPosse(id, dto.hostname)
+    return { ok }
   }
 
   @Get(':id')
@@ -86,6 +107,7 @@ export class AgentBridgeController {
           workspace: dto.workspace,
           hostname: dto.hostname,
           targetRole: dto.targetRole,
+          approvedBy: dto.approvedBy,
         }).catch(() => null) // audit nunca deve quebrar o fluxo principal
       }
 

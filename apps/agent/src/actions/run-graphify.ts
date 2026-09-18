@@ -1,8 +1,9 @@
-import { spawn } from 'node:child_process'
 import { readFileSync, existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { request } from 'node:http'
 import { request as httpsRequest } from 'node:https'
+import { executarPrograma, ambientePadrao } from '../exec/executar-programa'
+import { isUnderSafeRoot } from '../utils/path-guard'
 
 async function postIndex(apiUrl: string, token: string, body: Record<string, unknown>): Promise<unknown> {
   return new Promise((resolve, reject) => {
@@ -34,21 +35,19 @@ async function postIndex(apiUrl: string, token: string, body: Record<string, unk
   })
 }
 
-function runGraphify(cwd: string): Promise<{ stdout: string; stderr: string; code: number }> {
-  return new Promise((resolve) => {
-    const proc = spawn('graphify', ['.', '--no-viz', '--update', '--backend', 'anthropic'], {
-      cwd,
-      env: { ...process.env, ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '' },
-      shell: true,
-    })
-
-    let stdout = ''
-    let stderr = ''
-    proc.stdout?.on('data', (d: Buffer) => { stdout += d.toString() })
-    proc.stderr?.on('data', (d: Buffer) => { stderr += d.toString() })
-    proc.on('close', (code) => resolve({ stdout, stderr, code: code ?? 1 }))
-    proc.on('error', (err) => resolve({ stdout, stderr: err.message, code: 1 }))
-  })
+/**
+ * Consistência com a Fase 1 (não havia vetor vivo aqui — o argv era constante, sem payload
+ * interpolado — mas `shell: true` é a proibição estrutural do plano, e `{ ...process.env,
+ * ANTHROPIC_API_KEY }` espalhava todo o ambiente do agent, incluindo `AGENT_TOKEN` e
+ * `LITELLM_MASTER_KEY`, para um processo-filho que não precisa de nenhum dos dois.
+ */
+async function runGraphify(cwd: string): Promise<{ stdout: string; stderr: string; code: number }> {
+  const env = { ...ambientePadrao(), ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '' }
+  const r = await executarPrograma(
+    'executavel', 'graphify', ['.', '--no-viz', '--update', '--backend', 'anthropic'],
+    { cwd, env, timeoutMs: 300_000 },
+  )
+  return { stdout: r.stdout, stderr: r.stderr, code: r.code ?? 1 }
 }
 
 export async function runGraphify_action(payload: {
@@ -60,7 +59,13 @@ export async function runGraphify_action(payload: {
     return { ok: false, skipped: true, reason: 'jarvis:run_graphify só executa no agente desktop (código-fonte local)' }
   }
 
-  const projectPath = payload.projectPath ?? process.cwd()
+  // Achado da varredura de 2026-09-12: `projectPath` nunca foi checado contra safe-root —
+  // qualquer diretório rodava `graphify` e o relatório ia indexado no Rayzen via `postIndex()`
+  // abaixo, incluindo conteúdo de fora de qualquer projeto legítimo.
+  const projectPath = resolve(payload.projectPath ?? process.cwd())
+  if (!isUnderSafeRoot(projectPath)) {
+    throw new Error(`Caminho não permitido: ${projectPath}`)
+  }
   const apiUrl = process.env.AGENT_API_URL ?? 'http://localhost:3101'
   const token = process.env.AGENT_TOKEN ?? ''
 

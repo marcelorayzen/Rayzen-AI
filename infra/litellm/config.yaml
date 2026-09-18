@@ -1,14 +1,22 @@
 model_list:
-  # Chat principal — Groq 70b apenas (sem fallback pago)
+  # Chat principal — Groq grande. O fallback pago está em `router_settings` no fim
+  # deste arquivo, não aqui: gpt-4o cai em gpt-4o-premium (Claude Sonnet).
+  #
+  # Era `groq/llama-3.3-70b-versatile` até 2026-08-17, quando a Groq o descontinuou:
+  # todo `gpt-4o` respondia 404 e o fallback caía no Anthropic sem crédito, então a
+  # síntese do ProjectState (e tudo mais que usa gpt-4o) devolvia 500 em produção.
+  # Verificado na conta em 17/08: dos modelos de chat disponíveis, `gpt-oss-120b` e
+  # `gpt-oss-20b` respondem 200. `qwen/qwen3.6-27b` também responde, mas emite traços
+  # `<think>` dentro do content — veneno para quem extrai JSON da resposta.
   - model_name: gpt-4o
     litellm_params:
-      model: groq/llama-3.3-70b-versatile
+      model: groq/openai/gpt-oss-120b
       api_key: os.environ/GROQ_API_KEY
 
-  # Chamadas leves — Groq 8b apenas (sem fallback pago)
+  # Chamadas leves — Groq pequeno (era llama-3.1-8b-instant)
   - model_name: gpt-4o-mini
     litellm_params:
-      model: groq/llama-3.1-8b-instant
+      model: groq/openai/gpt-oss-20b
       api_key: os.environ/GROQ_API_KEY
 
   # Aliases diretos para Claude — use quando quiser forçar melhor qualidade
@@ -27,6 +35,38 @@ model_list:
       model: anthropic/claude-haiku-4-5-20251001
       api_key: os.environ/ANTHROPIC_API_KEY
 
+  # Gemini — a rede de proteção que faltava.
+  #
+  # Até 2026-08-22 os DOIS fallbacks apontavam para a Anthropic, cuja conta está sem
+  # crédito: `gpt-4o` caía em `gpt-4o-premium` e `gpt-4o-mini` em `gpt-4o-mini-premium`.
+  # Ou seja, não existia rede — foi exatamente o que transformou a descontinuação da Groq
+  # em 17/08 num 500 geral em produção. Estes dois grupos existem para que a queda de um
+  # provedor deixe de ser queda da plataforma.
+  #
+  # Escolha MEDIDA na conta em 22/08, não pelo catálogo — e a diferença importou:
+  # `gemini-2.5-flash` e `gemini-2.5-pro` APARECEM em GET /v1beta/models e devolvem
+  # `NOT_FOUND — no longer available to new users` quando chamados. Mesma lição do
+  # `modelos_llm_respondem`: sonda com chamada real, nunca com a lista do provedor.
+  #
+  # Os grupos Pro (`gemini-pro-latest`, `gemini-3.1-pro-preview`) ficam de FORA: devolvem
+  # "exceeded your current quota" — exigem billing. Incluí-los repetiria o erro dos
+  # `*-premium`, que é ter fallback que não responde. `gemini-flash-latest` também fica de
+  # fora: mediu 200, 503, 503 em três tentativas seguidas.
+  #
+  # Nenhum dos dois emite traço `<think>` dentro do `content` — testado com pedido de JSON,
+  # que é o veneno que reprovou o `qwen3.6-27b`. O raciocínio vai em `thoughtsTokenCount`.
+  - model_name: gpt-4o-gemini
+    litellm_params:
+      model: gemini/gemini-3-flash-preview
+      api_key: os.environ/GEMINI_API_KEY
+
+  # Nome estável (não-preview) e verificado: entra depois do preview na cadeia, porque
+  # preview é justamente o que some sem avisar.
+  - model_name: gpt-4o-mini-gemini
+    litellm_params:
+      model: gemini/gemini-3.1-flash-lite
+      api_key: os.environ/GEMINI_API_KEY
+
   # Ollama local — tarefas mecânicas (classify, extract, gap analysis, proactive)
   - model_name: gpt-local
     litellm_params:
@@ -37,7 +77,7 @@ model_list:
   # Fallback do gpt-local: se Ollama cair, usa Groq
   - model_name: gpt-local
     litellm_params:
-      model: groq/llama-3.1-8b-instant
+      model: groq/openai/gpt-oss-20b
       api_key: os.environ/GROQ_API_KEY
 
   # Speech to Text
@@ -47,6 +87,10 @@ model_list:
       api_key: os.environ/GROQ_API_KEY
 
   # Text to Speech
+  # QUEBRADO desde 2026-08-17: a Groq respondeu que `playai-tts` foi decommissioned.
+  # Mantido apontando para ele de propósito — trocar às cegas por `orpheus-v1-english`
+  # (o único de fala que sobrou na conta) sem testar áudio de verdade seria trocar um
+  # erro conhecido por um desconhecido. Pendência registrada no backlog do Rayzen.
   - model_name: tts-1
     litellm_params:
       model: groq/playai-tts
@@ -75,8 +119,16 @@ router_settings:
   routing_strategy: least-busy
   allowed_fails: 2
   cooldown_time: 60
-  # Fallback automático: se Groq rate-limitar ou falhar, cai no Claude
+  # Fallback automático, em ordem de quem realmente responde.
+  #
+  # O Gemini vem ANTES do Claude porque a conta da Anthropic está sem crédito: até 22/08 a
+  # cadeia terminava lá, então na prática não havia fallback nenhum. O `*-premium` fica no
+  # fim como último recurso — se o crédito voltar, ele volta a valer sem precisar mexer aqui.
+  #
+  # Dois degraus de Gemini de propósito: o primeiro é `preview` (melhor, e preview é o que
+  # some sem avisar) e o segundo é nome estável. Degradar de qualidade é melhor que degradar
+  # para nada.
   fallbacks:
     - {"gpt-local": ["gpt-4o-mini"]}
-    - {"gpt-4o": ["gpt-4o-premium"]}
-    - {"gpt-4o-mini": ["gpt-4o-mini-premium"]}
+    - {"gpt-4o": ["gpt-4o-gemini", "gpt-4o-mini-gemini", "gpt-4o-premium"]}
+    - {"gpt-4o-mini": ["gpt-4o-mini-gemini", "gpt-4o-gemini", "gpt-4o-mini-premium"]}

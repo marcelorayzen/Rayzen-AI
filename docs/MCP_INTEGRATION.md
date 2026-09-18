@@ -40,14 +40,57 @@ const mod = await import(`${fileUrl}?t=${mtimeMs}`)  // invalida cache de import
       "command": "node",
       "args": ["apps/agent/src/mcp/rayzen-mcp.mjs"],
       "env": {
-        "AGENT_API_URL":    "http://192.168.0.174:3101",
-        "AGENT_API_V2_URL": "http://192.168.0.174:3103",
+        "AGENT_API_URL":    "https://api.rayzen.com.br",
+        "AGENT_API_V2_URL": "https://api.rayzen.com.br",
         "AGENT_TOKEN":      "<JWT>"
       }
     }
   }
 }
 ```
+
+---
+
+## Escopo de leitura *(2026-09-06)*
+
+O servidor HTTP aceita **dois tipos de token**:
+
+| token | vê | pode chamar |
+|---|---|---|
+| OAuth normal | as 21 ferramentas | todas |
+| **`MCP_READONLY_TOKEN`** | **9** | **só as 9 de consulta** |
+
+Até esta data não existia escopo: as 21 ferramentas dividiam a mesma superfície e o mesmo token,
+então qualquer consumidor novo — um agente conversacional, por exemplo — recebia junto as 11 de
+escrita.
+
+**A fronteira é dos dois lados, e as metades fazem coisas diferentes:**
+
+- filtrar a **listagem** faz o cliente nem saber que existe escrita: não tenta, não erra, não
+  pergunta. É a metade cooperativa.
+- recusar na **chamada** vale contra quem não coopera: cliente com a lista antiga em cache, que
+  ignora a listagem, ou que chama direto por HTTP. Só o filtro da listagem seria acordo de
+  cavalheiros.
+
+> Filtro no **cliente** (o `include`/`exclude` que o Hermes suporta) protege contra o **modelo**
+> chamar o que não deve. Não é fronteira: quem tem o token alcança tudo por fora do cliente. Os
+> dois se somam; nenhum substitui o outro.
+
+**A lista é de PERMISSÃO e o padrão é negar.** `FERRAMENTAS_DE_LEITURA` enumera as 9; ferramenta
+nova nasce fora dela, indisponível para leitura, até alguém decidir incluí-la. Lista de negação
+faria toda ferramenta futura entrar no escopo por omissão — que é exatamente como escopo vaza sem
+ninguém perceber. Há teste anti-drift.
+
+`MCP_READONLY_TOKEN` precisa estar **no `.env` e na lista `environment:` do serviço `mcp-http`**
+no compose: ele declara as variáveis uma a uma e não usa `env_file`.
+
+> ⚠️ **O `mcp-http` NÃO entra no webhook de build**, como o `litellm`. Depois do `git pull`:
+> `docker compose up -d --build --no-deps mcp-http`. Sem `--build`, o container sobe do image
+> velho — e sem `--no-deps`, o compose tenta recriar a `api` junto e pode derrubá-la por conflito
+> de nome. Aconteceu em 06/09.
+
+**O escopo existe só no servidor HTTP.** O `rayzen-mcp.mjs` (stdio) não tem — é processo local do
+Claude Code, com o token do dono.
 
 ---
 
@@ -89,6 +132,15 @@ const mod = await import(`${fileUrl}?t=${mtimeMs}`)  // invalida cache de import
 | `rayzen_blueprint_preview` | Preview antes de importar | Validar estrutura do plano |
 | `rayzen_blueprint_import_markdown` | Importa markdown direto | Planos sem estrutura formal |
 | `rayzen_blueprint_create_feature_plan` | Cria feature plan estruturado | Nova feature com planejamento |
+
+### Guardian
+
+| Tool | Descrição | Quando usar |
+|---|---|---|
+| `rayzen_guardian_status` | Consulta o último `GuardianReport` (risk score/level, arquivos sem spec) | Checar risco antes de commitar/dar push |
+| `rayzen_guardian_analyze` | Dispara análise imediata sem esperar o workspace-watcher (30s) | Validar um conjunto específico de arquivos alterados |
+
+Ver `docs/GUARDIAN.md` para o detalhe completo (risk scoring, instalação, endpoints REST).
 
 ---
 

@@ -2,10 +2,11 @@ import { Injectable, BadRequestException, Logger, Inject, forwardRef } from '@ne
 import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../../prisma/prisma.service'
 import OpenAI from 'openai'
+import { createLlmClient } from '../../common/llm-client'
 import { getWorkModeConfig } from '../orchestrator/work-modes'
 import { DocumentationService } from '../documentation/documentation.service'
 import { MetricsService } from '../metrics/metrics.service'
-import { GraphService } from '../graph/graph.service'
+import { GraphService, confirmNextStepId } from '../graph/graph.service'
 import { EventService } from '../event/event.service'
 import { ProjectStateService } from '../project-state/project-state.service'
 
@@ -16,6 +17,31 @@ export interface SynthesisResult {
   learnings: string[]
   confidence: 'low' | 'medium' | 'high'
 }
+
+/**
+ * `conversation_messages` **não é conversa** — é log de chamada de LLM de todo módulo.
+ * O checkpoint lia a tabela inteira e acabava se alimentando da própria saída.
+ *
+ * Medido em 2026-08-18 neste projeto: das 3.990 linhas, **nenhuma** é diálogo de
+ * usuário. São `documentation` (1.558), `synthesis` (1.103), `project-state` (952),
+ * `brain`, `system`, `jarvis`. O `runSynthesis()` grava o próprio resumo com
+ * `module: 'synthesis'`, então o checkpoint seguinte o encontrava na janela e
+ * parafraseava para frente.
+ *
+ * O efeito é uma câmara de eco: em ~20h, **12 checkpoints e 11 resumos praticamente
+ * idênticos**, repetindo "Sete commits foram enviados à produção" muito depois de o
+ * número ter mudado — e, pior, carregando adiante uma deriva que virou fato falso
+ * ("iniciando o HUD orbital via WebSocket", quando o HUD foi explicitamente PARADO e
+ * nunca começou).
+ *
+ * Estes três módulos são todos **derivados dos mesmos eventos** que o checkpoint já lê
+ * direto. Incluí-los não acrescenta informação: duplica a entrada e ainda por cima
+ * pela versão já resumida por um LLM, que é onde a deriva se acumula.
+ *
+ * Denylist e não allowlist de propósito: se algum dia um módulo gravar diálogo real
+ * (chat, assistente), ele continua entrando sem precisar de mudança aqui.
+ */
+const MODULOS_DERIVADOS_DOS_MESMOS_EVENTOS = ['synthesis', 'documentation', 'project-state']
 
 @Injectable()
 export class SynthesisService {
@@ -31,16 +57,18 @@ export class SynthesisService {
     @Inject(forwardRef(() => EventService)) private readonly eventService: EventService,
     @Inject(forwardRef(() => ProjectStateService)) private readonly stateService: ProjectStateService,
   ) {
-    this.llm = new OpenAI({
+    this.llm = createLlmClient('synthesis', {
+      apiKey:  this.config.get('LITELLM_MASTER_KEY') ?? 'sk-rayzen',
       baseURL: this.config.get('LITELLM_BASE_URL', 'http://localhost:4000/v1'),
-      apiKey: this.config.get('LITELLM_MASTER_KEY') ?? 'sk-rayzen',
     })
   }
 
   async synthesizeSession(sessionId: string, projectId?: string, workMode?: string): Promise<SessionArtifactResponse> {
     const [messages, events] = await Promise.all([
       this.prisma.conversationMessage.findMany({
-        where: { sessionId },
+        // Mesmo eco do checkpoint, em escala menor: `runSynthesis` grava sob este
+        // mesmo `sessionId`, então re-sintetizar a sessão leria a saída anterior.
+        where: { sessionId, module: { notIn: MODULOS_DERIVADOS_DOS_MESMOS_EVENTOS } },
         orderBy: { createdAt: 'asc' },
       }),
       this.prisma.event.findMany({
@@ -99,7 +127,11 @@ export class SynthesisService {
         select: { id: true, source: true, type: true, intent: true, content: true, metadata: true },
       }).then(evs => evs.reverse()),
       this.prisma.conversationMessage.findMany({
-        where: { projectId, createdAt: { gte: since } },
+        where: {
+          projectId,
+          createdAt: { gte: since },
+          module: { notIn: MODULOS_DERIVADOS_DOS_MESMOS_EVENTOS },
+        },
         orderBy: { createdAt: 'asc' },
         take: 30,
       }),
@@ -123,8 +155,23 @@ export class SynthesisService {
       },
     })
 
-    // Full pipeline: state refresh + docs regeneration in background
-    this.docSvc.generateAll(projectId, { force: true }).catch(() => null)
+    // Full pipeline: state refresh + docs regeneration in background.
+    //
+    // A síntese e os documentos têm ritmos naturais OPOSTOS: o artefato acima é "o que
+    // aconteceu desde o último checkpoint" (janela curta, faz sentido a cada 10min); os
+    // documentos são um rollup de 30 dias (janela longa). Regenerar o rollup a cada
+    // disparo era o que fazia `rayzen:v1:documentation` ser o maior consumidor de LLM da
+    // plataforma — ver docs/baseline-roteamento-llm.md.
+    //
+    // O piso de 1h mora no `generate()`. Aqui só se decide **quem tem direito de furá-lo**:
+    // quem pediu foi uma pessoa, ou o gatilho foi uma DECISÃO — decisão precisa aparecer
+    // no `decisions_log` na hora, não na próxima hora cheia. Burst de atividade e
+    // "passaram 2h" não furam: eles só dizem que houve movimento, não que houve conteúdo.
+    const pedidoHumano = !meta?.autoTriggered
+    const ehDecisao    = meta?.reason === 'decision_detected'
+    this.docSvc
+      .generateAll(projectId, { force: true, ignorarFrescor: pedidoHumano || ehDecisao })
+      .catch(() => null)
 
     // goal-2: sem isso, a meta só atualiza se alguém lembrar de chamar
     // POST /goal/propose-progress manualmente — nunca aplica direto (exige
@@ -168,10 +215,18 @@ export class SynthesisService {
     const state = await this.stateService.get(projectId)
     if (!state) return
 
+    // O id do critério ('a1', 'b3'...) só é único DENTRO de uma meta — metas diferentes
+    // reusam os mesmos. Sem o goalId no id do next-step, um resíduo de meta antiga faz
+    // o dedup abaixo silenciar o critério homônimo da meta atual. Aconteceu: o projeto
+    // tinha um "confirmar" do b3 de uma meta já achieved e o b3 da meta ativa ao mesmo
+    // tempo — ver confirmNextStepId() em GraphService, que precisa gerar o mesmo id.
     const existingIds = new Set(state.nextSteps.map(s => s.id))
     const newSteps = highConfidence
-      .filter(p => !existingIds.has(`confirmar-${p.criteriaId}`))
-      .map(p => ({ id: `confirmar-${p.criteriaId}`, title: `Confirmar critério concluído: ${p.text} (${p.reason})` }))
+      .filter(p => !existingIds.has(confirmNextStepId(goalId, p.criteriaId)))
+      .map(p => ({
+        id:    confirmNextStepId(goalId, p.criteriaId),
+        title: `Confirmar critério concluído: ${p.text} (${p.reason})`,
+      }))
 
     if (newSteps.length > 0) {
       await this.stateService.updatePlanning(projectId, { nextSteps: [...state.nextSteps, ...newSteps] })

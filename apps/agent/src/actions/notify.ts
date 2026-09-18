@@ -1,31 +1,42 @@
-import { execSync } from 'child_process'
+import { rodarHelper, type ExecutorDeHelper } from '../exec/executar-helper'
 
-export async function notify(payload: { title: string; message: string }): Promise<{ notified: boolean }> {
-  const title = payload.title.replace(/"/g, "'").slice(0, 100)
-  const message = payload.message.replace(/"/g, "'").slice(0, 250)
-
-  const script = `
-[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
-[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
-$template = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02)
-$template.SelectSingleNode('//text[@id=1]').InnerText = "${title}"
-$template.SelectSingleNode('//text[@id=2]').InnerText = "${message}"
-$toast = [Windows.UI.Notifications.ToastNotification]::new($template)
-[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("Rayzen AI").Show($toast)
-`.trim()
+/**
+ * Notificação — Fase 1-A. Título e mensagem vão por **stdin como JSON**; nada é interpolado.
+ *
+ * ## O que havia antes
+ *
+ * O script era montado por template com `${title}` e `${message}` dentro, e o "sanitizador"
+ * trocava apenas `"` por `'`. Provado em 07/09, montando a string sem executar: o payload
+ * `$(Write-Output PWNED)` **sobrevive** — ele não tem aspas, e cai dentro de uma string de
+ * aspas duplas do PowerShell, onde `$( )` é subexpressão e executa.
+ *
+ * O fallback de balloon tinha a mesma forma, interpolando os dois valores de novo.
+ *
+ * ## Por que JSON por stdin, e não escape
+ *
+ * `ConvertFrom-Json` trata o conteúdo como **dado**, e o `InnerText` do XmlDocument escapa o
+ * que precisa ser escapado no XML — coisa que concatenação de string nunca fez. O argv contém
+ * só o caminho do helper, que é constante.
+ *
+ * O truncamento continua: título 100, mensagem 250. Não é defesa — é limite de exibição do
+ * toast. Tratá-lo como defesa foi parte do problema anterior.
+ */
+export async function notify(
+  payload: { title: string; message: string },
+  executor?: ExecutorDeHelper,
+): Promise<{ notified: boolean }> {
+  const entrada = JSON.stringify({
+    titulo:   payload.title.slice(0, 100),
+    mensagem: payload.message.slice(0, 250),
+  })
 
   try {
-    execSync(`powershell -NoProfile -Command "${script.replace(/\n/g, '; ')}"`, {
-      encoding: 'utf-8',
-      timeout: 5000,
-    })
+    rodarHelper('notify', entrada, executor)
     return { notified: true }
   } catch {
-    // Fallback: msg simples via balloon
-    execSync(
-      `powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; $n = New-Object System.Windows.Forms.NotifyIcon; $n.Icon = [System.Drawing.SystemIcons]::Information; $n.Visible = $true; $n.ShowBalloonTip(5000, '${title}', '${message}', 'Info'); Start-Sleep -Seconds 6; $n.Dispose()"`,
-      { encoding: 'utf-8', timeout: 10000 },
-    )
-    return { notified: true }
+    // Sem fallback que interpola. A notificação é conveniência: falhar calado aqui é melhor
+    // que manter um segundo caminho com o mesmo defeito — que era exatamente o que o balloon
+    // fazia, reintroduzindo a interpolação no `catch` do caminho "seguro".
+    return { notified: false }
   }
 }

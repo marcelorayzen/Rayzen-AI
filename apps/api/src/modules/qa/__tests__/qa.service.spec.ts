@@ -146,6 +146,28 @@ describe('parseAllureJSON', () => {
     expect(result.failed).toBe(1)
     expect(result.failedCases[0].message).toBe('broken')
   })
+
+  // Antes o Allure gravava sempre suites: [] — o run do monorepo perdia a quebra por
+  // app/arquivo que o caminho JUnit entregava (23 suítes). Agora agrega pelo label.
+  it('agrega suítes a partir do label suite', () => {
+    const raw = JSON.stringify([
+      { name: 'api › a', status: 'passed',  duration: 10, labels: [{ name: 'suite', value: 'api › foo' }] },
+      { name: 'api › b', status: 'failed',  duration: 20, labels: [{ name: 'suite', value: 'api › foo' }] },
+      { name: 'agent › c', status: 'passed', duration: 30, labels: [{ name: 'suite', value: 'agent › bar' }] },
+    ])
+
+    const result = parseAllureJSON(raw)
+
+    expect(result.suites).toEqual([
+      { name: 'agent › bar', tests: 1, failures: 0, durationMs: 30 },
+      { name: 'api › foo',   tests: 2, failures: 1, durationMs: 30 },
+    ])
+  })
+
+  it('não inventa suíte quando o caso não tem label', () => {
+    const raw = JSON.stringify([{ name: 'sem label', status: 'passed', duration: 5 }])
+    expect(parseAllureJSON(raw).suites).toEqual([])
+  })
 })
 
 

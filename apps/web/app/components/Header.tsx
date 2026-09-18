@@ -6,6 +6,7 @@ import type { WorkMode } from '../hooks/useChatStream'
 import type { QASummary } from '../hooks/useQA'
 import type { ProjectState } from '../hooks/useGoalGraph'
 import { RISK_COLORS, STAGE_LABELS, type HealthData, type GitContext, type Recommendation } from '../page'
+import { usePendingGates } from '../hooks/usePendingGates'
 
 interface HeaderProps {
   openSidebar: () => void
@@ -53,6 +54,32 @@ interface HeaderProps {
   agentOnline: boolean | null
 }
 
+const MODO_ROTULO: Record<string, string> = {
+  '':               'modo livre',
+  implementation:   'implementação',
+  debugging:        'debugging',
+  architecture:     'arquitetura',
+  study:            'estudo',
+  review:           'revisão',
+}
+
+/**
+ * O modo muda duas coisas: o sufixo de system prompt do assistente e como a
+ * busca semântica é inclinada (`RANKING_POR_MODO` em `@rayzen/types`).
+ *
+ * A descrição existe porque o seletor mostrava só o rótulo — e sem saber o que
+ * cada modo prioriza, escolher vira chute. O texto diz o que SOBE no ranking,
+ * que é a parte não óbvia.
+ */
+const MODO_DESCRICAO: Record<string, string> = {
+  '':             'Sem viés: a busca ordena só por relevância, sem priorizar decisão, lição ou padrão.',
+  implementation: 'Código agora: prioriza padrões e lições, e memória de trabalho recente. Respostas diretas, sem teorizar.',
+  debugging:      'Causa raiz: prioriza lições — o que já quebrou antes e como foi resolvido. Mantém o foco no problema.',
+  architecture:   'Design: prioriza decisões e restrições registradas. Apresenta alternativas com trade-offs antes de implementar.',
+  study:          'Conceitos: prioriza padrões e material consolidado. Explica com exemplos e conecta ao que já está na memória.',
+  review:         'Divergência: prioriza restrições e decisões, para comparar o que foi planejado com o que foi feito.',
+}
+
 export function Header({
   openSidebar, onOpenSettings, openMemoryPanel, setImportOpen, setImportResult,
   sessionId, activeProjectId, setActiveProjectId, projects, setNewProjectOpen,
@@ -62,6 +89,10 @@ export function Header({
   doCheckpoint, checkpointing, openActivity, openMissions, openGraph, qaSummary, openQA, openEvidence,
   autoVoice, setAutoVoice, openSynthesis, openDocs, onLogout, sessionTokens, dailyTokens, agentOnline,
 }: HeaderProps) {
+  // Consultado aqui e não via prop: é um poll próprio, autocontido, e o page.tsx já
+  // carrega estado demais. Nenhum outro componente precisa desse número.
+  const pendingGates = usePendingGates(activeProjectId)
+
   return (
     <div className="hud-header shrink-0 sticky top-0 z-30 px-6 py-4 flex items-center justify-between gap-4">
       <div className="flex items-center gap-3 shrink-0">
@@ -182,14 +213,13 @@ export function Header({
             value={workMode ?? ''}
             onChange={(e) => setWorkMode((e.target.value as WorkMode) || null)}
             className="bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:border-zinc-500"
-            title="Modo de trabalho"
+            title={MODO_DESCRICAO[workMode ?? ''] ?? 'Modo de trabalho'}
           >
-            <option value="">modo livre</option>
-            <option value="implementation">implementação</option>
-            <option value="debugging">debugging</option>
-            <option value="architecture">arquitetura</option>
-            <option value="study">estudo</option>
-            <option value="review">revisão</option>
+            {Object.entries(MODO_ROTULO).map(([valor, rotulo]) => (
+              <option key={valor} value={valor} title={MODO_DESCRICAO[valor]}>
+                {rotulo}
+              </option>
+            ))}
           </select>
         )}
         {activeProjectId && projectState && (
@@ -293,6 +323,33 @@ export function Header({
 
         <a href="/catalog" className="hud-nav" title="Catalog — projetos como assets formais com owner, provenance e tags">
           catalog
+        </a>
+
+        <a href="/insights" className="hud-nav" title="Custo por módulo e grafo de conhecimento — dados que a V2 acumulava sem tela">
+          dados
+        </a>
+
+        <a
+          href="/guardian"
+          className="hud-nav relative inline-flex items-center gap-1"
+          title={
+            pendingGates.count > 0
+              ? `${pendingGates.count} aprovação(ões) aguardando decisão — expiram e viram "rejeitado" se ninguém decidir`
+              : 'Guardian — risco das mudanças, arquivos sem teste e aprovações pendentes'
+          }
+        >
+          {pendingGates.count > 0 && (
+            <span
+              className={`flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-bold ${
+                pendingGates.topRisk === 'critical' ? 'bg-red-600 text-white'    :
+                pendingGates.topRisk === 'high'     ? 'bg-red-500 text-white'    :
+                                                      'bg-amber-500 text-zinc-900'
+              }`}
+            >
+              {pendingGates.count}
+            </span>
+          )}
+          guardian
         </a>
 
         {activeProjectId && (

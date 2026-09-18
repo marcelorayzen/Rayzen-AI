@@ -244,6 +244,23 @@ export function GoalGraphPanel({
                     {graphGoalData.goal.description && (
                       <p className="text-xs text-zinc-400">{graphGoalData.goal.description}</p>
                     )}
+                    {/* Meta 100% concluída e ainda aberta — o fechamento é manual por
+                        decisão, então o risco é esquecer e congelar o objetivo do projeto
+                        (a meta anterior ficou 11/11 aberta por mais de um mês). */}
+                    {graphGoalData.goal.successCriteria.length > 0 &&
+                     graphGoalData.goal.successCriteria.every(c => c.done) && (
+                      <div className="flex items-center justify-between gap-3 flex-wrap rounded-lg px-3 py-2 bg-emerald-500/10 border border-emerald-500/30">
+                        <span className="text-xs text-emerald-300">
+                          Todos os {graphGoalData.goal.successCriteria.length} critérios concluídos — falta fechar a meta.
+                        </span>
+                        <button
+                          onClick={() => achieveGoal(graphGoalData.goal!.id)}
+                          className="text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-lg bg-emerald-500 text-zinc-950 hover:bg-emerald-400 transition-colors shrink-0"
+                        >
+                          fechar meta
+                        </button>
+                      </div>
+                    )}
                     {/* Progress bar */}
                     {graphGoalData.gapAnalysis && (
                       <div>

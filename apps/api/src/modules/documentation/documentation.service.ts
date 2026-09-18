@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 import { ProjectStateService } from '../project-state/project-state.service'
 import { ProjectState } from '@prisma/client'
 import OpenAI from 'openai'
+import { createLlmClient } from '../../common/llm-client'
 import { randomUUID } from 'crypto'
 import { MetricsService } from '../metrics/metrics.service'
 
@@ -13,11 +14,32 @@ export type DocType =
   | 'next_actions'
   | 'work_journal'
   | 'test_evidence'
-  | 'data_map'
-  | 'ropa'
-  | 'quality_report'
 
 type LlmDocType = 'project_state' | 'decisions_log' | 'next_actions' | 'work_journal'
+
+/**
+ * Piso entre regenerações do mesmo documento.
+ *
+ * Até 2026-09-06 não havia piso nenhum: `generate()` sempre ia ao LLM, e `force`
+ * só ignorava a proteção de "revisado à mão". O caminho automático
+ * (`SmartCheckpointService`, a cada 10min) passava `force: true` — que ele de fato
+ * precisa, para sobrescrever documento revisado — e levava o bypass de frescor de
+ * carona. **Um flag respondendo duas perguntas diferentes.**
+ *
+ * O desequilíbrio que o piso corrige: estes documentos são um rollup de **30 dias**
+ * de artefatos + 60 eventos + estado + meta. Em 10 minutos entram ~5 eventos numa
+ * janela de 60 — **~92% da entrada é a mesma** — e o documento é reescrito inteiro.
+ *
+ * Uma hora, e não "só grave se mudou": medido em 7 dias, `project_state` teve **74
+ * versões e ZERO byte-idênticas**. O LLM reformula sempre, mesmo sem informação
+ * nova, então a chamada é justamente o que descobriria que não mudou. Piso de tempo
+ * é o único gate que evita a chamada.
+ *
+ * Furado por `ignorarFrescor`, que só duas coisas usam: pedido humano (`?force=true`
+ * na rota) e gatilho `decision_detected` — decisão precisa chegar no `decisions_log`
+ * na hora.
+ */
+const PISO_DE_REGENERACAO_MS = 60 * 60 * 1000
 
 const DOC_PROMPTS: Record<LlmDocType, (ctx: string) => string> = {
   project_state: (ctx) => `Com base no contexto abaixo, escreva um documento markdown "Estado do Projeto".
@@ -101,16 +123,16 @@ export class DocumentationService {
     private readonly projectStateService: ProjectStateService,
     private readonly metrics: MetricsService,
   ) {
-    this.llm = new OpenAI({
+    this.llm = createLlmClient('documentation', {
+      apiKey:  this.config.get('LITELLM_MASTER_KEY') ?? 'sk-rayzen',
       baseURL: this.config.get('LITELLM_BASE_URL', 'http://localhost:4000/v1'),
-      apiKey: this.config.get('LITELLM_MASTER_KEY') ?? 'sk-rayzen',
     })
   }
 
   async generate(
     projectId: string,
     type: DocType,
-    opts: { force?: boolean; _preloadedState?: ProjectState | null } = {},
+    opts: { force?: boolean; ignorarFrescor?: boolean; _preloadedState?: ProjectState | null } = {},
   ): Promise<{ id: string; type: string; content: string; generatedAt: string }> {
     const project = await this.prisma.project.findUnique({ where: { id: projectId } })
     if (!project) throw new NotFoundException('Projeto não encontrado')
@@ -124,6 +146,15 @@ export class DocumentationService {
       throw new BadRequestException(
         'Este documento foi revisado manualmente. Use force=true para regenerar.',
       )
+    }
+
+    if (!opts.ignorarFrescor && existing && Date.now() - existing.generatedAt.getTime() < PISO_DE_REGENERACAO_MS) {
+      return {
+        id:          existing.id,
+        type:        existing.type,
+        content:     existing.content,
+        generatedAt: existing.generatedAt.toISOString(),
+      }
     }
 
     // Se não foi chamado pelo generateAll (que já fez um refresh único), auto-refresh aqui
@@ -152,7 +183,12 @@ export class DocumentationService {
         ? Promise.resolve(opts._preloadedState)
         : this.prisma.projectState.findUnique({ where: { projectId } }),
       this.prisma.projectGoal.findFirst({
-        where: { projectId, status: { not: 'achieved' } },
+        // Só 'active'. `not: 'achieved'` incluía paused E cancelled — com a meta atual
+        // fechada, o objetivo do projeto voltava a ser derivado de uma meta pausada
+        // meses antes (observado em 2026-08-07: caiu numa meta de junho). Pausada
+        // significa deixada de lado, cancelada significa abandonada; nenhuma das duas
+        // é o norte atual. Outros 6 pontos do código já usavam 'active'.
+        where: { projectId, status: 'active' },
         orderBy: { createdAt: 'desc' },
       }),
     ])
@@ -270,7 +306,7 @@ export class DocumentationService {
     return { id: doc.id, type: doc.type, content: doc.content, generatedAt: doc.generatedAt.toISOString() }
   }
 
-  async generateAll(projectId: string, opts: { force?: boolean } = {}) {
+  async generateAll(projectId: string, opts: { force?: boolean; ignorarFrescor?: boolean } = {}) {
     // Pula refresh se state foi atualizado há menos de 15min
     const existingState = await this.prisma.projectState.findUnique({ where: { projectId } })
     const isRecent = existingState && (Date.now() - existingState.updatedAt.getTime() < 15 * 60 * 1000)
@@ -280,15 +316,34 @@ export class DocumentationService {
     const freshState = await this.prisma.projectState.findUnique({ where: { projectId } })
 
     const types: DocType[] = ['project_state', 'decisions_log', 'next_actions', 'work_journal', 'test_evidence']
-    const results = await Promise.allSettled(
-      types.map(t => this.generate(projectId, t, { ...opts, _preloadedState: freshState })),
-    )
-    return types.map((type, i) => {
-      const r = results[i]
-      return r.status === 'fulfilled'
-        ? { type, ok: true, generatedAt: r.value.generatedAt }
-        : { type, ok: false, error: (r.reason as Error).message }
-    })
+
+    // EM SÉRIE, não em paralelo — e o motivo é medido, não estilístico.
+    //
+    // Com `Promise.allSettled` os quatro documentos partiam no mesmo instante, e cada um
+    // carrega um rollup de **30 dias**. Quatro prompts grandes no mesmo segundo estouram o
+    // limite de **tokens por minuto** do free tier da Groq, não o de requisições — por isso
+    // o sintoma era 429 em rajada, e não latência.
+    //
+    // Medido em 2026-09-08, 36h, já descontada a sonda: `rayzen:v1:documentation` fez 68
+    // chamadas a `gpt-4o-mini` e **40 falharam**, todas por cota. No mesmo grupo e na mesma
+    // janela, a sonda fez 86 chamadas com **zero** erro — o provedor estava bem; quem não
+    // cabia era a rajada.
+    //
+    // Em série o trabalho total é o mesmo; só deixa de chegar todo de uma vez. Não há perda
+    // de tempo de parede que importe: este caminho é fire-and-forget desde a origem
+    // (`SmartCheckpointService`), e ninguém espera por ele.
+    const resultados: Array<{ type: DocType; ok: boolean; generatedAt?: string; error?: string }> = []
+    for (const type of types) {
+      try {
+        const r = await this.generate(projectId, type, { ...opts, _preloadedState: freshState })
+        resultados.push({ type, ok: true, generatedAt: r.generatedAt })
+      } catch (e) {
+        // Um tipo que falha NÃO interrompe os outros — era a única coisa que o
+        // `allSettled` garantia, e ela se preserva.
+        resultados.push({ type, ok: false, error: e instanceof Error ? e.message : String(e) })
+      }
+    }
+    return resultados
   }
 
   async list(projectId: string) {
@@ -402,177 +457,4 @@ export class DocumentationService {
     return { id: doc.id, type: doc.type, content: doc.content, generatedAt: doc.generatedAt.toISOString() }
   }
 
-  // ── LGPD / Compliance Documents ───────────────────────────────────────────
-
-  async generateDataMap(projectId: string): Promise<{ id: string; type: string; content: string; generatedAt: string }> {
-    const project = await this.prisma.project.findUnique({ where: { id: projectId } })
-    if (!project) throw new NotFoundException('Projeto não encontrado')
-
-    const assets = await this.prisma.dataAsset.findMany({
-      where: { projectId },
-      orderBy: { name: 'asc' },
-    })
-
-    const piiAssets = assets.filter(a => a.containsPII)
-
-    const lines = piiAssets.map(a => {
-      const fields = (a.piiFields as string[] | null)?.join(', ') ?? 'não especificado'
-      return `| ${a.name} | ${a.type} | ${fields} | ${a.owner ?? '—'} | ${a.sensitivity} | ${a.source ?? '—'} |`
-    })
-
-    const content = [
-      `# Mapeamento de Dados Pessoais — ${project.name}`,
-      `**Gerado em:** ${new Date().toLocaleDateString('pt-BR')}`,
-      `**Total de assets:** ${assets.length} | **Com dados pessoais (PII):** ${piiAssets.length}`,
-      '',
-      '## Ativos com dados pessoais',
-      '',
-      '| Dataset | Tipo | Campos PII | Responsável | Sensibilidade | Origem |',
-      '|---|---|---|---|---|---|',
-      ...lines,
-      '',
-      `## Ativos sem dados pessoais (${assets.length - piiAssets.length})`,
-      assets.filter(a => !a.containsPII).map(a => `- **${a.name}** (${a.type}) — ${a.sensitivity}`).join('\n'),
-    ].join('\n')
-
-    const doc = await this.prisma.projectDocument.upsert({
-      where: { projectId_type: { projectId, type: 'data_map' } },
-      create: { projectId, type: 'data_map', content },
-      update: { content, generatedAt: new Date(), reviewedAt: null },
-    })
-
-    return { id: doc.id, type: doc.type, content: doc.content, generatedAt: doc.generatedAt.toISOString() }
-  }
-
-  async generateROPA(projectId: string): Promise<{ id: string; type: string; content: string; generatedAt: string }> {
-    const project = await this.prisma.project.findUnique({ where: { id: projectId } })
-    if (!project) throw new NotFoundException('Projeto não encontrado')
-
-    const assets = await this.prisma.dataAsset.findMany({
-      where: { projectId, containsPII: true },
-      orderBy: { name: 'asc' },
-    })
-
-    const sections = assets.map(a => {
-      const fields = (a.piiFields as string[] | null)?.join(', ') ?? 'não especificado'
-      const consumers = (a.consumers as string[] | null)?.join(', ') ?? 'não especificado'
-      return [
-        `### ${a.name}`,
-        `- **Tipo:** ${a.type}`,
-        `- **Responsável:** ${a.owner ?? 'não definido'}`,
-        `- **Finalidade:** ${a.description ?? 'não declarada'}`,
-        `- **Campos pessoais:** ${fields}`,
-        `- **Compartilhado com:** ${consumers}`,
-        `- **Origem:** ${a.source ?? 'não declarada'}`,
-        `- **Frequência de atualização:** ${a.updateFreq ?? 'não declarada'}`,
-        `- **Sensibilidade:** ${a.sensitivity}`,
-        `- **Base legal LGPD:** _a preencher_`,
-        `- **Prazo de retenção:** _a preencher_`,
-      ].join('\n')
-    })
-
-    const content = [
-      `# ROPA — Registro de Atividades de Tratamento`,
-      `**Projeto:** ${project.name}`,
-      `**Gerado em:** ${new Date().toLocaleDateString('pt-BR')}`,
-      `**Referência:** Art. 37 LGPD / Art. 30 GDPR`,
-      '',
-      '> Este documento lista os tratamentos de dados pessoais identificados no catálogo de dados.',
-      '> Campos marcados com "_a preencher_" requerem revisão manual do responsável pelo tratamento (DPO ou gestor).',
-      '',
-      '## Atividades de Tratamento',
-      '',
-      sections.join('\n\n---\n\n'),
-      '',
-      `## Resumo`,
-      `- **Total de atividades:** ${assets.length}`,
-      `- **Dados confidenciais:** ${assets.filter(a => a.sensitivity === 'confidential' || a.sensitivity === 'restricted').length}`,
-    ].join('\n')
-
-    const doc = await this.prisma.projectDocument.upsert({
-      where: { projectId_type: { projectId, type: 'ropa' } },
-      create: { projectId, type: 'ropa', content },
-      update: { content, generatedAt: new Date(), reviewedAt: null },
-    })
-
-    return { id: doc.id, type: doc.type, content: doc.content, generatedAt: doc.generatedAt.toISOString() }
-  }
-
-  async generateQualityReport(projectId: string): Promise<{ id: string; type: string; content: string; generatedAt: string }> {
-    const project = await this.prisma.project.findUnique({ where: { id: projectId } })
-    if (!project) throw new NotFoundException('Projeto não encontrado')
-
-    const rules = await this.prisma.dataQualityRule.findMany({
-      where: { projectId, active: true },
-      include: {
-        results: {
-          orderBy: { checkedAt: 'desc' },
-          take: 1,
-        },
-      },
-    })
-
-    const byDataset: Record<string, typeof rules> = {}
-    for (const r of rules) {
-      if (!byDataset[r.dataset]) byDataset[r.dataset] = []
-      byDataset[r.dataset].push(r)
-    }
-
-    const WEIGHTS: Record<string, number> = { critical: 3, warning: 2, info: 1 }
-
-    const datasetSections = Object.entries(byDataset).map(([ds, dsRules]) => {
-      let weightedSum = 0, weightTotal = 0, failing = 0
-
-      const ruleLines = dsRules.map(rule => {
-        const latest = rule.results[0]
-        const score = latest?.score ?? 1.0
-        const passed = latest?.passed ?? true
-        const w = WEIGHTS[rule.severity] ?? 1
-        weightedSum += score * w
-        weightTotal += w
-        if (!passed) failing++
-
-        const status = !latest ? '⚠️ nunca executada'
-          : passed ? `✅ OK (score: ${Math.round(score * 100)}%)`
-          : `❌ FALHOU (score: ${Math.round(score * 100)}%)`
-        const field = rule.field ? ` › ${rule.field}` : ''
-        return `  - [${rule.severity.toUpperCase()}] \`${rule.ruleType}\`${field} — ${status}`
-      })
-
-      const dsScore = weightTotal > 0 ? Math.round((weightedSum / weightTotal) * 100) : 100
-      const emoji = dsScore >= 90 ? '🟢' : dsScore >= 70 ? '🟡' : '🔴'
-
-      return [
-        `### ${emoji} ${ds} — Score: ${dsScore}/100`,
-        `${failing} de ${dsRules.length} regras falhando`,
-        ...ruleLines,
-      ].join('\n')
-    })
-
-    const totalFailing = rules.filter(r => r.results[0] && !r.results[0].passed).length
-    const avgScore = rules.length > 0
-      ? Math.round(rules.reduce((s, r) => {
-          const score = r.results[0]?.score ?? 1.0
-          return s + score
-        }, 0) / rules.length * 100)
-      : 100
-
-    const content = [
-      `# Relatório de Qualidade de Dados — ${project.name}`,
-      `**Gerado em:** ${new Date().toLocaleDateString('pt-BR')}`,
-      `**Score médio:** ${avgScore}/100 | **Regras ativas:** ${rules.length} | **Falhando:** ${totalFailing}`,
-      '',
-      '## Por Dataset',
-      '',
-      datasetSections.join('\n\n'),
-    ].join('\n')
-
-    const doc = await this.prisma.projectDocument.upsert({
-      where: { projectId_type: { projectId, type: 'quality_report' } },
-      create: { projectId, type: 'quality_report', content },
-      update: { content, generatedAt: new Date(), reviewedAt: null },
-    })
-
-    return { id: doc.id, type: doc.type, content: doc.content, generatedAt: doc.generatedAt.toISOString() }
-  }
 }

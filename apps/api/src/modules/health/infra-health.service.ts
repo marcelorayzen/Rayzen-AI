@@ -119,17 +119,67 @@ export class InfraHealthService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /**
+   * Validade do token — lida do próprio token, não de uma data anotada.
+   *
+   * Isto lia `HOOK_JWT_EXPIRES_AT` do `.env`: uma data que alguém precisa lembrar
+   * de atualizar toda vez que o token é rotacionado. Em 2026-08-15 o token foi
+   * renovado para 14/09 e o painel continuou anunciando "12 dias para expirar",
+   * porque a anotação ficou em 27/08. Um painel de saúde que depende de alguém
+   * atualizar um texto à mão informa o que escreveram, não o que é.
+   *
+   * O `exp` está dentro do JWT. Decodificar é barato e não pode divergir.
+   */
   private checkJwt(): ServiceStatus {
-    const expiresAt = this.config.get<string>('HOOK_JWT_EXPIRES_AT', '2026-07-04')
-    const daysLeft  = Math.floor((new Date(expiresAt).getTime() - Date.now()) / 86400000)
-    if (daysLeft < 0)  return { ok: false, error: 'JWT expirado', meta: { expiresAt } }
-    if (daysLeft < 14) return { ok: true,  meta: { expiresAt, warning: `expira em ${daysLeft}d` } }
-    return { ok: true, meta: { expiresAt, daysLeft } }
+    const doToken = this.expDoToken(this.config.get<string>('AGENT_TOKEN', ''))
+
+    // Fallback só para o caso de o token não ser um JWT (houve tokens opacos de
+    // 48 chars nesta base). A origem vai no meta: número sem procedência é como
+    // o painel passou a mentir da primeira vez.
+    const anotado  = this.config.get<string>('HOOK_JWT_EXPIRES_AT', '')
+    const fonte    = doToken ? 'token' : 'env:HOOK_JWT_EXPIRES_AT'
+    const expDate  = doToken ?? (anotado ? new Date(anotado) : null)
+
+    if (!expDate || Number.isNaN(expDate.getTime())) {
+      return { ok: false, error: 'validade do token indeterminada', meta: { fonte } }
+    }
+
+    const expiresAt = expDate.toISOString().slice(0, 10)
+    const daysLeft  = Math.floor((expDate.getTime() - Date.now()) / 86400000)
+
+    if (daysLeft < 0)  return { ok: false, error: 'JWT expirado', meta: { expiresAt, fonte } }
+    if (daysLeft < 14) return { ok: true,  meta: { expiresAt, daysLeft, fonte, warning: `expira em ${daysLeft}d` } }
+    return { ok: true, meta: { expiresAt, daysLeft, fonte } }
   }
 
+  /** `exp` do payload do JWT, ou null se não for um JWT legível. */
+  private expDoToken(token: string): Date | null {
+    const partes = token.split('.')
+    if (partes.length !== 3) return null
+    try {
+      const payload = JSON.parse(Buffer.from(partes[1], 'base64url').toString()) as { exp?: number }
+      return typeof payload.exp === 'number' ? new Date(payload.exp * 1000) : null
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * `/health/liveliness`, não `/health`.
+   *
+   * O `/health` do LiteLLM roda um health check por modelo configurado e cada um
+   * vira um trace no Langfuse. Como a web e o widget fazem polling deste endpoint,
+   * isso gerava ~190 traces por hora: em 2026-08-13 eram 148.892 de 158.806 traces
+   * na base, ou seja **94% do Langfuse era health check**, afogando os traces que
+   * têm valor. Não custava tokens (0 em 24h), mas tornava a instância ilegível.
+   *
+   * `/health/liveliness` responde 200 sem tocar em modelo nenhum e sem gerar trace —
+   * que é exatamente a pergunta deste painel: "o LiteLLM está de pé?", não "todos os
+   * modelos respondem?".
+   */
   private litellmHealthUrl(): string {
     const base = this.config.get<string>('LITELLM_BASE_URL', 'http://localhost:4100/v1')
-    return base.replace(/\/v1$/, '') + '/health'
+    return base.replace(/\/v1$/, '') + '/health/liveliness'
   }
 
   private apiV2Url(): string {

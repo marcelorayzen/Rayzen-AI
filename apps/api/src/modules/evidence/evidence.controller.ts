@@ -83,7 +83,15 @@ export class EvidenceController {
       return
     }
 
-    reply.header('Content-Type', fileName.endsWith('.png') ? 'image/png' : 'application/octet-stream')
+    // A UI passou a aceitar upload manual (png/jpeg/webp/gif), não só o .png do
+    // `jarvis:screenshot`. Sem o mapa, tudo que não fosse png saía como
+    // `application/octet-stream` e o link "abrir" baixava o arquivo em vez de exibi-lo.
+    const TIPOS: Record<string, string> = {
+      '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+      '.webp': 'image/webp', '.gif': 'image/gif',
+    }
+    const ext = path.extname(fileName).toLowerCase()
+    reply.header('Content-Type', TIPOS[ext] ?? 'application/octet-stream')
     reply.send(fs.createReadStream(filePath))
   }
 }

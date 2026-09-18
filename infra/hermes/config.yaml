@@ -1,0 +1,159 @@
+# Hermes Agent — configuração do SPIKE (Track A / critério j4).
+#
+# Segredo nenhum aqui: chaves vêm do ambiente, injetadas pelo compose a partir do `.env`
+# do servidor. A doc do Hermes diz o mesmo — valores secretos em `.env`, o resto aqui.
+#
+# ── FORMATO ───────────────────────────────────────────────────────────────────
+#
+# `_config_version: 44` não é decoração. Até 13/09 este arquivo estava no schema **0**, com
+# `provider:` e `model:` na RAIZ — a forma que o `hermes doctor` da v0.21.2 acusa como
+# "Stale root-level provider/base_url in config.yaml". Funcionava por acidente: o roteamento
+# pegava por `LM_BASE_URL`/`LM_API_KEY` (variáveis de ambiente do compose), não por este
+# arquivo. Configuração que funciona sem que o caminho declarado seja o caminho usado é o
+# modo de falha desta casa — nada dá erro, tudo reporta sucesso, e o dado está errado.
+#
+# Migrado com `hermes config migrate` rodado num container DESCARTÁVEL da mesma imagem
+# (este arquivo é montado `:ro`, então `doctor --fix` não consegue escrever nele — e isso é
+# de propósito: o que o Hermes lê está no repositório e é revisável). O resultado da
+# migração foi copiado de volta para cá; os comentários abaixo são nossos e a ferramenta
+# não os preserva.
+#
+# **Ao atualizar a versão do Hermes, rode `hermes config check` e migre de novo se acusar.**
+
+# ── Modelo ────────────────────────────────────────────────────────────────────
+#
+# Aponta para o LiteLLM que já roda no H81, tratado como endpoint compatível com OpenAI.
+# Isso evita conta na Nous Portal e usa os modelos gratuitos já configurados e sondados
+# pelo invariante `modelos_llm_respondem`.
+#
+# `provider` é campo SEPARADO de `default` — espelha as flags `--provider` e `-m` do CLI.
+# A forma `default: lmstudio/gpt-4o-mini-gemini` NÃO roteia: a chamada sai sem credencial e
+# volta 401. Medido em 2026-09-06.
+#
+# `lmstudio` é o provedor OpenAI-compatível embutido — verificado em 2026-09-06 testando
+# `custom`, `openai_compatible` e `lmstudio`: os dois primeiros não existem ou roteiam para
+# outro lugar ("Unknown provider", "No connected db"), e só o terceiro chegou ao LiteLLM.
+# O bloco `providers:` explícito da documentação NÃO é usado: com ele, o `hermes doctor`
+# acusa "Could not validate model/provider config ('str' object has no attribute 'get')".
+# A configuração vai por variável de ambiente (`LM_BASE_URL`/`LM_API_KEY`), que é o caminho
+# que o próprio `hermes config check` lista — e que aparece com ✓ quando está certo.
+#
+# `gpt-4o-mini-gemini` e não `gpt-4o-gemini`: o segundo estava em 429 nas medições de
+# 06/09, e o primeiro respondeu 200. O grupo pode mudar; o invariante
+# `modelos_llm_respondem` sonda os cinco e diz qual está de pé.
+model:
+  default: gpt-4o-mini-gemini
+  provider: lmstudio
+
+# ── Memória ───────────────────────────────────────────────────────────────────
+#
+# `write_approval: true` é o critério do j4, e é a resposta direta ao receio de colapso
+# de memória: com ele, as escritas ficam EM ESTÁGIO e são revisáveis por `/memory pending`
+# em vez de entrarem sozinhas.
+#
+# Vale lembrar o que isto NÃO é: a memória do Hermes são dois markdown em
+# `~/.hermes/memories/` (MEMORY.md e USER.md), da ordem de milhares de caracteres. Ela não
+# concorre com os documentos do Brain do Rayzen — é caderno pessoal, não base de
+# conhecimento. Fato canônico de projeto continua morando no Rayzen.
+memory:
+  write_approval: true
+
+# ── Rayzen por MCP ────────────────────────────────────────────────────────────
+#
+# `mcp-http:3102` pela rede interna do Docker: a porta publica só em 127.0.0.1 no host.
+#
+# A fronteira é dos DOIS lados, e as duas metades fazem coisas diferentes:
+#   - `include` aqui impede o MODELO de tentar o que não deve (metade cooperativa)
+#   - o token de leitura faz o SERVIDOR recusar, valendo contra cliente que ignora a
+#     listagem ou chama direto por HTTP (metade que é fronteira de verdade)
+#
+# Sozinho, o `include` seria acordo de cavalheiros: quem tem o token alcança tudo por fora
+# do Hermes. Por isso o token é o de leitura, não o total.
+#
+# `MCP_TOKEN_HERMES` só foi GERADO em 13/09 — até então a variável não existia no `.env` do
+# servidor, o compose a resolvia para vazio, e `rayzen-mcp-http.mjs` descarta token vazio
+# (`&& valor`). O consumidor `hermes` não existia do lado do servidor: o spike nunca teve
+# como falar com o Rayzen. Declarar no YAML não é configurar.
+mcp_servers:
+  rayzen:
+    url: http://mcp-http:3102/mcp
+    headers:
+      # Token PRÓPRIO do Hermes (Fase 8 do plano de execução tipada), não um valor genérico
+      # compartilhado com outro consumidor — revogável sozinho, sem derrubar ninguém mais, e
+      # aparece nomeado no log de acesso do mcp-http (`[MCP] acesso de "hermes"`).
+      Authorization: Bearer ${MCP_TOKEN_HERMES}
+    tools:
+      include:
+        - rayzen_get_context
+        - rayzen_search_memory
+        - rayzen_get_state
+        - rayzen_get_events
+        - rayzen_get_wiki
+        - rayzen_get_goal
+        - rayzen_get_resume
+        - rayzen_list_projects
+        - rayzen_list_specialists
+
+# ── HUB: a URL pública, e o que NÃO está aqui ────────────────────────────────
+#
+# `public_url` não é segredo — é o endereço que o próprio app usa para montar links. Declará-lo
+# tem um efeito de segurança deliberado, escrito na mensagem de recusa do `serve`: *"a configured
+# external public URL requires auth even when a local reverse proxy reaches a loopback backend"*.
+# Ou seja, ele fecha o atalho de tunelar para o 127.0.0.1 e deixar o portão dormindo.
+#
+# **A senha não está aqui, e isso é decisão.** O plugin `dashboard_auth/basic` lê
+# `dashboard.basic_auth.{username,password_hash,secret}` OU as variáveis
+# `HERMES_DASHBOARD_BASIC_AUTH_*`, e o ambiente ganha do arquivo. Este arquivo é montado do
+# REPOSITÓRIO: pôr hash de senha nele seria versionar material de autenticação — a família exata
+# do vazamento do `AGENT_TOKEN` em projeto gerado. As três variáveis vivem no `.env` do servidor e
+# entram pelo `docker-compose.hermes.yml`.
+#
+# O plugin é **bundled** com `kind: backend`, então `gate_manifest` o carrega ANTES de consultar a
+# allow-list de `plugins.enabled` — conferido no código em 18/09, não presumido. A lista vazia
+# abaixo não o bloqueia.
+#
+# **Nunca ponha `basic` em `plugins.disabled`:** o próprio código avisa que, com credencial
+# configurada e o plugin desabilitado, *"password auth then silently fails"*.
+dashboard:
+  public_url: https://hub.rayzen.com.br
+
+# ── O HUB escreve a conversa no Rayzen ───────────────────────────────────────
+#
+# `post_llm_call` dispara **uma vez por turno**, depois do laço de ferramentas, e carrega
+# `user_message` + `assistant_response` + `session_id`. O Hermes já exclui trabalho interno
+# ("detached forks are internal work and must not publish turns under the parent's session ID"),
+# então o que chega aqui é turno de verdade.
+#
+# Quem emite é o RUNTIME, não o modelo — é essa a diferença entre isto e dar ferramentas de
+# escrita por MCP. Com escrita, o registro seria o que o modelo achou que valia guardar; aqui é o
+# que foi dito. E o HUB está exposto na internet desde 18/09: token de escrita ali é outro risco.
+#
+# `HERMES_ACCEPT_HOOKS=1` no compose é obrigatório e não é conveniência: sem TTY o hook é
+# **PULADO, não falha** — um `warning` num log que ninguém lê, e a conversa deixa de ser gravada
+# sem nada parecer errado. O invariante `hub_registra_conversa` existe por causa disso.
+hooks:
+  post_llm_call:
+    - command: /opt/node/bin/node /opt/rayzen/conf/rayzen-hub-hook.mjs
+      timeout: 8
+
+# Opt-in desde o schema 44: plugin novo é decisão explícita, não herança.
+plugins:
+  enabled: []
+
+agent: {}
+
+_config_version: 44
+
+# ── Fallback de modelo — deliberadamente VAZIO ────────────────────────────────
+#
+# O Hermes suporta `fallback_model:` nativo (openrouter, nous, zai, kimi, bedrock…), e a
+# tentação é óbvia depois de 17/08, quando a falta de fallback transformou a descontinuação
+# de dois modelos da Groq em 500 geral.
+#
+# Não é usado aqui de propósito: **o fallback já existe uma camada abaixo**. O LiteLLM
+# encadeia `gpt-4o → gpt-4o-gemini → gpt-4o-mini-gemini → gpt-4o-premium`, e é lá que ele é
+# medido, sondado pelo invariante e visível no Langfuse. Um segundo fallback aqui em cima
+# roteia para fora do LiteLLM: sai do rastro de custo, some do painel e responde por um
+# provedor que ninguém sondou.
+#
+# Se um dia fizer falta, a pergunta certa é "por que a cadeia do LiteLLM não bastou?".

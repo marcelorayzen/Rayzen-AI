@@ -15,10 +15,18 @@
     "rayzen:event": "node scripts/rayzen-event.mjs event",
     "rayzen:checkpoint": "node scripts/rayzen-event.mjs checkpoint",
     "gen:catalog": "node scripts/gen-agent-catalog.mjs",
+    "check:role-drift": "node scripts/check-role-drift.mjs",
+    "check:local": "node scripts/doctor.mjs",
     "scan:secrets": "node scripts/scan-secrets.mjs",
     "qa:ingest": "node scripts/qa-ingest.mjs",
+    "smoke:web": "node scripts/smoke-web.mjs",
     "impact:check": "node scripts/check-deploy-impact.mjs",
-    "test": "pnpm --filter api test"
+    "guardian:install-hooks": "node scripts/install-guardian-hooks.mjs",
+    "test": "pnpm --filter \"./apps/**\" run --if-present test",
+    "autostart:install": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-autostart.ps1 -Action install",
+    "autostart:status": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-autostart.ps1 -Action status",
+    "autostart:uninstall": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-autostart.ps1 -Action uninstall",
+    "scan:exec-paths": "node scripts/scan-exec-paths.mjs"
   },
   "devDependencies": {
     "typescript": "^5.5.0"

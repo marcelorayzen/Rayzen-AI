@@ -16,12 +16,13 @@ describe('whitelist — ALLOWED_ACTIONS', () => {
       'jarvis:git_status', 'jarvis:git_log', 'jarvis:git_diff', 'jarvis:git_branch',
       'jarvis:git_add', 'jarvis:git_commit', 'jarvis:git_pull', 'jarvis:git_push',
       'jarvis:run_command', 'jarvis:run_tests', 'jarvis:inspect_schema',
-      'jarvis:parse_test_report', 'jarvis:get_qa_summary', 'jarvis:get_data_quality', 'jarvis:capture_test_failure',
+      'jarvis:parse_test_report', 'jarvis:get_qa_summary', 'jarvis:capture_test_failure',
       'jarvis:prisma_generate', 'jarvis:prisma_migrate',
       'jarvis:docker_ps', 'jarvis:docker_start', 'jarvis:docker_stop', 'jarvis:docker_logs',
       'jarvis:restart_api',
       'jarvis:read_emails', 'jarvis:send_email', 'jarvis:get_calendar',
       'jarvis:run_graphify', 'jarvis:graphify_sync',
+      'jarvis:guardian_analyze',
       'jarvis:supervised_session',
     ]
     expect(expected).toHaveLength(ALLOWED_ACTIONS.size) // lista documenta 100% da whitelist

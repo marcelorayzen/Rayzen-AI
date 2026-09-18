@@ -10,6 +10,7 @@ import { HealthBadge } from './components/HealthBadge'
 import { ApprovalCard } from './components/ApprovalCard'
 import { useVoiceInput } from '../hooks/useVoiceInput'
 import { HelpTip } from '../components/HelpTip'
+import { DocsPanel } from '../components/DocsPanel'
 
 interface Project { id: string; name: string; status: string }
 
@@ -471,6 +472,7 @@ export default function WorkPanelPage() {
           {launchingAssisted ? 'iniciando…' : 'assistido'}
         </button>
       </div>
+      <DocsPanel topicId="workpanel" />
     </div>
   )
 }

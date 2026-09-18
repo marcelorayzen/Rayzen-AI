@@ -74,43 +74,7 @@ export interface QATrendPoint {
   failed: number
 }
 
-export interface DataQualityDataset {
-  dataset: string
-  score: number | null
-  rules: number
-  failing: number
-  notRun: number
-  detail: Array<{
-    ruleId: string
-    field: string | null
-    ruleType: string
-    severity: string
-    score: number | null
-    passed: boolean | null
-    status: 'passed' | 'failed' | 'not_run'
-  }>
-}
-
-export interface DataQualitySummary {
-  datasets: DataQualityDataset[]
-  totalRules: number
-  totalFailing: number
-  totalNotRun: number
-  avgScore: number | null
-}
-
-export interface DataAsset {
-  id: string
-  name: string
-  type: string
-  description: string | null
-  sensitivity: string
-  containsPII: boolean
-  projectId: string | null
-  createdAt: string
-}
-
-export type QATab = 'resumo' | 'tendencia' | 'historico' | 'qualidade' | 'catalogo'
+export type QATab = 'resumo' | 'tendencia' | 'historico'
 
 export function useQA(activeProjectId: string | null) {
   const [qaOpen, setQaOpen]       = useState(false)
@@ -124,39 +88,43 @@ export function useQA(activeProjectId: string | null) {
   const [qaRunsLoading, setQARunsLoading]   = useState(false)
   const [qaRunDetailLoading, setQARunDetailLoading] = useState(false)
 
-  const [dqSummary, setDqSummary] = useState<DataQualitySummary | null>(null)
-  const [dqLoading, setDqLoading] = useState(false)
-  const [catalogAssets, setCatalogAssets] = useState<DataAsset[]>([])
-  const [catalogLoading, setCatalogLoading] = useState(false)
-
-  const qs = activeProjectId ? `?project_id=${activeProjectId}` : ''
+  // Os endpoints aceitam project_id opcional, então o filtro pode ficar de fora —
+  // mas quem concatena precisa de um separador válido. Antes era `?project_id=x` ou
+  // string vazia, e quem anexava `&days=30` gerava `/qa/trend&days=30` sem projeto.
+  const params = useCallback((extra?: Record<string, string | number>) => {
+    const sp = new URLSearchParams()
+    if (activeProjectId) sp.set('project_id', activeProjectId)
+    for (const [k, v] of Object.entries(extra ?? {})) sp.set(k, String(v))
+    const s = sp.toString()
+    return s ? `?${s}` : ''
+  }, [activeProjectId])
 
   const loadSummary = useCallback(async () => {
     setQaLoading(true)
     try {
-      const res = await fetch(`${API_URL}/qa/summary${qs}`, { headers: authHeaders() })
+      const res = await fetch(`${API_URL}/qa/summary${params()}`, { headers: authHeaders() })
       if (res.ok) setQaSummary(await res.json() as QASummary)
     } catch { /* silencioso */ }
     finally { setQaLoading(false) }
-  }, [qs])
+  }, [params])
 
   const loadTrend = useCallback(async () => {
     setQATrendLoading(true)
     try {
-      const res = await fetch(`${API_URL}/qa/trend${qs}&days=30`, { headers: authHeaders() })
+      const res = await fetch(`${API_URL}/qa/trend${params({ days: 30 })}`, { headers: authHeaders() })
       if (res.ok) setQaTrend(await res.json() as QATrendPoint[])
     } catch { /* silencioso */ }
     finally { setQATrendLoading(false) }
-  }, [qs])
+  }, [params])
 
   const loadRuns = useCallback(async () => {
     setQARunsLoading(true)
     try {
-      const res = await fetch(`${API_URL}/qa/reports${qs}&limit=20`, { headers: authHeaders() })
+      const res = await fetch(`${API_URL}/qa/reports${params({ limit: 20 })}`, { headers: authHeaders() })
       if (res.ok) setQaRuns(await res.json() as QARun[])
     } catch { /* silencioso */ }
     finally { setQARunsLoading(false) }
-  }, [qs])
+  }, [params])
 
   const loadRunDetail = useCallback(async (runId: string) => {
     setQARunDetailLoading(true)
@@ -167,24 +135,6 @@ export function useQA(activeProjectId: string | null) {
     finally { setQARunDetailLoading(false) }
   }, [])
 
-  const loadDataQuality = useCallback(async () => {
-    setDqLoading(true)
-    try {
-      const res = await fetch(`${API_URL}/data-quality/summary${qs}`, { headers: authHeaders() })
-      if (res.ok) setDqSummary(await res.json() as DataQualitySummary)
-    } catch { /* silencioso */ }
-    finally { setDqLoading(false) }
-  }, [qs])
-
-  const loadCatalog = useCallback(async () => {
-    setCatalogLoading(true)
-    try {
-      const res = await fetch(`${API_URL}/data-catalog/assets${qs}`, { headers: authHeaders() })
-      if (res.ok) setCatalogAssets(await res.json() as DataAsset[])
-    } catch { /* silencioso */ }
-    finally { setCatalogLoading(false) }
-  }, [qs])
-
   const openQA = useCallback(async () => {
     setQaOpen(true)
     setQaTab('resumo')
@@ -193,11 +143,9 @@ export function useQA(activeProjectId: string | null) {
 
   const switchTab = useCallback(async (tab: QATab) => {
     setQaTab(tab)
-    if (tab === 'tendencia' && qaTrend.length === 0)    await loadTrend()
-    if (tab === 'historico' && qaRuns.length === 0)     await loadRuns()
-    if (tab === 'qualidade' && !dqSummary)              await loadDataQuality()
-    if (tab === 'catalogo'  && catalogAssets.length === 0) await loadCatalog()
-  }, [qaTrend.length, qaRuns.length, dqSummary, catalogAssets.length, loadTrend, loadRuns, loadDataQuality, loadCatalog])
+    if (tab === 'tendencia' && qaTrend.length === 0) await loadTrend()
+    if (tab === 'historico' && qaRuns.length === 0)  await loadRuns()
+  }, [qaTrend.length, qaRuns.length, loadTrend, loadRuns])
 
   const selectRun = useCallback(async (run: QARun) => {
     setQaRunDetail(null)
@@ -215,10 +163,6 @@ export function useQA(activeProjectId: string | null) {
     qaTrendLoading,
     qaRunsLoading,
     qaRunDetailLoading,
-    dqSummary,
-    dqLoading,
-    catalogAssets,
-    catalogLoading,
     openQA,
     switchTab,
     loadSummary,

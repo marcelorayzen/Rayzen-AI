@@ -18,6 +18,7 @@ const mockEntry = {
   workspace: '/home/user/project',
   hostname: 'my-pc',
   targetRole: 'desktop',
+  approvedBy: null,
   createdAt: new Date('2026-01-01T00:00:00Z'),
 }
 
@@ -83,6 +84,23 @@ describe('AuditLogService', () => {
           error: 'Command failed',
         }),
       })
+    })
+
+    /**
+     * Item C.3 do plano de execução tipada — antes disso, não havia campo nenhum para
+     * registrar quem aprovou uma execução. `null` explícito (não `undefined`) é o mesmo
+     * padrão dos outros campos opcionais desta linha — consistência com `command`/`risk`.
+     */
+    it('grava approvedBy quando presente', async () => {
+      await service.create({ taskId: 'task-5', module: 'jarvis', action: 'run_command', status: 'success', approvedBy: 'marcelo' })
+      const call = mockPrisma.agentAuditLog.create.mock.calls[0][0]
+      expect(call.data.approvedBy).toBe('marcelo')
+    })
+
+    it('approvedBy fica null quando a execução não exigiu/consumiu aprovação', async () => {
+      await service.create({ taskId: 'task-6', module: 'jarvis', action: 'notify', status: 'success' })
+      const call = mockPrisma.agentAuditLog.create.mock.calls[0][0]
+      expect(call.data.approvedBy).toBeNull()
     })
 
     it('omite result quando undefined', async () => {

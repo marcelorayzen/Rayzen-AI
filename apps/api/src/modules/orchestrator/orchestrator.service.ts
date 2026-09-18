@@ -1,9 +1,20 @@
 import { Injectable } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../../prisma/prisma.service'
+import { classificarResposta } from './resposta-aprovacao.const'
+import { pedeAcaoNoFuturo, respostaSemAgendadorAbsoluto, atrasoDoPedido } from './pedido-agendado'
+import { ehEscopoGeral, escopoDeBusca } from '../../common/escopo-geral.const'
+import { anotarComDominio, type TrechoComDono } from '../../common/dominio-do-projeto.const'
+import { blocoDeTrechosDeTerceiro } from '../memory/trecho-de-terceiro.const'
+import {
+  consultarFonte, avisoDeFontesIndisponiveis, avisoDeEstadoDesatualizado, SEM_ESTADO_SINTETIZADO,
+} from './fontes-de-contexto'
 import OpenAI from 'openai'
+import { createLlmClient } from '../../common/llm-client'
 import { TaskModule, ChatMessage } from '@rayzen/types'
 import { getWorkModeConfig } from './work-modes'
+import { ehTextoDerivadoDeEvento } from '../project-state/event-derived-text.const'
+import { carregarSoul, CAMINHO_SOUL } from './soul'
 import { MemoryService } from '../memory/memory.service'
 import { DocumentProcessingService } from '../document-processing/document-processing.service'
 import { ExecutionService } from '../execution/execution.service'
@@ -39,14 +50,47 @@ interface PendingAction {
 }
 
 const MODULE_ROLE_SUFFIXES: Record<string, string> = {
-  jarvis:  '\n\nContexto desta resposta: executei uma tarefa local no PC. Confirme o resultado de forma objetiva e técnica.',
+  // ── Negar capacidade que existe é inventar fato, igual a afirmar a que não existe ──────────
+  //
+  // O caminho `system` era o ÚNICO sem sufixo: o modelo recebia o SOUL e mais nada, e o SOUL não
+  // diz que existe um executor local. Medido em 15/09, no primeiro teste real pelo Telegram —
+  // logo depois de OFERECER a captura de tela, respondeu "não consigo capturar ou enviar imagens
+  // da tela", e em seguida descreveu uma interface inventada, citando "ChatGPT".
+  //
+  // Não enumera ações aqui de propósito. A lista já existe no prompt do classificador, e uma
+  // segunda cópia divergiria — esta casa já teve `SAFE_ROOTS` em quatro versões como lembrete.
+  // O que o modelo precisa saber é que **a decisão de executar não é dele**: quem roteia é o
+  // classificador, quem executa é o agent. Dizer "não consigo" é responder por um mecanismo que
+  // ele não consultou.
+  system:  '\n\nVocê opera com um executor local (agent) na máquina do Marcelo e no servidor; pedidos de ação são roteados para ele por outro caminho, não por esta resposta. Nunca afirme que não tem capacidade de agir no computador, ver tela, ler arquivos ou rodar comandos — você não sabe daqui o que o executor aceita. Se algo não for possível, diga o que falta em vez de negar a capacidade. E nunca descreva uma tela, arquivo ou estado que você não recebeu no contexto.',
+  // ── O sufixo `jarvis` saiu em 16/09: afirmava execução que o sistema não verifica ─────────
+  //
+  // Ele dizia *"Contexto desta resposta: executei uma tarefa local no PC"*. Nenhum código
+  // conferia se alguma execução tinha de fato acontecido — era uma afirmação entregue ao modelo
+  // pelo próprio sistema, e afirmar o que não se verificou é a definição do que o SOUL proíbe.
+  //
+  // Estava **morto**: todos os caminhos do ramo `jarvis` retornam antes do `getSystemPrompt`, e
+  // a síntese pós-execução monta prompt próprio (aí a frase seria verdadeira, e ela nem é usada).
+  // Morto e falso é pior que vivo e falso: ninguém o corrige, porque ninguém o vê falhar.
+  //
+  // E a forma que o tornaria vivo já existe ao lado — o ramo `content` tem `catch { /* fallback
+  // para chat normal */ }`, e cai no chat **carregando o rótulo do módulo**. Bastava um `catch`
+  // igual no ramo `jarvis` para o modelo receber "executei uma tarefa" logo depois de falhar em
+  // executá-la. Crítica externa apontou a forma; a varredura achou a instância.
+  //
+  // `brain` e `doc` também estão inalcançáveis hoje, pelo mesmo motivo. Ficam porque descrevem
+  // ESTILO, não fato — não há o que ser falso neles.
   brain:   '\n\nContexto desta resposta: baseie-se nos documentos e informações da memória semântica. Apresente com confiança — sem ressalvas desnecessárias.',
   doc:     '\n\nContexto desta resposta: geração de documentos técnicos. Use markdown estruturado, listas e seções bem definidas.',
   content: '\n\nContexto desta resposta: criação de conteúdo. Entregue imediatamente, sem introdução.',
 }
 
-const CONFIRM_WORDS = /^(confirmar|confirma|sim|ok|pode|executar|executa|yes|run)$/i
-const CANCEL_WORDS = /^(cancelar|cancela|n[aã]o|nao|no|cancel)$/i
+/** Quantas mensagens da conversa entram no prompt — as ÚLTIMAS, ver `janelaDeHistorico`. */
+const JANELA_DE_HISTORICO = 20
+
+// As listas fechadas `CONFIRM_WORDS`/`CANCEL_WORDS` sairam daqui em 15/09: `^confirma$` nao casa
+// "confirmo", e foi assim que o primeiro teste real da jornada pelo Telegram morreu no card de
+// confirmacao. A decisao agora e a mesma do A02 — ver `resposta-aprovacao.const.ts`.
 const ACTION_RISK: Record<string, 'low' | 'medium' | 'high'> = {
   list_dir: 'low',
   file_search: 'low',
@@ -77,12 +121,13 @@ const ACTION_RISK: Record<string, 'low' | 'medium' | 'high'> = {
   restart_api: 'high',
   parse_test_report: 'low',
   get_qa_summary: 'low',
-  get_data_quality: 'low',
 }
 
 @Injectable()
 export class OrchestratorService {
   private llm: OpenAI
+  /** Evita repetir o aviso de SOUL ausente a cada mensagem. */
+  private avisouSoulAusente = false
 
   constructor(
     private readonly prisma: PrismaService,
@@ -97,9 +142,9 @@ export class OrchestratorService {
     private metrics: MetricsService,
     private agentSession: AgentSessionService,
   ) {
-    this.llm = new OpenAI({
+    this.llm = createLlmClient('orchestrator', {
+      apiKey:  this.config.get('LITELLM_MASTER_KEY') ?? 'sk-rayzen',
       baseURL: this.config.get('LITELLM_BASE_URL', 'http://localhost:4000/v1'),
-      apiKey: this.config.get('LITELLM_MASTER_KEY') ?? 'sk-rayzen',
     })
   }
 
@@ -107,32 +152,65 @@ export class OrchestratorService {
     try { return this.rayzenConfig.getConfig() } catch { return null }
   }
 
+  /**
+   * Anota cada trecho com o domínio declarado do projeto dono.
+   *
+   * A regra mora em `common/dominio-do-projeto.const.ts` porque **dois caminhos** servem trecho
+   * indexado ao modelo — este bloco e a síntese do Brain (`MemoryService.searchAndSynthesize`) —
+   * e duas cópias seriam a família de drift que esta casa já pagou com `SAFE_ROOTS`.
+   */
+  private async comDominio(trechos: TrechoComDono[]) {
+    return anotarComDominio(trechos, (ids) =>
+      this.prisma.project.findMany({ where: { id: { in: ids } }, select: { id: true, domain: true } }),
+    )
+  }
+
   private async getProjectContext(projectId?: string): Promise<string> {
-    if (!projectId) return ''
+    // `ehEscopoGeral` e nao `!projectId`: desde 18/09 o contexto geral e um Project de verdade, e
+    // pedir o ProjectState dele traria um objetivo sintetizado a partir de conversa solta.
+    if (ehEscopoGeral(projectId)) return ''
     try {
-      const [project, state, goal, recentEvents] = await Promise.all([
-        this.prisma.project.findUnique({
-          where: { id: projectId },
-          select: { name: true, description: true },
-        }),
-        (this.prisma.projectState.findFirst({
-          where: { projectId },
-          orderBy: { updatedAt: 'desc' },
-          select: { objective: true, stage: true, blockers: true, recentDecisions: true, activeFocus: true },
-        }) as Promise<{ objective: string | null; stage: string | null; blockers: unknown; recentDecisions: unknown; activeFocus: string | null } | null>).catch(() => null),
-        (this.prisma.projectGoal.findFirst({
-          where: { projectId, status: 'active' },
-          orderBy: { createdAt: 'desc' },
-          select: { title: true, successCriteria: true, targetDate: true },
-        }) as Promise<{ title: string; successCriteria: unknown; targetDate: Date | null } | null>).catch(() => null),
-        this.prisma.event.findMany({
-          where: { projectId },
-          orderBy: { ts: 'desc' },
-          take: 8,
-          select: { content: true, type: true },
-        }).catch(() => [] as Array<{ content: string; type: string }>),
+      // Cada `.catch(() => null)` aqui dizia ao modelo "não existe" quando a verdade era "não
+      // consegui ler" — ver `fontes-de-contexto.ts`. O estado agora é carregado junto com o dado.
+      const [projeto, estado, meta, eventos] = await Promise.all([
+        consultarFonte('o projeto',
+          () => this.prisma.project.findUnique({ where: { id: projectId }, select: { name: true, description: true } }),
+          null, (v) => v === null),
+        consultarFonte('o estado do projeto',
+          () => this.prisma.projectState.findFirst({
+            where: { projectId },
+            orderBy: { updatedAt: 'desc' },
+            select: { objective: true, stage: true, blockers: true, recentDecisions: true, activeFocus: true, contentChangedAt: true, updatedAt: true },
+          }) as Promise<{ objective: string | null; stage: string | null; blockers: unknown; recentDecisions: unknown; activeFocus: string | null; contentChangedAt: Date | null; updatedAt: Date } | null>,
+          null, (v) => v === null),
+        consultarFonte('a meta ativa',
+          () => this.prisma.projectGoal.findFirst({
+            where: { projectId, status: 'active' },
+            orderBy: { createdAt: 'desc' },
+            select: { title: true, successCriteria: true, targetDate: true },
+          }) as Promise<{ title: string; successCriteria: unknown; targetDate: Date | null } | null>,
+          null, (v) => v === null),
+        consultarFonte('os eventos recentes',
+          () => this.prisma.event.findMany({
+            where: { projectId },
+            orderBy: { ts: 'desc' },
+            take: 8,
+            select: { content: true, type: true },
+          }),
+          [] as Array<{ content: string; type: string }>, (v) => v.length === 0),
       ])
-      if (!project) return ''
+
+      const fontes = [projeto, estado, meta, eventos]
+      const project      = projeto.valor
+      const state        = estado.valor
+      const goal         = meta.valor
+      const recentEvents = eventos.valor
+
+      // Falhar ao LER o projeto é diferente de o projeto não existir: no primeiro caso, devolver
+      // contexto vazio faria o modelo conversar como se não houvesse projeto nenhum.
+      if (!project) return estado.estado === 'falhou' || projeto.estado === 'falhou'
+        ? avisoDeFontesIndisponiveis(fontes)
+        : ''
 
       let ctx = `\n\nProjeto ativo: "${project.name}"${project.description ? ` — ${project.description}` : ''}. Responda SOMENTE sobre este projeto.`
 
@@ -143,6 +221,22 @@ export class OrchestratorService {
         if (blockers.length > 0) ctx += `\nBlockers: ${blockers.map(b => b.title).join(', ')}`
         const decisions = (state.recentDecisions as string[] | null) ?? []
         if (decisions.length > 0) ctx += `\nDecisões recentes: ${decisions.slice(0, 3).join('; ')}`
+
+        // Contradição entre o que a descrição diz e o que o trabalho mostra. A V2 declara isso
+        // desde 17/08; o chat da V1 servia a seção mais categórica do contexto **sem data
+        // nenhuma**. Marco é `contentChangedAt`, nunca `updatedAt` — ver `fontes-de-contexto.ts`.
+        const marco = state.contentChangedAt ?? state.updatedAt
+        if (marco) {
+          const [desdeOMarco, ultimas24h] = await Promise.all([
+            this.prisma.event.count({ where: { projectId, ts: { gte: new Date(marco) } } }).catch(() => 0),
+            this.prisma.event.count({ where: { projectId, ts: { gte: new Date(Date.now() - 86_400_000) } } }).catch(() => 0),
+          ])
+          ctx += avisoDeEstadoDesatualizado(marco, desdeOMarco, ultimas24h)
+        }
+      } else if (estado.estado === 'vazio') {
+        // Projeto real que ainda não teve checkpoint. Silêncio aqui convida o modelo a preencher
+        // objetivo e fase a partir do nome do projeto e dos eventos.
+        ctx += SEM_ESTADO_SINTETIZADO
       }
 
       if (goal) {
@@ -152,20 +246,73 @@ export class OrchestratorService {
         if (goal.targetDate) ctx += ` | Prazo: ${new Date(goal.targetDate).toLocaleDateString('pt-BR')}`
       }
 
-      if (recentEvents.length > 0) {
-        ctx += `\n\nAtividade recente:\n` + recentEvents
+      // "Atividade não é intenção": eco de ferramenta (`Bash: …`, `Edit: <caminho>`,
+      // `Workspace alterado: …`) descreve o MEIO, não o trabalho — e servido como "atividade do
+      // projeto" ele não só polui: o modelo CONCLUI a partir dele. Medido em 14/09, na primeira
+      // conversa real pelo Telegram: de `Bash: Check whether the pnpm install is alive or hung`
+      // a resposta afirmou "o pnpm install está rodando normalmente", o oposto do que acontecia.
+      //
+      // `ehTextoDerivadoDeEvento` já existia e já era aplicado no ProjectState desde 17/08,
+      // nascido deste mesmo defeito (292 ecos em 7 dias moldando o objetivo do projeto). A regra
+      // estava escrita e aplicada num lugar só; o chat lia a tabela crua.
+      //
+      // `Bash: <description>` NÃO é filtrado, de propósito: o contrato desta casa trata a
+      // descrição do comando como sinal (o comando cru é que seria ruído), e classificar por
+      // prefixo aqui seria voltar a decidir por CAMPO. O que se corrige é o RÓTULO e a ORDEM.
+      const atividadeReal = recentEvents.filter(e => !ehTextoDerivadoDeEvento(e.content))
+      if (atividadeReal.length > 0) {
+        // Decisão antes de execução: decisão responde "onde o projeto está", execução conta
+        // "como se chegou aqui". Com oito execuções recentes, uma decisão some da janela —
+        // e foi assim que uma pergunta de status virou uma lista de comandos de depuração.
+        const peso = (t: string) => (t === 'decision' ? 0 : t === 'execution' ? 2 : 1)
+        const ordenados = [...atividadeReal].sort((a, b) => peso(a.type) - peso(b.type))
+
+        // O rótulo é metade do conserto. "Atividade recente" convida a concluir estado a partir
+        // de telemetria — e o modelo aceitou o convite: de `Bash: Check whether the pnpm install
+        // is alive or hung` saiu "o pnpm install está rodando normalmente", o oposto do que
+        // acontecia. A seção agora diz o que é, e o que não é.
+        ctx += `\n\nRegistro operacional recente (telemetria do trabalho — NÃO são o estado do ` +
+               `projeto; não conclua nada a partir destas linhas):\n` + ordenados
           .map(e => `- [${e.type}] ${e.content.slice(0, 120)}`)
           .join('\n')
       }
 
-      return ctx
-    } catch { return '' }
+      return ctx + avisoDeFontesIndisponiveis(fontes)
+    } catch {
+      // O catch externo devolvia `''`: qualquer soluco do Postgres fazia o modelo receber
+      // um projeto sem estado, sem meta e sem historico -- indistinguivel de um projeto
+      // recem-criado. Agora ele diz que nao conseguiu ler.
+      return avisoDeFontesIndisponiveis([{ nome: 'o contexto do projeto', estado: 'falhou', valor: null }])
+    }
   }
 
+  /**
+   * A identidade vem do SOUL — o MESMO arquivo que o Hermes carrega. Até 14/09 vinha de
+   * `rayzen.config.json → identity.personality`, e o resultado eram dois Rayzen diferentes
+   * conforme o canal: pelo Telegram ele se apresentava como "agente operacional principal da
+   * plataforma", pelo Hermes como "assistente pessoal de IA de Marcelo".
+   *
+   * Os sufixos por módulo FICAM: eles não são identidade, são contexto da resposta ("executei
+   * uma tarefa local", "baseie-se nos documentos"). Quem ele é não muda por módulo; o que ele
+   * está fazendo, sim.
+   */
   private getSystemPrompt(module: string): string {
+    const suffix = MODULE_ROLE_SUFFIXES[module] ?? ''
+    const soul = carregarSoul()
+    if (soul) return soul + suffix
+
+    // Identidade que some sem ninguém notar é o mesmo modo de falha do `TELEGRAM_API_TOKEN` que
+    // nunca existiu: responder com personalidade genérica e seguir calado esconde o problema.
+    // Avisa uma vez por processo — a cada mensagem viraria ruído de log.
+    if (!this.avisouSoulAusente) {
+      this.avisouSoulAusente = true
+      console.error(
+        `[orchestrator] SOUL não encontrado em ${CAMINHO_SOUL} — respondendo com a personalidade ` +
+        `de rayzen.config.json. A imagem precisa copiar core/identity/.`,
+      )
+    }
     const cfg = this.getRayzenConfig()
     const base = cfg?.identity.personality ?? 'Seja direto e objetivo. Sem frases de abertura. Português brasileiro.'
-    const suffix = MODULE_ROLE_SUFFIXES[module] ?? ''
     return base + suffix
   }
 
@@ -212,22 +359,22 @@ export class OrchestratorService {
   }
 
   async isPendingDocConfirmation(prompt: string, sessionId: string): Promise<boolean> {
-    const CONFIRM_WORDS = /^(confirmar|confirma|sim|ok|pode|pode gerar|gera|gerar|yes|generate)$/i
-    if (!CONFIRM_WORDS.test(prompt.trim())) return false
+    if (classificarResposta(prompt) !== 'aprovado') return false
     const lastMsg = await this.lastAssistantMessage(sessionId)
     return !!lastMsg?.content?.includes('[DOC_PENDING:')
   }
 
   async isPendingActionResponse(prompt: string, sessionId: string): Promise<boolean> {
-    if (!CONFIRM_WORDS.test(prompt.trim()) && !CANCEL_WORDS.test(prompt.trim())) return false
+    const decisao = classificarResposta(prompt)
+    if (decisao !== 'aprovado' && decisao !== 'rejeitado') return false
     const lastMsg = await this.lastAssistantMessage(sessionId)
     return !!lastMsg?.content?.includes('[ACTION_PENDING:')
   }
 
   async handleMessage(prompt: string, sessionId: string, projectId?: string, workMode?: string): Promise<OrchestrateResult> {
     // 0. Check for pending doc confirmation before anything else
-    const CONFIRM_WORDS = /^(confirmar|confirma|sim|ok|pode|pode gerar|gera|gerar|yes|generate)$/i
-    if (CONFIRM_WORDS.test(prompt.trim())) {
+    const decisao = classificarResposta(prompt)
+    if (decisao === 'aprovado') {
       const lastMsg = await this.prisma.conversationMessage.findFirst({
         where: { sessionId, role: 'assistant' },
         orderBy: { createdAt: 'desc' },
@@ -253,12 +400,12 @@ export class OrchestratorService {
       }
     }
 
-    const actionResponse = CONFIRM_WORDS.test(prompt.trim()) || CANCEL_WORDS.test(prompt.trim())
+    const actionResponse = decisao === 'aprovado' || decisao === 'rejeitado'
     if (actionResponse) {
       const lastMsg = await this.lastAssistantMessage(sessionId)
       const actionMatch = lastMsg?.content?.match(/\[ACTION_PENDING:([A-Za-z0-9+/=]+)\]/)
       if (actionMatch) {
-        if (CANCEL_WORDS.test(prompt.trim())) {
+        if (decisao === 'rejeitado') {
           const reply = 'Ação cancelada. Nada foi executado.'
           await this.prisma.conversationMessage.createMany({
             data: [
@@ -296,7 +443,7 @@ export class OrchestratorService {
     // 2. Rotear para Brain se necessário
     if (classify.module === 'brain') {
       try {
-        const result = await this.memory.searchAndSynthesize(prompt, sessionId, projectId)
+        const result = await this.memory.searchAndSynthesize(prompt, sessionId, escopoDeBusca(projectId))
         this.extractAndIndex(prompt, result.answer, projectId)
         return {
           reply: result.answer,
@@ -328,6 +475,60 @@ export class OrchestratorService {
 
     // 3. Rotear para Jarvis se necessário
     if (classify.module === 'jarvis') {
+      // Pedido para agir DEPOIS não tem mecanismo: `jarvis:notify` recebe `{title, message}` e
+      // dispara na hora, e não existe agendador em lugar nenhum da API. Sem esta recusa, "me
+      // notifica daqui 10 min" executava imediatamente e a resposta dava a entender que ficou
+      // agendado — ver `pedido-agendado.ts`.
+      const futuro = pedeAcaoNoFuturo(prompt)
+      if (futuro) {
+        // ── Agendar, quando a hora é sem ambiguidade ────────────────────────
+        //
+        // Até 16/09 TODO pedido de futuro era recusado, porque não havia mecanismo. Havia: a fila
+        // do Bull aceita `delay` desde sempre, e eu não tinha olhado a infraestrutura que a
+        // plataforma já usa — só o código dela. O que faltava era `jaEstaNaHora()` no claim, sem
+        // o qual o job atrasado seria reivindicado na hora.
+        //
+        // Só formas RELATIVAS agendam. Horário de relógio exigiria o fuso do usuário, que não
+        // existe no modelo de dados, e errar por três horas é pior que recusar — ver
+        // `pedido-agendado.ts`.
+        const quando = atrasoDoPedido(prompt)
+        if (quando) {
+          try {
+            const payloadBase = buildJarvisPayload(classify.action, prompt)
+            const payloadFinal = await this.enrichJarvisPayload(classify.action, payloadBase, projectId, prompt)
+            const jobId = await this.execution.enqueue(classify.action, payloadFinal, quando.ms)
+            const emMinutos = Math.round(quando.ms / 60_000)
+            const reply =
+              `Agendado: **${this.formatActionValue(classify.action)}** em ${emMinutos} min ` +
+              `(pedido: "${quando.trecho}").
+
+Id da tarefa: \`${jobId}\`. ` +
+              `A execução acontece na máquina, não nesta conversa — o resultado não volta aqui automaticamente.`
+            await this.prisma.conversationMessage.createMany({
+              data: [
+                { sessionId, module: 'jarvis', role: 'user', content: prompt, projectId, workMode: workMode ?? null },
+                { sessionId, module: 'jarvis', role: 'assistant', content: reply, tokensUsed: 0, projectId, workMode: workMode ?? null },
+              ],
+            })
+            return { reply, module: 'jarvis', action: classify.action, confidence: classify.confidence, tokensUsed: 0, sessionId }
+          } catch (err) {
+            // Agent offline, ação desconhecida: dizer o que houve, nunca prometer o agendamento.
+            const reply = `Não consegui agendar: ${(err as Error).message}`
+            return { reply, module: 'jarvis', action: 'sem_agendador', confidence: 1, tokensUsed: 0, sessionId }
+          }
+        }
+
+        // Entendeu o pedido, não a hora — a recusa diz qual das duas faltou.
+        const reply = respostaSemAgendadorAbsoluto(futuro)
+        await this.prisma.conversationMessage.createMany({
+          data: [
+            { sessionId, module: 'jarvis', role: 'user', content: prompt, projectId, workMode: workMode ?? null },
+            { sessionId, module: 'jarvis', role: 'assistant', content: reply, tokensUsed: 0, projectId, workMode: workMode ?? null },
+          ],
+        })
+        return { reply, module: 'jarvis', action: 'sem_agendador', confidence: 1, tokensUsed: 0, sessionId }
+      }
+
       try {
         const baseJarvisPayload = buildJarvisPayload(classify.action, prompt)
         const jarvisPayload = await this.enrichJarvisPayload(classify.action, baseJarvisPayload, projectId, prompt)
@@ -466,11 +667,7 @@ Seja direto, claro e amigável. Português brasileiro. Sem JSON bruto.`,
     }
 
     // 4. Carregar histórico da sessão
-    const history = await this.prisma.conversationMessage.findMany({
-      where: { sessionId, ...(projectId ? { projectId } : {}) },
-      orderBy: { createdAt: 'asc' },
-      take: 20,
-    })
+    const history = await this.janelaDeHistorico(sessionId, projectId)
 
     const historyMessages: ChatMessage[] = history.map((m: { role: string; content: string }) => ({
       role: m.role as 'user' | 'assistant',
@@ -481,19 +678,25 @@ Seja direto, claro e amigável. Português brasileiro. Sem JSON bruto.`,
     const [basePromptStr, projectCtx, brainResults] = await Promise.all([
       Promise.resolve(this.getSystemPrompt(classify.module)),
       this.getProjectContext(projectId),
-      this.memory.search(prompt, 4, projectId).catch(() => [] as import('../memory/memory.service').SearchResult[]),
+      consultarFonte('a memoria semantica',
+        // `escopoDeBusca` devolve `undefined` no geral — de proposito e POR VALOR: e o que faz a
+        // busca varrer o acervo inteiro, que e a razao de o contexto geral existir. Passar o id do
+        // Geral aqui traria so o que foi dito dentro dele, que e quase nada.
+        () => this.memory.search(prompt, 4, escopoDeBusca(projectId)),
+        [] as import('../memory/memory.service').SearchResult[], (v) => v.length === 0),
     ])
     const modeConfig = getWorkModeConfig(workMode)
     let systemPrompt = basePromptStr + projectCtx
     if (modeConfig) systemPrompt += modeConfig.systemPromptSuffix
 
-    const brainCtx = brainResults
-      .filter(r => r.score > 0.5)
-      .map((r, i) => `[${i + 1}] ${r.sourcePath ? `(${r.sourcePath}) ` : ''}${r.content.slice(0, 400)}`)
-      .join('\n\n')
-    if (brainCtx) {
-      systemPrompt += `\n\n--- Documentação indexada relevante (use como referência) ---\n${brainCtx}\n--- Fim da documentação ---`
-    }
+    // O bloco já delimitava e já trazia `sourcePath`, mas dizia só "use como referência" — que não
+    // é a mesma coisa que "isto não é ordem". `blocoDeTrechosDeTerceiro` é a fronteira única das
+    // duas apps; ver `memory/trecho-de-terceiro.const.ts`.
+    const brainCtx = blocoDeTrechosDeTerceiro(await this.comDominio(brainResults.valor.filter(r => r.score > 0.5)), !ehEscopoGeral(projectId))
+    if (brainCtx) systemPrompt += `\n\n${brainCtx}`
+    // Busca que FALHOU nao pode parecer acervo vazio: sem isto, um erro de embedding ou do
+    // pgvector faz o modelo responder como se nao houvesse nada indexado sobre o assunto.
+    systemPrompt += avisoDeFontesIndisponiveis([brainResults])
 
     const messages: ChatMessage[] = [...historyMessages, { role: 'user', content: prompt }]
 
@@ -558,9 +761,9 @@ Módulos disponíveis:
 - brain: memória e busca — indexar, pesquisar, resumir notas e documentos
 - system: perguntas sobre o assistente, saudações, o que você pode fazer
 
-Ações do jarvis disponíveis: open_app, open_url, open_vscode, create_project_folder, list_dir, file_search, organize_downloads, get_system_info, screenshot, notify, clipboard_read, clipboard_write, git_status, git_log, git_branch, git_commit, run_command, run_tests, inspect_schema, docker_ps, docker_start, docker_stop, docker_logs, read_emails, send_email, get_calendar, restart_api, parse_test_report, get_qa_summary, get_data_quality
+Ações do jarvis disponíveis: open_app, open_url, open_vscode, create_project_folder, list_dir, file_search, organize_downloads, get_system_info, screenshot, notify, clipboard_read, clipboard_write, git_status, git_log, git_branch, git_commit, run_command, run_tests, inspect_schema, docker_ps, docker_start, docker_stop, docker_logs, read_emails, send_email, get_calendar, restart_api, parse_test_report, get_qa_summary
 Ações do content disponíveis: post, thread, article, calendar, diagram
-Exemplos jarvis: "qual o status do PC", "abra o chrome", "liste os downloads", "coloca música no youtube", "leia meus emails", "manda email para X", "abre o vscode", "crie projeto meu-app nextjs", "tira um screenshot", "tire um print da tela: teste de API 52", "captura de tela do erro", "me notifica daqui 10 min", "lê minha área de transferência", "git status do projeto X", "quais commits recentes", "cria branch feature/Y", "roda os testes do projeto X", "lista containers docker", "mostra os logs do container rayzen-ai-api-1", "para o container redis", "minha agenda de hoje", "procura arquivo relatorio.pdf", "mostra o schema do banco", "inspeciona o schema prisma", "reinicia a API na VPS", "restart api", "atualiza e reinicia o servidor", "analisa o relatório de testes em C:/projetos/report.xml", "parseia o resultado dos testes junit", "lê o relatório allure e mostra as falhas", "como estão os testes?", "quais testes estão falhando mais?", "tem algum teste flaky?", "mostra a tendência de qualidade dos testes", "qual o status da suíte de testes?", "como está a qualidade dos dados?", "verifica qualidade da tabela clientes", "quais regras de qualidade estão falhando?", "score de qualidade do dataset pedidos", "tem dados nulos na tabela produtos?", "mostra histórico de qualidade dos dados"
+Exemplos jarvis: "qual o status do PC", "abra o chrome", "liste os downloads", "coloca música no youtube", "leia meus emails", "manda email para X", "abre o vscode", "crie projeto meu-app nextjs", "tira um screenshot", "tire um print da tela: teste de API 52", "captura de tela do erro", "notifica: build terminou", "lê minha área de transferência", "git status do projeto X", "quais commits recentes", "cria branch feature/Y", "roda os testes do projeto X", "lista containers docker", "mostra os logs do container rayzen-ai-api-1", "para o container redis", "minha agenda de hoje", "procura arquivo relatorio.pdf", "mostra o schema do banco", "inspeciona o schema prisma", "reinicia a API na VPS", "restart api", "atualiza e reinicia o servidor", "analisa o relatório de testes em C:/projetos/report.xml", "parseia o resultado dos testes junit", "lê o relatório allure e mostra as falhas", "como estão os testes?", "quais testes estão falhando mais?", "tem algum teste flaky?", "mostra a tendência de qualidade dos testes", "qual o status da suíte de testes?", "como está a qualidade dos dados?", "verifica qualidade da tabela clientes", "quais regras de qualidade estão falhando?", "score de qualidade do dataset pedidos", "tem dados nulos na tabela produtos?", "mostra histórico de qualidade dos dados"
 Exemplos content: "crie um post sobre X", "escreva uma thread sobre Y", "faça um artigo sobre Z", "crie um calendário editorial", "gere um diagrama da arquitetura", "desenhe o fluxo entre API e Agent", "crie um sequence diagram do chat"
 Exemplos brain: "qual minha profissão?", "o que você sabe sobre mim?", "qual meu nome?", "o que eu te disse sobre X?", "me fale sobre meus projetos"
 Exemplos system: "quem é você", "o que você pode fazer", "olá", "como você funciona", "meu nome é X", "trabalho como Y", "sou Z", "me chamo X", afirmações e apresentações pessoais do usuário
@@ -816,12 +1019,35 @@ Seja criterioso — não memorize perguntas, comandos ou respostas genéricas.`,
     }
   }
 
-  async streamChat(prompt: string, sessionId: string, module: string, onToken: (token: string) => void, projectId?: string, workMode?: string): Promise<void> {
-    const history = await this.prisma.conversationMessage.findMany({
+  /**
+   * ── A07 da auditoria de 13/09: a janela do histórico ─────────────────────────
+   *
+   * Era `orderBy: { createdAt: 'asc' }, take: 20` — as **vinte PRIMEIRAS** mensagens da sessão.
+   * Numa conversa curta, indistinguível do correto. Passando de vinte, o prompt congelava no
+   * começo do papo e **ignorava tudo o que foi dito depois**: uma instrução que substituísse
+   * outra nunca chegava ao modelo, e a correção mais recente era exatamente a que ficava de
+   * fora.
+   *
+   * Buscar `desc` e reverter devolve as vinte ÚLTIMAS em ordem cronológica — que é o que o
+   * prompt precisa, nas duas pontas (chat comum e streaming).
+   *
+   * Uma função só para os dois chamadores: eram duas cópias idênticas do mesmo `findMany`, e
+   * consertar uma delas deixaria a outra errada em silêncio.
+   */
+  private async janelaDeHistorico(
+    sessionId: string,
+    projectId?: string,
+  ): Promise<{ role: string; content: string }[]> {
+    const recentes = await this.prisma.conversationMessage.findMany({
       where: { sessionId, ...(projectId ? { projectId } : {}) },
-      orderBy: { createdAt: 'asc' },
-      take: 20,
+      orderBy: { createdAt: 'desc' },
+      take: JANELA_DE_HISTORICO,
     })
+    return recentes.reverse()
+  }
+
+  async streamChat(prompt: string, sessionId: string, module: string, onToken: (token: string) => void, projectId?: string, workMode?: string): Promise<void> {
+    const history = await this.janelaDeHistorico(sessionId, projectId)
 
     const historyMessages: ChatMessage[] = history.map((m: { role: string; content: string }) => ({
       role: m.role as 'user' | 'assistant',
@@ -831,19 +1057,25 @@ Seja criterioso — não memorize perguntas, comandos ou respostas genéricas.`,
     const [basePrompt, projectCtx, brainResults] = await Promise.all([
       Promise.resolve(this.getSystemPrompt(module)),
       this.getProjectContext(projectId),
-      this.memory.search(prompt, 4, projectId).catch(() => [] as import('../memory/memory.service').SearchResult[]),
+      consultarFonte('a memoria semantica',
+        // `escopoDeBusca` devolve `undefined` no geral — de proposito e POR VALOR: e o que faz a
+        // busca varrer o acervo inteiro, que e a razao de o contexto geral existir. Passar o id do
+        // Geral aqui traria so o que foi dito dentro dele, que e quase nada.
+        () => this.memory.search(prompt, 4, escopoDeBusca(projectId)),
+        [] as import('../memory/memory.service').SearchResult[], (v) => v.length === 0),
     ])
     const modeConfig = getWorkModeConfig(workMode)
     let systemPrompt = basePrompt + projectCtx
     if (modeConfig) systemPrompt += modeConfig.systemPromptSuffix
 
-    const brainCtx = brainResults
-      .filter(r => r.score > 0.5)
-      .map((r, i) => `[${i + 1}] ${r.sourcePath ? `(${r.sourcePath}) ` : ''}${r.content.slice(0, 400)}`)
-      .join('\n\n')
-    if (brainCtx) {
-      systemPrompt += `\n\n--- Documentação indexada relevante (use como referência) ---\n${brainCtx}\n--- Fim da documentação ---`
-    }
+    // O bloco já delimitava e já trazia `sourcePath`, mas dizia só "use como referência" — que não
+    // é a mesma coisa que "isto não é ordem". `blocoDeTrechosDeTerceiro` é a fronteira única das
+    // duas apps; ver `memory/trecho-de-terceiro.const.ts`.
+    const brainCtx = blocoDeTrechosDeTerceiro(await this.comDominio(brainResults.valor.filter(r => r.score > 0.5)), !ehEscopoGeral(projectId))
+    if (brainCtx) systemPrompt += `\n\n${brainCtx}`
+    // Busca que FALHOU nao pode parecer acervo vazio: sem isto, um erro de embedding ou do
+    // pgvector faz o modelo responder como se nao houvesse nada indexado sobre o assunto.
+    systemPrompt += avisoDeFontesIndisponiveis([brainResults])
 
     const messages: ChatMessage[] = [...historyMessages, { role: 'user', content: prompt }]
 

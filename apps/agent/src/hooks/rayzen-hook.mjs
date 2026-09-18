@@ -18,6 +18,7 @@ import { existsSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join, dirname, extname } from 'node:path'
 import { execSync } from 'node:child_process'
+import { candidatosDeSlug, nomeDoRepositorio } from '../repo-slug.mjs'
 import { tmpdir } from 'node:os'
 
 const INDEXABLE_EXTENSIONS = new Set([
@@ -134,22 +135,11 @@ function getGitContext() {
   }
 }
 
+// Resolução do nome/slug do repositório: `../repo-slug.mjs`, fonte única
+// compartilhada com o context-hook e o MCP. Os três precisam concordar, senão
+// resolvem projetos diferentes no mesmo diretório.
 function getProjectName() {
-  try {
-    // Preferência: nome do repositório no git remote
-    const remote = execSync('git remote get-url origin', {
-      encoding: 'utf8', timeout: 2000, stdio: ['pipe', 'pipe', 'ignore'],
-    }).trim()
-    const match = remote.match(/\/([^/]+?)(?:\.git)?$/)
-    if (match?.[1]) return match[1]
-  } catch { /* sem remote */ }
-  try {
-    // Fallback: nome do diretório raiz do repositório
-    const root = execSync('git rev-parse --show-toplevel', {
-      encoding: 'utf8', timeout: 2000, stdio: ['pipe', 'pipe', 'ignore'],
-    }).trim()
-    return root.split(/[\\/]/).pop() ?? null
-  } catch { return null }
+  return nomeDoRepositorio()
 }
 
 async function readStdin() {
@@ -253,58 +243,72 @@ function warnUnresolved(slug) {
   process.exitCode = 2
 }
 
-async function resolveProjectId(cfg) {
+function buscarProjetoPorSlug(cfg, slug) {
+  const url = `${cfg.apiUrl}/projects?repoSlug=${encodeURIComponent(slug)}`
+  const parsed = new URL(url)
+  const isHttps = parsed.protocol === 'https:'
+  const lib = isHttps ? httpsRequest : request
+
+  return new Promise((resolve) => {
+    const req = lib({
+      hostname: parsed.hostname,
+      port: parsed.port || (isHttps ? 443 : 80),
+      path: parsed.pathname + parsed.search,
+      method: 'GET',
+      headers: { Authorization: `Bearer ${cfg.apiToken}` },
+    }, (res) => {
+      let body = ''
+      res.on('data', d => { body += d })
+      res.on('end', () => {
+        try {
+          const projects = JSON.parse(body)
+          resolve(Array.isArray(projects) && projects.length > 0 ? projects[0].id : null)
+        } catch { resolve(null) }
+      })
+    })
+    req.on('error', () => resolve(null))
+    req.setTimeout(5000, () => { req.destroy(); resolve(null) })
+    req.end()
+  })
+}
+
+async function resolveProjectId(cfg, cwd) {
   // Prioridade 1: config explícito
   if (cfg.projectId) return cfg.projectId
 
-  const slug = getProjectName()
-  if (!slug) return null
+  // `cwd` vem do PAYLOAD do hook, não de `process.cwd()`.
+  //
+  // A documentação do Claude Code garante `cwd` em todo evento, e avisa que ele é o que
+  // acompanha o Claude ao entrar numa worktree ou depois de um `cd` — enquanto
+  // `process.cwd()` do processo do hook é outra coisa e pode não ser o repositório.
+  //
+  // Sem isto, o `Stop` desta sessão falhou com slug `"?"` — lista de candidatos VAZIA,
+  // que significa evento de fim de sessão nascendo órfão. Passar o `cwd` declarado é
+  // usar a informação que já chegava e estava sendo ignorada.
+  const candidatos = candidatosDeSlug(cwd)
+  if (candidatos.length === 0) return null
 
-  // Prioridade 2: cache fresco (dentro do TTL)
+  // Prioridade 2: cache fresco (dentro do TTL) de QUALQUER um dos candidatos
   const cached = readSlugCache()
-  if (cached?.slug === slug) return cached.projectId
+  if (cached && candidatos.includes(cached.slug)) return cached.projectId
 
-  // Prioridade 3: busca na API por repoSlug
+  // Prioridade 3: busca na API, candidato a candidato
   try {
-    const url = `${cfg.apiUrl}/projects?repoSlug=${encodeURIComponent(slug)}`
-    const parsed = new URL(url)
-    const isHttps = parsed.protocol === 'https:'
-    const lib = isHttps ? httpsRequest : request
-
-    const projectId = await new Promise((resolve) => {
-      const req = lib({
-        hostname: parsed.hostname,
-        port: parsed.port || (isHttps ? 443 : 80),
-        path: parsed.pathname + parsed.search,
-        method: 'GET',
-        headers: { Authorization: `Bearer ${cfg.apiToken}` },
-      }, (res) => {
-        let body = ''
-        res.on('data', d => { body += d })
-        res.on('end', () => {
-          try {
-            const projects = JSON.parse(body)
-            resolve(Array.isArray(projects) && projects.length > 0 ? projects[0].id : null)
-          } catch { resolve(null) }
-        })
-      })
-      req.on('error', () => resolve(null))
-      req.setTimeout(5000, () => { req.destroy(); resolve(null) })
-      req.end()
-    })
-
-    if (projectId) { writeSlugCache(slug, projectId); return projectId }
+    for (const slug of candidatos) {
+      const projectId = await buscarProjetoPorSlug(cfg, slug)
+      if (projectId) { writeSlugCache(slug, projectId); return projectId }
+    }
 
     // Stale-while-error: query falhou (rede/timeout). Em vez de mandar órfão,
     // reusa o cache do MESMO slug mesmo expirado — o projectId não muda.
     // Isso elimina "desconexões" por hiccups transitórios de rede.
     const stale = readSlugCacheRaw()
-    if (stale?.slug === slug) return stale.projectId
+    if (stale && candidatos.includes(stale.slug)) return stale.projectId
 
     return null
   } catch {
     const stale = readSlugCacheRaw()
-    if (stale?.slug === slug) return stale.projectId
+    if (stale && candidatos.includes(stale.slug)) return stale.projectId
     return null
   }
 }
@@ -318,14 +322,6 @@ function persistConversationTurn(v2BaseUrl, token, body) {
     const url = `${v2BaseUrl}/v2/chat/turns`
     post(url, body, token).catch(() => {})
   } catch { /* ignora */ }
-}
-
-function toRelative(absPath, root) {
-  if (!absPath) return ''
-  const n = absPath.replace(/\\/g, '/')
-  if (!root) return n
-  const r = root.replace(/\\/g, '/')
-  return n.startsWith(r + '/') ? n.slice(r.length + 1) : n
 }
 
 async function main() {
@@ -346,18 +342,19 @@ async function main() {
     'TodoWrite', 'TodoRead', 'ListMcpResourcesTool',
     'ToolSearch', 'Agent', 'ScheduleWakeup',
     'EnterPlanMode', 'ExitPlanMode', 'AskUserQuestion',
-    'Read', 'Glob',       // exploração, não mudança — quase sempre ruído
+    'Read', 'Glob', 'Grep', // exploração, não mudança — quase sempre ruído
     'WebFetch', 'WebSearch', // pesquisa externa — sem sinal de progresso
   ])
   // Ignorar leituras do Rayzen (não criar evento ao consultar estado)
   if (IGNORED_TOOLS.has(tool) ||
       tool.startsWith('mcp__rayzen__rayzen_get') ||
-      tool.startsWith('mcp__rayzen__rayzen_search')) {
+      tool.startsWith('mcp__rayzen__rayzen_search') ||
+      tool.startsWith('mcp__rayzen__rayzen_list')) {
     process.exit(0)
   }
 
   // Detecta projectId automaticamente por repoSlug, com fallback para config fixo
-  const projectId = await resolveProjectId(cfg)
+  const projectId = await resolveProjectId(cfg, payload.cwd)
   if (projectId) {
     payload.projectId = projectId
   } else {
@@ -417,21 +414,18 @@ async function main() {
     }
   }
 
-  // Edit/Write: indexação semântica + catalog auto-register
-  let catalogPromise = Promise.resolve()
+  // Edit/Write: indexação semântica do conteúdo do arquivo.
+  //
+  // Aqui existia também um auto-register no /data-catalog — cada arquivo editado
+  // virava um "data asset". Em ~2 meses gerou 477 registros, 100% type=file, e
+  // nenhum deles era dado: era o rastro das edições do Claude Code, incluindo
+  // arquivos de pastas temporárias. O conceito de data asset (dataset, PII,
+  // sensibilidade, linhagem) foi alimentado com código-fonte. O domínio inteiro de
+  // governança de dados saiu do Rayzen junto com o catalog-guardian.
   if (tool === 'Edit' || tool === 'Write') {
     const filePath = payload.tool_input?.file_path ?? payload.tool_input?.path
     const content = readFileContent(filePath)
     if (content) payload.fileContent = content
-
-    if (projectId && filePath) {
-      const rel = toRelative(filePath, repoRoot)
-      catalogPromise = post(
-        `${cfg.apiUrl}/data-catalog/assets/auto-register`,
-        { projectId, filePath: rel, tool },
-        cfg.apiToken,
-      )
-    }
   }
 
   // Timing do UserPromptSubmit — emite como evento separado se disponível
@@ -453,7 +447,6 @@ async function main() {
 
   await Promise.all([
     post(`${cfg.apiUrl}/events/cli`, payload, cfg.apiToken),
-    catalogPromise,
     timingPromise,
   ])
   // Preserva exitCode 2 definido por warnUnresolved (aviso visível); senão 0

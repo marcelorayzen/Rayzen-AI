@@ -30,7 +30,7 @@ describe('ALLOWED_ACTIONS + isActionAllowedForRole — enforcement matrix', () =
     expect(isActionAllowedForRole('server', 'jarvis:docker_ps')).toBe(true)
     expect(isActionAllowedForRole('server', 'jarvis:restart_api')).toBe(true)
     expect(isActionAllowedForRole('server', 'jarvis:docker_logs')).toBe(true)
-    expect(isActionAllowedForRole('server', 'jarvis:get_data_quality')).toBe(true)
+    expect(isActionAllowedForRole('server', 'jarvis:get_qa_summary')).toBe(true)
   })
 
   it('desktop pode executar suas ações autorizadas', () => {

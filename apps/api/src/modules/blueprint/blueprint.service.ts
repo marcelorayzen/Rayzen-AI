@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'crypto'
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import OpenAI from 'openai'
+import { createLlmClient } from '../../common/llm-client'
 import { PrismaService } from '../../prisma/prisma.service'
 import { WikiService } from '../wiki/wiki.service'
 import { BrainService } from '../brain/brain.service'
@@ -34,8 +35,8 @@ export class BlueprintService {
     private readonly config: ConfigService,
     private readonly metrics: MetricsService,
   ) {
-    this.llm = new OpenAI({
-      apiKey: this.config.get('LITELLM_MASTER_KEY') ?? 'sk-rayzen',
+    this.llm = createLlmClient('blueprint', {
+      apiKey:  this.config.get('LITELLM_MASTER_KEY') ?? 'sk-rayzen',
       baseURL: this.config.get('LITELLM_BASE_URL') ?? 'http://localhost:4100/v1',
     })
   }
@@ -229,7 +230,7 @@ Regras:
     if (existing && !overwrite) {
       warnings.add(`Wiki "${mainSlug}" já existe. Use overwriteWiki: true para sobrescrever.`)
     } else {
-      await this.wiki.create(mainSlug, dto.title, this.buildMainWikiContent(dto, parsed, titleSlug))
+      await this.wiki.create(mainSlug, dto.title, this.buildMainWikiContent(dto, parsed, titleSlug), dto.projectId)
       result.created.wikiPages.push(mainSlug)
     }
 
@@ -243,7 +244,7 @@ Regras:
       }
 
       if (section.content.trim()) {
-        await this.wiki.create(slug, section.title, section.content)
+        await this.wiki.create(slug, section.title, section.content, dto.projectId)
         result.created.wikiPages.push(slug)
       }
     }
@@ -258,7 +259,7 @@ Regras:
   ): Promise<void> {
     try {
       const sourcePath = `blueprint/${this.titleSlug(dto.title)}`
-      const indexed = await this.brain.indexText(dto.content, sourcePath)
+      const indexed = await this.brain.indexText(dto.content, sourcePath, dto.projectId)
       result.created.documents.push(...indexed.documentIds)
       result.updated.brain = true
     } catch (err) {

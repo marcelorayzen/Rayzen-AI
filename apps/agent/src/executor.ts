@@ -16,13 +16,13 @@ import { gitStatus, gitLog, gitDiff, gitBranch, gitAdd, gitCommit, gitPull, gitP
 import { runCommand } from './actions/terminal'
 import { runTests } from './actions/run-tests'
 import { inspectSchema } from './actions/inspect-schema'
+import { guardianAnalyze } from './actions/guardian-analyze'
 import { dockerPs, dockerStart, dockerStop, dockerLogs } from './actions/docker'
 import { readEmails, sendEmail } from './actions/outlook'
 import { getCalendar } from './actions/outlook-calendar'
 import { restartApi } from './actions/restart-api'
 import { parseTestReport } from './actions/parse-test-report'
 import { getQaSummary } from './actions/get-qa-summary'
-import { getDataQuality } from './actions/get-data-quality'
 import { captureTestFailure } from './actions/capture-test-failure'
 import { runGraphify_action } from './actions/run-graphify'
 import { graphifySync } from './actions/graphify-sync'
@@ -86,8 +86,10 @@ export async function executeTask(task: Task): Promise<unknown> {
     case 'jarvis:inspect_schema': return inspectSchema(p as { projectPath?: string })
     case 'jarvis:parse_test_report':    return parseTestReport(p as { reportPath: string; format?: 'junit' | 'allure' | 'auto'; projectId?: string; branch?: string; commitHash?: string })
     case 'jarvis:get_qa_summary':       return getQaSummary(p as { projectId?: string; type?: 'summary' | 'patterns' | 'flaky' | 'trend'; days?: number; runs?: number })
-    case 'jarvis:get_data_quality':     return getDataQuality(p as { projectId?: string; dataset?: string; type?: 'summary' | 'score' | 'history' | 'rules' | 'results'; ruleId?: string; days?: number })
     case 'jarvis:capture_test_failure': return captureTestFailure(p as { projectPath?: string; reportDir?: string; screenshotDir?: string; projectId?: string; takeScreenshotOnFailure?: boolean })
+    // Achado da varredura de 2026-09-12: whitelisted, com role e skill registrados, mas SEM
+    // handler — qualquer despacho real caía no `default` abaixo.
+    case 'jarvis:guardian_analyze': return guardianAnalyze(p as { projectId: string; changedFiles: string[] })
 
     // Prisma
     case 'jarvis:prisma_generate': return prismaGenerate(p as { projectPath: string; schema?: string; dryRun?: boolean })
@@ -112,7 +114,7 @@ export async function executeTask(task: Task): Promise<unknown> {
     case 'jarvis:graphify_sync': return graphifySync(p as { cwd?: string; projectId?: string })
 
     // Supervisor
-    case 'jarvis:supervised_session': return supervisedSession(p as { sessionId: string; prompt: string; projectPath?: string; previewOutputPath?: string })
+    case 'jarvis:supervised_session': return supervisedSession(p as { sessionId: string; prompt: string; projectId?: string; projectPath?: string; previewOutputPath?: string })
 
     default:
       throw new Error(`Handler não implementado: ${key}`)

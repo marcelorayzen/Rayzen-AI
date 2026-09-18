@@ -39,7 +39,6 @@ export const ALLOWED_ACTIONS = new Set([
   'jarvis:inspect_schema',
   'jarvis:parse_test_report',
   'jarvis:get_qa_summary',
-  'jarvis:get_data_quality',
   'jarvis:capture_test_failure',
 
   // Prisma
@@ -64,6 +63,31 @@ export const ALLOWED_ACTIONS = new Set([
   'jarvis:run_graphify',
   'jarvis:graphify_sync',
 
+  // Guardian — análise proativa de mudanças de código
+  'jarvis:guardian_analyze',
+
   // Supervisor — sessão autônoma Claude Code
   'jarvis:supervised_session',
+])
+
+/**
+ * Capabilities tipadas da Fase 2 (`docs/plano-execucao-tipada.md`) — despachadas por
+ * `jarvis:run_command` com `{ capability, params }` no lugar de `{ command }`. É uma lista
+ * SEPARADA de `ALLOWED_ACTIONS` de propósito: uma capability nova não é uma ação nova (o
+ * ponto de entrada continua sendo `jarvis:run_command`, já whitelisted), mas precisa do
+ * próprio gate — a mesma ação não pode liberar sozinha todo o catálogo de capabilities só
+ * por já estar na whitelist de ações.
+ *
+ * A fonte de verdade da FORMA de cada capability (programa, argv, params) é
+ * `exec/capabilities.const.ts`; esta lista só decide QUAIS ids existem para efeito de
+ * autorização — mesma separação de responsabilidade que `ALLOWED_ACTIONS` já tem em relação
+ * a `executor.ts`.
+ */
+export const ALLOWED_CAPABILITIES = new Set([
+  'docker.images',
+  'docker.stats',
+  'docker.inspect',
+  'docker.compose_ps',
+  'docker.compose_logs',
+  'docker.compose_config',
 ])

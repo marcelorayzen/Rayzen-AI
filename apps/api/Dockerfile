@@ -38,6 +38,10 @@ RUN corepack enable && corepack prepare pnpm@10.33.2 --activate
 WORKDIR /app
 
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.base.json rayzen.config.json ./
+# A identidade do Rayzen (SOUL) e lida do disco em runtime pelo orchestrator -- o MESMO
+# arquivo que o Hermes monta por bind. Sem este COPY o container cai na personality antiga
+# do rayzen.config.json, que e exatamente a divergencia que a unificacao resolveu.
+COPY core ./core
 COPY packages/types/package.json ./packages/types/
 COPY apps/api/package.json ./apps/api/
 COPY apps/web/package.json ./apps/web/
@@ -54,4 +58,8 @@ ENV NODE_ENV=production
 
 EXPOSE 3101
 
-CMD ["sh", "-c", "cd apps/api && npx prisma migrate deploy; cd /app && node apps/api/dist/main"]
+# && (não ;) entre migrate deploy e o boot: com ; uma migration falha ficava silenciosa
+# indefinidamente (schema drift sem ninguém perceber — ver incidente blueprint_imports,
+# 2026-06-24 a 2026-08-03). Falhar o boot é intencional: restart: unless-stopped já reinicia
+# o container, e um crash-loop visível é preferível a rodar com schema desatualizado.
+CMD ["sh", "-c", "cd apps/api && npx prisma migrate deploy && cd /app && node apps/api/dist/main"]

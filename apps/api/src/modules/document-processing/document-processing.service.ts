@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { PrismaService } from '../../prisma/prisma.service'
 import OpenAI from 'openai'
+import { createLlmClient } from '../../common/llm-client'
 import * as puppeteer from 'puppeteer'
 import * as fs from 'fs'
 import * as path from 'path'
@@ -28,9 +29,9 @@ export class DocumentProcessingService {
   private outputDir: string
 
   constructor(private readonly prisma: PrismaService, private config: ConfigService) {
-    this.llm = new OpenAI({
+    this.llm = createLlmClient('document-processing', {
+      apiKey:  this.config.get('LITELLM_MASTER_KEY') ?? 'sk-rayzen',
       baseURL: this.config.get('LITELLM_BASE_URL', 'http://localhost:4000/v1'),
-      apiKey: this.config.get('LITELLM_MASTER_KEY') ?? 'sk-rayzen',
     })
     this.outputDir = path.join(os.tmpdir(), 'rayzen-docs')
     if (!fs.existsSync(this.outputDir)) {

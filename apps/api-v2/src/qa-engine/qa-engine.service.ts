@@ -19,7 +19,6 @@ export interface QAGateResult {
   regressions:    string[]
   summary:        string
   testRuns:       unknown[]
-  dataQualityScore?: number
 }
 
 // In-memory SLAs (persist later in DB)
@@ -54,23 +53,7 @@ export class QaEngineService {
       }
     }
 
-    // 3. Data quality score
-    let dqScore: number | undefined
-    try {
-      const dqRes = await fetch(
-        `${(process.env.V1_API_URL ?? 'http://api:3001')}/data-quality/score?projectId=${projectId}`,
-        { headers: { Authorization: `Bearer ${process.env.V1_API_TOKEN ?? ''}` } },
-      )
-      if (dqRes.ok) {
-        const dq = await dqRes.json() as { score?: number }
-        dqScore = dq.score
-        if (dqScore !== undefined && dqScore < 70) {
-          violations.push(`Data quality score ${dqScore}/100 is below threshold 70`)
-        }
-      }
-    } catch { /* optional */ }
-
-    // 4. LLM summary
+    // 3. LLM summary
     const passed = violations.length === 0
     let summary  = passed ? 'QA gate passed.' : `QA gate failed: ${violations.join('; ')}`
 
@@ -78,13 +61,13 @@ export class QaEngineService {
       try {
         const result = await this.llm.chat([
           { role: 'system', content: 'Summarize this QA gate result in 1-2 sentences.' },
-          { role: 'user',   content: `Mission: "${mission.title}"\nPass rate: ${(passRate * 100).toFixed(1)}%\nViolations: ${violations.join(', ') || 'none'}\nData quality: ${dqScore ?? 'N/A'}` },
+          { role: 'user',   content: `Mission: "${mission.title}"\nPass rate: ${(passRate * 100).toFixed(1)}%\nViolations: ${violations.join(', ') || 'none'}` },
         ], { model: 'gpt-4o-mini', temperature: 0 })
         summary = result.content
       } catch { /* keep default summary */ }
     }
 
-    return { missionId, passed, passRate, slaViolations: violations, regressions, summary, testRuns, dataQualityScore: dqScore }
+    return { missionId, passed, passRate, slaViolations: violations, regressions, summary, testRuns }
   }
 
   async getTrend(projectId: string) {

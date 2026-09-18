@@ -107,4 +107,21 @@ describe('SpecialistService — tool-use real', () => {
     expect(inst.status).toBe('done')
     expect(inst.output?.actionsExecuted).toEqual([{ skillId: 'jarvis:file_write', success: false }])
   })
+
+  it('registra a mensagem de erro no output quando aiRouter.complete() lança exceção na 1a iteração', async () => {
+    // Antes desta correção, uma exceção aqui (ex: LiteLLM/Groq fora do ar) só ia pro
+    // logger.warn do servidor — o step ficava com output vazio ({result:'', iterations:0,
+    // costUsd:0}), sem nenhum jeito de diagnosticar a causa via API/mission (achado real
+    // ao tentar retomar a missão "Stress Test v3" após 5 semanas parada).
+    const { service, aiRouter } = buildService({ completeResponses: [] })
+    aiRouter.complete.mockRejectedValueOnce(new Error('LiteLLM: connection refused'))
+
+    const inst = await service.spawnAndWait({
+      type: 'reviewer', task: 'review something', missionId: 'm1', stepId: 's1', projectId: 'p1',
+    })
+
+    expect(inst.status).toBe('failed')
+    expect(inst.iterations).toBe(0)
+    expect(inst.output?.stopReason).toContain('LiteLLM: connection refused')
+  })
 })

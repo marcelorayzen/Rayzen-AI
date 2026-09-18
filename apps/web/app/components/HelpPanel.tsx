@@ -88,13 +88,12 @@ const SECTIONS: HelpSection[] = [
     id: 'qa',
     label: 'QA',
     icon: '🧪',
-    description: 'Dashboard de qualidade: runs, evidências, tendências e catálogo de assets de dados.',
+    description: 'Dashboard de qualidade: resumo do último run, tendência de pass rate e histórico com detalhe por run.',
     tips: [
       { title: 'Runs', body: 'Cada execução de testes gera um test run com métricas (passed/failed/skipped). Selecione um run para ver o detalhe.' },
-      { title: 'Evidências', body: 'Screenshots e arquivos capturados durante testes ficam vinculados a runs. Filtre por status de vínculo.' },
-      { title: 'Tendência', body: 'O gráfico de tendência mostra evolução de passed/failed nos últimos runs. Badge verde/vermelho no HUD reflete o estado atual.' },
-      { title: 'Data Quality', body: 'O DQ Score agrega profiling dos assets do catálogo. Use POST /data-catalog/:id/profile para atualizar.' },
-      { title: 'Catálogo', body: 'Assets registrados via hook PostToolUse do Claude Code aparecem aqui com schema e métricas de qualidade.' },
+      { title: 'Detalhe do run', body: 'Mostra falhas e evidências vinculadas. Com a suíte 100% verde e sem evidências capturadas, ele fica vazio — é o comportamento esperado, não um erro.' },
+      { title: 'Tendência', body: 'O gráfico mostra o pass rate por dia nos últimos 30 dias. O badge no header reflete o pass rate do último run.' },
+      { title: 'De onde vêm os números', body: 'Do CI: o job de testes roda pnpm qa:ingest, que envia o resultado do monorepo inteiro. Se o número parar de atualizar, o ingest está falhando — o job fica vermelho.' },
     ],
   },
   {

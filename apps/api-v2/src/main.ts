@@ -4,6 +4,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger'
 import { ValidationPipe } from '@nestjs/common'
 import { WsAdapter } from '@nestjs/platform-ws'
 import { AppModule } from './app.module'
+import { PrismaExceptionFilter } from './common/prisma-exception.filter'
  
 const helmet = require('@fastify/helmet')
 
@@ -34,6 +35,9 @@ async function bootstrap() {
 
   app.useWebSocketAdapter(new WsAdapter(app))
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }))
+  // Sem isto, violação de constraint do Prisma vira 500 e o cliente não distingue
+  // "não existe" de "o servidor quebrou". Captura os DOIS clientes — ver o filtro.
+  app.useGlobalFilters(new PrismaExceptionFilter())
 
   const corsEnv = process.env.CORS_ORIGINS ?? 'http://localhost:3100'
   const allowedOrigins = corsEnv.split(',').map((o) => o.trim()).filter(Boolean)

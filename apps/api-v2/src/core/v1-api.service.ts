@@ -103,7 +103,15 @@ export class V1ApiService {
 
   async getDecisionEvents(projectId: string, limit = 30): Promise<Array<{ id: string; content: string; type: string }>> {
     try {
-      const res = await fetch(`${this.baseUrl}/events?projectId=${projectId}&type=decision&limit=${limit}`, {
+      // `project_id`, não `projectId`: a rota da V1 lê `@Query('project_id')`, e o nome errado
+      // não dá erro — o filtro simplesmente some e a query devolve os eventos GLOBAIS mais
+      // recentes, que são os do projeto mais ativo. Medido em 13/09: pedindo decisões do VB
+      // Ferragens vinham 10 decisões do Rayzen AI. Vazamento de escopo silencioso, do tipo que
+      // responde 200 e parece funcionar.
+      //
+      // Estava sem chamador quando foi encontrado — é defeito latente, não ativo. Corrigido
+      // antes de alguém ligar o consumidor e herdar o vazamento pronto.
+      const res = await fetch(`${this.baseUrl}/events?project_id=${projectId}&type=decision&limit=${limit}`, {
         headers: this.headers,
       })
       if (!res.ok) return []
@@ -141,6 +149,12 @@ export interface MemorySearchResult {
   content:   string
   score:     number
   projectId: string
+  /**
+   * De onde o trecho veio. A V1 sempre devolveu este campo — o tipo é que não o declarava,
+   * então quem consumia a busca não conseguia saber que dois resultados eram o mesmo
+   * documento sem recorrer a `as`. Opcional porque nem toda origem tem caminho.
+   */
+  sourcePath?: string | null
   metadata?: Record<string, unknown>
 }
 

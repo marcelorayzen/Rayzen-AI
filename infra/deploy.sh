@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Deploy Rayzen AI no notebook local (192.168.0.175)
+# Deploy Rayzen AI no servidor local (servidor-local)
 # Uso: ./infra/deploy.sh [serviço...]
 #   Sem argumento: builda api + mcp-http (os dois que mudam com código TypeScript)
 #   Com argumento:  docker compose up -d --build <serviços>
 #
 # Pré-requisito: usuário rayzen no grupo docker (sem sudo)
-# Executar na raiz do projeto no notebook: ~/projects/rayzen-ai
+# Executar na raiz do projeto no servidor: ~/projects/rayzen-ai
 
 set -euo pipefail
 

@@ -4,7 +4,6 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { API_URL } from '../lib/api-url'
 import { authHeaders, TOKEN_KEY } from '../lib/api-client'
 import { useRouter } from 'next/navigation'
-import dynamic from 'next/dynamic'
 import { useProjects } from './hooks/useProjects'
 import { useMemory, type MemoryDoc } from './hooks/useMemory'
 import { useGoalGraph, type ProjectState, type PlanningNode } from './hooks/useGoalGraph'
@@ -33,7 +32,7 @@ import { GoalFormModal } from './components/GoalFormModal'
 import { Header } from './components/Header'
 import { MessagesList } from './components/MessagesList'
 import { InputBar } from './components/InputBar'
-const RayzenConstellation = dynamic(() => import('./components/RayzenConstellation').then(m => ({ default: m.RayzenConstellation })), { ssr: false })
+import { DocsPanel } from './components/DocsPanel'
 
 export interface ActivityEvent {
   id: string
@@ -387,10 +386,6 @@ export default function Home() {
     qaTrendLoading,
     qaRunsLoading,
     qaRunDetailLoading,
-    dqSummary,
-    dqLoading,
-    catalogAssets,
-    catalogLoading,
     openQA,
     switchTab: switchQATab,
     selectRun: selectQARun,
@@ -437,6 +432,7 @@ export default function Home() {
   const [evidenceLoading, setEvidenceLoading] = useState(false)
   const [evidenceFilter, setEvidenceFilter] = useState<'all' | 'with_run' | 'without_run'>('all')
   const [deletingEvidenceId, setDeletingEvidenceId] = useState<string | null>(null)
+  const [evidenceUploading, setEvidenceUploading] = useState(false)
   const [generatingDocs, setGeneratingDocs] = useState(false)
   const [activeDocType, setActiveDocType] = useState<string>('project_state')
   const [syncing, setSyncing] = useState(false)
@@ -554,16 +550,22 @@ export default function Home() {
     return () => clearInterval(id)
   }, [])
 
+  // Fonte única da lista. O checkpoint também depende dela: a resposta 202 dele não
+  // é um artefato, então a única forma de ver o resultado é reler daqui.
+  const buscarArtefatos = useCallback(async (): Promise<SynthesisArtifact[]> => {
+    const qs = activeProjectId ? `?project_id=${activeProjectId}` : ''
+    const res = await fetch(`${API_URL}/synthesis/artifacts${qs}`, { headers: authHeaders() })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return await res.json() as SynthesisArtifact[]
+  }, [activeProjectId])
+
   const openSynthesis = useCallback(async () => {
     setSynthesisOpen(true)
     setSynthesisLoading(true)
-    try {
-      const qs = activeProjectId ? `?project_id=${activeProjectId}` : ''
-      const res = await fetch(`${API_URL}/synthesis/artifacts${qs}`, { headers: authHeaders() })
-      setSynthesisArtifacts(await res.json() as SynthesisArtifact[])
-    } catch { setSynthesisArtifacts([]) }
+    try { setSynthesisArtifacts(await buscarArtefatos()) }
+    catch { setSynthesisArtifacts([]) }
     finally { setSynthesisLoading(false) }
-  }, [activeProjectId])
+  }, [buscarArtefatos])
 
   const loadEvidence = useCallback(async () => {
     if (!activeProjectId) return
@@ -585,6 +587,42 @@ export default function Home() {
     await loadEvidence()
   }, [activeProjectId, loadEvidence])
 
+  /**
+   * Envia print de teste manual. O backend já tinha `POST /evidence/upload/:projectId`
+   * completo desde sempre — o que faltava era caminho na interface: o único produtor era
+   * `jarvis:screenshot` no poller do agent, então em 3 meses o acervo inteiro tinha
+   * 1 registro. Não era bug, era feature nunca terminada.
+   */
+  const uploadEvidence = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? [])
+    if (files.length === 0 || !activeProjectId) return
+    setEvidenceUploading(true)
+    let erros = 0
+    try {
+      for (const file of files) {
+        try {
+          const formData = new FormData()
+          // Os campos vão ANTES do arquivo: o handler lê `file.fields`, e o multipart do
+          // Fastify é streaming — o que vem depois da parte do arquivo não chega lá.
+          formData.append('description', file.name)
+          formData.append('category', 'manual')
+          formData.append('takenAt', new Date(file.lastModified).toISOString())
+          formData.append('file', file)
+
+          const res = await fetch(`${API_URL}/evidence/upload/${activeProjectId}`, {
+            method: 'POST', headers: authHeaders(), body: formData,
+          })
+          if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        } catch { erros++ }
+      }
+      if (erros > 0) alert(`${files.length - erros}/${files.length} evidência(s) enviada(s) — ${erros} falharam.`)
+      await loadEvidence()
+    } finally {
+      setEvidenceUploading(false)
+      e.target.value = ''   // permite reenviar o mesmo arquivo
+    }
+  }, [activeProjectId, loadEvidence])
+
   const deleteEvidence = useCallback(async (evidenceId: string) => {
     if (!confirm('Excluir esta evidencia? O registro e o arquivo sincronizado serao removidos.')) return
     setDeletingEvidenceId(evidenceId)
@@ -593,7 +631,7 @@ export default function Home() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setEvidenceItems(prev => prev.filter(item => item.id !== evidenceId))
     } catch {
-      alert('N?o foi poss?vel excluir a evidencia.')
+      alert('Não foi possível excluir a evidência.')
     } finally {
       setDeletingEvidenceId(null)
     }
@@ -802,16 +840,29 @@ export default function Home() {
         headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ projectId: activeProjectId, ...(workMode ? { workMode } : {}) }),
       })
-      if (res.ok) {
-        const raw = await res.json() as Record<string, unknown>
-        const artifact = { ...raw, content: raw['content'] ?? raw['synthesis'] } as SynthesisArtifact
-        setSynthesisArtifacts(prev => [artifact, ...prev])
-        setSynthesisOpen(true)
+      if (!res.ok) return
+
+      // O endpoint é fire-and-forget: responde 202 com { status, checkpointId, message }
+      // e sintetiza em background. Esse corpo NÃO é um artefato — tratá-lo como um
+      // colocava na lista um objeto sem `sessionId`, e o `.slice()` da modal derrubava
+      // a aplicação inteira (o checkpoint gravava no servidor enquanto a tela morria).
+      // A síntese leva dezenas de segundos, então relemos até o artefato aparecer.
+      setSynthesisOpen(true)
+      setSynthesisLoading(true)
+      const antes = synthesisArtifacts.length
+      for (const espera of [4000, 6000, 10000, 15000, 20000]) {
+        await new Promise((r) => setTimeout(r, espera))
+        try {
+          const lista = await buscarArtefatos()
+          setSynthesisArtifacts(lista)
+          if (lista.length > antes) break
+        } catch { /* tenta de novo na próxima janela */ }
       }
+      setSynthesisLoading(false)
     } catch { /* silencioso */ }
     finally { setCheckpointing(false) }
     // workMode nas deps: sem ele o checkpoint enviava o modo antigo após troca (stale closure)
-  }, [activeProjectId, workMode])
+  }, [activeProjectId, workMode, buscarArtefatos, synthesisArtifacts.length])
 
   const submitQuickCapture = useCallback(async () => {
     if (!quickCaptureText.trim() || !activeProjectId) return
@@ -852,7 +903,6 @@ export default function Home() {
 
   return (
     <main className="h-screen overflow-hidden flex flex-col">
-      <RayzenConstellation />
       <div className="hud-scanline" aria-hidden="true" />
 
       {/* Document versions modal */}
@@ -1216,10 +1266,6 @@ export default function Home() {
           qaRunDetail={qaRunDetail}
           qaRunDetailLoading={qaRunDetailLoading}
           selectQARun={selectQARun}
-          dqSummary={dqSummary}
-          dqLoading={dqLoading}
-          catalogAssets={catalogAssets}
-          catalogLoading={catalogLoading}
           onClose={() => setQaOpen(false)}
         />
       )}
@@ -1231,6 +1277,8 @@ export default function Home() {
           evidenceLoading={evidenceLoading}
           evidenceFilter={evidenceFilter}
           deletingEvidenceId={deletingEvidenceId}
+          evidenceUploading={evidenceUploading}
+          onUpload={(e) => void uploadEvidence(e)}
           onFilterChange={setEvidenceFilter}
           onRefresh={() => void loadEvidence()}
           onDelete={(id) => void deleteEvidence(id)}
@@ -1301,6 +1349,18 @@ export default function Home() {
         />
       )}
 
+      {/* Ajuda contextual: segue o painel aberto, senão explica o chat */}
+      <DocsPanel
+        topicId={
+          qaOpen         ? 'qa'
+          : graphOpen    ? 'goals'
+          : memoryOpen   ? 'brain'
+          : blueprintOpen ? 'blueprint'
+          : synthesisOpen ? 'synthesis'
+          : missionsOpen ? 'missions'
+          : 'home'
+        }
+      />
     </main>
   )
 }

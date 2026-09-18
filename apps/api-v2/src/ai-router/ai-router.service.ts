@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common'
+import { COST_PER_1M_USD } from '../llm/model-pricing.const'
 
 export type AITaskType =
   | 'classify' | 'summarize' | 'extract'
@@ -29,6 +30,18 @@ export interface AIRequest {
   /** Histórico completo de mensagens (incl. resultados de tool calls anteriores) — se omitido, usa prompt/systemPrompt como antes. */
   messages?:     Array<{ role: string; content: string; tool_call_id?: string; tool_calls?: unknown[] }>
   tools?:        AIToolDefinition[]
+  /**
+   * Quem está chamando — vira o nome do trace no Langfuse.
+   *
+   * Sem isso toda chamada aparecia como `litellm-acompletion`: 9.917 traces
+   * indistinguíveis entre specialist, benchmark, orchestrator e QA Scientist.
+   * Rastrear sem atribuir não é observabilidade — era o que impedia verificar
+   * "traces dos specialists visíveis no Langfuse".
+   * Ex: `specialist:coder`, `documentation-engine`, `qa-scientist`.
+   */
+  caller?:       string
+  /** Contexto opcional que viaja junto no trace (missionId, stepId...). */
+  callerContext?: Record<string, string | number | undefined>
 }
 
 export interface AIResponse {
@@ -43,6 +56,9 @@ export interface AIResponse {
   toolCalls?: AIToolCall[]
 }
 
+// Preço vem de model-pricing.const — a mesma tabela que o LlmService usa para
+// gravar custo. Duplicar aqui faria o roteamento decidir por um preço e a
+// cobrança registrar outro.
 interface TierConfig {
   tier:       number
   model:      string          // LiteLLM alias
@@ -55,21 +71,21 @@ const TIERS: TierConfig[] = [
   {
     tier: 2,
     model: 'gpt-4o-mini',
-    costPer1M: 0.10,
+    costPer1M: COST_PER_1M_USD['gpt-4o-mini'],
     maxTokens: 4096,
     taskTypes: ['classify', 'summarize', 'extract'],
   },
   {
     tier: 3,
     model: 'gpt-4o',
-    costPer1M: 0.70,
+    costPer1M: COST_PER_1M_USD['gpt-4o'],
     maxTokens: 8192,
     taskTypes: ['generate_code', 'review', 'implement', 'analyze'],
   },
   {
     tier: 4,
     model: 'gpt-4o-premium',
-    costPer1M: 9.00,
+    costPer1M: COST_PER_1M_USD['gpt-4o-premium'],
     maxTokens: 8192,
     taskTypes: ['strategic', 'architecture'],
   },
@@ -155,6 +171,18 @@ export class AiRouterService {
           messages,
           max_tokens: req.maxTokens ?? tier.maxTokens,
           temperature: 0.2,
+          // O LiteLLM encaminha `metadata` para o Langfuse. Nomear o trace pelo
+          // chamador é o que torna o rastro utilizável: sem isso são milhares de
+          // `litellm-acompletion` sem dono.
+          metadata: {
+            trace_name: req.caller ? `rayzen:${req.caller}` : 'rayzen:desconhecido',
+            tags: [
+              ...(req.caller   ? [req.caller]   : []),
+              ...(req.taskType ? [req.taskType] : []),
+            ],
+            ...(req.projectId ? { trace_user_id: req.projectId } : {}),
+            ...(req.callerContext ?? {}),
+          },
           ...(req.tools?.length ? {
             tools: req.tools.map((t) => ({
               type: 'function',

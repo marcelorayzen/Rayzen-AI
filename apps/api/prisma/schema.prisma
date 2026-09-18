@@ -18,6 +18,10 @@ model Project {
   goals             String?
   notionPageId      String?  @map("notion_page_id")
   repoSlug          String?  @unique @map("repo_slug") // pasta/repo que identifica o projeto (ex: "rayzen-ai")
+  // pessoal | trabalho | cliente — nulo = nao classificado. Ver common/dominio-do-projeto.const.ts:
+  // o SOUL promete respeitar a separacao entre vida pessoal, projetos e clientes, e ate 18/09 isso
+  // era so uma regra de atribuicao no prompt, sem nada no dado que a sustentasse.
+  domain            String?
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
@@ -30,7 +34,6 @@ model Project {
   recommendations      ProjectRecommendation[]
   healthScores         ProjectHealthScore[]
   testRuns             TestRun[]
-  dataQualityRules     DataQualityRule[]
   projectGoals         ProjectGoal[]
   knowledgeMap         ProjectKnowledgeMap?
   blueprintImports     BlueprintImport[]
@@ -138,7 +141,16 @@ model ProjectState {
   graphLinks       Json     @default("[]") @map("graph_links") // { id, sourceId, targetId, label? }[]
   activeFocus      String?  @map("active_focus")
   definitionOfDone String?  @map("definition_of_done")
+  // Marca d'água do refresh incremental (`ts > updatedAt`). Avança em TODA escrita —
+  // é o que ela precisa fazer para não reprocessar evento. Não serve como idade.
   updatedAt        DateTime @updatedAt @map("updated_at")
+  // Idade do CONTEÚDO, separada da marca d'água. Só avança quando o hash dos campos
+  // semânticos muda — ver ProjectStateService.hashConteudo(). Sem essa separação, um
+  // refresh que consome eventos e mantém a descrição zera o contador e a data atesta
+  // um frescor que o texto não tem (medido no Commerce: objetivo de 24/06 servido como
+  // se fosse de hoje). Nulo = nunca calculado; o backfill preenche.
+  contentHash      String?  @map("content_hash")
+  contentChangedAt DateTime? @map("content_changed_at")
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
@@ -225,20 +237,6 @@ model WikiSourceReference {
   @@map("wiki_source_references")
 }
 
-model TaskLog {
-  id        String   @id @default(uuid())
-  module    String
-  action    String
-  payload   Json
-  status    String   @default("pending")
-  result    Json?
-  error     String?
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  @@map("task_logs")
-}
-
 model TestRun {
   id          String   @id @default(uuid())
   projectId   String?  @map("project_id")
@@ -259,76 +257,6 @@ model TestRun {
 
   @@index([projectId, executedAt(sort: Desc)])
   @@map("test_runs")
-}
-
-model DataQualityRule {
-  id         String   @id @default(uuid())
-  projectId  String?  @map("project_id")
-  dataset    String
-  field      String?
-  ruleType   String   @map("rule_type") // not_null | unique | range | regex | custom | freshness
-  definition Json     @default("{}")    // params: { min, max, pattern, maxAgeHours, sql }
-  severity   String   @default("warning") // critical | warning | info
-  active     Boolean  @default(true)
-  createdAt  DateTime @default(now()) @map("created_at")
-
-  project Project?            @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  results DataQualityResult[]
-
-  @@index([projectId, dataset])
-  @@map("data_quality_rules")
-}
-
-model DataQualityResult {
-  id        String   @id @default(uuid())
-  ruleId    String   @map("rule_id")
-  passed    Boolean
-  score     Float    // 0.0 a 1.0
-  detail    Json?    // exemplos de registros que falharam
-  checkedAt DateTime @default(now()) @map("checked_at")
-
-  rule DataQualityRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
-
-  @@index([ruleId, checkedAt(sort: Desc)])
-  @@map("data_quality_results")
-}
-
-model DataAsset {
-  id           String   @id @default(uuid())
-  projectId    String?  @map("project_id")
-  name         String
-  type         String   // table | api | file | stream | external
-  description  String?
-  owner        String?
-  sensitivity  String   @default("internal") // public | internal | confidential | restricted
-  containsPII  Boolean  @default(false) @map("contains_pii")
-  piiFields    Json?    @map("pii_fields")   // string[] of field names with PII
-  source       String?
-  consumers    Json?                          // string[] of systems/teams
-  updateFreq   String?  @map("update_freq")  // real-time | daily | weekly | manual
-  notes        String?
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-
-  lineageFrom DataLineageEdge[] @relation("LineageTarget")
-  lineageTo   DataLineageEdge[] @relation("LineageSource")
-
-  @@index([projectId])
-  @@map("data_assets")
-}
-
-model DataLineageEdge {
-  id             String   @id @default(uuid())
-  sourceId       String   @map("source_id")
-  targetId       String   @map("target_id")
-  transformation String?  // descrição da transformação ex: "ETL aggregation"
-  createdAt      DateTime @default(now()) @map("created_at")
-
-  source DataAsset @relation("LineageSource", fields: [sourceId], references: [id], onDelete: Cascade)
-  target DataAsset @relation("LineageTarget", fields: [targetId], references: [id], onDelete: Cascade)
-
-  @@unique([sourceId, targetId])
-  @@map("data_lineage_edges")
 }
 
 model SchemaSnapshot {
@@ -433,6 +361,43 @@ model AgentSession {
   @@map("agent_sessions")
 }
 
+/// Aprovacao humana para execucao de risco alto — Fase 5-A de docs/plano-execucao-tipada.md.
+///
+/// Ate 2026-09-08 bastava `force: true` no payload para executar risco `high`: quem montava o
+/// payload concedia a propria aprovacao, e o LLM monta payload. Nao havia aprovacao, havia um
+/// campo com nome de aprovacao.
+///
+/// A aprovacao e criada no SERVIDOR, por quem tem `APPROVAL_TOKEN` — credencial que o agent
+/// deliberadamente NAO possui, senao autoaprovacao continuaria possivel com outro nome. Ela vale
+/// para um par (acao + argumentos) especifico, expira, e e consumida uma unica vez.
+model ExecutionApproval {
+  id            String    @id @default(uuid())
+  /// Ex.: `jarvis:run_command`. A capability autorizada, nunca "qualquer coisa".
+  actionKey     String    @map("action_key")
+  /// sha256 do canonico (acao + ator + recurso + argumentos ordenados). Argumento diferente,
+  /// hash diferente, aprovacao nao serve — e o que impede trocar o comando depois do aceite.
+  argsHash      String    @map("args_hash")
+  /// Quem vai EXECUTAR (o agent/role), nao quem aprovou.
+  actor         String
+  /// Diretorio/projeto alvo. Faz parte do hash: aprovar num repo nao aprova noutro.
+  resource      String?
+  /// Identificador de quem aprovou. Nao e o `actor`.
+  /// Identidade DERIVADA do principal autenticado pelo guard — nunca lida do corpo. Antes era
+  /// um campo de auditoria preenchido por quem esta sendo auditado.
+  createdBy     String    @map("created_by")
+  createdByType String    @default("desconhecido") @map("created_by_type")
+  expiresAt     DateTime  @map("expires_at")
+  consumedAt    DateTime? @map("consumed_at")
+  consumedByTask String?  @map("consumed_by_task")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  /// Parcial nao da para expressar aqui; a unicidade real e garantida no UPDATE condicional
+  /// (`consumedAt: null`), que e atomico. O indice existe para a busca.
+  @@index([actionKey, argsHash, consumedAt])
+  @@index([expiresAt])
+  @@map("execution_approvals")
+}
+
 model AgentAuditLog {
   id          String   @id @default(uuid())
   taskId      String   @map("task_id")
@@ -449,6 +414,11 @@ model AgentAuditLog {
   workspace   String?
   hostname    String?
   targetRole  String?  @map("target_role")
+  /// Item C.3 do plano de execução tipada — identidade de quem aprovou a execução (Fase 7,
+  /// caso 4). Vem de `ExecutionApproval.createdBy`, via `decidir()` (`apps/agent`) →
+  /// `RunCommandResult.aprovadoPor` → `poller.ts`. Nulo quando a ação não exigiu aprovação
+  /// (risco baixo, capability none) ou nunca foi consumida (dryRun, recusa).
+  approvedBy  String?  @map("approved_by")
   createdAt   DateTime @default(now()) @map("created_at")
 
   @@index([taskId])
@@ -457,13 +427,43 @@ model AgentAuditLog {
   @@map("agent_audit_logs")
 }
 
+/// Vínculo canal ↔ projeto. A chave é (chat, tópico) e não só o chat, porque os quatro
+/// arranjos que interessam colapsam nessa mesma forma: conversa privada e grupo simples
+/// usam `threadId` vazio; supergrupo com tópicos usa um por projeto; e o grupo do
+/// WhatsApp entra depois pelo mesmo contrato, sem integração separada.
+///
+/// `threadId` é String com default `""` e NÃO nullable de propósito: no Postgres, NULLs
+/// são distintos entre si num índice único, então `@@unique([chatId, threadId])` com
+/// NULL permitiria duas linhas para o mesmo chat — exatamente o que a chave existe para
+/// impedir.
 model TelegramSession {
   id             String   @id @default(uuid())
-  telegramChatId String   @unique @map("telegram_chat_id")
+  telegramChatId String   @map("telegram_chat_id")
+  threadId       String   @default("") @map("thread_id")
   sessionId      String   @default(uuid()) @map("session_id")
   projectId      String?  @map("project_id")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
+  @@unique([telegramChatId, threadId])
   @@map("telegram_sessions")
+}
+
+/// Quais chats o bot atende.
+///
+/// Até 2026-09-06 a autorização era `fromId !== TELEGRAM_CHAT_ID` — um valor único, e a
+/// única barreira entre um estranho e o `/orchestrate` inteiro. Aceitar mais de um chat
+/// sem substituir isso seria aceitar todos.
+///
+/// Chat desconhecido é REGISTRADO e não respondido: o bot fica em silêncio (não confirma
+/// nem a própria existência) e a linha aparece para o dono autorizar de dentro do chat
+/// raiz. Sem isso, descobrir o `chatId` de um grupo novo exigiria ler log de servidor.
+model TelegramChat {
+  chatId      String   @id @map("chat_id")
+  title       String?
+  authorized  Boolean  @default(false)
+  firstSeenAt DateTime @default(now()) @map("first_seen_at")
+  lastSeenAt  DateTime @updatedAt @map("last_seen_at")
+
+  @@map("telegram_chats")
 }

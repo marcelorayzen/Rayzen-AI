@@ -1,7 +1,38 @@
 'use strict'
-import { execSync } from 'child_process'
-import { resolve } from 'path'
+import { existsSync, readFileSync } from 'fs'
+import { resolve, join, dirname } from 'path'
 import { isUnderSafeRoot } from '../utils/path-guard'
+import { executarPrograma, ambientePadrao } from '../exec/executar-programa'
+
+/**
+ * Achado emergencial em 11/09, mesma classe de `git.ts`/`prisma.ts` — mesmo ponto cego do
+ * scanner (`docs/exec-paths.md` só olha a mesma linha da chamada `execSync`; aqui `cmd` era
+ * montado num `switch` várias linhas antes de chegar em `execSync(cmd, {...})`).
+ *
+ * Aqui era o PIOR dos três: **seis pontos de injeção**, um por runner, todos pela mesma
+ * forma — `filter`/`collectionPath`/`environment` do payload, interpolados dentro de aspas
+ * duplas: `` `pytest -k "${filter}"` ``, `` `mvn test -Dtest="${filter}" -B` ``, etc. É a
+ * mesma técnica confirmada em `gitDiff`/`prisma.ts`: fecha a aspa com `"`, encadeia com `&`.
+ * `jarvis:run_tests` é ação de uso diário, disponível ao role `desktop`.
+ *
+ * ## Três formas de invocar sem shell, uma por família de ferramenta
+ *
+ * | família | exemplo | estratégia |
+ * |---|---|---|
+ * | rodada por `pnpm` | jest, vitest | `entrypointJs('pnpm', ...)` — `pnpm.cmd` não tem lógica condicional, testado em Fase 1 |
+ * | pacote local com `.bin/*.cmd` | playwright, newman | resolve o wrapper local e roda por `node`, mesma técnica de `prisma.ts` |
+ * | binário externo com wrapper `.cmd`/`.bat` de forma desconhecida | mvn, gradle | `cmd.exe /c <script> <argv...>` com args como ELEMENTOS SEPARADOS — proibido para `pnpm`/`npx` (têm forma conhecida e mais segura), aceitável aqui porque não há como extrair o `.js` de um wrapper que invoca Java com classpath |
+ *
+ * A terceira forma foi medida antes de usar: `spawn('cmd.exe', ['/c', 'echo', 'a & echo X'],
+ * {shell:false})` imprime `a & echo X` LITERAL — o Node quota cada elemento do argv ao
+ * montar a linha de comando do Win32, então o `cmd.exe` nunca vê um `&` fora de aspas.
+ * Continua sendo argv, nunca string montada.
+ *
+ * **Não verificado contra instalação real de playwright/newman** — nenhum dos dois está
+ * presente neste monorepo. `mvn`/`gradle` também não. O que está provado é a técnica
+ * (quoting de argv do Node no Windows) e o comportamento com `pnpm`, que já tem teste na
+ * Fase 1. Ver `docs/plano-execucao-tipada.md`.
+ */
 
 export type TestRunner = 'jest' | 'vitest' | 'playwright' | 'maven' | 'gradle' | 'pytest' | 'newman'
 
@@ -159,6 +190,67 @@ function parseNewmanOutput(output: string): Omit<TestRunResult, 'runner' | 'rawO
   return { passed, failed, skipped: 0, total: passed + failed, failures, duration }
 }
 
+// ── Invocação sem shell ────────────────────────────────────────────────────────
+
+/**
+ * Resolve o `.cmd` local de um pacote instalado (`<cwd>/node_modules/.bin/<nome>.cmd`),
+ * andando para cima no diretório até achar — mesma busca que o Node faz para `node_modules`,
+ * escopada ao PROJETO ALVO. Reusa o parser de wrapper de `resolverEntrypointJs` (mesmo
+ * formato `%~dp0\node.exe %~dp0\...\*.js` que `.bin` de pacote Node sempre tem).
+ */
+function localBinCmd(nome: string, cwd: string): string | null {
+  let dir = resolve(cwd)
+  for (;;) {
+    const candidato = join(dir, 'node_modules', '.bin', `${nome}.cmd`)
+    if (existsSync(candidato)) return candidato
+    const pai = dirname(dir)
+    if (pai === dir) return null
+    dir = pai
+  }
+}
+
+async function rodarViaPnpm(args: string[], cwd: string, timeoutMs: number): Promise<string> {
+  const r = await executarPrograma('entrypointJs', 'pnpm', args, { cwd, env: ambientePadrao(), timeoutMs })
+  return juntarSaida(r)
+}
+
+/** Playwright/newman: pacote local, `.bin/<nome>.cmd` — mesma técnica de `prisma.ts`. */
+async function rodarBinLocal(nome: string, args: string[], cwd: string, timeoutMs: number): Promise<string> {
+  const wrapper = localBinCmd(nome, cwd)
+  if (!wrapper) throw new Error(`"${nome}" não encontrado em node_modules/.bin de ${cwd}.`)
+  const conteudo = readFileSync(wrapper, 'utf8')
+  const m = conteudo.match(/%~dp0\\?([^"%\r\n]+\.js)/i)
+  if (!m) throw new Error(`Não consegui extrair o .js do wrapper de "${nome}" (${wrapper}).`)
+  const js = join(dirname(wrapper), m[1])
+  const r = await executarPrograma('executavel', 'node', [js, ...args], { cwd, env: ambientePadrao(), timeoutMs })
+  return juntarSaida(r)
+}
+
+/**
+ * `mvn`/`gradle`: wrapper `.cmd`/`.bat` que invoca Java com classpath — sem forma simples
+ * para extrair. `cmd.exe /c <script> <argv...>`, argv como ELEMENTOS SEPARADOS: medido em
+ * 11/09 que o Node cota cada elemento ao montar a linha do Win32, então `&`/`|` num valor
+ * nunca escapam da própria aspa — o `cmd.exe` não vê metacaractere solto.
+ */
+async function rodarViaCmdScript(script: string, args: string[], cwd: string, timeoutMs: number): Promise<string> {
+  const r = await executarPrograma('executavel', 'cmd.exe', ['/c', script, ...args], { cwd, env: ambientePadrao(), timeoutMs })
+  return juntarSaida(r)
+}
+
+/**
+ * Teste que FALHA sai com código != 0 — isso é normal, não é erro de execução. A saída
+ * (que o parser de cada runner precisa) vem de qualquer forma; só lança se não houver saída
+ * NENHUMA, o que indica que o binário nem chegou a rodar (mesma semântica do código antigo,
+ * que só relançava quando `stdout`/`stderr` do erro capturado vinham vazios).
+ */
+function juntarSaida(r: { stdout: string; stderr: string; code: number | null }): string {
+  const saida = (r.stdout + (r.stderr ? `\n${r.stderr}` : '')).trim()
+  if (!saida && r.code !== 0) {
+    throw new Error(`Falha ao executar testes: processo saiu com código ${r.code} sem produzir saída.`)
+  }
+  return saida
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export async function runTests(payload: {
@@ -179,73 +271,74 @@ export async function runTests(payload: {
   const runner: TestRunner = payload.runner ?? 'jest'
   const filter = payload.filter
 
-  let cmd: string
   let timeout = 120_000
+  let rawOutput: string
 
   switch (runner) {
     case 'maven':
-      cmd = filter
-        ? `mvn test -Dtest="${filter}" -B`
-        : 'mvn test -B'
       timeout = 300_000
+      rawOutput = await rodarViaCmdScript(
+        'mvn', filter ? ['test', `-Dtest=${filter}`, '-B'] : ['test', '-B'],
+        resolved, timeout,
+      )
       break
 
     case 'gradle': {
-      const gradleCmd = process.platform === 'win32' ? 'gradlew.bat' : './gradlew'
-      cmd = filter
-        ? `${gradleCmd} test --tests "${filter}"`
-        : `${gradleCmd} test`
       timeout = 300_000
+      const gradleScript = process.platform === 'win32' ? 'gradlew.bat' : './gradlew'
+      rawOutput = await rodarViaCmdScript(
+        gradleScript, filter ? ['test', '--tests', filter] : ['test'],
+        resolved, timeout,
+      )
       break
     }
 
     case 'pytest':
-      cmd = filter
-        ? `pytest -v --tb=short -k "${filter}"`
-        : 'pytest -v --tb=short'
       timeout = 180_000
+      // `pytest` no Windows é um .exe de verdade (launcher do pip), não wrapper .cmd —
+      // `executavel` direto, sem entrypointJs nem cmd.exe /c.
+      rawOutput = juntarSaida(await executarPrograma(
+        'executavel', 'pytest',
+        filter ? ['-v', '--tb=short', '-k', filter] : ['-v', '--tb=short'],
+        { cwd: resolved, env: ambientePadrao(), timeoutMs: timeout },
+      ))
       break
 
     case 'newman': {
       const collection = payload.collectionPath ?? 'collection.json'
-      const env = payload.environment ? ` -e "${payload.environment}"` : ''
-      cmd = `newman run "${collection}"${env} --reporters cli`
-      timeout = 120_000
+      const args = ['run', collection, '--reporters', 'cli']
+      if (payload.environment) args.push('-e', payload.environment)
+      rawOutput = await rodarBinLocal('newman', args, resolved, timeout)
       break
     }
 
     case 'playwright':
-      cmd = filter ? `npx playwright test --grep "${filter}"` : 'npx playwright test'
+      rawOutput = await rodarBinLocal(
+        'playwright', filter ? ['test', '--grep', filter] : ['test'],
+        resolved, timeout,
+      )
       break
 
     case 'vitest':
-      cmd = payload.coverage
-        ? 'pnpm vitest run --coverage'
-        : filter
-        ? `pnpm vitest run --reporter=verbose -t "${filter}"`
-        : 'pnpm vitest run'
+      rawOutput = await rodarViaPnpm(
+        payload.coverage
+          ? ['vitest', 'run', '--coverage']
+          : filter
+          ? ['vitest', 'run', '--reporter=verbose', '-t', filter]
+          : ['vitest', 'run'],
+        resolved, timeout,
+      )
       break
 
     default: // jest
-      cmd = payload.coverage
-        ? 'pnpm test:cov --forceExit'
-        : filter
-        ? `pnpm test --testNamePattern="${filter}" --forceExit`
-        : 'pnpm test --forceExit'
-  }
-
-  let rawOutput = ''
-  try {
-    rawOutput = execSync(cmd, {
-      cwd: resolved,
-      encoding: 'utf-8',
-      timeout,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    })
-  } catch (err: unknown) {
-    const execErr = err as { stdout?: string; stderr?: string }
-    rawOutput = (execErr.stdout ?? '') + (execErr.stderr ?? '')
-    if (!rawOutput) throw new Error(`Falha ao executar testes: ${(err as Error).message}`)
+      rawOutput = await rodarViaPnpm(
+        payload.coverage
+          ? ['test:cov', '--forceExit']
+          : filter
+          ? ['test', `--testNamePattern=${filter}`, '--forceExit']
+          : ['test', '--forceExit'],
+        resolved, timeout,
+      )
   }
 
   let parsed: Omit<TestRunResult, 'runner' | 'rawOutput'>

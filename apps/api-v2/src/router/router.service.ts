@@ -274,7 +274,7 @@ export class RouterService {
           content: `Objective: "${dto.objective}"\n\nProject ID: ${dto.projectId}` +
             (brokerCtx ? `\n\nProject context:\n${brokerCtx}` : ''),
         },
-      ], { model: specialist?.model ?? 'gpt-4o', temperature: 0.2 })
+      ], { model: specialist?.model ?? 'gpt-4o', temperature: 0.2, caller: 'router:plan', projectId: dto.projectId })
 
       const parsed = this.llm.extractJson(planResult.content) as { steps: typeof steps }
       steps = parsed.steps ?? []
@@ -322,7 +322,7 @@ export class RouterService {
     }
 
     const questions = riskLevel === 'high'
-      ? await this.generateInterviewQuestions(dto.objective)
+      ? await this.generateInterviewQuestions(dto.objective, dto.projectId)
       : [contract.clarificationNeeded ?? 'Pode detalhar melhor o objetivo antes de prosseguir?']
 
     const gate = await this.gates.create({
@@ -358,7 +358,7 @@ export class RouterService {
 
     const perspectiveIds = Object.keys(PERSPECTIVE_FOCUS) as UltraplanPerspective[]
     const perspectives = await Promise.all(
-      perspectiveIds.map((p) => this.runPerspective(p, dto.objective, contract, steps)),
+      perspectiveIds.map((p) => this.runPerspective(p, dto.objective, contract, steps, dto.projectId)),
     )
 
     const overallVerdict: UltraplanVerdict =
@@ -386,6 +386,7 @@ export class RouterService {
     objective:   string,
     contract:    Omit<IntentContract, 'createdAt'>,
     steps:       Array<{ title: string; prompt: string; executor: string; skillId?: string; risk: string }>,
+    projectId:   string,
   ): Promise<UltraplanPerspectiveResult> {
     try {
       const result = await this.llm.chat([
@@ -396,7 +397,7 @@ export class RouterService {
             steps.map((s, i) => `${i + 1}. [${s.executor}/${s.risk}] ${s.title} — ${s.prompt}`).join('\n')
           }`,
         },
-      ], { model: 'gpt-4o-mini', temperature: 0.1 })
+      ], { model: 'gpt-4o-mini', temperature: 0.1, caller: 'router:ultraplan', projectId })
 
       const parsed = this.llm.extractJson(result.content) as Partial<UltraplanPerspectiveResult>
       const verdict: UltraplanVerdict = parsed.verdict === 'block' || parsed.verdict === 'concern' ? parsed.verdict : 'ok'
@@ -417,12 +418,12 @@ export class RouterService {
     }
   }
 
-  private async generateInterviewQuestions(objective: string): Promise<string[]> {
+  private async generateInterviewQuestions(objective: string, projectId: string): Promise<string[]> {
     try {
       const result = await this.llm.chat([
         { role: 'system', content: INTERVIEW_SYSTEM },
         { role: 'user', content: `Objective: "${objective}"` },
-      ], { model: 'gpt-4o-mini', temperature: 0.2 })
+      ], { model: 'gpt-4o-mini', temperature: 0.2, caller: 'router:interview', projectId })
       const parsed = this.llm.extractJson(result.content) as { questions?: string[] }
       return parsed.questions?.length ? parsed.questions : ['Qual o plano de rollback se esta ação falhar?']
     } catch (e) {
@@ -453,7 +454,7 @@ export class RouterService {
           role: 'user',
           content: `Message: "${dto.content}"\n\nProject context: ${projectCtx || 'none'}`,
         },
-      ], { model: 'gpt-4o-mini', temperature: 0 })
+      ], { model: 'gpt-4o-mini', temperature: 0, caller: 'router:classify-intent', projectId: dto.projectId })
 
       const parsed = this.llm.extractJson(result.content) as {
         intentType:          IntentType
@@ -630,7 +631,7 @@ export class RouterService {
           content: `Objective: "${dto.content}"\n\nProject ID: ${dto.projectId}` +
             (brokerCtx ? `\n\nProject context:\n${brokerCtx}` : ''),
         },
-      ], { model: specialist?.model ?? 'gpt-4o', temperature: 0.2 })
+      ], { model: specialist?.model ?? 'gpt-4o', temperature: 0.2, caller: 'router:mission', projectId: dto.projectId })
       planRaw = planResult.content
 
       const parsed = this.llm.extractJson(planRaw) as { steps: typeof steps }
@@ -732,7 +733,7 @@ export class RouterService {
     const result = await this.llm.chat([
       { role: 'system', content: systemPrompt },
       { role: 'user',   content: dto.content },
-    ], { model: 'gpt-4o', temperature: 0.7 })
+    ], { model: 'gpt-4o', temperature: 0.7, caller: 'router:chat', projectId: dto.projectId })
 
     return {
       ...contract,
