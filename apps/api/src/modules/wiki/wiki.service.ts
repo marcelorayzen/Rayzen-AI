@@ -1,0 +1,476 @@
+import { Injectable, NotFoundException, Logger } from '@nestjs/common'
+import { PrismaService } from '../../prisma/prisma.service'
+import { EventService } from '../event/event.service'
+import { BrainService } from '../brain/brain.service'
+import { MemoryService } from '../memory/memory.service'
+import { WikiCompilationService } from './wiki-compilation.service'
+import { WikiMergeService, EditStatus } from './wiki-merge.service'
+import { WikiVersioningService } from './wiki-versioning.service'
+import { WikiPage, WikiPageVersion, WikiSourceReference } from '@prisma/client'
+import { CacheService } from '../cache/cache.service'
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface WikiIndexInput {
+  type: 'url' | 'text'
+  source: string
+  projectId?: string
+}
+
+export interface WikiIndexResult {
+  pageId: string
+  slug: string
+  title: string
+  status: 'created' | 'recompiled' | 'skipped'
+  skipReason?: string
+}
+
+export type WikiPageDetail = WikiPage & {
+  versions: WikiPageVersion[]
+  sources: (WikiSourceReference & { document: { sourcePath: string | null; content: string } })[]
+}
+
+// Write-back: aprendizado estruturado capturado pelo Claude após resolver um problema.
+// runbook = procedimento repetível · troubleshooting = "quando X falha, faça Y" ·
+// pattern = abordagem reutilizável · gotcha = armadilha a evitar.
+export type LearningType = 'runbook' | 'troubleshooting' | 'decision' | 'pattern' | 'gotcha'
+
+export interface CaptureLearningInput {
+  title: string
+  problem: string
+  solution: string
+  type?: LearningType
+  tags?: string[]
+  projectId?: string
+}
+
+export interface CaptureLearningResult {
+  pageId: string
+  slug: string
+  title: string
+  learningType: LearningType
+  tags: string[]
+  documentId: string | null
+  status: 'created' | 'updated'
+  /** Presente quando a indexação semântica falhou — a wiki page foi salva mas não reaparece em busca até reindexar. */
+  indexWarning?: string
+}
+
+// ─── Service ──────────────────────────────────────────────────────────────────
+
+@Injectable()
+export class WikiService {
+  private readonly logger = new Logger(WikiService.name)
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly brain: BrainService,
+    private readonly memory: MemoryService,
+    private readonly compilation: WikiCompilationService,
+    private readonly merge: WikiMergeService,
+    private readonly versioning: WikiVersioningService,
+    private readonly eventService: EventService,
+    private readonly cache: CacheService,
+  ) {}
+
+  // ─── Slug uniqueness ────────────────────────────────────────────────────────
+
+  private async uniqueSlug(base: string): Promise<string> {
+    let candidate = base
+    let i = 2
+    while (await this.prisma.wikiPage.findFirst({ where: { slug: candidate } })) {
+      candidate = `${base}-${i++}`
+    }
+    return candidate
+  }
+
+  // ─── Find related pages ─────────────────────────────────────────────────────
+
+  private async findRelated(keywords: string[], excludeSlug: string, projectId?: string): Promise<string[]> {
+    if (keywords.length === 0) return []
+    const pages = await this.prisma.wikiPage.findMany({
+      where: {
+        slug: { not: excludeSlug },
+        ...(projectId ? { sources: { some: { document: { projectId } } } } : {}),
+      },
+      select: { slug: true, title: true, tags: true },
+    })
+    return pages
+      .filter((p) => {
+        const text = `${p.title} ${p.tags.join(' ')}`.toLowerCase()
+        return keywords.some((kw) => text.includes(kw.toLowerCase()))
+      })
+      .map((p) => p.slug)
+      .slice(0, 4)
+  }
+
+  // ─── Link sources ────────────────────────────────────────────────────────────
+
+  private async linkSources(
+    pageId: string,
+    sources: Array<{ id: string; score: number }>,
+  ): Promise<void> {
+    for (const src of sources) {
+      await this.prisma.wikiSourceReference.upsert({
+        where: { pageId_documentId: { pageId, documentId: src.id } },
+        create: { pageId, documentId: src.id, relevanceScore: src.score },
+        update: { relevanceScore: src.score, usedAt: new Date() },
+      })
+    }
+  }
+
+  // ─── Index (full pipeline) ───────────────────────────────────────────────────
+
+  async index(input: WikiIndexInput, force = false): Promise<WikiIndexResult> {
+    // 1. Indexar no Brain (fonte bruta + embedding)
+    let documentIds: string[]
+    if (input.type === 'url') {
+      const result = await this.brain.indexUrl(input.source)
+      documentIds = result.documentIds
+    } else {
+      const result = await this.brain.indexText(input.source)
+      documentIds = result.documentIds
+    }
+
+    // 2. Recuperar fontes relevantes para contexto de compilação
+    const rawContent = input.type === 'text' ? input.source : input.source
+    const sources = await this.brain.search(rawContent.slice(0, 200), 5)
+
+    // 3. Compilar draft via LLM
+    const draft = await this.compilation.compile(
+      input.type === 'text' ? input.source : rawContent,
+      sources,
+    )
+
+    const slug = this.compilation.toSlug(draft.slug || draft.title)
+
+    // 4. Verificar se WikiPage já existe
+    const existing = await this.prisma.wikiPage.findFirst({ where: { slug } })
+
+    if (!existing) {
+      // 4a. Criar nova página
+      const finalSlug = await this.uniqueSlug(slug)
+      const related = await this.findRelated(draft.relatedKeywords, finalSlug, input.projectId)
+
+      const page = await this.prisma.wikiPage.create({
+        data: {
+          slug: finalSlug,
+          title: draft.title,
+          tags: draft.tags,
+          contentMd: draft.contentMd,
+          related,
+          editStatus: 'generated',
+        },
+      })
+
+      await this.versioning.createVersion({
+        pageId: page.id,
+        contentMd: draft.contentMd,
+        reason: 'compiled',
+        authorType: 'llm',
+      })
+
+      await this.linkSources(page.id, sources.map((s) => ({ id: s.id, score: s.score })))
+
+      this.eventService.create({
+        source: 'brain',
+        type: 'index',
+        content: `Wiki criada: ${draft.title}`,
+        metadata: { slug: finalSlug, documentIds },
+      }).catch(() => null)
+
+      return { pageId: page.id, slug: finalSlug, title: draft.title, status: 'created' }
+    }
+
+    // 4b. Página existe — aplicar merge/diff
+    const mergeResult = this.merge.merge(
+      existing.contentMd,
+      draft.contentMd,
+      existing.editStatus as EditStatus,
+      force,
+    )
+
+    if (mergeResult.skipped) {
+      return {
+        pageId: existing.id,
+        slug: existing.slug,
+        title: existing.title,
+        status: 'skipped',
+        skipReason: mergeResult.skipReason,
+      }
+    }
+
+    const related = await this.findRelated(draft.relatedKeywords, existing.slug, input.projectId)
+
+    await this.prisma.wikiPage.update({
+      where: { id: existing.id },
+      data: {
+        title: draft.title,
+        tags: draft.tags,
+        contentMd: mergeResult.contentMd,
+        related,
+        compiledAt: new Date(),
+      },
+    })
+
+    await this.versioning.createVersion({
+      pageId: existing.id,
+      contentMd: mergeResult.contentMd,
+      reason: 'recompiled',
+      authorType: 'llm',
+      diff: mergeResult.diff,
+    })
+
+    await this.linkSources(existing.id, sources.map((s) => ({ id: s.id, score: s.score })))
+
+    this.eventService.create({
+      source: 'brain',
+      type: 'index',
+      content: `Wiki recompilada: ${draft.title}`,
+      metadata: { slug: existing.slug, diff: mergeResult.diff },
+    }).catch(() => null)
+
+    return { pageId: existing.id, slug: existing.slug, title: draft.title, status: 'recompiled' }
+  }
+
+  // ─── List ────────────────────────────────────────────────────────────────────
+
+  async list(): Promise<WikiPage[]> {
+    return this.prisma.wikiPage.findMany({
+      orderBy: { compiledAt: 'desc' },
+    })
+  }
+
+  // ─── Get by slug ─────────────────────────────────────────────────────────────
+
+  async getBySlug(slug: string): Promise<WikiPageDetail> {
+    const cacheKey = `wiki:${slug}`
+    const cached = await this.cache.get<WikiPageDetail>(cacheKey)
+    if (cached) return cached
+
+    const page = await this.prisma.wikiPage.findFirst({
+      where: { slug },
+      include: {
+        versions: { orderBy: { createdAt: 'desc' }, take: 10 },
+        sources: {
+          include: { document: { select: { sourcePath: true, content: true } } },
+          orderBy: { relevanceScore: 'desc' },
+        },
+      },
+    })
+    if (!page) throw new NotFoundException(`Nota não encontrada: ${slug}`)
+    await this.cache.set(cacheKey, page, 900)  // 15 min
+    return page
+  }
+
+  // ─── Create (direct, sem LLM) ───────────────────────────────────────────────
+
+  // projectId opcional: quando o chamador conhece o projeto, a página nasce vinculada.
+  // Sem ele a wiki fica órfã e não aparece em nenhum filtro por projeto — era assim que
+  // 94 de 110 páginas ficaram sem dono (ver incidente da Urna, 2026-08-03).
+  async create(slug: string, title: string, contentMd: string, projectId?: string): Promise<WikiPage> {
+    const existing = await this.prisma.wikiPage.findFirst({ where: { slug } })
+    if (existing) {
+      return this.prisma.wikiPage.update({
+        where: { id: existing.id },
+        data: {
+          title,
+          contentMd,
+          editStatus: 'human_edited',
+          // só preenche se veio agora — nunca apaga um vínculo já existente
+          ...(projectId && !existing.projectId ? { projectId } : {}),
+        },
+      })
+    }
+    return this.prisma.wikiPage.create({
+      data: { slug, title, contentMd, editStatus: 'human_edited', ...(projectId ? { projectId } : {}) },
+    })
+  }
+
+  // ─── Capture learning (write-back loop) ──────────────────────────────────────
+  // O Claude chama isto depois de resolver um problema. Grava um aprendizado
+  // estruturado como WikiPage E indexa no Brain COM projectId — esse índice é o que
+  // faz o runbook ressurgir em rayzen_get_context (seção memory_relevant, que filtra
+  // por project_id) e em rayzen_search_memory na próxima sessão. Fecha o loop.
+
+  private formatLearningMarkdown(input: CaptureLearningInput, learningType: LearningType, tags: string[]): string {
+    const tagLine = tags.length ? `  ·  ${tags.map((t) => `\`${t}\``).join(' ')}` : ''
+    return [
+      `# ${input.title}`,
+      '',
+      `> **Tipo:** ${learningType}${tagLine}  ·  capturado em ${new Date().toISOString().slice(0, 10)}`,
+      '',
+      '## Problema',
+      input.problem.trim(),
+      '',
+      '## Solução',
+      input.solution.trim(),
+      '',
+    ].join('\n')
+  }
+
+  async captureLearning(input: CaptureLearningInput): Promise<CaptureLearningResult> {
+    const learningType: LearningType = input.type ?? 'troubleshooting'
+    const tags = Array.from(
+      new Set([learningType, ...(input.tags ?? [])].map((t) => t.toLowerCase().trim()).filter(Boolean)),
+    )
+    const contentMd = this.formatLearningMarkdown(input, learningType, tags)
+    const slug = this.compilation.toSlug(input.title) || `learning-${Date.now()}`
+
+    // Runbook é documento vivo: re-capturar o mesmo título atualiza (upsert por slug+projeto),
+    // não cria duplicata. Escopo por projectId quando disponível para evitar colisões entre projetos.
+    const existing = await this.prisma.wikiPage.findFirst({
+      where: input.projectId ? { slug, projectId: input.projectId } : { slug },
+    })
+
+    const page = existing
+      ? await this.prisma.wikiPage.update({
+          where: { id: existing.id },
+          data: { title: input.title, tags, contentMd, compiledAt: new Date() },
+        })
+      : await this.prisma.wikiPage.create({
+          data: { slug, projectId: input.projectId ?? null, title: input.title, tags, contentMd, editStatus: 'generated' },
+        })
+
+    await this.versioning.createVersion({
+      pageId: page.id,
+      contentMd,
+      reason: existing ? 'recompiled' : 'compiled',
+      authorType: 'llm',
+    })
+
+    // Índice semântico ESCOPADO por projeto (MemoryService grava project_id; BrainService não).
+    // A wiki page já está commitada acima; se a indexação (Jina) falhar, NÃO perdemos o
+    // aprendizado — degradamos com aviso visível para que possa ser reindexado depois.
+    let indexed: { id: string } | null = null
+    let indexWarning: string | undefined
+    try {
+      indexed = await this.indexLearningWithRetry(contentMd, slug, input.title, learningType, tags, input.projectId)
+    } catch (e) {
+      indexWarning = e instanceof Error ? e.message : String(e)
+      this.logger.warn(
+        `captureLearning: indexação semântica falhou para "${slug}" (projeto ${input.projectId ?? 'none'}). ` +
+        `A wiki page foi salva, mas NÃO reaparecerá em rayzen_get_context até reindexar. Causa: ${indexWarning}`,
+      )
+    }
+
+    if (indexed) {
+      await this.linkSources(page.id, [{ id: indexed.id, score: 1 }])
+    }
+
+    // `note` + `reference`, nunca `decision` (13/11). Aprendizado é conhecimento, não escolha de
+    // alguém: como `decision`, cada captura entrava em `recentDecisions` — que desde 19/09 vem SÓ
+    // de `type: 'decision'`. Medido no Rayzen AI: as duas "decisões" mais recentes eram o mesmo
+    // "Flaky: …" capturado duas vezes pelo QA, e com diagnóstico errado. Quem achou foi o Hub.
+    this.eventService.create({
+      projectId: input.projectId,
+      source: 'brain',
+      type: 'note',
+      intent: 'reference',
+      content: `Aprendizado capturado (${learningType}): ${input.title}${indexWarning ? ' [indexação pendente]' : ''}`,
+      metadata: { slug, learningType, tags, documentId: indexed?.id ?? null, indexWarning },
+    }).catch(() => null)
+
+    await this.cache.del(`wiki:${slug}`)
+
+    return {
+      pageId: page.id,
+      slug,
+      title: input.title,
+      learningType,
+      tags,
+      documentId: indexed?.id ?? null,
+      status: existing ? 'updated' : 'created',
+      ...(indexWarning ? { indexWarning } : {}),
+    }
+  }
+
+  /** Indexa um aprendizado no Brain com 1 retry para blips transitórios do Jina. */
+  private async indexLearningWithRetry(
+    contentMd: string,
+    slug: string,
+    title: string,
+    learningType: LearningType,
+    tags: string[],
+    projectId?: string,
+    attempts = 2,
+  ): Promise<{ id: string }> {
+    let lastErr: unknown
+    for (let i = 0; i < attempts; i++) {
+      try {
+        return await this.memory.indexDocument(
+          contentMd,
+          `learning/${slug}`,
+          { type: 'learning', learningType, tags, slug, groupKey: `learning/${slug}`, groupLabel: title },
+          projectId,
+        )
+      } catch (e) {
+        lastErr = e
+        if (i < attempts - 1) await new Promise((r) => setTimeout(r, 400))
+      }
+    }
+    throw lastErr
+  }
+
+  // ─── Update (human edit) ─────────────────────────────────────────────────────
+
+  async update(slug: string, contentMd: string): Promise<WikiPage> {
+    const page = await this.prisma.wikiPage.findFirst({ where: { slug } })
+    if (!page) throw new NotFoundException(`Nota não encontrada: ${slug}`)
+
+    const diff = this.merge.computeDiff(page.contentMd, contentMd)
+
+    const updated = await this.prisma.wikiPage.update({
+      where: { id: page.id },
+      data: { contentMd, editStatus: 'human_edited' },
+    })
+
+    await this.versioning.createVersion({
+      pageId: page.id,
+      contentMd,
+      reason: 'manual',
+      authorType: 'human',
+      diff,
+    })
+
+    this.eventService.create({
+      source: 'brain',
+      type: 'note',
+      content: `Wiki editada: ${slug}`,
+      metadata: { slug, diff },
+    }).catch(() => null)
+
+    await this.cache.del(`wiki:${slug}`)
+    return updated
+  }
+
+  // ─── Delete ──────────────────────────────────────────────────────────────────
+
+  async delete(slug: string): Promise<{ deleted: boolean }> {
+    const page = await this.prisma.wikiPage.findFirst({ where: { slug } })
+    if (!page) throw new NotFoundException(`Nota não encontrada: ${slug}`)
+    await this.prisma.wikiPage.delete({ where: { id: page.id } })
+    await this.cache.del(`wiki:${slug}`)
+    return { deleted: true }
+  }
+
+  // ─── Versions ────────────────────────────────────────────────────────────────
+
+  async listVersions(slug: string): Promise<WikiPageVersion[]> {
+    const page = await this.prisma.wikiPage.findFirst({ where: { slug } })
+    if (!page) throw new NotFoundException(`Nota não encontrada: ${slug}`)
+    return this.versioning.listVersions(page.id)
+  }
+
+  // ─── Sources ─────────────────────────────────────────────────────────────────
+
+  async listSources(slug: string) {
+    const page = await this.prisma.wikiPage.findFirst({ where: { slug } })
+    if (!page) throw new NotFoundException(`Nota não encontrada: ${slug}`)
+    return this.prisma.wikiSourceReference.findMany({
+      where: { pageId: page.id },
+      include: { document: { select: { id: true, sourcePath: true, createdAt: true } } },
+      orderBy: { relevanceScore: 'desc' },
+    })
+  }
+}

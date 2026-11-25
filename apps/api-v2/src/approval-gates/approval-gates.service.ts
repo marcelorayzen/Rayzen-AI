@@ -1,0 +1,325 @@
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common'
+import { PrismaV2Service } from '../core/prisma-v2.service'
+import { EventsService } from '../gateway/events.service'
+import { MissionService } from '../mission/mission.service'
+
+export type ApprovalGateType = 'code_deploy' | 'data_write' | 'external_api' | 'irreversible' | 'high_cost' | 'specialist_spawn' | 'clarification' | 'strategy_promotion' | 'guardian_review'
+export type ApprovalStatus   = 'pending' | 'approved' | 'rejected' | 'expired'
+export type GuardianRiskLevel = 'low' | 'medium' | 'high' | 'critical'
+
+// Skills de risco médio expiram em 30min; alto risco não expiram automaticamente
+const TTL: Record<string, number> = {
+  medium: 30 * 60 * 1000,   // 30 min
+  high:   7  * 24 * 60 * 60 * 1000, // 7 dias — obrigatório manual
+}
+
+export interface CreateGateDto {
+  projectId:    string
+  missionId?:   string   // optional — policy-triggered gates have no mission context
+  stepId?:      string   // optional — policy-triggered gates have no step context
+  type:         ApprovalGateType
+  description:  string
+  context?:     Record<string, unknown>
+  riskLevel?:   'medium' | 'high'
+  autoOnExpiry?: 'reject' | 'approve' | 'pause'
+}
+
+@Injectable()
+export class ApprovalGatesService {
+  private readonly logger = new Logger(ApprovalGatesService.name)
+
+  // Injetado tardiamente por EvolutionaryService.onModuleInit() — o EvolutionaryService
+  // já depende deste serviço, então a dependência direta seria circular. Mesmo padrão
+  // já usado em AiRouterService.setEvolutionary().
+  private evolutionary: { promote: (strategyId: string) => Promise<unknown> } | null = null
+
+  setEvolutionary(svc: { promote: (strategyId: string) => Promise<unknown> }) {
+    this.evolutionary = svc
+  }
+
+  constructor(
+    private readonly prisma: PrismaV2Service,
+    private readonly events: EventsService,
+    private readonly missions: MissionService,
+  ) {}
+
+  async create(dto: CreateGateDto) {
+    if (!dto.projectId?.trim()) {
+      throw new BadRequestException('ApprovalGate.create: projectId é obrigatório')
+    }
+    const ttl = TTL[dto.riskLevel ?? 'high']
+    return this.prisma.approvalGate.create({
+      data: {
+        projectId:    dto.projectId,
+        missionId:    dto.missionId ?? null,
+        stepId:       dto.stepId    ?? null,
+        type:         dto.type,
+        description:  dto.description,
+        context:      (dto.context ?? {}) as object,
+        status:       'pending',
+        expiresAt:    new Date(Date.now() + ttl),
+        autoOnExpiry: dto.autoOnExpiry ?? (dto.riskLevel === 'medium' ? 'reject' : 'pause'),
+      },
+    })
+  }
+
+  async findPending(projectId?: string, missionId?: string) {
+    await this.expireStale()
+    return this.prisma.approvalGate.findMany({
+      where: {
+        status: 'pending',
+        ...(projectId ? { projectId } : {}),
+        ...(missionId ? { missionId } : {}),
+      },
+      orderBy: { createdAt: 'asc' },
+    })
+  }
+
+  async findOne(id: string) {
+    const gate = await this.prisma.approvalGate.findUnique({ where: { id } })
+    if (!gate) throw new NotFoundException(`ApprovalGate ${id} not found`)
+    return gate
+  }
+
+  async approve(id: string, approvedBy: string, comment?: string) {
+    // Atualização condicional atômica: elimina corrida entre dois aprovadores simultâneos
+    const result = await this.prisma.approvalGate.updateMany({
+      where: { id, status: 'pending' },
+      data: { status: 'approved', approvedBy, approvedAt: new Date(), comment },
+    })
+    if (result.count === 0) {
+      const gate = await this.findOne(id)
+      throw new BadRequestException(`Gate is already ${gate.status}`)
+    }
+
+    const gate = await this.findOne(id)
+    await this.aplicarEfeitoDaAprovacao(gate)
+    return gate
+  }
+
+  /**
+   * Aprovar um gate precisa FAZER a coisa, não só mudar o status.
+   *
+   * Achado em produção (2026-08-12): o gate 1283c977 estava `approved` — "promover
+   * d3cc9a40 para summarize" — e a estratégia continuava `candidate`, com
+   * `promoted_at` null. `EvolutionaryService.promote()` existe e faz o certo, mas
+   * nada o chamava: approve() só virava o status e retornava. O humano aprovava,
+   * a UI mostrava aprovado, e nada acontecia.
+   *
+   * É a mesma classe do bug do motor de missões, em que gate aprovado nunca
+   * executava de fato. Falha em silêncio nos dois casos: o estado final "aprovado"
+   * é indistinguível de "aprovado e aplicado".
+   */
+  private async aplicarEfeitoDaAprovacao(gate: { id: string; type: string; context: unknown }): Promise<void> {
+    if (gate.type !== 'strategy_promotion') return
+
+    const ctx = (gate.context ?? {}) as { strategyId?: string; taskType?: string }
+    if (!ctx.strategyId) {
+      this.logger.warn(`Gate ${gate.id} aprovado sem strategyId no context — nada a promover`)
+      return
+    }
+    if (!this.evolutionary) {
+      this.logger.error(`Gate ${gate.id} aprovado mas EvolutionaryService não está injetado — estratégia ${ctx.strategyId} NÃO foi promovida`)
+      return
+    }
+
+    try {
+      await this.evolutionary.promote(ctx.strategyId)
+      this.logger.log(`Gate ${gate.id} aprovado → estratégia ${ctx.strategyId} promovida (${ctx.taskType ?? 'taskType desconhecido'})`)
+    } catch (e) {
+      this.logger.error(`Gate ${gate.id} aprovado mas a promoção de ${ctx.strategyId} falhou: ${e}`)
+    }
+  }
+
+  async reject(id: string, approvedBy: string, comment?: string) {
+    // Atualização condicional atômica: elimina corrida entre dois aprovadores simultâneos
+    const result = await this.prisma.approvalGate.updateMany({
+      where: { id, status: 'pending' },
+      data: { status: 'rejected', approvedBy, approvedAt: new Date(), comment },
+    })
+    if (result.count === 0) {
+      const gate = await this.findOne(id)
+      throw new BadRequestException(`Gate is already ${gate.status}`)
+    }
+    return this.findOne(id)
+  }
+
+  async history(projectId: string, limit = 50) {
+    return this.prisma.approvalGate.findMany({
+      where:   { projectId },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    })
+  }
+
+  async createClarificationGate(opts: {
+    projectId: string
+    missionId: string
+    stepId:    string
+    question:  string
+    taskSummary: string
+  }) {
+    const gate = await this.create({
+      projectId:   opts.projectId,
+      missionId:   opts.missionId,
+      stepId:      opts.stepId,
+      type:        'clarification',
+      description: opts.question,
+      context:     { question: opts.question, taskSummary: opts.taskSummary },
+      riskLevel:   'medium',
+      autoOnExpiry: 'reject',
+    })
+    this.events.clarificationNeeded(opts.projectId, {
+      id: gate.id, missionId: opts.missionId, stepId: opts.stepId, question: opts.question,
+    })
+    this.logger.log(`Clarification gate criado para step ${opts.stepId}: "${opts.question.slice(0, 80)}"`)
+    return gate
+  }
+
+  // Called by RouterService / SkillEngine / PolicyEngine before high-risk operations
+  async checkAndCreate(
+    skillRisk: 'none' | 'low' | 'medium' | 'high',
+    projectId: string, missionId: string | null, stepId: string | null,
+    description: string, context: Record<string, unknown>,
+  ): Promise<{ required: boolean; gate?: ReturnType<ApprovalGatesService['create']> extends Promise<infer T> ? T : never }> {
+    if (skillRisk === 'none' || skillRisk === 'low') return { required: false }
+
+    // Sem isso, toda aprovação só deixava a missão tentar de novo — a nova tentativa
+    // (specialist reiniciado do zero) caía de novo aqui e criava OUTRO gate pending,
+    // nunca deixando a ação de risco medium/high de fato executar. Reaproveita um
+    // gate já aprovado pro mesmo step+skill em vez de pedir aprovação outra vez.
+    const skillId = context['skillId'] as string | undefined
+    if (stepId && skillId) {
+      const approved = await this.prisma.approvalGate.findFirst({
+        where: { stepId, status: 'approved', context: { path: ['skillId'], equals: skillId } },
+        orderBy: { approvedAt: 'desc' },
+      })
+      if (approved) {
+        this.logger.log(`Gate já aprovado reaproveitado para step ${stepId} / skill ${skillId} (gate ${approved.id})`)
+        return { required: false }
+      }
+    }
+
+    const type: ApprovalGateType = skillRisk === 'high' ? 'irreversible' : 'data_write'
+    const gate = await this.create({
+      projectId,
+      missionId: missionId ?? undefined,
+      stepId:    stepId    ?? undefined,
+      type, description, context,
+      riskLevel:    skillRisk,
+      autoOnExpiry: skillRisk === 'medium' ? 'reject' : 'pause',
+    })
+    this.logger.log(`Gate created for ${description} — risk=${skillRisk} id=${gate.id}`)
+    // Anunciado sempre, inclusive sem missão. Enquanto o gate dependia de `missionId` para
+    // existir, `if (gate.missionId)` era redundante; agora ele seria o segundo filtro pela
+    // porta de entrada — um pedido direto criaria o gate e **ninguém saberia**, que é o defeito
+    // de A08 reaparecendo um andar acima.
+    this.events.approvalGate(gate.projectId, {
+      id: gate.id, missionId: gate.missionId ?? null, description: gate.description, type: gate.type,
+    })
+    return { required: true, gate }
+  }
+
+  // Review Gate do Guardian — score determinístico do RiskScorerService vira gate aqui.
+  /**
+   * Só `critical` vira gate. Medium e high são informação, não decisão.
+   *
+   * Antes, tudo acima de `low` abria gate pendente — o que contrariava o próprio
+   * desenho documentado no CLAUDE.md (low silencioso · medium widget+contexto ·
+   * high notify+contexto · **critical** bloqueia pre-push). Na prática significava
+   * que qualquer service tocado sem spec abria uma "aprovação": `serviceSemSpec`
+   * vale 30 pontos e o limiar de medium é exatamente 30.
+   *
+   * O custo não era só a tela pedir decisão inexistente. O gate pendente entra no
+   * contexto injetado pelo hook, então a MESMA informação chegava duas vezes ao
+   * Claude Code — uma como relatório do Guardian, outra fantasiada de pendência.
+   * Ruído contra fidelidade de estado, que é justamente o propósito do Guardian.
+   *
+   * O bloqueio de verdade nunca dependeu disto: `pre-push.mjs` lê o relatório
+   * (`riskLevel === 'critical' && !overridden`), não o gate. O gate de critical
+   * fica só como trilha de auditoria — nasce já rejeitado, não pede nada a ninguém.
+   */
+  async createFromGuardianReport(opts: {
+    projectId: string
+    reportId:  string
+    riskLevel: GuardianRiskLevel
+    score:     number
+    summary:   string
+  }): Promise<{ required: boolean; gate?: Awaited<ReturnType<ApprovalGatesService['create']>> }> {
+    // Limpa pendências antigas mesmo quando não vai criar gate novo: sem isso, um
+    // gate de critical anterior ficaria pendente para sempre depois que o risco caiu.
+    await this.supersedeGuardianGates(opts.projectId, opts.reportId)
+
+    if (opts.riskLevel !== 'critical') return { required: false }
+
+    const gate = await this.create({
+      projectId:   opts.projectId,
+      type:        'irreversible',
+      description: `Guardian ${opts.riskLevel.toUpperCase()} (${opts.score}) — ${opts.summary}`,
+      context:     { guardianReportId: opts.reportId, riskLevel: opts.riskLevel, score: opts.score },
+      riskLevel:   'high',
+      autoOnExpiry: 'pause',
+    })
+
+    const rejected = await this.reject(gate.id, 'guardian-system', `Auto-bloqueado: risk score ${opts.score} >= 85`)
+    return { required: true, gate: rejected }
+  }
+
+  // O watcher dispara analyze a cada mudança no working tree — sem dedupe,
+  // cada save relevante criaria mais um gate pendente para o mesmo projeto.
+  private async supersedeGuardianGates(projectId: string, newReportId: string) {
+    const pending = await this.prisma.approvalGate.findMany({
+      where: { projectId, status: 'pending', type: { in: ['guardian_review', 'irreversible'] } },
+    })
+    const stale = pending.filter(g => (g.context as Record<string, unknown> | null)?.guardianReportId)
+    if (stale.length === 0) return
+
+    await this.prisma.approvalGate.updateMany({
+      where: { id: { in: stale.map(g => g.id) }, status: 'pending' },
+      data: {
+        status:     'expired',
+        approvedBy: 'guardian-system',
+        approvedAt: new Date(),
+        comment:    `Substituído por guardian report ${newReportId}`,
+      },
+    })
+    this.logger.log(`${stale.length} gate(s) Guardian pendente(s) substituído(s) pelo report ${newReportId}`)
+  }
+
+  private async expireStale() {
+    const expired = await this.prisma.approvalGate.findMany({
+      where: { status: 'pending', expiresAt: { lt: new Date() } },
+    })
+    if (expired.length === 0) return
+
+    for (const g of expired) {
+      const autoApprove = g.autoOnExpiry === 'approve'
+      const newStatus = autoApprove ? 'approved' : 'expired'
+
+      await this.prisma.approvalGate.update({
+        where: { id: g.id },
+        data:  { status: newStatus, approvedBy: 'system', approvedAt: new Date(), comment: 'Auto-expired' },
+      })
+
+      // Propaga estado para step e mission — expiração não é silenciosa
+      if (g.missionId && g.stepId) {
+        if (autoApprove) {
+          await this.missions.updateStep(g.missionId, g.stepId, { status: 'pending' }).catch(() => null)
+        } else {
+          await this.missions.updateStep(g.missionId, g.stepId, {
+            status: 'failed',
+            output: { expired: true, autoOnExpiry: g.autoOnExpiry, expiresAt: g.expiresAt },
+          }).catch(() => null)
+          await this.missions.transition(g.missionId, 'paused').catch(() => null)
+        }
+      }
+
+      if (g.projectId) {
+        this.events.approvalGate(g.projectId, {
+          id: g.id, missionId: g.missionId ?? '', description: g.description, type: g.type,
+        })
+      }
+    }
+    this.logger.log(`Expired ${expired.length} approval gate(s)`)
+  }
+}

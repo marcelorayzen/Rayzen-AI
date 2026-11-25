@@ -1,0 +1,53 @@
+FROM node:20-slim AS builder
+
+RUN corepack enable && corepack prepare pnpm@10.33.2 --activate
+
+# O Chrome do Puppeteer e da api (PDF), nao deste servico. Sem isto, todo build frio baixa um
+# Chrome inteiro no `pnpm install` — e em 16/11/2026 esse download travou a rede por 30+ min
+# sem timeout, prendendo o deploy inteiro. A api e a api-v2 ja tinham a mesma linha.
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+
+WORKDIR /app
+
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.base.json ./
+COPY packages/types/package.json ./packages/types/
+COPY apps/agent/package.json ./apps/agent/
+
+RUN pnpm install --frozen-lockfile
+
+COPY packages/types ./packages/types
+COPY apps/agent ./apps/agent
+
+RUN pnpm --filter agent build
+
+FROM node:20-slim AS runner
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends docker.io ca-certificates openssh-client curl \
+  && mkdir -p /usr/libexec/docker/cli-plugins \
+  && curl -fsSL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 -o /usr/libexec/docker/cli-plugins/docker-compose \
+  && chmod +x /usr/libexec/docker/cli-plugins/docker-compose \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN corepack enable && corepack prepare pnpm@10.33.2 --activate
+
+# O Chrome do Puppeteer e da api (PDF), nao deste servico. Sem isto, todo build frio baixa um
+# Chrome inteiro no `pnpm install` — e em 16/11/2026 esse download travou a rede por 30+ min
+# sem timeout, prendendo o deploy inteiro. A api e a api-v2 ja tinham a mesma linha.
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+
+WORKDIR /app
+
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.base.json ./
+COPY packages/types/package.json ./packages/types/
+COPY apps/agent/package.json ./apps/agent/
+
+RUN pnpm install --frozen-lockfile --prod
+
+COPY --from=builder /app/apps/agent/dist ./apps/agent/dist
+COPY apps/agent/src/mcp ./apps/agent/src/mcp
+
+ENV NODE_ENV=production
+ENV AGENT_ROLE=server
+
+CMD ["node", "apps/agent/dist/index.js"]

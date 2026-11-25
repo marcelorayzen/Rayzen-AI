@@ -1,0 +1,784 @@
+generator client {
+  provider        = "prisma-client-js"
+  output          = "../generated/prisma-client-v2"
+  previewFeatures = ["multiSchema"]
+  binaryTargets   = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL_V2")
+  schemas  = ["v2"]
+}
+
+// ─── Mission Engine ───────────────────────────────────────────────────────────
+
+model Mission {
+  id          String    @id @default(uuid())
+  projectId   String    @map("project_id")
+  title       String
+  objective   String
+  status      String    @default("pending") // pending | active | paused | done | failed | cancelled
+  context     Json      @default("{}")       // contexto acumulado entre steps
+  createdAt   DateTime  @default(now()) @map("created_at")
+  startedAt   DateTime? @map("started_at")
+  completedAt DateTime? @map("completed_at")
+  specialistId String?   @map("specialist_id") // FK lógico — sem constraint para evitar cascata
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  steps MissionStep[]
+
+  @@schema("v2")
+  @@map("missions")
+}
+
+model MissionStep {
+  id             String   @id @default(uuid())
+  missionId      String   @map("mission_id")
+  title          String
+  status         String   @default("pending") // pending | running | done | failed | skipped
+  skillId        String?  @map("skill_id")
+  prompt         String?
+  input          Json     @default("{}")
+  output         Json?
+  dependsOn      String[] @map("depends_on") // ids de steps que devem completar antes
+  retries        Int      @default(0)
+  executor       String   @default("ai")     // skill | ai | human
+  approvalGateId String?  @map("approval_gate_id")
+  startedAt      DateTime? @map("started_at")
+  completedAt    DateTime? @map("completed_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  mission Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+
+  @@schema("v2")
+  @@map("mission_steps")
+}
+
+// ─── Memory Engine ────────────────────────────────────────────────────────────
+
+// Lifecycle metadata keyed by V1 Document.id — V2 never writes to public.documents
+model MemoryMeta {
+  id               String    @id @default(uuid())
+  v1DocumentId     String    @unique @map("v1_document_id")
+  projectId        String    @map("project_id")
+  memoryClass      String    @default("inbox") @map("memory_class") // inbox|working|consolidated|archive
+  accessCount      Int       @default(0) @map("access_count")
+  lastAccessAt     DateTime? @map("last_access_at")
+  consolidatedInto String?   @map("consolidated_into") // v1DocumentId of the consolidated chunk
+  memoryType       String?   @map("memory_type")        // decision|lesson|pattern|constraint|assumption
+  confidence       Float?                                // 0-1
+  validUntil       DateTime? @map("valid_until")
+  missionId        String?   @map("mission_id")
+  notes            String?
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@index([projectId, memoryClass])
+  @@schema("v2")
+  @@map("memory_meta")
+}
+
+// Raw evidence is immutable. A repeated capture of the same source revision
+// reuses the row through the scope/source/hash identity below.
+model KnowledgeSource {
+  id              String    @id @default(uuid())
+  scopeKey        String    @map("scope_key")
+  scopeType       String    @map("scope_type") // personal | project
+  projectId       String?   @map("project_id")
+  sourceType      String    @map("source_type")
+  sourceIdentity  String    @map("source_identity")
+  sourceHash      String    @map("source_hash")
+  rawContent      String    @map("raw_content")
+  metadata        Json      @default("{}")
+  retentionPolicy String    @default("indefinite") @map("retention_policy")
+  retainUntil     DateTime? @map("retain_until")
+  capturedBy      String    @map("captured_by")
+  capturedAt      DateTime  @default(now()) @map("captured_at")
+
+  proposals KnowledgeProposal[]
+
+  @@unique([scopeKey, sourceIdentity, sourceHash])
+  @@index([scopeKey, capturedAt])
+  @@schema("v2")
+  @@map("knowledge_sources")
+}
+
+// Candidate content. It is deliberately not projected to V1/pgvector until an
+// authenticated owner approves it.
+model KnowledgeProposal {
+  id              String    @id @default(uuid())
+  sourceId        String    @map("source_id")
+  scopeKey        String    @map("scope_key")
+  projectId       String?   @map("project_id")
+  logicalKey      String    @map("logical_key")
+  version         Int
+  // Namespace and idempotency key are the capture contract. The namespace is
+  // derived from the authenticated principal, never from the body: a producer
+  // cannot reuse or collide with another producer's key.
+  //
+  // Nullable because the V2 boots with `db push` and no `--accept-data-loss`,
+  // which refuses a required column on a populated table — declaring NOT NULL
+  // here would take the API down instead of protecting the data. The obligation
+  // lives in the DTO and the service; the database enforces the pair's
+  // uniqueness, which is what makes a retry a replay instead of a new row.
+  namespace       String?
+  idempotencyKey  String?   @map("idempotency_key")
+  payloadHash     String?   @map("payload_hash")
+  content         String
+  contentHash     String    @map("content_hash")
+  knowledgeType   String    @map("knowledge_type")
+  sensitivity     String    @default("internal")
+  retentionPolicy String    @default("indefinite") @map("retention_policy")
+  retainUntil     DateTime? @map("retain_until")
+  validFrom       DateTime? @map("valid_from")
+  validUntil      DateTime? @map("valid_until")
+  producer        String
+  producerVersion String?   @map("producer_version")
+  status          String    @default("candidate") // candidate | approved | rejected | superseded
+  supersedesId    String?   @map("supersedes_id")
+  createdBy       String    @map("created_by")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  source    KnowledgeSource     @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  decisions KnowledgeDecision[]
+  canonical KnowledgeVersion?
+
+  @@unique([scopeKey, logicalKey, version])
+  @@unique([sourceId, logicalKey, contentHash])
+  @@unique([namespace, idempotencyKey])
+  @@index([scopeKey, status, createdAt])
+  @@schema("v2")
+  @@map("knowledge_proposals")
+}
+
+// Append-only audit trail for every human decision.
+model KnowledgeDecision {
+  id              String   @id @default(uuid())
+  proposalId      String   @map("proposal_id")
+  action          String   // approve | reject
+  actorSubject    String   @map("actor_subject")
+  actorRole       String?  @map("actor_role")
+  reason          String?
+  proposalVersion Int      @map("proposal_version")
+  contentHash     String   @map("content_hash")
+  decidedAt       DateTime @default(now()) @map("decided_at")
+
+  proposal KnowledgeProposal @relation(fields: [proposalId], references: [id], onDelete: Restrict)
+
+  @@index([proposalId, decidedAt])
+  @@schema("v2")
+  @@map("knowledge_decisions")
+}
+
+// Approved, versioned truth. Vector/graph/cache entries are rebuildable
+// projections and never become the source of truth.
+model KnowledgeVersion {
+  id              String    @id @default(uuid())
+  proposalId      String    @unique @map("proposal_id")
+  sourceId        String    @map("source_id")
+  scopeKey        String    @map("scope_key")
+  projectId       String?   @map("project_id")
+  logicalKey      String    @map("logical_key")
+  version         Int
+  content         String
+  contentHash     String    @map("content_hash")
+  knowledgeType   String    @map("knowledge_type")
+  status          String    @default("active") // active | superseded | expired
+  retentionPolicy String    @default("indefinite") @map("retention_policy")
+  retainUntil     DateTime? @map("retain_until")
+  validFrom       DateTime? @map("valid_from")
+  validUntil      DateTime? @map("valid_until")
+  approvedBy      String    @map("approved_by")
+  approvedAt      DateTime  @default(now()) @map("approved_at")
+
+  proposal    KnowledgeProposal    @relation(fields: [proposalId], references: [id], onDelete: Restrict)
+  projections KnowledgeProjection[]
+
+  @@unique([scopeKey, logicalKey, version])
+  @@index([scopeKey, status])
+  @@schema("v2")
+  @@map("knowledge_versions")
+}
+
+model KnowledgeProjection {
+  id                 String    @id @default(uuid())
+  knowledgeVersionId String    @map("knowledge_version_id")
+  kind               String    // vector | graph
+  externalId         String?   @map("external_id")
+  contentHash        String    @map("content_hash")
+  status             String    @default("pending") // pending | ready | failed | stale
+  error              String?
+  builtAt            DateTime? @map("built_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  knowledgeVersion KnowledgeVersion @relation(fields: [knowledgeVersionId], references: [id], onDelete: Cascade)
+
+  @@unique([knowledgeVersionId, kind])
+  @@index([externalId])
+  @@schema("v2")
+  @@map("knowledge_projections")
+}
+
+// An authorized, reproducible read for one consumer and one purpose.
+//
+// The pack is evidence, not cache: it records which exact item versions were
+// served, under which limits, to which principal. Authorization can expire;
+// the record of what was already served never does.
+model ContextPack {
+  id            String @id @default(uuid())
+  schemaVersion String @map("schema_version")
+
+  scopeKey  String  @map("scope_key")
+  scopeType String  @map("scope_type") // personal | project
+  projectId String? @map("project_id")
+
+  principalKind    String @map("principal_kind")
+  principalSubject String @map("principal_subject")
+  consumer         String
+  sessionId        String @map("session_id")
+  purpose          String
+
+  // Declared retrieval contract: which classes may enter, which limits bound
+  // the result, and which policy selected it. Stored so a later reader can tell
+  // an empty section from a section the limits excluded.
+  classes         Json
+  limits          Json
+  retrievalPolicy Json @map("retrieval_policy")
+
+  // Hash of the canonical manifest (identity, contract and every item), so
+  // tampering with a stored pack is detectable without the original response.
+  manifestHash String @map("manifest_hash")
+  // Exact text served, with its own hash. Volatile sections are only
+  // reproducible from here — see ContextPackItem.reproducible.
+  snapshot     String
+  snapshotHash String @map("snapshot_hash")
+
+  knowledgeRevision Int      @map("knowledge_revision")
+  generatedAt       DateTime @default(now()) @map("generated_at")
+  // Expiry of the AUTHORIZATION to read, not of the evidence.
+  authorizationExpiresAt DateTime @map("authorization_expires_at")
+
+  items ContextPackItem[]
+
+  @@index([scopeKey, generatedAt])
+  @@index([consumer, sessionId])
+  @@schema("v2")
+  @@map("context_packs")
+}
+
+model ContextPackItem {
+  id       String @id @default(uuid())
+  packId   String @map("pack_id")
+  position Int
+  // knowledge = canonical version, re-derivable from the record of truth.
+  // context_section = volatile projection of V1 state, snapshot-only.
+  kind     String
+  // Stable identity of the item inside its kind (logicalKey or section name).
+  itemKey  String @map("item_key")
+  // Row that produced it, when there is one.
+  itemRef     String? @map("item_ref")
+  lifecycle   String  // approved | candidate | source
+  version     Int
+  contentHash String  @map("content_hash")
+  chars       Int
+  reproducible Boolean
+
+  pack ContextPack @relation(fields: [packId], references: [id], onDelete: Cascade)
+
+  @@unique([packId, position])
+  @@index([kind, itemRef])
+  @@schema("v2")
+  @@map("context_pack_items")
+}
+
+// ─── Vault Engine ─────────────────────────────────────────────────────────────
+
+model VaultAccessLog {
+  id          String   @id @default(uuid())
+  projectSlug String   @map("project_slug")
+  key         String
+  accessor    String   @default("api")  // skill-engine | mission-engine | api | cli
+  missionId   String?  @map("mission_id")
+  stepId      String?  @map("step_id")
+  accessedAt  DateTime @default(now()) @map("accessed_at")
+
+  @@index([projectSlug, accessedAt])
+  @@schema("v2")
+  @@map("vault_access_logs")
+}
+
+// ─── Knowledge Engine ─────────────────────────────────────────────────────────
+
+model KnowledgeNode {
+  id          String   @id @default(uuid())
+  projectId   String   @map("project_id")
+  type        String   // module|rule|entity|adr|flow|file|concept
+  label       String
+  description String?
+  metadata    Json     @default("{}")
+  confidence  Float    @default(1.0)             // 0-1 — diminui quando contradições detectadas
+  origin      String?                             // extracted|manual|inferred|document|meeting|adr
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  outEdges KnowledgeEdge[] @relation("EdgeFrom")
+  inEdges  KnowledgeEdge[] @relation("EdgeTo")
+
+  @@index([projectId, type])
+  @@index([projectId, label])
+  @@schema("v2")
+  @@map("knowledge_nodes")
+}
+
+model KnowledgeEdge {
+  id        String   @id @default(uuid())
+  projectId String   @map("project_id")
+  fromId    String   @map("from_id")
+  toId      String   @map("to_id")
+  relation  String   // impacta|depende_de|contém|pertence_a|usa|implementa
+  weight    Float    @default(1.0)
+  source    String   @default("extracted") // extracted|manual|inferred
+  createdAt DateTime @default(now()) @map("created_at")
+
+  from KnowledgeNode @relation("EdgeFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  to   KnowledgeNode @relation("EdgeTo",   fields: [toId],   references: [id], onDelete: Cascade)
+
+  @@index([projectId, relation])
+  @@index([fromId])
+  @@index([toId])
+  @@schema("v2")
+  @@map("knowledge_edges")
+}
+
+// ─── Human Approval Gates ─────────────────────────────────────────────────────
+
+model ApprovalGate {
+  id           String    @id @default(uuid())
+  projectId    String    @map("project_id")
+  missionId    String?   @map("mission_id")
+  stepId       String?   @map("step_id")
+  type         String    // code_deploy|data_write|external_api|irreversible|high_cost|specialist_spawn
+  description  String
+  context      Json      @default("{}")
+  status       String    @default("pending")   // pending|approved|rejected|expired
+  expiresAt    DateTime  @map("expires_at")
+  autoOnExpiry String    @default("reject") @map("auto_on_expiry") // reject|approve|pause
+  approvedBy   String?   @map("approved_by")
+  approvedAt   DateTime? @map("approved_at")
+  comment      String?
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@index([missionId, status])
+  @@index([projectId, status])
+  @@index([expiresAt, status])
+  @@schema("v2")
+  @@map("approval_gates")
+}
+
+// ─── Cost Controller ──────────────────────────────────────────────────────────
+
+model CostRecord {
+  id        String   @id @default(uuid())
+  projectId String   @map("project_id")
+  missionId String?  @map("mission_id")
+  stepId    String?  @map("step_id")
+  model     String
+  tokensIn  Int      @default(0) @map("tokens_in")
+  tokensOut Int      @default(0) @map("tokens_out")
+  costUsd   Float    @map("cost_usd")
+  module    String   @default("ai-router")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([projectId, createdAt])
+  @@index([missionId])
+  @@schema("v2")
+  @@map("cost_records")
+}
+
+model CostBudget {
+  id         String   @id @default(uuid())
+  projectId  String   @unique @map("project_id")
+  daily      Float?
+  monthly    Float?
+  perMission Float?   @map("per_mission")
+  alertAt    Float    @default(0.8) @map("alert_at")
+  blockAt    Float    @default(1.0) @map("block_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@schema("v2")
+  @@map("cost_budgets")
+}
+
+// ─── Observability ────────────────────────────────────────────────────────────
+
+model TraceSpan {
+  id           String   @id @default(uuid())
+  traceId      String   @map("trace_id")
+  spanId       String   @unique @map("span_id")
+  parentSpanId String?  @map("parent_span_id")
+  service      String
+  operation    String
+  startedAt    DateTime @map("started_at")
+  endedAt      DateTime? @map("ended_at")
+  durationMs   Int?     @map("duration_ms")
+  status       String   @default("ok")  // ok|error|timeout
+  attributes   Json     @default("{}")
+  error        String?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([traceId])
+  @@index([startedAt])
+  @@schema("v2")
+  @@map("trace_spans")
+}
+
+// ─── Guardian Engine ──────────────────────────────────────────────────────────
+
+model GuardianReport {
+  id                String    @id @default(uuid())
+  projectId         String    @map("project_id")
+  repoPath          String    @map("repo_path")
+  changedFiles      String[]  @map("changed_files")
+  impactedRoutes    Json      @default("[]") @map("impacted_routes")
+  impactedModules   String[]  @map("impacted_modules")
+  filesWithoutTests String[]  @map("files_without_tests")
+  suggestedTests    Json      @default("[]") @map("suggested_tests")
+  riskScore         Float     @map("risk_score")
+  riskLevel         String    @map("risk_level")       // low|medium|high|critical
+  deployRecommend   String    @map("deploy_recommend") // safe|review|block
+  summary           String
+  overridden        Boolean   @default(false)
+  overrideReason    String?   @map("override_reason")
+
+  // Blueprint v1.1 — campos adicionais para scoring determinístico
+  filePath          String?   @map("file_path")
+  module            String?
+  score             Int       @default(0)              // 0-100 via RISK_SCORE_TABLE
+  reason            String?
+  signals           Json?                              // string[] — critérios que dispararam
+  missingSpecs      Json?     @map("missing_specs")    // TestGap[]
+  affectedFiles     Json?     @map("affected_files")
+  requiredTests     Json?     @map("required_tests")
+  recommendations   Json?
+  blockingReasons   Json?     @map("blocking_reasons")
+  status            String    @default("open")         // open|resolved|suppressed
+  resolvedAt        DateTime? @map("resolved_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  @@index([projectId])
+  @@index([createdAt])
+  @@index([projectId, riskLevel])
+  @@index([projectId, status])
+  @@schema("v2")
+  @@map("guardian_reports")
+}
+
+// ─── Invariantes do sistema ───────────────────────────────────────────────────
+//
+// O Guardian responde "o que você acabou de mudar tem teste?". Isto responde uma
+// pergunta diferente e mais ampla: "o estado do sistema bate com o que ele deveria
+// ser?". Existe porque toda falha séria de 2026-08 passou despercebida do mesmo
+// jeito — nada dava erro, tudo reportava sucesso, e o dado estava errado: relógio
+// 115 dias atrasado, projeto principal fora do project_catalog, gate aprovado que
+// não promovia, estratégias com resultado e fitnessScore null.
+
+model InvariantReport {
+  id         String   @id @default(uuid())
+  projectId  String   @map("project_id")
+  totalOk    Int      @map("total_ok")
+  totalFalha Int      @map("total_falha")
+  gravidadeMax String @map("gravidade_max")  // ok|baixa|media|alta
+  resumo     String
+  resultados Json                             // InvariantResult[] — um por check
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([projectId, createdAt])
+  @@schema("v2")
+  @@map("invariant_reports")
+}
+
+// ─── System Status — quais ciclos estão batendo ──────────────────────────────
+
+/// Batimento dos ciclos automáticos. Uma linha por componente, sobrescrita.
+///
+/// Separado da SAÍDA de propósito. Derivar "está rodando?" das tabelas de
+/// resultado reconstruiria a ambiguidade que custou tempo em 2026-08-15: o
+/// `agent_audit_logs` ficou 50 dias sem linha nova e a conclusão natural — "o
+/// gravador morreu" — estava errada; não havia o que gravar. Silêncio de saída
+/// não distingue "morreu" de "vivo e quieto".
+model SystemHeartbeat {
+  /// Id do componente em system-components.const.ts — a expectativa declarada.
+  component     String    @id
+  /// Toda execução, gravado em `finally`. Sem isto, um ciclo que lança antes de
+  /// reportar fica idêntico a um ciclo que nunca subiu.
+  lastAttemptAt DateTime  @map("last_attempt_at")
+  /// Só quando a rodada completa. `attempt` recente com `success` velho é o
+  /// estado "roda e falha toda vez" — que hoje não é visível em tabela nenhuma.
+  lastSuccessAt DateTime? @map("last_success_at")
+  lastError     String?   @map("last_error")
+  /// Contexto livre da última rodada (quantos projetos varridos, falhas...).
+  lastDetail    Json?     @map("last_detail")
+  /// Quem reportou. `agent` bate por HTTP; os demais são chamada local.
+  host          String?
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@schema("v2")
+  @@map("system_heartbeats")
+}
+
+// ─── Discovery Engine ─────────────────────────────────────────────────────────
+
+model DiscoverySession {
+  id          String   @id @default(uuid())
+  projectName String?  @map("project_name")
+  status      String   @default("gathering") // gathering | ready | blueprint_ready
+  messages    Json     @default("[]")
+  blueprint   Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@schema("v2")
+  @@map("discovery_sessions")
+}
+
+// ─── Policy Engine ────────────────────────────────────────────────────────────
+
+model PolicyRule {
+  id          String   @id @default(uuid())
+  projectId   String?  @map("project_id")     // null = regra de sistema (default); valor = override por projeto
+  name        String                           // memory_requires_source | code_requires_adr | deployment_requires_review | low_confidence_knowledge | synthesizer_requires_sources
+  description String
+  enabled     Boolean  @default(true)
+  action      String   @default("warn")        // warn | block | gate
+  config      Json     @default("{}")          // thresholds e condições específicas por regra
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  exceptions  PolicyException[]
+
+  @@index([projectId, enabled])
+  @@index([name])
+  @@schema("v2")
+  @@map("policy_rules")
+}
+
+// Exceção formal e auditável a uma violação de PolicyRule — distinta de
+// simplesmente desabilitar a regra inteira (enabled=false). Escopo opcional
+// (ex: missionId/stepId) limita onde a exceção vale; sem escopo, vale para
+// todo o projeto até expirar/ser revogada.
+model PolicyException {
+  id        String    @id @default(uuid())
+  ruleId    String    @map("rule_id")
+  projectId String    @map("project_id")
+  reason    String
+  grantedBy String    @map("granted_by")
+  scope     Json      @default("{}")          // { missionId?, stepId? } — vazio = projeto inteiro
+  expiresAt DateTime? @map("expires_at")       // null = sem expiração
+  revokedAt DateTime? @map("revoked_at")       // null = ativa
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  rule      PolicyRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId, projectId])
+  @@schema("v2")
+  @@map("policy_exceptions")
+}
+
+// ─── Skill Engine (SkillOpt) ──────────────────────────────────────────────────
+
+model SkillAsset {
+  id           String   @id @default(uuid())
+  skillId      String   @unique @map("skill_id")   // matches SkillDefinition.id (e.g. jarvis:git_commit)
+  name         String
+  description  String
+  category     String
+  risk         String   @default("none")            // none | low | medium | high
+  runtime      String   @default("agent-desktop")   // in-process | agent-desktop | agent-server
+  version      String   @default("1.0")
+  inputSchema  Json     @default("{}") @map("input_schema")
+  outputSchema Json     @default("{}") @map("output_schema")
+  enabled      Boolean  @default(true)
+  builtIn      Boolean  @default(false) @map("built_in")  // true = sincronizado do registry estático
+  tags         String[]
+  owner        String?
+  estimatedMs  Int?     @map("estimated_ms")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([category, enabled])
+  @@index([builtIn])
+  @@schema("v2")
+  @@map("skill_assets")
+}
+
+model SkillUsageLog {
+  id         String   @id @default(uuid())
+  skillId    String   @map("skill_id")
+  projectId  String?  @map("project_id")
+  missionId  String?  @map("mission_id")
+  stepId     String?  @map("step_id")
+  success    Boolean
+  durationMs Int      @map("duration_ms")
+  error      String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([skillId, createdAt])
+  @@index([projectId, createdAt])
+  @@schema("v2")
+  @@map("skill_usage_logs")
+}
+
+// ─── Specialist Agent Engine ──────────────────────────────────────────────────
+
+model SpecialistAgent {
+  id           String   @id @default(uuid())
+  projectId    String?  @map("project_id")     // null = built-in global; value = project-scoped override
+  domain       String                           // backend | qa | infra | data | devops | general
+  name         String
+  description  String
+  systemPrompt String   @map("system_prompt")
+  model        String?                          // override LLM model for this specialist
+  enabled      Boolean  @default(true)
+  builtIn      Boolean  @default(false) @map("built_in")
+  capabilities String[]                         // tags: api_design | testing | docker | etc.
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([domain, enabled])
+  @@index([builtIn])
+  @@schema("v2")
+  @@map("specialist_agents")
+}
+
+// ─── Project Catalog ─────────────────────────────────────────────────────────
+
+model ProjectCatalog {
+  id          String    @id @default(uuid())
+  v1ProjectId String    @unique @map("v1_project_id")  // FK lógica para public.projects.id
+  owner       String?
+  provenance  String    @default("manual")              // manual | blueprint | discovery | import
+  tags        String[]
+  healthScore Float?    @map("health_score")            // 0-100 calculado externamente
+  metadata    Json      @default("{}")
+  archivedAt  DateTime? @map("archived_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([provenance])
+  @@index([owner])
+  @@schema("v2")
+  @@map("project_catalog")
+}
+
+// ─── Evolutionary Prompting ───────────────────────────────────────────────────
+
+model Strategy {
+  id           String    @id @default(uuid())
+  taskType     String    @map("task_type")      // classify | summarize | generate_code | review | etc.
+  generation   Int       @default(0)
+  systemPrompt String    @map("system_prompt")
+  tier         Int       @default(3)            // 2 | 3 | 4 (LiteLLM tier)
+  temperature  Float     @default(0.2)
+  contextMode  String?   @map("context_mode")
+  fitnessScore Float?    @map("fitness_score")  // calculado pelo BenchmarkService
+  status       String    @default("candidate")  // candidate | active | retired
+  parentIds    String[]  @map("parent_ids")
+  notes        String?
+  promotedAt   DateTime? @map("promoted_at")
+  retiredAt    DateTime? @map("retired_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@index([taskType, status])
+  @@index([status, fitnessScore])
+  @@schema("v2")
+  @@map("strategies")
+}
+
+// ─── Benchmark Engine ─────────────────────────────────────────────────────────
+
+model BenchmarkCase {
+  id        String   @id @default(uuid())
+  taskType  String   @map("task_type")           // classify | summarize | generate | route | etc.
+  input     String                                // prompt ou texto de entrada
+  expected  String                                // saída esperada (ground truth)
+  source    String   @default("trace")            // trace | manual
+  projectId String?  @map("project_id")
+  approved  Boolean  @default(false)              // faz parte do golden set quando true
+  createdAt DateTime @default(now()) @map("created_at")
+
+  results BenchmarkResult[]
+
+  @@index([taskType, approved])
+  @@index([projectId, taskType])
+  @@schema("v2")
+  @@map("benchmark_cases")
+}
+
+model BenchmarkResult {
+  id          String   @id @default(uuid())
+  caseId      String   @map("case_id")
+  strategyId  String   @map("strategy_id")       // id livre — pode ser model+prompt hash
+  accuracy    Float                               // 0-1 calculado pelo avaliador LLM
+  costUsd     Float    @map("cost_usd")
+  latencyMs   Int      @map("latency_ms")
+  fitness     Float                               // accuracy*0.7 + (1/costNorm)*0.15 + (1/latencyNorm)*0.15
+  output      String                              // saída real produzida
+  evaluatedAt DateTime @default(now()) @map("evaluated_at")
+
+  case BenchmarkCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([strategyId, evaluatedAt])
+  @@index([caseId])
+  @@schema("v2")
+  @@map("benchmark_results")
+}
+
+// ─── QA Scientist ─────────────────────────────────────────────────────────────
+
+model Hypothesis {
+  id              String    @id @default(uuid())
+  projectId       String    @map("project_id")
+  taskType        String?   @map("task_type")
+  status          String    @default("active")  // active | experimenting | promoted | rejected
+  title           String
+  analysis        String
+  report          String?
+  strategyId      String?   @map("strategy_id")
+  gateId          String?   @map("gate_id")
+  baselineFitness Float?    @map("baseline_fitness")
+  currentFitness  Float?    @map("current_fitness")
+  failureCount    Int       @default(0) @map("failure_count")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  resolvedAt      DateTime? @map("resolved_at")
+
+  @@index([projectId, status])
+  @@index([status, createdAt])
+  @@schema("v2")
+  @@map("hypotheses")
+}
+
+// ─── Mission Scheduler ────────────────────────────────────────────────────────
+
+model ScheduledMission {
+  id          String    @id @default(uuid())
+  missionId   String    @unique @map("mission_id")
+  priority    String    @default("normal")  // critical|high|normal|low
+  dependsOn   String[]  @map("depends_on")
+  scheduledAt DateTime? @map("scheduled_at")
+  recurrence  String?
+  queuedAt    DateTime  @default(now()) @map("queued_at")
+  startedAt   DateTime? @map("started_at")
+  pausedAt    DateTime? @map("paused_at")
+  state       Json?
+  status      String    @default("queued") // queued|running|paused|done|failed
+
+  @@index([status, priority, queuedAt])
+  @@schema("v2")
+  @@map("scheduled_missions")
+}

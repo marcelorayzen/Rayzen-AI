@@ -1,0 +1,469 @@
+#!/usr/bin/env node
+/**
+ * Rayzen AI — Claude Code Hook
+ *
+ * Recebe o payload do hook via stdin, enriquece com contexto git e envia
+ * para POST /events/cli.
+ *
+ * Configurar em ~/.claude/settings.json (ver docs/roadmap.md Fase 3).
+ *
+ * Prioridade de configuração:
+ *   1. Variáveis de ambiente: RAYZEN_API_URL, RAYZEN_API_TOKEN, RAYZEN_PROJECT_ID
+ *   2. Arquivo: apps/agent/src/hooks/hook.config.mjs (não commitado)
+ */
+
+import { request } from 'node:http'
+import { request as httpsRequest } from 'node:https'
+import { existsSync, readFileSync, writeFileSync, unlinkSync, statSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { join, dirname, extname } from 'node:path'
+import { execFileSync } from 'node:child_process'
+import { candidatosDeSlug, nomeDoRepositorio } from '../repo-slug.mjs'
+import { sincronizarPlanoVigente } from './sincronizar-plano.mjs'
+import { tmpdir } from 'node:os'
+
+const INDEXABLE_EXTENSIONS = new Set([
+  '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',
+  '.md', '.mdx', '.txt', '.json', '.yaml', '.yml',
+  '.sql', '.prisma', '.css', '.html', '.py', '.sh', '.bat', '.ps1',
+])
+
+function readFileContent(filePath) {
+  try {
+    if (!filePath) return null
+    const ext = extname(filePath).toLowerCase()
+    if (!INDEXABLE_EXTENSIONS.has(ext)) return null
+    if (!existsSync(filePath)) return null
+    const content = readFileSync(filePath, 'utf8')
+    return content.slice(0, 8000)
+  } catch { return null }
+}
+
+const __dir = dirname(fileURLToPath(import.meta.url))
+const CONFIG_PATH = join(__dir, 'hook.config.mjs')
+
+async function loadConfig() {
+  let cfg = {}
+  if (existsSync(CONFIG_PATH)) {
+    try {
+      const fileUrl = new URL(`file:///${CONFIG_PATH.replace(/\\/g, '/')}`)
+      const mod = await import(fileUrl.href)
+      cfg = mod.default ?? {}
+    } catch { /* ignora */ }
+  }
+  return {
+    apiUrl:    process.env.RAYZEN_API_URL    ?? cfg.apiUrl    ?? 'http://localhost:3001',
+    apiV2Url:  process.env.RAYZEN_API_V2_URL ?? cfg.apiV2Url  ?? null,
+    apiToken:  process.env.RAYZEN_API_TOKEN  ?? cfg.apiToken  ?? '',
+    projectId: process.env.RAYZEN_PROJECT_ID ?? cfg.projectId ?? '',
+  }
+}
+
+function inferModulesFromPaths(filePaths) {
+  const modules = new Set()
+  for (const fp of filePaths) {
+    const normalized = fp.replace(/\\/g, '/')
+    // apps/api/src/modules/X/... → api:X
+    const apiModule = normalized.match(/apps\/api\/src\/modules\/([^/]+)/)
+    if (apiModule) { modules.add(`api:${apiModule[1]}`); continue }
+    // apps/web/app/components/X... → web:components
+    if (/apps\/web\/app\/components/.test(normalized)) { modules.add('web:components'); continue }
+    // apps/web/app/hooks/... → web:hooks
+    if (/apps\/web\/app\/hooks/.test(normalized)) { modules.add('web:hooks'); continue }
+    // apps/web/app/... → web:pages
+    if (/apps\/web\/app/.test(normalized)) { modules.add('web:pages'); continue }
+    // apps/agent/src/actions/... → agent:actions
+    if (/apps\/agent\/src\/actions/.test(normalized)) { modules.add('agent:actions'); continue }
+    // apps/agent/src/hooks/... → agent:hooks
+    if (/apps\/agent\/src\/hooks/.test(normalized)) { modules.add('agent:hooks'); continue }
+    // infra/... → infra
+    if (/^infra\//.test(normalized)) { modules.add('infra'); continue }
+    // prisma/schema.prisma → api:schema
+    if (/prisma\/schema\.prisma/.test(normalized)) { modules.add('api:schema'); continue }
+  }
+  return [...modules]
+}
+
+/**
+ * Só a data e o tamanho do grafo, sem abrir o arquivo.
+ *
+ * Até 25/11 isto lia e interpretava o `graph.json` inteiro a cada evento (16 MB, ~110 ms) para
+ * mandar contagens que nenhum consumidor lia (0 de 3.050 eventos em 7 dias as guardavam), e o
+ * `updatedAt` era `new Date()` — "atualizado agora" em todo evento, inclusive nos cinco meses em
+ * que o grafo ficou parado em 22/06. A data que importa é a do arquivo.
+ */
+function getGraphifyContext(repoRoot) {
+  try {
+    const graphPath = join(repoRoot, 'graphify-out', 'graph.json')
+    if (!existsSync(graphPath)) return null
+    const { mtime, size } = statSync(graphPath)
+    return { updatedAt: mtime.toISOString(), bytes: size }
+  } catch { return null }
+}
+
+function getGitContext(cwd) {
+  try {
+    const branch = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+      cwd, encoding: 'utf8', timeout: 2000, stdio: ['pipe', 'pipe', 'ignore'],
+    }).trim()
+
+    const log = execFileSync('git', ['log', '-1', '--format=%H|||%s|||%an'], {
+      cwd, encoding: 'utf8', timeout: 2000, stdio: ['pipe', 'pipe', 'ignore'],
+    }).trim()
+
+    const parts = log.split('|||')
+    const commitHash = parts[0]?.slice(0, 8) ?? ''
+    const commitMessage = parts[1]?.trim() ?? ''
+    const commitAuthor = parts[2]?.trim() ?? ''
+
+    // Arquivos modificados — top 10
+    let changedFiles = []
+    try {
+      const filesRaw = execFileSync('git', ['diff', '--name-only', 'HEAD'], {
+        cwd, encoding: 'utf8', timeout: 2000, stdio: ['pipe', 'pipe', 'ignore'],
+      }).trim()
+      changedFiles = filesRaw
+        .split('\n')
+        .map(l => l.replace(/^[MADRCU?! ]+/, '').trim())
+        .filter(Boolean)
+        .slice(0, 10)
+    } catch { /* ignora */ }
+
+    return { branch, commitHash, commitMessage, commitAuthor, changedFiles }
+  } catch {
+    return null
+  }
+}
+
+// Resolução do nome/slug do repositório: `../repo-slug.mjs`, fonte única
+// compartilhada com o context-hook e o MCP. Os três precisam concordar, senão
+// resolvem projetos diferentes no mesmo diretório.
+function getProjectName(cwd) {
+  return typeof cwd === 'string' && cwd.trim() ? nomeDoRepositorio(cwd) : null
+}
+
+async function readStdin() {
+  return new Promise((resolve) => {
+    let data = ''
+    process.stdin.setEncoding('utf8')
+    process.stdin.on('data', chunk => { data += chunk })
+    const timeout = setTimeout(() => resolve(data), 3000)
+    process.stdin.on('end', () => { clearTimeout(timeout); resolve(data) })
+  })
+}
+
+function post(url, body, token) {
+  return new Promise((resolve) => {
+    const parsed = new URL(url)
+    const isHttps = parsed.protocol === 'https:'
+    const lib = isHttps ? httpsRequest : request
+    const payload = JSON.stringify(body)
+
+    const req = lib({
+      hostname: parsed.hostname,
+      port: parsed.port || (isHttps ? 443 : 80),
+      path: parsed.pathname + parsed.search,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    }, (res) => {
+      res.resume()
+      resolve(res.statusCode)
+    })
+
+    req.on('error', () => resolve(0))
+    req.setTimeout(5000, () => { req.destroy(); resolve(0) })
+    req.write(payload)
+    req.end()
+  })
+}
+
+// Arquivo de timing do context hook (UserPromptSubmit) — lido e consumido aqui (PostToolUse)
+const TIMING_FILE = join(tmpdir(), 'rayzen-ctx-timing.json')
+const TIMING_MAX_AGE = 30_000  // ms — descarta timing órfão com > 30s
+
+function consumeTimingFile() {
+  try {
+    const raw = readFileSync(TIMING_FILE, 'utf8')
+    const timing = JSON.parse(raw)
+    if (Date.now() - timing.ts > TIMING_MAX_AGE) return null
+    try { unlinkSync(TIMING_FILE) } catch { /* ignora */ }
+    return timing
+  } catch { return null }
+}
+
+// Cache de resolução repoSlug → projectId (arquivo temporário, TTL 5 min)
+const SLUG_CACHE_FILE = join(tmpdir(), 'rayzen-slug-cache.json')
+const SLUG_CACHE_TTL = 5 * 60 * 1000
+
+// Lê o cache bruto (sem checar TTL) — usado para fallback stale-while-error
+function readSlugCacheRaw() {
+  try {
+    return JSON.parse(readFileSync(SLUG_CACHE_FILE, 'utf8'))
+  } catch { return null }
+}
+
+function readSlugCache() {
+  const cache = readSlugCacheRaw()
+  if (cache && Date.now() - cache.ts < SLUG_CACHE_TTL) return cache
+  return null
+}
+
+function writeSlugCache(slug, projectId) {
+  try {
+    writeFileSync(SLUG_CACHE_FILE, JSON.stringify({ slug, projectId, ts: Date.now() }), 'utf8')
+  } catch { /* ignora */ }
+}
+
+// Aviso de resolução falha — visível no Claude Code (exit 2), no máximo 1x/hora
+const WARN_FILE = join(tmpdir(), 'rayzen-hook-warn.json')
+const WARN_THROTTLE = 60 * 60 * 1000  // 1 hora
+
+function warnUnresolved(slug) {
+  // stderr sempre (para logs), mas exit 2 (visível) só após throttle
+  process.stderr.write(`[rayzen-hook] projectId não resolvido para "${slug ?? '?'}".\n`)
+  let last = 0
+  try { last = JSON.parse(readFileSync(WARN_FILE, 'utf8')).ts ?? 0 } catch { /* ignora */ }
+  if (Date.now() - last < WARN_THROTTLE) return  // já avisou recentemente — silencioso
+
+  try { writeFileSync(WARN_FILE, JSON.stringify({ slug, ts: Date.now() }), 'utf8') } catch { /* ignora */ }
+  process.stderr.write(
+    `\n⚠️  Rayzen: a atividade deste repositório ("${slug ?? '?'}") NÃO está sendo vinculada a um projeto.\n` +
+    `   Provável: nenhum projeto com esse repoSlug no Rayzen, ou repoSlug divergente, ou API/rede instável.\n` +
+    `   NÃO fixe projectId em hook.config.mjs — esse arquivo é compartilhado por TODOS os projetos\n` +
+    `   (mesmo caminho absoluto referenciado em cada .claude/settings.json); fixar aqui quebra a\n` +
+    `   detecção automática de qualquer outro projeto aberto simultaneamente.\n` +
+    `   Corrija o repoSlug DESTE projeto: PATCH /projects/:id { "repoSlug": "${slug ?? '?'}" }\n` +
+    `   Diagnóstico: GET /events/hook/health\n`,
+  )
+  // exit 2 faz o Claude Code exibir o stderr ao usuário (PostToolUse não bloqueia a ação já executada)
+  process.exitCode = 2
+}
+
+function buscarProjetoPorSlug(cfg, slug) {
+  const url = `${cfg.apiUrl}/projects?repoSlug=${encodeURIComponent(slug)}`
+  const parsed = new URL(url)
+  const isHttps = parsed.protocol === 'https:'
+  const lib = isHttps ? httpsRequest : request
+
+  return new Promise((resolve) => {
+    const req = lib({
+      hostname: parsed.hostname,
+      port: parsed.port || (isHttps ? 443 : 80),
+      path: parsed.pathname + parsed.search,
+      method: 'GET',
+      headers: { Authorization: `Bearer ${cfg.apiToken}` },
+    }, (res) => {
+      let body = ''
+      res.on('data', d => { body += d })
+      res.on('end', () => {
+        try {
+          const projects = JSON.parse(body)
+          resolve(Array.isArray(projects) && projects.length > 0 ? projects[0].id : null)
+        } catch { resolve(null) }
+      })
+    })
+    req.on('error', () => resolve(null))
+    req.setTimeout(5000, () => { req.destroy(); resolve(null) })
+    req.end()
+  })
+}
+
+async function resolveProjectId(cfg, cwd) {
+  // Prioridade 1: config explícito
+  if (cfg.projectId) return cfg.projectId
+
+  // Um hook global não pode substituir a origem ausente pelo process.cwd() do
+  // bridge: ele pode ser outro repositório e atribuir atividade ao dono errado.
+  if (typeof cwd !== 'string' || !cwd.trim()) return null
+
+  // `cwd` vem do PAYLOAD do hook, não de `process.cwd()`.
+  //
+  // A documentação do Claude Code garante `cwd` em todo evento, e avisa que ele é o que
+  // acompanha o Claude ao entrar numa worktree ou depois de um `cd` — enquanto
+  // `process.cwd()` do processo do hook é outra coisa e pode não ser o repositório.
+  //
+  // Sem isto, o `Stop` desta sessão falhou com slug `"?"` — lista de candidatos VAZIA,
+  // que significa evento de fim de sessão nascendo órfão. Passar o `cwd` declarado é
+  // usar a informação que já chegava e estava sendo ignorada.
+  const candidatos = candidatosDeSlug(cwd)
+  if (candidatos.length === 0) return null
+
+  // Prioridade 2: cache fresco (dentro do TTL) de QUALQUER um dos candidatos
+  const cached = readSlugCache()
+  if (cached && candidatos.includes(cached.slug)) return cached.projectId
+
+  // Prioridade 3: busca na API, candidato a candidato
+  try {
+    for (const slug of candidatos) {
+      const projectId = await buscarProjetoPorSlug(cfg, slug)
+      if (projectId) { writeSlugCache(slug, projectId); return projectId }
+    }
+
+    // Stale-while-error: query falhou (rede/timeout). Em vez de mandar órfão,
+    // reusa o cache do MESMO slug mesmo expirado — o projectId não muda.
+    // Isso elimina "desconexões" por hiccups transitórios de rede.
+    const stale = readSlugCacheRaw()
+    if (stale && candidatos.includes(stale.slug)) return stale.projectId
+
+    return null
+  } catch {
+    const stale = readSlugCacheRaw()
+    if (stale && candidatos.includes(stale.slug)) return stale.projectId
+    return null
+  }
+}
+
+/**
+ * Persiste um turn de conversa no Brain via POST /v2/chat/turns.
+ * Fire-and-forget — nunca bloqueia o hook.
+ */
+function persistConversationTurn(v2BaseUrl, token, body) {
+  try {
+    const url = `${v2BaseUrl}/v2/chat/turns`
+    post(url, body, token).catch(() => {})
+  } catch { /* ignora */ }
+}
+
+async function main() {
+  const hookTiming = consumeTimingFile()
+  const [raw, cfg] = await Promise.all([readStdin(), loadConfig()])
+  if (!raw.trim()) return
+
+  let payload
+  try {
+    payload = JSON.parse(raw)
+  } catch {
+    process.exit(0)
+  }
+
+  // Ferramentas sem sinal semântico — ignorar completamente
+  const tool = payload.tool_name ?? ''
+  const IGNORED_TOOLS = new Set([
+    'TodoWrite', 'TodoRead', 'ListMcpResourcesTool',
+    'ToolSearch', 'Agent', 'ScheduleWakeup',
+    'EnterPlanMode', 'ExitPlanMode', 'AskUserQuestion',
+    'Read', 'Glob', 'Grep', // exploração, não mudança — quase sempre ruído
+    'WebFetch', 'WebSearch', // pesquisa externa — sem sinal de progresso
+  ])
+  // Ignorar leituras do Rayzen (não criar evento ao consultar estado)
+  if (IGNORED_TOOLS.has(tool) ||
+      tool.startsWith('mcp__rayzen__rayzen_get') ||
+      tool.startsWith('mcp__rayzen__rayzen_search') ||
+      tool.startsWith('mcp__rayzen__rayzen_list')) {
+    process.exit(0)
+  }
+
+  // Detecta projectId automaticamente por repoSlug, com fallback para config fixo
+  const projectId = await resolveProjectId(cfg, payload.cwd)
+  if (!projectId) {
+    // Sem dono confirmado, nem o evento nem o conteúdo de Edit/Write podem entrar
+    // no Rayzen: ambos ficariam invisíveis nas consultas com escopo de projeto.
+    // A resolução no servidor por projectName era uma segunda heurística e ainda
+    // permitia o POST órfão quando não encontrava correspondência.
+    warnUnresolved(getProjectName(payload.cwd))
+    return
+  }
+  payload.projectId = projectId
+
+  const filePath = payload.tool_input?.file_path ?? payload.tool_input?.path
+  await sincronizarPlanoVigente({
+    filePath,
+    projectId,
+    apiUrl: cfg.apiUrl,
+    apiToken: cfg.apiToken,
+  }).catch(() => null)
+
+  // Enriquecer com contexto git (não bloqueia se falhar)
+  const git = getGitContext(payload.cwd)
+  if (git) {
+    payload.git = git
+    if (git.changedFiles?.length) {
+      const modules = inferModulesFromPaths(git.changedFiles)
+      if (modules.length) payload.graphify = { modules }
+    }
+  }
+
+  // Contexto do graphify — hoist repoRoot para reuso
+  let repoRoot = null
+  try {
+    repoRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], {
+      cwd: payload.cwd, encoding: 'utf8', timeout: 2000, stdio: ['pipe', 'pipe', 'ignore'],
+    }).trim()
+    const graphifyCtx = getGraphifyContext(repoRoot)
+    if (graphifyCtx) payload.graphifyStats = graphifyCtx
+  } catch { /* ignora */ }
+
+  // Bash/PowerShell: substituir command completo (ruído) por description (sinal)
+  if (tool === 'Bash' || tool === 'PowerShell') {
+    const desc = payload.tool_input?.description
+    if (desc) payload.tool_input = { ...payload.tool_input, _useDescription: true }
+  }
+
+  // Stop event: persiste o último turn do assistente no Brain para memória cross-sessão
+  const hookEvent = payload.hook_event_name ?? ''
+  if (hookEvent === 'Stop' && projectId) {
+    const transcript = Array.isArray(payload.transcript) ? payload.transcript : []
+    const lastAssistant = [...transcript].reverse().find((m) => m.role === 'assistant')
+    if (lastAssistant) {
+      const content = typeof lastAssistant.content === 'string'
+        ? lastAssistant.content
+        : Array.isArray(lastAssistant.content)
+          ? lastAssistant.content.map((b) => (typeof b === 'string' ? b : (b?.text ?? ''))).join('\n')
+          : ''
+      if (content.trim()) {
+        const v2Base = (cfg.apiV2Url ?? cfg.apiUrl).replace(/\/$/, '')
+        persistConversationTurn(v2Base, cfg.apiToken, {
+          projectId,
+          sessionId:  payload.session_id,
+          role:       'assistant',
+          content:    content.slice(0, 8000),
+          source:     'claude-code',
+        })
+      }
+    }
+  }
+
+  // Edit/Write: indexação semântica do conteúdo do arquivo.
+  //
+  // Aqui existia também um auto-register no /data-catalog — cada arquivo editado
+  // virava um "data asset". Em ~2 meses gerou 477 registros, 100% type=file, e
+  // nenhum deles era dado: era o rastro das edições do Claude Code, incluindo
+  // arquivos de pastas temporárias. O conceito de data asset (dataset, PII,
+  // sensibilidade, linhagem) foi alimentado com código-fonte. O domínio inteiro de
+  // governança de dados saiu do Rayzen junto com o catalog-guardian.
+  if (tool === 'Edit' || tool === 'Write') {
+    const filePath = payload.tool_input?.file_path ?? payload.tool_input?.path
+    const content = readFileContent(filePath)
+    if (content) payload.fileContent = content
+  }
+
+  // Timing do UserPromptSubmit — emite como evento separado se disponível
+  const timingPromise = (hookTiming && (!hookTiming.projectId || hookTiming.projectId === projectId))
+    ? post(`${cfg.apiUrl}/events/cli`, {
+        source: 'cli',
+        type: 'note',
+        content: 'hook-timing',
+        projectId,
+        metadata: {
+          kind: 'hook_timing',
+          hookDurationMs: hookTiming.hookDurationMs,
+          contextEngineDurationMs: hookTiming.contextEngineDurationMs ?? null,
+          cacheHit: hookTiming.cacheHit,
+          mode: hookTiming.mode,
+        },
+      }, cfg.apiToken)
+    : Promise.resolve()
+
+  await Promise.all([
+    post(`${cfg.apiUrl}/events/cli`, payload, cfg.apiToken),
+    timingPromise,
+  ])
+  // Preserva exitCode 2 definido por warnUnresolved (aviso visível); senão 0
+  process.exit(process.exitCode ?? 0)
+}
+
+main().catch(() => process.exit(0))

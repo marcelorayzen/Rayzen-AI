@@ -1,0 +1,15 @@
+-- Em que isolamento o efeito roda — declarado por tipo de efeito, nunca escolhido por quem pede.
+--
+-- Se o produtor (web, Hermes, missao) declarasse o proprio isolamento, a entrada escolheria a
+-- propria protecao. E a licao do A08 na forma mais direta: o gate depende do que se pede, nao
+-- de quem pede. Isolamento e propriedade do que o efeito FAZ, e mora no catalogo, ao lado da
+-- declaracao da capability — como as estrategias de `executarPrograma()`, "declaradas por
+-- capability, sem default nem heuristica".
+--
+-- Fica gravado no envelope, e nao apenas derivado na leitura, porque a aprovacao se refere a um
+-- efeito rodando sob um isolamento ESPECIFICO: ele entra no `content_hash`, entao trocar o
+-- isolamento depois do aceite mudaria o que foi autorizado sem mudar o id.
+--
+-- DEFAULT 'nenhum' e seguro aqui: a tabela nasceu ontem e o unico envelope existente esta
+-- cancelado. Nao ha linha a quem o default pudesse atribuir uma protecao que ela nao teve.
+ALTER TABLE project_handoffs ADD COLUMN IF NOT EXISTS isolamento TEXT NOT NULL DEFAULT 'nenhum';

@@ -1,0 +1,744 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+  binaryTargets   = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector")]
+}
+
+model Project {
+  id                String   @id @default(uuid())
+  name              String
+  description       String?
+  status            String   @default("active")
+  goals             String?
+  notionPageId      String?  @map("notion_page_id")
+  repoSlug          String?  @unique @map("repo_slug") // pasta/repo que identifica o projeto (ex: "rayzen-ai")
+  // pessoal | trabalho | cliente — nulo = nao classificado. Ver common/dominio-do-projeto.const.ts:
+  // o SOUL promete respeitar a separacao entre vida pessoal, projetos e clientes, e ate 18/09 isso
+  // era so uma regra de atribuicao no prompt, sem nada no dado que a sustentasse.
+  domain            String?
+  // Caminho absoluto do checkout na maquina que o materializou. Ate 24/09 o vinculo entre o
+  // registro e o disco era heuristico — o gerador cria a pasta com o nome CRU e registra o
+  // projeto com o slug em kebab, e `repo-slug.mjs` compensava devolvendo duas grafias. Medido:
+  // 3 dos 6 projetos reais tem pasta diferente do slug. Ver common/checkout-do-projeto.const.ts.
+  checkoutPath      String?  @map("checkout_path")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  documents            Document[]
+  conversationMessages ConversationMessage[]
+  events               Event[]
+  sessionArtifacts     SessionArtifact[]
+  projectDocuments     ProjectDocument[]
+  projectState         ProjectState?
+  recommendations      ProjectRecommendation[]
+  healthScores         ProjectHealthScore[]
+  testRuns             TestRun[]
+  projectGoals         ProjectGoal[]
+  knowledgeMap         ProjectKnowledgeMap?
+  blueprintImports     BlueprintImport[]
+  agentSessions        AgentSession[]
+  hubThreads           HubThread[]
+  rotinas              Rotina[]
+
+  @@map("projects")
+}
+
+model ProjectDocument {
+  id          String    @id @default(uuid())
+  projectId   String    @map("project_id")
+  type        String    // project_state | decisions_log | next_actions | work_journal
+  content     String    // markdown gerado
+  generatedAt DateTime  @default(now()) @map("generated_at")
+  reviewedAt  DateTime? @map("reviewed_at")
+
+  project  Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versions ProjectDocumentVersion[]
+
+  @@unique([projectId, type])
+  @@map("project_documents")
+}
+
+model ProjectDocumentVersion {
+  id              String   @id @default(uuid())
+  documentId      String   @map("document_id")
+  content         String   // conteúdo desta versão
+  previousContent String?  @map("previous_content") // conteúdo anterior (null na primeira versão)
+  diff            String?  // diff resumido: linhas adicionadas/removidas
+  reason          String   @default("regenerated") // regenerated | force_regenerated | manual
+  sourceIds       Json     @default("[]") @map("source_ids") // IDs de events + artifacts usados
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  document ProjectDocument @relation(fields: [documentId], references: [id])
+
+  @@index([documentId, createdAt(sort: Desc)])
+  @@map("project_document_versions")
+}
+
+model SessionArtifact {
+  id        String   @id @default(uuid())
+  projectId String?  @map("project_id")
+  sessionId String   @map("session_id")
+  type      String   @default("synthesis") // synthesis | checkpoint
+  workMode  String?  @map("work_mode")    // implementation | debugging | architecture | study | review
+  content   Json     // { summary, decisions[], next_steps[], learnings[], confidence }
+  sourceIds Json     @default("[]") @map("source_ids") // IDs dos eventos usados para gerar
+  createdAt DateTime @default(now()) @map("created_at")
+
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, sessionId])
+  @@map("session_artifacts")
+}
+
+model Event {
+  id          String   @id @default(uuid())
+  projectId   String?  @map("project_id")
+  source      String   // chat | memory | cli | voice | execution | manual
+  type        String   // message | index | execution | decision | note | error
+  intent      String?  // decision | idea | problem | reference | checkpoint
+  content     String
+  metadata    Json     @default("{}")
+  ts          DateTime @default(now())
+  memoryClass String   @default("inbox") @map("memory_class") // inbox | working | consolidated | archive
+
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, ts(sort: Desc)])
+  @@index([projectId, memoryClass])
+  @@map("events")
+}
+
+model ProjectRecommendation {
+  id          String    @id @default(uuid())
+  projectId   String    @map("project_id")
+  type        String    // inactivity | doc_stale | blocker_stuck | next_step_pending | consistency
+  title       String
+  description String
+  priority    String    @default("medium") // low | medium | high
+  action      String?   // texto da ação sugerida
+  dismissedAt DateTime? @map("dismissed_at")
+  computedAt  DateTime  @default(now()) @map("computed_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, dismissedAt])
+  @@map("project_recommendations")
+}
+
+model ProjectState {
+  id               String   @id @default(uuid())
+  projectId        String   @unique @map("project_id")
+  objective        String?
+  stage            String?  // discovery | building | stabilizing | maintaining | paused
+  blockers         Json     @default("[]")
+  recentDecisions  Json     @default("[]") @map("recent_decisions")
+  nextSteps        Json     @default("[]") @map("next_steps")
+  risks            Json     @default("[]")
+  docGaps          Json     @default("[]") @map("doc_gaps")
+  riskLevel        String   @default("low") @map("risk_level") // low | medium | high
+  // Fase 11 — Planejamento operacional
+  milestones       Json     @default("[]")   // { id, title, status: pending|active|done }[]
+  backlog          Json     @default("[]")   // { id, title, priority: high|medium|low }[]
+  graphLinks       Json     @default("[]") @map("graph_links") // { id, sourceId, targetId, label? }[]
+  activeFocus      String?  @map("active_focus")
+  definitionOfDone String?  @map("definition_of_done")
+  // Plano escrito pela pessoa e sincronizado pelo hook. A síntese não pode
+  // substituir sua fila por inferências de eventos.
+  planSource       Json?    @map("plan_source")
+  // Marca d'água do refresh incremental (`ts > updatedAt`). Avança em TODA escrita —
+  // é o que ela precisa fazer para não reprocessar evento. Não serve como idade.
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  // Idade do CONTEÚDO, separada da marca d'água. Só avança quando o hash dos campos
+  // semânticos muda — ver ProjectStateService.hashConteudo(). Sem essa separação, um
+  // refresh que consome eventos e mantém a descrição zera o contador e a data atesta
+  // um frescor que o texto não tem (medido no Commerce: objetivo de 24/06 servido como
+  // se fosse de hoje). Nulo = nunca calculado; o backfill preenche.
+  contentHash      String?  @map("content_hash")
+  contentChangedAt DateTime? @map("content_changed_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("project_states")
+}
+
+model ProjectHealthScore {
+  id         String   @id @default(uuid())
+  projectId  String   @map("project_id")
+  score      Int      // 0–100
+  breakdown  Json     // { activity, documentation, consistency, nextSteps, blockers, focus }
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt(sort: Desc)])
+  @@map("project_health_scores")
+}
+
+model Document {
+  id         String   @id @default(uuid())
+  sourcePath String?  @map("source_path")
+  content    String
+  embedding  Unsupported("vector(1024)")?
+  metadata   Json     @default("{}")
+  checksum   String
+  projectId  String?  @map("project_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  project     Project?              @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  wikiSources WikiSourceReference[]
+
+  @@map("documents")
+}
+
+model WikiPage {
+  id          String   @id @default(uuid())
+  slug        String
+  projectId   String?  @map("project_id")
+  title       String
+  tags        String[] @default([])
+  contentMd   String   @map("content_md")
+  related     String[] @default([])        // slugs de outras WikiPages
+  editStatus  String   @default("generated") @map("edit_status")
+                                            // generated | human_reviewed | human_edited | locked
+  compiledAt  DateTime @default(now()) @map("compiled_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  versions WikiPageVersion[]
+  sources  WikiSourceReference[]
+
+  @@index([projectId, slug])
+  @@map("wiki_pages")
+}
+
+model WikiPageVersion {
+  id         String   @id @default(uuid())
+  pageId     String   @map("page_id")
+  contentMd  String   @map("content_md")
+  reason     String   @default("compiled") // compiled | recompiled | manual | merged
+  diff       String?                        // resumo das mudanças
+  authorType String   @default("llm") @map("author_type") // llm | human
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  page WikiPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([pageId, createdAt(sort: Desc)])
+  @@map("wiki_page_versions")
+}
+
+model WikiSourceReference {
+  id             String   @id @default(uuid())
+  pageId         String   @map("page_id")
+  documentId     String   @map("document_id")
+  relevanceScore Float    @default(0) @map("relevance_score")
+  usedAt         DateTime @default(now()) @map("used_at")
+
+  page     WikiPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  document Document @relation(fields: [documentId], references: [id])
+
+  @@unique([pageId, documentId])
+  @@map("wiki_source_references")
+}
+
+model TestRun {
+  id          String   @id @default(uuid())
+  projectId   String?  @map("project_id")
+  tool        String   // jest | playwright | vitest | junit | testng | selenium | cucumber
+  branch      String?
+  commitHash  String?  @map("commit_hash")
+  totalTests  Int      @map("total_tests")
+  passed      Int
+  failed      Int
+  skipped     Int
+  durationMs  Int?     @map("duration_ms")
+  suites      Json     @default("[]")  // [{ name, tests, failures, time }]
+  failedCases Json     @default("[]") @map("failed_cases")  // [{ suite, name, message, stacktrace }]
+  source      String   @default("agent")  // agent | ci | manual
+  executedAt  DateTime @default(now()) @map("executed_at")
+
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, executedAt(sort: Desc)])
+  @@map("test_runs")
+}
+
+model SchemaSnapshot {
+  id        String   @id @default(uuid())
+  projectId String?  @map("project_id")
+  models    Json     // ModelInfo[]
+  capturedAt DateTime @default(now()) @map("captured_at")
+
+  @@index([projectId, capturedAt(sort: Desc)])
+  @@map("schema_snapshots")
+}
+
+model ProjectGoal {
+  id              String    @id @default(uuid())
+  projectId       String    @map("project_id")
+  title           String
+  description     String?
+  successCriteria Json      @default("[]") @map("success_criteria")
+  kpis            Json      @default("[]")
+  status          String    @default("active")
+  targetDate      DateTime? @map("target_date")
+  parentGoalId    String?   @map("parent_goal_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  project    Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  lastGapAnalysis Json?    @map("last_gap_analysis")
+
+  parentGoal ProjectGoal? @relation("GoalHierarchy", fields: [parentGoalId], references: [id])
+  subGoals   ProjectGoal[] @relation("GoalHierarchy")
+
+  @@index([projectId, status])
+  @@map("project_goals")
+}
+
+model ProjectKnowledgeMap {
+  id        String   @id @default(uuid())
+  projectId String   @unique @map("project_id")
+  nodes     Json     @default("[]")
+  edges     Json     @default("[]")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("project_knowledge_maps")
+}
+
+model BlueprintImport {
+  id          String   @id @default(uuid())
+  projectId   String   @map("project_id")
+  title       String
+  source      String   // chatgpt | claude | manual | github | notion
+  format      String   // markdown | json
+  mode        String?  // architecture | implementation | debugging | review | study
+  wikiPages   String[] @map("wiki_pages")
+  eventCount  Int      @default(0) @map("event_count")
+  nextSteps   String[] @map("next_steps")
+  warnings    String[]
+  contentHash String   @map("content_hash")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt(sort: Desc)])
+  @@map("blueprint_imports")
+}
+
+model ConversationMessage {
+  id             String   @id @default(uuid())
+  sessionId      String   @map("session_id")
+  module         String
+  role           String
+  content        String
+  tokensUsed     Int?     @map("tokens_used")
+  projectId      String?  @map("project_id")
+  workMode       String?  @map("work_mode") // implementation | debugging | architecture | study | review
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@map("conversation_messages")
+}
+
+/// Projeção durável do fio que o Hub apresenta. Não duplica mensagens nem estado
+/// do Hermes: aponta para uma sessão do runtime quando ela existir.
+model HubThread {
+  id               String   @id @default(uuid())
+  principalId      String   @map("principal_id")
+  /// `general` ou `project`; armazenado para auditoria, enquanto `scopeKey`
+  /// normaliza o NULL e permite unicidade também no escopo geral.
+  scopeType        String   @map("scope_type")
+  scopeKey         String   @map("scope_key")
+  projectId        String?  @map("project_id")
+  hermesSessionId  String?  @map("hermes_session_id")
+  status           String   @default("active")
+  contractVersion  String   @default("2026-10-12") @map("contract_version")
+  retentionPolicy  String   @default("default") @map("retention_policy")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  turns   HubTurn[]
+  workItems HubWorkItem[]
+
+  @@unique([principalId, scopeKey])
+  @@index([projectId, status])
+  @@map("hub_threads")
+}
+
+/// Turnos aceitos pela fachada H2. A entrada e a saída ficam auditáveis no
+/// Rayzen; a conversa operacional completa continua pertencendo ao Hermes.
+/// HC1 (21/11/2026) — arquivo anexado no chat do Hub. Pertence a quem enviou (o fio só existe a
+/// partir da primeira mensagem). `texto` é o que o modelo verá; o original expira em 30 dias.
+model HubAnexo {
+  id          String    @id @default(uuid())
+  principalId String    @map("principal_id")
+  nome        String
+  mime        String
+  tamanho     Int
+  sha256      String
+  texto       String
+  extraidoPor String    @map("extraido_por")
+  truncado    Boolean   @default(false)
+  caminho     String?
+  expiraEm    DateTime? @map("expira_em")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([principalId, sha256])
+  @@index([expiraEm])
+  @@map("hub_anexos")
+}
+
+model HubTurn {
+  id              String    @id @default(uuid())
+  threadId        String    @map("thread_id")
+  principalId     String    @map("principal_id")
+  idempotencyKey  String    @map("idempotency_key")
+  inputText       String    @map("input_text")
+  outputText      String?   @map("output_text")
+  status          String    @default("accepted")
+  errorCode       String?   @map("error_code")
+  runtimeRunId    String?   @map("runtime_run_id")
+  contextPackId   String?   @map("context_pack_id")
+  contextPackHash String?   @map("context_pack_hash")
+  /// HC2 (21/11): anexos (HubAnexo) que entraram neste turno, na ordem enviada.
+  anexoIds        String[]  @default([]) @map("anexo_ids")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  completedAt     DateTime? @map("completed_at")
+
+  thread HubThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  events HubEvent[]
+
+  @@unique([threadId, idempotencyKey])
+  @@index([principalId, createdAt(sort: Desc)])
+  @@map("hub_turns")
+}
+
+/// Eventos ordenados para replay/reconexão. H2 grava apenas aceitação, resultado
+/// ou falha; streaming incremental será adicionado sem mudar essa fronteira.
+model HubEvent {
+  id        String   @id @default(uuid())
+  turnId    String   @map("turn_id")
+  sequence  Int
+  type      String
+  payload   Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  turn HubTurn @relation(fields: [turnId], references: [id], onDelete: Cascade)
+
+  @@unique([turnId, sequence])
+  @@index([turnId, sequence])
+  @@map("hub_events")
+}
+
+/// H5: referência do fio para trabalho governado já existente. Não possui
+/// executor nem estado próprio: sourceId continua sendo a autoridade.
+model HubWorkItem {
+  id           String   @id @default(uuid())
+  threadId     String   @map("thread_id")
+  kind         String
+  sourceSystem String   @map("source_system")
+  sourceId     String   @map("source_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  thread HubThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@unique([threadId, sourceSystem, sourceId])
+  @@index([threadId, createdAt(sort: Desc)])
+  @@map("hub_work_items")
+}
+
+model AgentSession {
+  id              String   @id @default(cuid())
+  projectId       String   @map("project_id")
+  status          String   @default("active") // active | waiting | completed | error
+  claudePrompt    String   @map("claude_prompt")
+  pendingQuestion String?  @map("pending_question")
+  pendingReply    String?  @map("pending_reply")
+  pendingRequiresApproval Boolean @default(false) @map("pending_requires_approval")
+  pendingApprovalOptions  Json?   @map("pending_approval_options")
+  previewUrl      String?  @map("preview_url")
+  summary         String?
+  liveLog         String?  @map("live_log")
+  /// G2.9 (24/11): link do VS Code Remote para a pasta da sessão na sandbox, mandado pelo agent
+  /// quando a pasta fica pronta. O Hub mostra no cartão "em andamento".
+  vscodeUrl       String?  @map("vscode_url")
+  testVerification Json?   @map("test_verification")
+  /// 21/11: "Não publicar" no portão do diff, registrado pela API no momento da resposta (nunca
+  /// pelo relato da sessão). O postflight usa isto para fechar o envelope sem deixar incerteza.
+  publicacaoRecusadaEm  DateTime? @map("publicacao_recusada_em")
+  publicacaoRecusadaPor String?   @map("publicacao_recusada_por")
+  costUsd         Float?   @map("cost_usd")
+  numTurns        Int?     @map("num_turns")
+  modelSessionId  String?  @map("model_session_id")
+  papel           String?
+  provedor        String?
+  modelo          String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, status])
+  @@map("agent_sessions")
+}
+
+/// Aprovacao humana para execucao de risco alto — Fase 5-A de docs/plano-execucao-tipada.md.
+///
+/// Ate 2026-09-08 bastava `force: true` no payload para executar risco `high`: quem montava o
+/// payload concedia a propria aprovacao, e o LLM monta payload. Nao havia aprovacao, havia um
+/// campo com nome de aprovacao.
+///
+/// A aprovacao e criada no SERVIDOR, por quem tem `APPROVAL_TOKEN` — credencial que o agent
+/// deliberadamente NAO possui, senao autoaprovacao continuaria possivel com outro nome. Ela vale
+/// para um par (acao + argumentos) especifico, expira, e e consumida uma unica vez.
+model ExecutionApproval {
+  id            String    @id @default(uuid())
+  /// Ex.: `jarvis:run_command`. A capability autorizada, nunca "qualquer coisa".
+  actionKey     String    @map("action_key")
+  /// sha256 do canonico (acao + ator + recurso + argumentos ordenados). Argumento diferente,
+  /// hash diferente, aprovacao nao serve — e o que impede trocar o comando depois do aceite.
+  argsHash      String    @map("args_hash")
+  /// Quem vai EXECUTAR (o agent/role), nao quem aprovou.
+  actor         String
+  /// Diretorio/projeto alvo. Faz parte do hash: aprovar num repo nao aprova noutro.
+  resource      String?
+  /// Identificador de quem aprovou. Nao e o `actor`.
+  /// Identidade DERIVADA do principal autenticado pelo guard — nunca lida do corpo. Antes era
+  /// um campo de auditoria preenchido por quem esta sendo auditado.
+  createdBy     String    @map("created_by")
+  createdByType String    @default("desconhecido") @map("created_by_type")
+  expiresAt     DateTime  @map("expires_at")
+  consumedAt    DateTime? @map("consumed_at")
+  consumedByTask String?  @map("consumed_by_task")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  /// Parcial nao da para expressar aqui; a unicidade real e garantida no UPDATE condicional
+  /// (`consumedAt: null`), que e atomico. O indice existe para a busca.
+  @@index([actionKey, argsHash, consumedAt])
+  @@index([expiresAt])
+  @@map("execution_approvals")
+}
+
+/// Envelope duravel que liga brief, versao, autorizacao e efeitos permitidos — Fase 4.
+///
+/// O broker ja entrega intencao idempotente e o `ExecutionApproval` ja interpoe uma pessoa.
+/// O que faltava era o registro do que foi aprovado: a aprovacao vive minutos e morre ao ser
+/// consumida, e a tarefa carrega payload sem procedencia. Autorizacao expira, evidencia nao —
+/// a mesma separacao do ContextPack da Fase 3.
+model ProjectHandoff {
+  id        String  @id @default(uuid())
+  /// Preenchido quando o projeto passa a existir. Nulo no rascunho e o normal, nao defeito.
+  projectId String? @map("project_id")
+  /// Projeto/fio que originou o pedido. Nao muda quando o efeito cria outro projeto.
+  sourceProjectId String? @map("source_project_id")
+
+  name     String
+  brief    String
+  template String
+  /// Raiz onde o trabalho sera materializado. Validada contra SAFE_ROOTS na execucao.
+  root     String
+
+  /// Acoes e argumentos EXATOS que este envelope autoriza. Efeito e declarado, nunca inferido
+  /// do brief: quem aprova precisa ver o que vai rodar.
+  effects Json
+
+  /// Em que isolamento o efeito roda. DERIVADO do catalogo, nunca aceito do corpo: se o
+  /// produtor escolhesse, a entrada escolheria a propria protecao. Fica gravado porque a
+  /// aprovacao se refere a um efeito rodando sob um isolamento especifico.
+  isolamento String @default("nenhum")
+
+  /// sha256 do conteudo versionado (brief + template + nome + raiz + efeitos + isolamento).
+  /// Aprovar um brief e materializar outro e o defeito que este hash existe para impedir.
+  contentHash String @map("content_hash")
+  /// Editar um rascunho sobe a versao e invalida o aceite anterior: autorizacao se refere a um
+  /// conteudo, nao a um id.
+  version     Int    @default(1)
+
+  status String @default("draft")
+
+  createdBy  String    @map("created_by")
+  approvalId String?   @map("approval_id")
+  approvedBy String?   @map("approved_by")
+  approvedAt DateTime? @map("approved_at")
+
+  /// Job do broker que materializou este envelope, e a chave que torna a reentrega um replay.
+  taskId         String? @map("task_id")
+  idempotencyKey String? @map("idempotency_key")
+
+  /// O que a previa encontrou no disco e no catalogo antes de materializar: pasta existente,
+  /// projeto ja registrado, se havera commit inicial. Evidencia do que se sabia no momento
+  /// da decisao — nao se reconstroi depois, porque o disco muda.
+  preflight Json?
+
+  /// O que a verificacao encontrou DEPOIS da execucao: o efeito esta mesmo la? Separado
+  /// do `preflight` de proposito — sao duas perguntas em dois momentos, e junta-las
+  /// perderia a de antes ao gravar a de depois.
+  postflight Json?
+
+  /// Entrega confirmada (item 7.2a): branch, commit, PR. Gravada SO a partir do postflight
+  /// medido pelo agent, nunca do relato da sessao — o cartao do Hub le daqui. Nulo enquanto
+  /// nao houver entrega confirmada, e sempre nulo para efeitos que nao entregam branch.
+  delivery Json?
+
+  /// Ultima transicao recusada ou motivo de saida — o que explica um envelope parado.
+  motivo String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([status, createdAt])
+  @@index([projectId])
+  @@index([sourceProjectId])
+  /// A sincronizacao do ciclo de vida busca o envelope PELA TAREFA — sem indice, cada claim e
+  /// cada batimento varreria a tabela.
+  @@index([taskId])
+  @@map("project_handoffs")
+}
+
+model AgentAuditLog {
+  id          String   @id @default(uuid())
+  taskId      String   @map("task_id")
+  actor       String   @default("admin")
+  module      String
+  action      String
+  command     String?
+  risk        String?
+  dryRun      Boolean  @default(false) @map("dry_run")
+  durationMs  Int?     @map("duration_ms")
+  status      String   // success | error
+  result      Json?
+  error       String?
+  workspace   String?
+  hostname    String?
+  targetRole  String?  @map("target_role")
+  /// Item C.3 do plano de execução tipada — identidade de quem aprovou a execução (Fase 7,
+  /// caso 4). Vem de `ExecutionApproval.createdBy`, via `decidir()` (`apps/agent`) →
+  /// `RunCommandResult.aprovadoPor` → `poller.ts`. Nulo quando a ação não exigiu aprovação
+  /// (risco baixo, capability none) ou nunca foi consumida (dryRun, recusa).
+  approvedBy  String?  @map("approved_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([taskId])
+  @@index([createdAt(sort: Desc)])
+  @@index([action, status])
+  @@map("agent_audit_logs")
+}
+
+/// Vínculo canal ↔ projeto. A chave é (chat, tópico) e não só o chat, porque os quatro
+/// arranjos que interessam colapsam nessa mesma forma: conversa privada e grupo simples
+/// usam `threadId` vazio; supergrupo com tópicos usa um por projeto; e o grupo do
+/// WhatsApp entra depois pelo mesmo contrato, sem integração separada.
+///
+/// `threadId` é String com default `""` e NÃO nullable de propósito: no Postgres, NULLs
+/// são distintos entre si num índice único, então `@@unique([chatId, threadId])` com
+/// NULL permitiria duas linhas para o mesmo chat — exatamente o que a chave existe para
+/// impedir.
+model TelegramSession {
+  id             String   @id @default(uuid())
+  telegramChatId String   @map("telegram_chat_id")
+  threadId       String   @default("") @map("thread_id")
+  sessionId      String   @default(uuid()) @map("session_id")
+  projectId      String?  @map("project_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@unique([telegramChatId, threadId])
+  @@map("telegram_sessions")
+}
+
+/// Quais chats o bot atende.
+///
+/// Até 2026-09-06 a autorização era `fromId !== TELEGRAM_CHAT_ID` — um valor único, e a
+/// única barreira entre um estranho e o `/orchestrate` inteiro. Aceitar mais de um chat
+/// sem substituir isso seria aceitar todos.
+///
+/// Chat desconhecido é REGISTRADO e não respondido: o bot fica em silêncio (não confirma
+/// nem a própria existência) e a linha aparece para o dono autorizar de dentro do chat
+/// raiz. Sem isso, descobrir o `chatId` de um grupo novo exigiria ler log de servidor.
+model TelegramChat {
+  chatId      String   @id @map("chat_id")
+  title       String?
+  authorized  Boolean  @default(false)
+  firstSeenAt DateTime @default(now()) @map("first_seen_at")
+  lastSeenAt  DateTime @updatedAt @map("last_seen_at")
+
+  @@map("telegram_chats")
+}
+
+/// G6 (21/11/2026): regra aprovada por uma pessoa que, quando o gatilho acontece, CRIA um envelope
+/// de sessão supervisionada — nunca executa nem aprova o próprio efeito. Desenho em
+/// docs/decisions/G6-rotinas-desenho.md. `status`: proposta | ativa | pausada.
+model Rotina {
+  id              String    @id @default(uuid())
+  projectId       String    @map("project_id")
+  project         Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  nome            String
+  /// { tipo: 'agenda', intervaloMin } | { tipo: 'github', evento } — o repositório é o do projeto.
+  gatilho         Json
+  /// { titulo, objetivo, restricoes, criterioDePronto, detalhes?, aprovacao } com marcadores {{...}}.
+  modelo          Json
+  status          String    @default("proposta")
+  criadaPor       String    @map("criada_por")
+  aprovadaPor     String?   @map("aprovada_por")
+  ultimoDisparoEm DateTime? @map("ultimo_disparo_em")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  execucoes       RotinaExecucao[]
+
+  @@index([status])
+  @@index([projectId])
+  @@map("rotinas")
+}
+
+/// Uma tentativa de disparo. `origem` é estruturada (repo, PR, ramo, SHA, workflow, URL) e nunca
+/// guarda texto escrito por terceiros. Só as últimas 20 por rotina são mantidas.
+/// `resultado`: proposto | ignorado_duplicado | limite | proposta_aberta | falhou.
+model RotinaExecucao {
+  id          String   @id @default(uuid())
+  rotinaId    String   @map("rotina_id")
+  rotina      Rotina   @relation(fields: [rotinaId], references: [id], onDelete: Cascade)
+  disparadaEm DateTime @default(now()) @map("disparada_em")
+  origem      Json
+  chave       String?
+  envelopeId  String?  @map("envelope_id")
+  resultado   String
+  erro        String?
+
+  @@index([rotinaId, disparadaEm])
+  @@index([rotinaId, chave])
+  @@map("rotina_execucoes")
+}
+
+/// HC4b (22/11/2026) — gaveta 1 da memória (a biblioteca): o Hub PROPÕE guardar um anexo ou
+/// remover um documento, e só uma pessoa aprova no fio. Fato e decisão (gaveta 2) seguem pela
+/// governança de conhecimento da V2, não por aqui.
+model PropostaDeMemoria {
+  id          String    @id @default(uuid())
+  /// `guardar` (anexo → documentos de busca) ou `remover` (documentos de um caminho)
+  acao        String
+  projectId   String    @map("project_id")
+  anexoId     String?   @map("anexo_id")
+  sourcePath  String?   @map("source_path")
+  titulo      String
+  /// proposta → indexando → aprovada | falhou; ou proposta → rejeitada
+  status      String    @default("proposta")
+  criadaPor   String    @map("criada_por")
+  decididaPor String?   @map("decidida_por")
+  decididaEm  DateTime? @map("decidida_em")
+  resultado   Json?
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([status, projectId])
+  @@map("propostas_de_memoria")
+}

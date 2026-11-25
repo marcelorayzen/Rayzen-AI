@@ -1,0 +1,185 @@
+import { Injectable, Logger } from '@nestjs/common'
+
+// HTTP client para a API V1 — V2 usa isso para operações de escrita no storage V1
+@Injectable()
+export class V1ApiService {
+  private readonly logger = new Logger(V1ApiService.name)
+  private readonly baseUrl: string
+  private readonly token: string
+
+  constructor() {
+    this.baseUrl = (process.env.V1_API_URL ?? 'http://api:3001').replace(/\/$/, '')
+    this.token   = process.env.V1_API_TOKEN ?? process.env.AGENT_TOKEN ?? ''
+  }
+
+  private get headers() {
+    return { 'Content-Type': 'application/json', Authorization: `Bearer ${this.token}` }
+  }
+
+  async searchMemory(projectId: string, query: string, limit = 10): Promise<MemorySearchResult[]> {
+    try {
+      const res = await fetch(`${this.baseUrl}/memory/search`, {
+        method: 'POST',
+        headers: this.headers,
+        body: JSON.stringify({ projectId, query, limit }),
+      })
+      if (!res.ok) return []
+      // V1 /memory/search returns {answer, sources, tokensUsed}
+      const data = await res.json() as { sources?: MemorySearchResult[]; results?: MemorySearchResult[] }
+      return data.sources ?? data.results ?? []
+    } catch (e) {
+      this.logger.warn(`memory search failed: ${e}`)
+      return []
+    }
+  }
+
+  async searchMemoryRaw(projectId: string, query: string, limit = 10): Promise<MemorySearchResult[]> {
+    try {
+      const res = await fetch(`${this.baseUrl}/memory/search/raw`, {
+        method: 'POST',
+        headers: this.headers,
+        body: JSON.stringify({ projectId, query, limit }),
+      })
+      if (!res.ok) return []
+      const data = await res.json() as MemorySearchResult[]
+      return Array.isArray(data) ? data : []
+    } catch (e) {
+      this.logger.warn(`memory raw search failed: ${e}`)
+      return []
+    }
+  }
+
+  async indexContent(payload: IndexPayload): Promise<{ id?: string }> {
+    const res = await fetch(`${this.baseUrl}/memory/index`, {
+      method: 'POST',
+      headers: this.headers,
+      body: JSON.stringify(payload),
+    })
+    if (!res.ok) throw new Error(`V1 index failed: ${res.status}`)
+    return res.json() as Promise<{ id?: string }>
+  }
+
+  async listDocuments(projectId: string, limit = 50): Promise<MemoryDocument[]> {
+    try {
+      const res = await fetch(`${this.baseUrl}/memory/documents?projectId=${projectId}&limit=${limit}`, {
+        headers: this.headers,
+      })
+      if (!res.ok) return []
+      return res.json() as Promise<MemoryDocument[]>
+    } catch {
+      return []
+    }
+  }
+
+  // ─── Wiki ──────────────────────────────────────────────────────────────────
+
+  async listWikiPages(): Promise<Array<{ slug: string; title: string; projectId?: string }>> {
+    try {
+      const res = await fetch(`${this.baseUrl}/wiki`, { headers: this.headers })
+      if (!res.ok) return []
+      return res.json() as Promise<Array<{ slug: string; title: string; projectId?: string }>>
+    } catch { return [] }
+  }
+
+  async getWikiPage(slug: string): Promise<{ slug: string; title: string; content: string; projectId?: string } | null> {
+    try {
+      const res = await fetch(`${this.baseUrl}/wiki/${slug}`, { headers: this.headers })
+      if (!res.ok) return null
+      return res.json() as Promise<{ slug: string; title: string; content: string; projectId?: string }>
+    } catch { return null }
+  }
+
+  // ─── Documentation ────────────────────────────────────────────────────────
+
+  async getProjectDocs(projectId: string): Promise<Array<{ type: string; content: string }>> {
+    try {
+      const res = await fetch(`${this.baseUrl}/documentation/${projectId}`, { headers: this.headers })
+      if (!res.ok) return []
+      return res.json() as Promise<Array<{ type: string; content: string }>>
+    } catch { return [] }
+  }
+
+  // ─── Events ───────────────────────────────────────────────────────────────
+
+  async getDecisionEvents(projectId: string, limit = 30): Promise<Array<{ id: string; content: string; type: string }>> {
+    try {
+      // `project_id`, não `projectId`: a rota da V1 lê `@Query('project_id')`, e o nome errado
+      // não dá erro — o filtro simplesmente some e a query devolve os eventos GLOBAIS mais
+      // recentes, que são os do projeto mais ativo. Medido em 13/09: pedindo decisões do VB
+      // Ferragens vinham 10 decisões do Rayzen AI. Vazamento de escopo silencioso, do tipo que
+      // responde 200 e parece funcionar.
+      //
+      // Estava sem chamador quando foi encontrado — é defeito latente, não ativo. Corrigido
+      // antes de alguém ligar o consumidor e herdar o vazamento pronto.
+      const res = await fetch(`${this.baseUrl}/events?project_id=${projectId}&type=decision&limit=${limit}`, {
+        headers: this.headers,
+      })
+      if (!res.ok) return []
+      const data = await res.json() as { events?: Array<{ id: string; content: string; type: string }> } | Array<{ id: string; content: string; type: string }>
+      return Array.isArray(data) ? data : (data.events ?? [])
+    } catch { return [] }
+  }
+
+  async deleteDocument(documentId: string): Promise<void> {
+    await fetch(`${this.baseUrl}/memory/documents/${documentId}`, {
+      method: 'DELETE',
+      headers: this.headers,
+    })
+  }
+
+  async addEvent(
+    projectId: string,
+    content: string,
+    intent: 'decision' | 'problem' | 'idea' | 'reference',
+  ): Promise<void> {
+    try {
+      await fetch(`${this.baseUrl}/events/cli`, {
+        method: 'POST',
+        headers: this.headers,
+        body: JSON.stringify({ content, intent, projectId, source: 'v2-result-loop', type: 'note' }),
+      })
+    } catch (e) {
+      this.logger.warn(`addEvent failed: ${e}`)
+    }
+  }
+}
+
+export interface MemorySearchResult {
+  id:        string
+  content:   string
+  score:     number
+  projectId: string
+  /**
+   * De onde o trecho veio. A V1 sempre devolveu este campo — o tipo é que não o declarava,
+   * então quem consumia a busca não conseguia saber que dois resultados eram o mesmo
+   * documento sem recorrer a `as`. Opcional porque nem toda origem tem caminho.
+   */
+  sourcePath?: string | null
+  metadata?: Record<string, unknown>
+  createdAt?: string | Date
+  recordKind?: 'source' | 'knowledge'
+  lifecycle?: 'source' | 'approved'
+  version?: number
+  origin?: Record<string, unknown>
+  approvedAt?: string | Date | null
+  validFrom?: string | Date | null
+  validUntil?: string | Date | null
+}
+
+export interface MemoryDocument {
+  id:          string
+  projectId:   string
+  content:     string
+  sourcePath?: string
+  sourceType?: string
+  memoryClass?: string
+  createdAt:   string
+}
+
+export interface IndexPayload {
+  projectId:  string
+  content:    string
+  sourcePath?: string
+  sourceType?: string
+  metadata?:  Record<string, unknown>
+}

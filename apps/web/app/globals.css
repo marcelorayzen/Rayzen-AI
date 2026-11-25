@@ -1,0 +1,452 @@
+@import "tailwindcss";
+
+/* ═══════════════════════════════════════════════════
+   RAYZEN AI — Design System v2
+   Estilo: Dashboard profissional (Linear / Vercel)
+═══════════════════════════════════════════════════ */
+
+:root {
+  /* Backgrounds */
+  --hud-bg:        #0a0a0a;
+  --hud-surface:   #111111;
+  --hud-card:      #1a1a1a;
+  --hud-elevated:  #222222;
+
+  /* Accent — azul limpo */
+  --hud-cyan:      #3b82f6;
+  --hud-blue:      #2563eb;
+  --hud-cyan-40:   rgba(59,130,246,0.40);
+  --hud-cyan-20:   rgba(59,130,246,0.20);
+  --hud-cyan-10:   rgba(59,130,246,0.10);
+  --hud-cyan-05:   rgba(59,130,246,0.05);
+
+  /* Borders */
+  --hud-border:    rgba(255,255,255,0.08);
+  --hud-border-hi: rgba(255,255,255,0.14);
+
+  /* Text */
+  --hud-text:      #f2f2f2;
+  --hud-text-2:    #a0a0a0;
+  --hud-dim:       #666666;
+
+  /* Shadows */
+  --hud-glow-sm:   0 1px 3px rgba(0,0,0,0.5), 0 4px 16px rgba(0,0,0,0.3);
+  --hud-glow:      0 2px 8px rgba(0,0,0,0.6), 0 16px 48px rgba(0,0,0,0.4);
+
+  --background:    var(--hud-bg);
+  --foreground:    var(--hud-text);
+}
+
+/* ── Reset & Base ───────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+html { height: 100%; }
+
+body {
+  height: 100%;
+  background: var(--hud-bg);
+  color: var(--hud-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Content layer */
+#__next, [data-nextjs-scroll-focus-boundary], body > div { position: relative; z-index: 1; }
+
+/* ── Scrollbar ──────────────────────────────────── */
+::-webkit-scrollbar              { width: 4px; height: 4px; }
+::-webkit-scrollbar-track        { background: transparent; }
+::-webkit-scrollbar-thumb        { background: rgba(255,255,255,0.12); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover  { background: rgba(255,255,255,0.22); }
+
+/* ── Typography ─────────────────────────────────── */
+.hud-title {
+  font-family: inherit;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--hud-text);
+}
+
+/* ── Header ─────────────────────────────────────── */
+.hud-header {
+  background: rgba(10,10,10,0.90) !important;
+  backdrop-filter: blur(16px) !important;
+  border-bottom: 1px solid var(--hud-border) !important;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.04) !important;
+}
+
+/* ── Nav buttons ────────────────────────────────── */
+.hud-nav {
+  background: rgba(255,255,255,0.045);
+  border: 1px solid rgba(255,255,255,0.16);
+  padding: 5px 13px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: rgba(255,255,255,0.62);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.hud-nav:hover {
+  color: rgba(255,255,255,0.92);
+  background: rgba(255,255,255,0.10);
+  border-color: rgba(255,255,255,0.28);
+}
+.hud-nav.active {
+  color: #60a5fa;
+  background: rgba(59,130,246,0.16);
+  border-color: rgba(59,130,246,0.40);
+}
+
+/* ── Buttons ────────────────────────────────────── */
+.hud-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 13px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.05);
+  color: rgba(255,255,255,0.65);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.hud-btn:hover {
+  background: rgba(255,255,255,0.10);
+  border-color: rgba(255,255,255,0.30);
+  color: #fff;
+}
+.hud-btn:active { opacity: 0.75; }
+.hud-btn:disabled { opacity: 0.3; pointer-events: none; }
+
+/* Danger */
+.hud-btn-danger {
+  color: #f87171;
+  border-color: rgba(248,113,113,0.30);
+  background: rgba(248,113,113,0.06);
+}
+.hud-btn-danger:hover {
+  background: rgba(248,113,113,0.12);
+  border-color: rgba(248,113,113,0.50);
+  color: #fca5a5;
+  box-shadow: none;
+}
+
+/* Primary */
+.hud-btn-primary {
+  background: var(--hud-cyan);
+  border-color: var(--hud-cyan);
+  color: #fff;
+  font-weight: 600;
+}
+.hud-btn-primary:hover {
+  background: var(--hud-blue);
+  border-color: var(--hud-blue);
+  box-shadow: 0 0 0 3px var(--hud-cyan-20);
+}
+.hud-btn-primary:disabled { opacity: 0.35; }
+
+/* ── Input bar ──────────────────────────────────── */
+.hud-input-bar {
+  background: var(--hud-surface) !important;
+  border-top: 1px solid var(--hud-border) !important;
+  box-shadow: none !important;
+}
+
+/* ── Input fields ───────────────────────────────── */
+.hud-input {
+  background: var(--hud-card);
+  border: 1px solid var(--hud-border-hi);
+  border-radius: 8px;
+  color: var(--hud-text);
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  resize: none;
+}
+.hud-input::placeholder { color: var(--hud-dim); }
+.hud-input:focus {
+  border-color: var(--hud-cyan);
+  box-shadow: 0 0 0 3px var(--hud-cyan-10);
+}
+
+/* Classic input (modals / forms) */
+.input {
+  width: 100%;
+  background: var(--hud-card);
+  border: 1px solid var(--hud-border-hi);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 14px;
+  color: var(--hud-text);
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.input:focus {
+  border-color: var(--hud-cyan);
+  box-shadow: 0 0 0 3px var(--hud-cyan-10);
+}
+
+/* ── Message bubbles ────────────────────────────── */
+.hud-msg-user {
+  background: var(--hud-cyan-10);
+  border: 1px solid var(--hud-cyan-20);
+  color: #e0eeff;
+  border-radius: 14px 14px 4px 14px;
+}
+
+.hud-msg-ai {
+  background: var(--hud-card);
+  border: 1px solid var(--hud-border);
+  color: var(--hud-text);
+  border-radius: 4px 14px 14px 14px;
+}
+
+/* ── Surface (modals / panels) ──────────────────── */
+.hud-surface {
+  background: var(--hud-surface);
+  border: 1px solid var(--hud-border);
+  border-radius: 12px;
+  box-shadow: var(--hud-glow);
+}
+
+/* ── Card ───────────────────────────────────────── */
+.hud-card {
+  background: var(--hud-card);
+  border: 1px solid var(--hud-border);
+  border-radius: 8px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.hud-card:hover {
+  border-color: var(--hud-border-hi);
+  background: var(--hud-elevated);
+}
+
+/* ── Loading dots ───────────────────────────────── */
+.hud-dots {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.hud-dots span {
+  display: inline-block;
+  width: 5px; height: 5px;
+  background: var(--hud-cyan);
+  border-radius: 50%;
+  animation: hud-dot 1.4s ease-in-out infinite;
+  opacity: 0.6;
+}
+.hud-dots span:nth-child(2) { animation-delay: 0.2s; }
+.hud-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes hud-dot {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.3; }
+  40%           { transform: scale(1);   opacity: 1; }
+}
+
+/* ── Mic recording ──────────────────────────────── */
+@keyframes hud-pulse-red {
+  0%, 100% { box-shadow: 0 0 4px rgba(248,113,113,0.4); }
+  50%       { box-shadow: 0 0 14px rgba(248,113,113,0.7); }
+}
+
+/* ── Status pulse ───────────────────────────────── */
+@keyframes hud-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}
+.hud-pulse { animation: hud-pulse 2s ease-in-out infinite; }
+
+/* ── HUD scanline (no-op — decorativo) ─────────── */
+.hud-scanline { display: none; }
+
+/* ══════════════════════════════════════════════════
+   LOGIN PAGE
+══════════════════════════════════════════════════ */
+.login-root {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+  background: #000;
+  padding-bottom: 10vh;
+}
+
+/* Hero image — fade rápido de entrada, sem animação contínua depois */
+.login-hero {
+  position: absolute;
+  inset: 0;
+}
+.login-hero img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  animation: login-reveal 1.2s 0.2s ease-out both;
+}
+
+@keyframes login-reveal {
+  from { opacity: 0; transform: scale(1.03); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* Bottom vignette — always on top of image, keeps form readable */
+.login-vignette {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    transparent 35%,
+    rgba(0,0,0,0.55) 65%,
+    rgba(0,0,0,0.85) 100%
+  );
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* Form wrapper */
+.login-form-wrap {
+  position: relative;
+  z-index: 20;
+  width: 100%;
+  max-width: 300px;
+  text-align: center;
+}
+
+.login-subtitle {
+  font-size: 11px;
+  color: rgba(147,197,253,0.55);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: 18px;
+}
+
+.login-input {
+  width: 100%;
+  background: rgba(8,8,12,0.70);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(59,130,246,0.30);
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-size: 14px;
+  color: #f2f2f2;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  display: block;
+  margin-bottom: 12px;
+}
+.login-input:focus {
+  border-color: rgba(59,130,246,0.75);
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.12), 0 0 20px rgba(59,130,246,0.08);
+}
+.login-input::placeholder { color: rgba(147,197,253,0.30); }
+.login-input:-webkit-autofill,
+.login-input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px rgba(8,8,12,0.95) inset !important;
+  -webkit-text-fill-color: #f2f2f2 !important;
+  border-color: rgba(59,130,246,0.30) !important;
+}
+
+.login-error {
+  color: #f87171;
+  font-size: 11px;
+  margin-bottom: 10px;
+}
+
+.login-btn {
+  width: 100%;
+  background: rgba(59,130,246,0.12);
+  border: 1px solid rgba(59,130,246,0.40);
+  color: rgba(147,197,253,0.85);
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.2s, box-shadow 0.2s, color 0.2s, border-color 0.2s;
+}
+.login-btn:hover:not(:disabled) {
+  background: rgba(59,130,246,0.22);
+  border-color: rgba(59,130,246,0.65);
+  box-shadow: 0 0 20px rgba(59,130,246,0.25);
+  color: #fff;
+}
+.login-btn:disabled { opacity: 0.30; cursor: not-allowed; }
+
+/* ── Empty state ────────────────────────────────── */
+.hud-empty {
+  color: rgba(255,255,255,0.28);
+  font-size: 12px;
+  text-align: center;
+  text-transform: none;
+  letter-spacing: 0.06em;
+}
+
+/* ── Select ─────────────────────────────────────── */
+select {
+  background: var(--hud-card);
+  border: 1px solid var(--hud-border-hi);
+  color: var(--hud-text);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+}
+select:focus {
+  border-color: var(--hud-cyan);
+  box-shadow: 0 0 0 3px var(--hud-cyan-10);
+}
+
+/* ── React Flow ─────────────────────────────────── */
+.react-flow__node,
+.react-flow__node *,
+.react-flow__edge-label,
+.react-flow__attribution {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+  font-size: 12px !important;
+}
+
+/* ── Prose (markdown) ───────────────────────────── */
+.prose { color: var(--hud-text) !important; font-size: 14px !important; line-height: 1.7 !important; }
+.prose code {
+  color: var(--hud-cyan) !important;
+  background: var(--hud-cyan-05) !important;
+  border: 1px solid var(--hud-cyan-10) !important;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 13px !important;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace !important;
+}
+.prose pre {
+  background: var(--hud-card) !important;
+  border: 1px solid var(--hud-border) !important;
+  border-radius: 8px !important;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace !important;
+}
+.prose a          { color: var(--hud-cyan) !important; text-decoration: underline; text-underline-offset: 3px; }
+.prose strong     { color: #fff !important; font-weight: 600; }
+.prose h1, .prose h2, .prose h3 { color: var(--hud-text) !important; font-weight: 700; letter-spacing: -0.01em; }
+.prose p          { color: var(--hud-text-2) !important; }
+.prose li         { color: var(--hud-text-2) !important; }
+.prose blockquote { border-left-color: var(--hud-border-hi) !important; color: var(--hud-dim) !important; }

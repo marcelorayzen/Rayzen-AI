@@ -1,0 +1,35 @@
+import { Injectable } from '@nestjs/common'
+import { EventsGateway } from './events.gateway'
+
+export interface RayzenEvent {
+  type:      'mission_update' | 'approval_gate' | 'mission_created' | 'clarification_needed' | 'ping'
+  projectId: string
+  payload:   unknown
+}
+
+@Injectable()
+export class EventsService {
+  constructor(private readonly gateway: EventsGateway) {}
+
+  emit(event: RayzenEvent) {
+    this.gateway.broadcast(event)
+  }
+
+  missionUpdate(projectId: string, mission: { id: string; title: string; status: string; steps: unknown[] }) {
+    this.emit({ type: 'mission_update', projectId, payload: mission })
+  }
+
+  // `missionId` é nulo quando a aprovação nasceu de um pedido direto (`POST /v2/skills/run`,
+  // roteador conversacional) em vez de um passo de missão — ver A08 em `skill-engine.service.ts`.
+  approvalGate(projectId: string, gate: { id: string; missionId: string | null; description: string; type: string }) {
+    this.emit({ type: 'approval_gate', projectId, payload: gate })
+  }
+
+  missionCreated(projectId: string, mission: { id: string; title: string; objective: string }) {
+    this.emit({ type: 'mission_created', projectId, payload: mission })
+  }
+
+  clarificationNeeded(projectId: string, data: { id: string; missionId: string; stepId: string; question: string }) {
+    this.emit({ type: 'clarification_needed', projectId, payload: data })
+  }
+}

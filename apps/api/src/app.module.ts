@@ -1,0 +1,93 @@
+import { Module } from '@nestjs/common'
+import { ConfigModule } from '@nestjs/config'
+import { PrismaModule } from './prisma/prisma.module'
+import { BullModule } from '@nestjs/bull'
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler'
+import { APP_GUARD } from '@nestjs/core'
+import { AuthModule } from './modules/auth/auth.module'
+import { JwtAuthGuard } from './modules/auth/jwt-auth.guard'
+import { ConfigurationModule } from './modules/configuration/configuration.module'
+import { OrchestratorModule } from './modules/orchestrator/orchestrator.module'
+import { AgentBridgeModule } from './modules/agent-bridge/agent-bridge.module'
+import { MemoryModule } from './modules/memory/memory.module'
+import { DocumentProcessingModule } from './modules/document-processing/document-processing.module'
+import { ExecutionModule } from './modules/execution/execution.module'
+import { HandoffModule } from './modules/handoff/handoff.module'
+import { RotinaModule } from './modules/rotina/rotina.module'
+import { ContentEngineModule } from './modules/content-engine/content-engine.module'
+import { SessionModule } from './modules/session/session.module'
+import { VoiceModule } from './modules/voice/voice.module'
+import { ValidationModule } from './modules/validation/validation.module'
+import { ProjectModule } from './modules/project/project.module'
+import { EventModule } from './modules/event/event.module'
+import { SynthesisModule } from './modules/synthesis/synthesis.module'
+import { DocumentationModule } from './modules/documentation/documentation.module'
+import { ObsidianModule } from './modules/obsidian/obsidian.module'
+import { ProjectStateModule } from './modules/project-state/project-state.module'
+import { GitModule } from './modules/git/git.module'
+import { ProactiveModule } from './modules/proactive/proactive.module'
+import { HealthModule } from './modules/health/health.module'
+import { NotionModule } from './modules/notion/notion.module'
+import { BrainModule } from './modules/brain/brain.module'
+import { WikiModule } from './modules/wiki/wiki.module'
+import { QaModule } from './modules/qa/qa.module'
+import { GraphModule } from './modules/graph/graph.module'
+import { EvidenceModule } from './modules/evidence/evidence.module'
+import { BlueprintModule } from './modules/blueprint/blueprint.module'
+import { CacheModule } from './modules/cache/cache.module'
+import { CostsModule } from './modules/costs/costs.module'
+import { MetricsModule } from './modules/metrics/metrics.module'
+import { TelegramModule } from './modules/telegram/telegram.module'
+import { AgentSessionModule } from './modules/agent-session/agent-session.module'
+import { HubModule } from './modules/hub/hub.module'
+import { ProjectFilesModule } from './modules/project-files/project-files.module'
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    PrismaModule,
+    BullModule.forRoot({ redis: process.env.REDIS_URL }),
+    ThrottlerModule.forRoot([{ ttl: 60000, limit: 120 }]),
+    AuthModule,
+    ConfigurationModule,
+    OrchestratorModule,
+    AgentBridgeModule,
+    MemoryModule,
+    DocumentProcessingModule,
+    ExecutionModule,
+    HandoffModule,
+    RotinaModule,
+    ContentEngineModule,
+    SessionModule,
+    VoiceModule,
+    ValidationModule,
+    ProjectModule,
+    EventModule,
+    SynthesisModule,
+    DocumentationModule,
+    ObsidianModule,
+    ProjectStateModule,
+    GitModule,
+    ProactiveModule,
+    HealthModule,
+    NotionModule,
+    BrainModule,
+    WikiModule,
+    QaModule,
+    GraphModule,
+    EvidenceModule,
+    BlueprintModule,
+    CacheModule,
+    CostsModule,
+    MetricsModule,
+    TelegramModule,
+    AgentSessionModule,
+    HubModule,
+    ProjectFilesModule,
+  ],
+  providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+  ],
+})
+export class AppModule {}

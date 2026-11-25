@@ -1,0 +1,19 @@
+-- O vinculo entre o registro do projeto e a pasta no disco era HEURISTICO.
+--
+-- `jarvis:create_project_folder` cria a pasta com o nome CRU ("Sistema de Controle Financeiro
+-- Pessoal") e registra o projeto com o slug em kebab ("sistema-de-controle-financeiro-pessoal").
+-- Nada guardava onde o checkout ficou, entao resolver "qual pasta e deste projeto" virava
+-- casamento de nome — e `repo-slug.mjs` compensava devolvendo duas grafias, crua antes de kebab.
+--
+-- Medido em 24/09 na maquina de trabalho: 3 dos 6 projetos reais tem pasta diferente do slug
+-- ("Alfa solucoes"/alfa-solues, "Rayzen Commerce Platform"/rayzen-commerce-platform,
+-- "VB-ferragens"/vb_ferragens). O casamento funciona por tolerancia, nao por construcao.
+--
+-- A Fase 4 pede "filesystem, catalogo e Git reconciliados antes de abrir o VS Code", e
+-- reconciliar exige um vinculo EXATO. Guardar o caminho torna a pergunta uma leitura, nao um
+-- palpite; o fallback por nome continua valendo para os projetos anteriores a isto.
+--
+-- Nulavel de proposito: projeto antigo nao tem caminho conhecido, e inventar um seria afirmar
+-- que o checkout esta num lugar que ninguem verificou. Nulo aqui significa "nao sei onde esta",
+-- que e a verdade.
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS checkout_path TEXT;

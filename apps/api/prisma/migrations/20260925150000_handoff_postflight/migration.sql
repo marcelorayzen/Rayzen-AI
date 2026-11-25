@@ -1,0 +1,11 @@
+-- O executor dizer que terminou e um relato, nao uma prova.
+--
+-- E a mesma distincao que fez esta casa parar de tratar `docker compose ps` como evidencia de
+-- deploy: em 17/08 os tres servicos apareciam `Up (healthy)` com a producao rodando codigo de
+-- nove horas antes. Tarefa `done` diz que o executor chegou ao fim; ela nao diz que a pasta
+-- existe nem que o projeto entrou no catalogo.
+--
+-- `postflight` guarda o que a verificacao encontrou DEPOIS da execucao. Separado do
+-- `preflight` porque sao duas perguntas em dois momentos — juntar as duas perderia a de antes
+-- ao gravar a de depois, e e justamente a comparacao entre elas que mostra o que mudou.
+ALTER TABLE project_handoffs ADD COLUMN IF NOT EXISTS postflight JSONB;

@@ -1,0 +1,449 @@
+import { Injectable, Logger } from '@nestjs/common'
+import { PrismaService } from '../../prisma/prisma.service'
+import { MemoryService } from '../memory/memory.service'
+import { WikiService } from '../wiki/wiki.service'
+
+export interface FailedCase {
+  suite: string
+  name: string
+  message: string
+  stacktrace: string
+}
+
+export interface TestSuite {
+  name: string
+  tests: number
+  failures: number
+  durationMs: number
+}
+
+export interface ParsedTestRun {
+  tool: string
+  totalTests: number
+  passed: number
+  failed: number
+  skipped: number
+  durationMs: number
+  suites: TestSuite[]
+  failedCases: FailedCase[]
+}
+
+export interface SaveTestRunDto extends ParsedTestRun {
+  projectId?: string
+  branch?: string
+  commitHash?: string
+  source?: 'agent' | 'ci' | 'manual'
+}
+
+// ── Parsers ───────────────────────────────────────────────────────────────────
+
+function stripCdata(s: string): string {
+  return s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, (_, content: string) => content)
+}
+
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, code: string) => String.fromCharCode(parseInt(code, 10)))
+}
+
+// Handles both single-quoted and double-quoted attribute values.
+// Negative lookbehind prevents 'name' matching inside 'classname'.
+function attr(tag: string, name: string): string {
+  const pattern = new RegExp(`(?<![A-Za-z0-9_])${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, 'i')
+  const m = tag.match(pattern)
+  return decodeEntities(m?.[1] ?? m?.[2] ?? '')
+}
+
+function num(tag: string, name: string, fallback = 0): number {
+  const v = parseFloat(attr(tag, name))
+  return isNaN(v) ? fallback : v
+}
+
+export function parseJUnitXML(raw: string): ParsedTestRun {
+  const xml = stripCdata(raw)
+
+  // Suites — <testsuite ...> or <testsuite ... />
+  const suites: TestSuite[] = []
+  const suiteMatches = xml.matchAll(/<testsuite\s([^>]*?)\/?\s*>/gi)
+  for (const m of suiteMatches) {
+    suites.push({
+      name: attr(m[1], 'name'),
+      tests: num(m[1], 'tests'),
+      failures: num(m[1], 'failures') + num(m[1], 'errors'),
+      durationMs: Math.round(num(m[1], 'time') * 1000),
+    })
+  }
+
+  // Root totals — prefer <testsuites> tag, fallback to sum of suites
+  const rootMatch = xml.match(/<testsuites\s([^>]*?)\/?\s*>/)
+  const rootTag = rootMatch?.[1] ?? ''
+  const totalTests = num(rootTag, 'tests') || suites.reduce((s, x) => s + x.tests, 0)
+  const failed = (num(rootTag, 'failures') + num(rootTag, 'errors'))
+    || suites.reduce((s, x) => s + x.failures, 0)
+  const skipped = num(rootTag, 'skipped') || suites.reduce((s, x) => s + (num(x.name, 'skipped')), 0)
+  const passed = Math.max(0, totalTests - failed - skipped)
+  const durationMs = Math.round(num(rootTag, 'time') * 1000)
+    || suites.reduce((s, x) => s + x.durationMs, 0)
+
+  // Failed cases — handle both <testcase ...>...</testcase> and self-closing <testcase ... />
+  const failedCases: FailedCase[] = []
+
+  // Strip self-closing testcases (always passing) before scanning for failures
+  // so they don't absorb the content of subsequent failing testcases
+  const xmlForCases = xml.replace(/<testcase\s[^>]*\/\s*>/gi, '')
+  const caseBlocks = xmlForCases.matchAll(/<testcase\s([^>]*?)>([\s\S]*?)<\/testcase>/gi)
+  for (const m of caseBlocks) {
+    const inner = m[2]
+    if (!/<failure|<error/i.test(inner)) continue
+    const tagAttrs = m[1]
+    // Match both <failure ...>body</failure> and self-closing <failure ... />
+    const fullMatch = inner.match(/<(?:failure|error)\s*([^>]*?)>([\s\S]*?)<\/(?:failure|error)>/i)
+    const selfClose = !fullMatch ? inner.match(/<(?:failure|error)\s*([^>]*?)\/>/i) : null
+    const failAttrs = fullMatch ? fullMatch[1] : selfClose ? selfClose[1] : ''
+    const msgAttr = failAttrs ? attr(failAttrs, 'message') : ''
+    const rawStack = fullMatch ? fullMatch[2].trim() : ''
+    failedCases.push({
+      suite: attr(tagAttrs, 'classname') || attr(tagAttrs, 'name'),
+      name: attr(tagAttrs, 'name'),
+      message: decodeEntities(msgAttr).slice(0, 500),
+      stacktrace: decodeEntities(rawStack).slice(0, 1000),
+    })
+  }
+
+  return { tool: 'junit', totalTests, passed, failed, skipped, durationMs, suites, failedCases }
+}
+
+export function parseAllureJSON(raw: string): ParsedTestRun {
+  const results = JSON.parse(raw) as Array<{
+    name: string
+    status: string
+    duration?: number
+    statusDetails?: { message?: string; trace?: string }
+    labels?: Array<{ name: string; value: string }>
+  }>
+
+  let passed = 0, failed = 0, skipped = 0, totalMs = 0
+  const failedCases: FailedCase[] = []
+  // Agrega por label `suite` — o formato Allure não tem um nó de suíte como o JUnit,
+  // mas cada caso carrega a sua. Sem isto o run era salvo com suites: [] e perdia a
+  // quebra por arquivo/app que o caminho JUnit entregava.
+  const suiteMap = new Map<string, TestSuite>()
+
+  for (const r of results) {
+    totalMs += r.duration ?? 0
+    const suite = r.labels?.find(l => l.name === 'suite')?.value ?? ''
+
+    if (suite) {
+      const agg = suiteMap.get(suite) ?? { name: suite, tests: 0, failures: 0, durationMs: 0 }
+      agg.tests += 1
+      agg.durationMs += Math.round(r.duration ?? 0)
+      if (r.status !== 'passed' && r.status !== 'skipped' && r.status !== 'pending') agg.failures += 1
+      suiteMap.set(suite, agg)
+    }
+
+    if (r.status === 'passed') passed++
+    else if (r.status === 'skipped' || r.status === 'pending') skipped++
+    else {
+      failed++
+      failedCases.push({
+        suite,
+        name: r.name,
+        message: r.statusDetails?.message ?? r.status,
+        stacktrace: (r.statusDetails?.trace ?? '').slice(0, 1000),
+      })
+    }
+  }
+
+  return {
+    tool: 'allure',
+    totalTests: results.length,
+    passed,
+    failed,
+    skipped,
+    durationMs: Math.round(totalMs),
+    suites: [...suiteMap.values()].sort((a, b) => a.name.localeCompare(b.name)),
+    failedCases,
+  }
+}
+
+// ── Service ───────────────────────────────────────────────────────────────────
+
+@Injectable()
+export class QaService {
+  private readonly logger = new Logger(QaService.name)
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly memory: MemoryService,
+    private readonly wiki: WikiService,
+  ) {}
+
+  async saveRun(dto: SaveTestRunDto): Promise<{ id: string }> {
+    const run = await this.prisma.testRun.create({
+      data: {
+        projectId: dto.projectId ?? null,
+        tool: dto.tool,
+        branch: dto.branch ?? null,
+        commitHash: dto.commitHash ?? null,
+        totalTests: dto.totalTests,
+        passed: dto.passed,
+        failed: dto.failed,
+        skipped: dto.skipped,
+        durationMs: dto.durationMs ?? null,
+        suites: dto.suites as object[],
+        failedCases: dto.failedCases as object[],
+        source: dto.source ?? 'agent',
+      },
+    })
+
+    // Indexa falhas no pgvector para busca semântica futura
+    if (dto.failedCases.length > 0) {
+      const text = dto.failedCases
+        .map(f => `Teste falhou: ${f.suite} > ${f.name}\n${f.message}\n${f.stacktrace}`)
+        .join('\n\n')
+        .slice(0, 6000)
+
+      this.memory.indexDocument(
+        text,
+        `qa/test-run/${run.id}`,
+        { type: 'test_failures', tool: dto.tool, runId: run.id },
+        dto.projectId,
+      ).catch(err => this.logger.warn(`Failed to index test failures for run ${run.id}: ${(err as Error).message}`))
+
+      this.detectAndIndexFlakiness(dto.projectId)
+        .catch(err => this.logger.warn(`Failed to index flaky patterns after run ${run.id}: ${(err as Error).message}`))
+    }
+
+    return { id: run.id }
+  }
+
+  /**
+   * Re-captura cada teste flaky atualmente detectado como um learning (type: 'pattern')
+   * via WikiService — upsert por título, então rodar isso a cada ingest não duplica,
+   * só atualiza failRate/lastSeen. É o que faz padrões de flaky surfaceirem em
+   * rayzen_get_context (memory_relevant busca nesse mesmo índice semântico).
+   */
+  private async detectAndIndexFlakiness(projectId?: string): Promise<void> {
+    const flaky = await this.getFlakyTests(projectId, 20)
+    if (flaky.length === 0) return
+
+    await Promise.all(flaky.map(f => this.wiki.captureLearning({
+      title: `Flaky: ${f.test}`,
+      type: 'pattern',
+      problem: `Teste "${f.test}" falhou em ${f.failedIn} de ${f.totalRuns} runs recentes (~${f.failRate}% fail rate) — não é falha consistente, indica flakiness (timing, race condition, dependência externa, ordem de execução, etc).`,
+      solution: `Investigar causa raiz da instabilidade antes de confiar no resultado desse teste. Candidatos comuns: setup/teardown compartilhado entre testes, asserts dependentes de timing, dados de teste não isolados.`,
+      tags: ['flaky', 'qa'],
+      projectId,
+    })))
+  }
+
+  async getRuns(projectId?: string, limit = 20) {
+    return this.prisma.testRun.findMany({
+      where: projectId ? { projectId } : {},
+      orderBy: { executedAt: 'desc' },
+      take: limit,
+      select: {
+        id: true, tool: true, branch: true, commitHash: true,
+        totalTests: true, passed: true, failed: true, skipped: true,
+        durationMs: true, source: true, executedAt: true,
+      },
+    })
+  }
+
+
+  async getRunDetail(runId: string) {
+    const run = await this.prisma.testRun.findUnique({
+      where: { id: runId },
+      select: {
+        id: true, projectId: true, tool: true, branch: true, commitHash: true,
+        totalTests: true, passed: true, failed: true, skipped: true,
+        durationMs: true, source: true, executedAt: true, suites: true, failedCases: true,
+      },
+    })
+    if (!run) return null
+
+    const evidenceEvents = await this.prisma.event.findMany({
+      where: {
+        projectId: run.projectId,
+        source: 'execution',
+        type: 'note',
+      },
+      orderBy: { ts: 'desc' },
+      take: 100,
+    })
+
+    const evidence = evidenceEvents
+      .filter((event) => {
+        const metadata = (event.metadata ?? {}) as { kind?: string; testRunId?: string | null }
+        return metadata.kind === 'evidence' && metadata.testRunId === run.id
+      })
+      .map((event) => {
+        const metadata = (event.metadata ?? {}) as {
+          evidenceType?: string
+          remotePath?: string | null
+          path?: string | null
+          takenAt?: string | null
+          description?: string | null
+          category?: string | null
+          testRunLinkReason?: string | null
+        }
+        return {
+          id: event.id,
+          type: metadata.evidenceType ?? 'unknown',
+          content: event.content,
+          remotePath: metadata.remotePath ?? null,
+          localPath: metadata.path ?? null,
+          takenAt: metadata.takenAt ?? null,
+          description: metadata.description ?? null,
+          category: metadata.category ?? 'general',
+          testRunLinkReason: metadata.testRunLinkReason ?? null,
+          createdAt: event.ts,
+        }
+      })
+
+    return {
+      ...run,
+      passRate: run.totalTests > 0 ? Math.round((run.passed / run.totalTests) * 100) : 0,
+      suites: run.suites as unknown[],
+      failedCases: run.failedCases as unknown[],
+      evidence,
+    }
+  }
+
+  async getFailurePatterns(projectId?: string, lastNRuns = 10) {
+    const runs = await this.prisma.testRun.findMany({
+      where: projectId ? { projectId } : {},
+      orderBy: { executedAt: 'desc' },
+      take: lastNRuns,
+      select: { failedCases: true, executedAt: true },
+    })
+
+    const freq: Record<string, { count: number; lastSeen: string; messages: string[] }> = {}
+
+    for (const run of runs) {
+      const cases = run.failedCases as unknown as FailedCase[]
+      for (const c of cases) {
+        const key = `${c.suite} > ${c.name}`
+        if (!freq[key]) freq[key] = { count: 0, lastSeen: '', messages: [] }
+        freq[key].count++
+        freq[key].lastSeen = run.executedAt.toISOString()
+        if (!freq[key].messages.includes(c.message)) freq[key].messages.push(c.message)
+      }
+    }
+
+    return Object.entries(freq)
+      .sort(([, a], [, b]) => b.count - a.count)
+      .slice(0, 20)
+      .map(([test, data]) => ({ test, ...data }))
+  }
+
+  async getQualityTrend(projectId?: string, days = 30) {
+    const since = new Date(Date.now() - days * 86400_000)
+    const runs = await this.prisma.testRun.findMany({
+      where: {
+        ...(projectId ? { projectId } : {}),
+        executedAt: { gte: since },
+      },
+      orderBy: { executedAt: 'asc' },
+      select: { passed: true, failed: true, skipped: true, totalTests: true, executedAt: true },
+    })
+
+    return runs.map((r: { passed: number; failed: number; skipped: number; totalTests: number; executedAt: Date }) => ({
+      date: r.executedAt.toISOString().slice(0, 10),
+      passRate: r.totalTests > 0 ? Math.round((r.passed / r.totalTests) * 100) : 0,
+      total: r.totalTests,
+      failed: r.failed,
+    }))
+  }
+
+  async getFlakyTests(projectId?: string, lastNRuns = 20) {
+    const runs = await this.prisma.testRun.findMany({
+      where: projectId ? { projectId } : {},
+      orderBy: { executedAt: 'desc' },
+      take: lastNRuns,
+      select: { failedCases: true, totalTests: true, passed: true, executedAt: true },
+    })
+
+    // Conta em quantos runs cada teste apareceu como falha
+    const failCount: Record<string, number> = {}
+    const totalRuns = runs.length
+
+    for (const run of runs) {
+      const seen = new Set<string>()
+      for (const c of run.failedCases as unknown as FailedCase[]) {
+        const key = `${c.suite} > ${c.name}`
+        if (!seen.has(key)) { seen.add(key); failCount[key] = (failCount[key] ?? 0) + 1 }
+      }
+    }
+
+    // Flaky = falhou em pelo menos 20% mas menos de 80% dos runs (não é falha consistente)
+    return Object.entries(failCount)
+      .map(([test, count]) => ({ test, failRate: Math.round((count / totalRuns) * 100), failedIn: count, totalRuns }))
+      .filter(t => t.failRate >= 20 && t.failRate < 80)
+      .sort((a, b) => b.failRate - a.failRate)
+  }
+
+  async getSummary(projectId?: string) {
+    const [lastRuns, patterns, flaky] = await Promise.all([
+      this.getRuns(projectId, 5),
+      this.getFailurePatterns(projectId, 10),
+      this.getFlakyTests(projectId, 20),
+    ])
+
+    const last = lastRuns[0]
+    return {
+      lastRun: last
+        ? { date: last.executedAt, tool: last.tool, total: last.totalTests, passed: last.passed, failed: last.failed, passRate: last.totalTests > 0 ? Math.round((last.passed / last.totalTests) * 100) : 0 }
+        : null,
+      totalRuns: lastRuns.length,
+      topFailures: patterns.slice(0, 5),
+      flakyTests: flaky.slice(0, 5),
+    }
+  }
+
+  async ingestFromCi(dto: {
+    content: string
+    format: 'junit' | 'allure' | 'auto'
+    tool?: string
+    projectName?: string
+    projectId?: string
+    branch?: string
+    commitHash?: string
+  }): Promise<{ id: string; parsed: ParsedTestRun }> {
+    const parsed = this.parseReport(dto.content, dto.format)
+
+    // Resolve projectId pelo nome se não vier explícito
+    let projectId = dto.projectId
+    if (!projectId && dto.projectName) {
+      const found = await this.prisma.project.findFirst({
+        where: { name: { equals: dto.projectName, mode: 'insensitive' } },
+        select: { id: true },
+      })
+      if (found) projectId = found.id
+    }
+
+    if (dto.tool) parsed.tool = dto.tool
+
+    const { id } = await this.saveRun({
+      ...parsed,
+      projectId,
+      branch: dto.branch,
+      commitHash: dto.commitHash,
+      source: 'ci',
+    })
+
+    return { id, parsed }
+  }
+
+  parseReport(content: string, format: 'junit' | 'allure' | 'auto'): ParsedTestRun {
+    if (format === 'allure' || (format === 'auto' && content.trimStart().startsWith('['))) {
+      return parseAllureJSON(content)
+    }
+    return parseJUnitXML(content)
+  }
+}

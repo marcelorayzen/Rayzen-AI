@@ -1,0 +1,15 @@
+-- `task_logs` tinha UM escritor e ZERO leitores, e foi o achado A03 da auditoria de 13/09:
+-- `AgentSessionService.create()` gravava a sessao aqui e **nunca enfileirava**. O pedido parecia
+-- aceito e nao alcancava o executor.
+--
+-- O conteudo da tabela e a propria evidencia do defeito: as 5 linhas sao `jarvis:supervised_session`
+-- presas em `pending` desde 31/05, nenhuma jamais executada. O escritor foi removido em 14/09
+-- (a sessao passou a chamar `execution.enqueue`), entao desde entao a tabela nao recebe nada.
+--
+-- Backup das 5 linhas antes do drop:
+--   ~/backups/task_logs-pre-drop-20260916-135738.sql  (pg_dump --data-only --column-inserts)
+--
+-- Sem FK em nenhuma direcao -- nenhuma outra tabela referencia `task_logs`, e ela nao referencia
+-- ninguem. `IF EXISTS` porque migracao que falha **bloqueia o boot da V1** (o `migrate deploy` roda
+-- na subida), e um ambiente que ja nao tenha a tabela nao pode derrubar a api por isso.
+DROP TABLE IF EXISTS "task_logs";

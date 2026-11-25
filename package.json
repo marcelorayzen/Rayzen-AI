@@ -1,0 +1,68 @@
+{
+  "name": "rayzen-ai",
+  "private": true,
+  "packageManager": "pnpm@10.33.2",
+  "scripts": {
+    "dev": "pnpm --parallel --filter ./apps/* dev",
+    "dev:api": "pnpm --filter api dev",
+    "dev:web": "pnpm --filter web dev",
+    "dev:agent": "pnpm --filter agent dev",
+    "build": "pnpm --filter ./apps/* build",
+    "lint": "pnpm --filter \"./apps/**\" run --if-present lint",
+    "typecheck": "pnpm --filter \"./packages/**\" run --if-present typecheck && pnpm --filter \"./apps/**\" run --if-present typecheck",
+    "db:migrate": "pnpm --filter api db:migrate",
+    "db:studio": "pnpm --filter api db:studio",
+    "rayzen:event": "node scripts/rayzen-event.mjs event",
+    "rayzen:checkpoint": "node scripts/rayzen-event.mjs checkpoint",
+    "gen:catalog": "node scripts/gen-agent-catalog.mjs",
+    "check:role-drift": "node scripts/check-role-drift.mjs",
+    "check:local": "node scripts/doctor.mjs",
+    "scan:secrets": "node scripts/scan-secrets.mjs",
+    "qa:ingest": "node scripts/qa-ingest.mjs",
+    "smoke:web": "node scripts/smoke-web.mjs",
+    "impact:check": "node scripts/check-deploy-impact.mjs",
+    "guardian:install-hooks": "node scripts/install-guardian-hooks.mjs",
+    "test": "pnpm --filter \"./apps/**\" run --if-present test",
+    "scan:exec-paths": "node scripts/scan-exec-paths.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "@types/react": "^19",
+      "@types/react-dom": "^19",
+      "@xmldom/xmldom": "^0.9.10",
+      "dompurify": "^3.4.11",
+      "lodash": "^4.18.1",
+      "hono": "^4.12.27",
+      "fast-uri": "^3.1.3",
+      "basic-ftp": "^5.3.1",
+      "glob@>=10.2.0 <10.5.0": "^10.5.0",
+      "ws@>=8.0.0 <8.21.0": "^8.21.0",
+      "@fastify/static@>=8.0.0 <=9.1.0": "^9.1.3",
+      "postcss": "^8.5.16",
+      "qs": "^6.15.3",
+      "brace-expansion@5": "^5.0.7"
+    },
+    "onlyBuiltDependencies": [
+      "@nestjs/core",
+      "@prisma/client",
+      "@prisma/engines",
+      "argon2",
+      "electron",
+      "esbuild",
+      "msgpackr-extract",
+      "prisma",
+      "puppeteer",
+      "sharp",
+      "unrs-resolver"
+    ]
+  },
+  "license": "Apache-2.0",
+  "author": "Marcelo Rayzen",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/marcelorayzen/Rayzen-AI.git"
+  }
+}

@@ -1,0 +1,99 @@
+# Dependências
+node_modules/
+.pnpm-store/
+
+# Build
+dist/
+.next/
+out/
+
+# Ambiente — NUNCA commitar chaves reais
+.env
+.env.local
+*.env
+apps/api/.env
+apps/agent/.env
+apps/web/.env.local
+
+# Banco
+*.db
+*.sqlite
+prisma/migrations/dev/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/settings.json
+.idea/
+/.claude/*
+!/.claude/agents/
+scripts/project-template/.claude/
+
+# Temp / cache
+tmp/
+.codex-tmp/
+*.tmp
+*.tsbuildinfo
+.cache/
+
+# Hook config local (contém token — nunca commitar)
+apps/agent/src/hooks/hook.config.mjs
+
+# Chaves SSH geradas localmente (deploy keys) — nunca commitar
+secrets/
+
+# Coverage
+apps/api/coverage/
+apps/api-v2/src/coverage/
+apps/catalog-guardian/src/coverage/
+
+# Relatorio JUnit (gerado pelo jest-junit, consumido pelo CI pra ingest no Rayzen)
+apps/api/junit/
+
+# Evidências enviadas pelo Agent
+storage/evidence/
+
+.vercel
+.env*.local
+
+# Materiais pessoais/editoriais não versionados
+docs/presentations/linkedin-post-*.md
+docs/presentations/*.zip
+
+# Configs pessoais — ficam apenas no repo privado
+rayzen.config.json
+CLAUDE.local.md
+docs/qa-strategy.md
+docs/presentation/
+
+# Graphify — grafo gerado localmente (regenerado com `graphify update .`)
+graphify-out/
+
+# Prisma client gerado (regenerado via db:generate no build)
+apps/api-v2/generated/
+apps/api-v2/src/generated/
+apps/catalog-guardian/generated/
+
+# Catalog Guardian — resultados de execução do golden dataset (efêmero,
+# depende do estado do catálogo de teste no momento; regenerar via
+# `python avaliador.py`, não é fonte de verdade versionável)
+apps/catalog-guardian/golden-dataset/resultado-*.json
+__pycache__/
+
+# Backups de .env — NUNCA versionados (incidente 2026-09-08: um .env.bak
+# entrou no stage por `git add -A` e so nao foi publicado porque o Guardian
+# bloqueou o push). O padrao pega qualquer .bak, em qualquer profundidade.
+*.bak
+*.bak-*
+
+# Material estratégico do Marcelo: fica só na máquina (24/11)
+docs/para-avaliar/*.local.md
+docs/historia/*.local.md

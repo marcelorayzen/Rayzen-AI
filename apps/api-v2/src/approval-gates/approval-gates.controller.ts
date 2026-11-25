@@ -1,0 +1,125 @@
+import { Controller, Get, Post, Body, Param, Query, UseGuards, HttpCode } from '@nestjs/common'
+import { ApiTags, ApiBearerAuth, ApiQuery } from '@nestjs/swagger'
+import { IsString, IsNotEmpty, IsOptional } from 'class-validator'
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger'
+import { ApprovalGatesService } from './approval-gates.service'
+import { MissionService } from '../mission/mission.service'
+import { WorkflowEngineService } from '../workflow/workflow-engine.service'
+import { EventsService } from '../gateway/events.service'
+import { JwtAuthGuard } from '../core/auth.guard'
+
+class DecideDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  approvedBy!: string
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  comment?: string
+
+  // Alias for comment — accept both fields, comment takes precedence
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  reason?: string
+}
+
+@ApiTags('approvals')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
+@Controller('approvals')
+export class ApprovalGatesController {
+  constructor(
+    private readonly gates:    ApprovalGatesService,
+    private readonly missions: MissionService,
+    private readonly workflow: WorkflowEngineService,
+    private readonly events:   EventsService,
+  ) {}
+
+  @Get('pending')
+  @ApiQuery({ name: 'projectId', required: false })
+  @ApiQuery({ name: 'missionId', required: false })
+  pending(
+    @Query('projectId') projectId?: string,
+    @Query('missionId') missionId?: string,
+  ) {
+    return this.gates.findPending(projectId, missionId)
+  }
+
+  @Get('history')
+  @ApiQuery({ name: 'projectId', required: true })
+  history(@Query('projectId') projectId: string) {
+    return this.gates.history(projectId)
+  }
+
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.gates.findOne(id)
+  }
+
+  @Post(':id/approve')
+  @HttpCode(200)
+  async approve(@Param('id') id: string, @Body() dto: DecideDto) {
+    const gate = await this.gates.approve(id, dto.approvedBy, dto.comment)
+
+    // Se o gate foi criado DURANTE uma tool-call do specialist (não antes do spawn),
+    // o step já foi marcado 'skipped' (StepExecutorService mapeia interrupted→skipped)
+    // e nem WorkflowEngineService nem StepExecutorService jamais voltam a escolhê-lo —
+    // ambos só consideram 'pending' elegível. Reabrir explicitamente aqui é o que faz
+    // o gate→resume funcionar nesse caso (o specialist recomeça o step do zero).
+    if (gate.missionId && gate.stepId) {
+      const clarificationText = dto.comment ?? dto.reason
+      if (gate.type === 'clarification' && clarificationText) {
+        // Injeta a resposta do usuário no input do step para que o specialist a veja
+        // na próxima execução — preserva o input existente via merge.
+        const steps = await this.missions.listSteps(gate.missionId).catch(() => [] as Awaited<ReturnType<typeof this.missions.listSteps>>)
+        const step  = steps.find((s) => s.id === gate.stepId)
+        const existingInput = (step?.input ?? {}) as Record<string, unknown>
+        await this.missions.updateStep(gate.missionId, gate.stepId, {
+          status: 'pending',
+          input: { ...existingInput, clarificationAnswer: clarificationText },
+          retries: 0,
+        }).catch(() => null)
+      } else {
+        // retries zerado: gate-resume é uma nova tentativa limpa, não herda contagem anterior
+        await this.missions.updateStep(gate.missionId, gate.stepId, { status: 'pending', retries: 0 }).catch(() => null)
+      }
+    }
+
+    // Retoma a missão: re-roda o DAG, que agora encontra o step desbloqueado e
+    // respeita as dependências (gate→resume — antes o step ficava travado pra sempre).
+    let resumed = false
+    if (gate.missionId && gate.projectId) {
+      resumed = true
+      // Notifica watchers imediatamente (antes do DAG começar) para que a UI
+      // mostre "retomando" sem esperar pelo próximo poll de 3s.
+      this.events.approvalGate(gate.projectId, {
+        id: gate.id, missionId: gate.missionId, description: gate.description, type: gate.type,
+      })
+      void this.workflow.execute(gate.missionId, gate.projectId).catch(() => null)
+    }
+    return { ...gate, resumed }
+  }
+
+  @Post(':id/reject')
+  @HttpCode(200)
+  async reject(@Param('id') id: string, @Body() dto: DecideDto) {
+    const gate = await this.gates.reject(id, dto.approvedBy, dto.comment)
+    // Step rejeitado → marca como failed e pausa a missão para decisão do usuário.
+    if (gate.missionId && gate.stepId) {
+      await this.missions
+        .updateStep(gate.missionId, gate.stepId, {
+          status: 'failed',
+          output: { rejected: true, by: dto.approvedBy, comment: dto.comment ?? null },
+        })
+        .catch(() => null)
+      await this.missions.transition(gate.missionId, 'paused').catch(() => null)
+      this.events.approvalGate(gate.projectId!, {
+        id: gate.id, missionId: gate.missionId, description: gate.description, type: gate.type,
+      })
+    }
+    return gate
+  }
+}

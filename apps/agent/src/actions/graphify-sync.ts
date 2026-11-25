@@ -1,0 +1,236 @@
+import { existsSync, readFileSync } from 'fs'
+import { join, resolve } from 'path'
+import { request } from 'node:http'
+import { request as httpsRequest } from 'node:https'
+import { executarPrograma, ambientePadrao } from '../exec/executar-programa'
+import { isUnderSafeRoot } from '../utils/path-guard'
+
+interface GraphifyNode {
+  id: string
+  label: string
+  file_type?: string
+  source_file?: string
+}
+
+interface GraphifyLink {
+  source: string
+  target: string
+  relation: string
+}
+
+export interface GraphifyGraph {
+  nodes: GraphifyNode[]
+  links: GraphifyLink[]
+  edges?: GraphifyEdge[] // campo legado, alguns dumps antigos usam "edges" em vez de "links"
+}
+
+interface GraphifyEdge {
+  source: string
+  target: string
+  label?: string
+}
+
+async function postJson(url: string, token: string, body: Record<string, unknown>): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url)
+    const isHttps = parsed.protocol === 'https:'
+    const lib = isHttps ? httpsRequest : request
+    const payload = JSON.stringify(body)
+    const req = lib({
+      hostname: parsed.hostname,
+      port: parsed.port || (isHttps ? 443 : 80),
+      path: parsed.pathname,
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload),
+      },
+    }, res => {
+      let data = ''
+      res.on('data', d => { data += d })
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)) } catch { resolve(data) }
+      })
+    })
+    req.on('error', reject)
+    req.setTimeout(30_000, () => { req.destroy(); reject(new Error('timeout')) })
+    req.write(payload)
+    req.end()
+  })
+}
+
+/** NestJS controller por convenção de nome — sem isso teríamos que parsear decorators via AST. */
+export function detectRoute(repoRoot: string, relativePath: string): { isRoute: boolean; routePrefix?: string } {
+  if (!relativePath.endsWith('.controller.ts')) return { isRoute: false }
+  try {
+    const content = readFileSync(join(repoRoot, relativePath), 'utf8')
+    const m = content.match(/@Controller\(\s*(?:['"]([^'"]*)['"])?\s*\)/)
+    return { isRoute: true, routePrefix: m?.[1] || '' }
+  } catch {
+    return { isRoute: true }
+  }
+}
+
+/**
+ * Extrai lineage real de arquivo (imports_from resolvidos internamente) do grafo
+ * AST do graphify — graphify-out/ é gitignored, então isso só existe localmente.
+ * O servidor (api-v2) não tem como calcular isso sozinho; por isso sincronizamos.
+ */
+export function extractFileLineage(graph: GraphifyGraph, repoRoot: string): { files: Array<{ path: string; isRoute: boolean; routePrefix?: string }>; edges: Array<{ from: string; to: string }> } {
+  const byId = new Map(graph.nodes.map(n => [n.id, n]))
+  const normalizedRoot = repoRoot.replace(/\\/g, '/')
+
+  const normalize = (p: string): string =>
+    p.replace(/\\/g, '/').replace(normalizedRoot, '').replace(/^\//, '')
+
+  const filePaths = new Set<string>()
+  for (const n of graph.nodes) {
+    if (n.source_file) filePaths.add(normalize(n.source_file))
+  }
+
+  const links = graph.links ?? []
+  const edgeSet = new Set<string>()
+  const edges: Array<{ from: string; to: string }> = []
+
+  for (const l of links) {
+    if (l.relation !== 'imports_from') continue
+    const src = byId.get(l.source)?.source_file
+    const tgt = byId.get(l.target)?.source_file
+    if (!src || !tgt) continue // import externo (npm package) — não resolvido a arquivo interno
+
+    const from = normalize(src)
+    const to = normalize(tgt)
+    if (from === to) continue
+
+    const key = `${from} ${to}`
+    if (edgeSet.has(key)) continue
+    edgeSet.add(key)
+    edges.push({ from, to })
+  }
+
+  const files = [...filePaths].map(path => ({ path, ...detectRoute(repoRoot, path) }))
+
+  return { files, edges }
+}
+
+function buildModuleSummary(graph: GraphifyGraph, repoRoot: string): string {
+  const moduleMap: Record<string, { files: Set<string>; nodeCount: number }> = {}
+
+  for (const node of graph.nodes) {
+    const src = node.source_file
+    if (!src) continue
+    const normalized = src.replace(/\\/g, '/').replace(repoRoot.replace(/\\/g, '/'), '')
+
+    let module = 'outros'
+    const apiMod = normalized.match(/apps\/api\/src\/modules\/([^/]+)/)
+    if (apiMod) module = `api:${apiMod[1]}`
+    else if (/apps\/web\/app\/components/.test(normalized)) module = 'web:components'
+    else if (/apps\/web\/app\/hooks/.test(normalized)) module = 'web:hooks'
+    else if (/apps\/web\/app/.test(normalized)) module = 'web:pages'
+    else if (/apps\/agent\/src\/actions/.test(normalized)) module = 'agent:actions'
+    else if (/apps\/agent\/src\/hooks/.test(normalized)) module = 'agent:hooks'
+    else if (/prisma\/schema\.prisma/.test(normalized)) module = 'api:schema'
+    else if (/infra\//.test(normalized)) module = 'infra'
+    else if (/packages\//.test(normalized)) module = 'packages'
+
+    if (!moduleMap[module]) moduleMap[module] = { files: new Set(), nodeCount: 0 }
+    if (src) moduleMap[module].files.add(src)
+    moduleMap[module].nodeCount++
+  }
+
+  const lines = Object.entries(moduleMap)
+    .filter(([, v]) => v.files.size > 0)
+    .sort((a, b) => b[1].nodeCount - a[1].nodeCount)
+    .map(([mod, v]) => `- ${mod}: ${v.files.size} arquivos, ${v.nodeCount} nós`)
+
+  return lines.join('\n')
+}
+
+export async function graphifySync(payload: { cwd?: string; projectId?: string }): Promise<string> {
+  // Achado da varredura de 2026-09-12: este arquivo era o único ponto de exec que sobrava fora
+  // da Fase 1 — `execSync` cru (shell:true por omissão) e `cwd` nunca checado contra
+  // safe-root. Nenhum dos dois comandos interpolava valor externo na STRING (os dois eram
+  // literais fixos), mas um `cwd` livre ainda deixava rodar `graphify`/`git` contra qualquer
+  // diretório e sincronizar o conteúdo lido de lá para a API.
+  const cwd = resolve(payload.cwd ?? process.cwd())
+  if (!isUnderSafeRoot(cwd)) {
+    return `Erro: caminho não permitido: ${cwd}`
+  }
+
+  // Encontrar raiz do repositório. `executarPrograma` REJEITA (não resolve com código de
+  // saída) quando o programa nem existe no PATH — `spawn` emite `error` (ENOENT), diferente
+  // de sair com código != 0. O try/catch cobre os dois: "não é repo git" (código != 0) e
+  // "git não está no PATH desta máquina" (rejeição).
+  let repoRoot: string
+  try {
+    const rRaiz = await executarPrograma(
+      'executavel', 'git', ['rev-parse', '--show-toplevel'],
+      { cwd, env: ambientePadrao(), timeoutMs: 5000 },
+    )
+    if (rRaiz.code !== 0) return 'Erro: não está em um repositório git'
+    repoRoot = rRaiz.stdout.trim()
+  } catch {
+    return 'Erro: não está em um repositório git'
+  }
+
+  // Rodar graphify update se disponível. Mesmo cuidado: `graphify` pode não estar instalado
+  // (rejeita) ou pode rodar e falhar por falta de crédito para o semantic pass (código != 0)
+  // — os dois casos são "não rodou", nenhum é fatal aqui.
+  let graphifyRan = false
+  try {
+    const rGraphify = await executarPrograma(
+      'executavel', 'graphify', ['update', '.'],
+      { cwd: repoRoot, env: ambientePadrao(), timeoutMs: 60_000 },
+    )
+    graphifyRan = rGraphify.code === 0
+  } catch {
+    // graphify não instalado nesta máquina — segue sem ele
+  }
+  // `graphifyRan: false` não é erro fatal aqui, é sinal para a mensagem abaixo (o `graph.json`
+  // pode já existir de uma execução anterior).
+
+  const graphPath = join(repoRoot, 'graphify-out', 'graph.json')
+  if (!existsSync(graphPath)) {
+    return graphifyRan
+      ? 'graphify rodou mas graph.json não encontrado'
+      : 'graphify-out/graph.json não encontrado — rode graphify update . primeiro'
+  }
+
+  const graph: GraphifyGraph = JSON.parse(readFileSync(graphPath, 'utf8'))
+  const moduleSummary = buildModuleSummary(graph, repoRoot)
+
+  const totalNodes = graph.nodes.length
+  // dumps reais usam "links", não "edges" — "edges" é só pro tipo legado/teste
+  const totalEdges = (graph.links ?? graph.edges ?? []).length
+  const totalFiles = new Set(graph.nodes.map(n => n.source_file).filter(Boolean)).size
+
+  let lineageLine = 'Lineage de código: não sincronizado (sem projectId)'
+  if (payload.projectId) {
+    try {
+      const { files, edges } = extractFileLineage(graph, repoRoot)
+      const apiUrl = process.env.AGENT_API_URL ?? 'http://localhost:3101'
+      const token = process.env.AGENT_TOKEN ?? ''
+      const synced = await postJson(`${apiUrl}/v2/lineage/files/sync`, token, {
+        projectId: payload.projectId,
+        files,
+        edges,
+      }) as { nodes?: number; edges?: number }
+      lineageLine = `Lineage de código sincronizado: ${synced.nodes ?? files.length} arquivos, ${synced.edges ?? edges.length} dependências`
+    } catch (err) {
+      lineageLine = `Lineage de código: falha ao sincronizar (${(err as Error).message})`
+    }
+  }
+
+  const report = [
+    `# Graphify — Snapshot de Arquitetura`,
+    `Atualizado: ${new Date().toISOString()}`,
+    `Grafo: ${totalNodes} nós, ${totalEdges} arestas, ${totalFiles} arquivos`,
+    lineageLine,
+    ``,
+    `## Módulos e arquivos`,
+    moduleSummary,
+  ].join('\n')
+
+  return report
+}
