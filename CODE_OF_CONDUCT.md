@@ -42,7 +42,7 @@ Este Código de Conduta se aplica em todos os espaços da comunidade e também q
 
 ## Aplicação
 
-Comportamentos abusivos, de assédio ou de outra forma inaceitáveis podem ser reportados aos líderes da comunidade responsáveis pela aplicação em **contato@rayzen.dev**.
+Comportamentos abusivos, de assédio ou de outra forma inaceitáveis podem ser reportados aos líderes da comunidade responsáveis pela aplicação em **marcelo@rayzen.com.br**.
 
 Todas as reclamações serão revisadas e investigadas de forma rápida e justa.
 

@@ -4,5 +4,5 @@ contact_links:
     url: https://github.com/marcelorayzen/Rayzen-AI/discussions
     about: Para dúvidas gerais, ideias e discussões sobre o projeto
   - name: Reportar vulnerabilidade de segurança
-    url: mailto:contato@rayzen.dev
+    url: mailto:marcelo@rayzen.com.br
     about: NÃO abra uma issue pública para vulnerabilidades — use e-mail direto
